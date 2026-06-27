@@ -1,0 +1,895 @@
+<!DOCTYPE html>
+<html lang="ro" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>EduSmart AI - Dual Mode Warm Space</title>
+    <!-- Fonturi Premium: Playfair Display pentru titluri elegante, Plus Jakarta Sans pentru text ultra-lizibil -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400..700;1,400..700&family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <!-- FontAwesome pentru iconițe stilizate -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <!-- Tailwind CSS cu configurare de culori duale calde -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        // 1. PALETA LIGHT MODE: Crem Monocrom
+                        warmBg: '#FAF7F2',       // Fundal principal cald (Paper/Eggshell)
+                        warmCard: '#FCFAF7',     // Carduri/Containere (Fildeș delicat)
+                        warmBorder: '#E6DFD3',   // Linii de demarcație organice, moi
+                        warmText: '#2C2621',     // Text principal (Cărbune cald, odihnitor)
+                        warmMuted: '#6B6259',    // Text secundar (Maro prăfuit stins)
+                        warmHover: '#F5EFE4',    // Hover subtil cald
+                        warmPrimary: '#3E352F',  // Butoane principale (Espresso intens)
+                        warmPrimaryHover: '#29221E',
+                        warmPrimaryLight: '#F3ECE0',
+                        
+                        // 2. PALETA DARK MODE: Warm Night (Espresso Dark)
+                        darkBg: '#14110F',       // Fundal principal închis (Cafea neagră stinsă)
+                        darkCard: '#1C1815',     // Carduri/Containere închise (Maro-cărbune profund)
+                        darkBorder: '#302823',   // Linii de demarcație calde, ne-agresive
+                        darkText: '#F3ECE0',     // Text principal (Papirus cald deschis, contrast redus)
+                        darkMuted: '#A09285',    // Text secundar stins în întuneric
+                        darkHover: '#241E1A',    // Hover discret cald închis
+                        darkPrimary: '#EADBC8',  // Butoane principale în dark mode (Fildeș auriu stins)
+                        darkPrimaryHover: '#DCCBB5',
+                        darkPrimaryLight: '#231E1A',
+
+                        // 3. SECȚIUNE CULORI SEMANTICE (Muted / Contrast Protejat)
+                        // Light Semantics
+                        sageBg: '#F1F4EE',       // Succes
+                        sageText: '#3B4D36',
+                        sageBorder: '#D2DDD0',
+                        clayBg: '#FAF3F0',       // Error/Alert
+                        clayText: '#733B2B',
+                        clayBorder: '#ECCEC6',
+                        sandBg: '#FAF6EE',       // Warning
+                        sandText: '#664E1B',
+                        sandBorder: '#E9DEC7',
+                        stoneBg: '#F1F4F5',      // Info / Tip
+                        stoneText: '#2E3F47',
+                        stoneBorder: '#D4DEE1',
+
+                        // Dark Semantics (Optimizate pentru contrast scăzut pe fundal închis)
+                        darkSageBg: '#1B241A',   // Succes Dark (Verde măsliniu stins)
+                        darkSageText: '#AFD2A9',
+                        darkSageBorder: '#2B3B2A',
+                        darkClayBg: '#281A18',   // Error Dark (Argilă stinsă)
+                        darkClayText: '#E6A79A',
+                        darkClayBorder: '#472B25',
+                        darkSandBg: '#282216',   // Warning Dark (Nisip cald închis)
+                        darkSandText: '#E9CFA0',
+                        darkSandBorder: '#4D3B23',
+                        darkStoneBg: '#182124',  // Info Dark (Piatră umedă)
+                        darkStoneText: '#A8CAD4',
+                        darkStoneBorder: '#27383E'
+                    },
+                    fontFamily: {
+                        sans: ['Plus Jakarta Sans', 'Inter', 'sans-serif'],
+                        serif: ['Playfair Display', 'serif']
+                    }
+                }
+            }
+        }
+    </script>
+
+    <style>
+        body {
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease;
+        }
+
+        /* Stiluri specifice pentru Flashcard 3D flip */
+        .perspective-1000 {
+            perspective: 1000px;
+        }
+        .transform-style-3d {
+            transform-style: preserve-3d;
+        }
+        .backface-hidden {
+            backface-visibility: hidden;
+        }
+        .rotate-y-180 {
+            transform: rotateY(180deg);
+        }
+
+        /* Scrollbar personalizat cald (separat pentru light/dark) */
+        ::-webkit-scrollbar {
+            width: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        .dark ::-webkit-scrollbar-thumb {
+            background: #302823;
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #E6DFD3;
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #D5CBB8;
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col bg-warmBg text-warmText dark:bg-darkBg dark:text-darkText">
+
+    <!-- Header Elegant, Minimalist Dual-Mode -->
+    <header class="border-b border-warmBorder dark:border-darkBorder bg-warmCard/85 dark:bg-darkCard/85 backdrop-blur-md sticky top-0 z-50 px-6 py-4">
+        <div class="max-w-7xl mx-auto flex flex-col sm:flex-row justify-between items-center gap-4">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-xl bg-warmPrimary dark:bg-darkPrimary flex items-center justify-center text-warmBg dark:text-darkBg shadow-sm transition-all duration-300">
+                    <i class="fa-solid fa-feather-pointed text-lg"></i>
+                </div>
+                <div>
+                    <span class="font-serif text-2xl font-bold tracking-tight text-warmPrimary dark:text-darkPrimary">EduSmart AI</span>
+                    <span class="text-xs block text-warmMuted dark:text-darkMuted font-medium tracking-wide uppercase">Workspace Cald Dual-Mode</span>
+                </div>
+            </div>
+
+            <!-- Meniul principal de navigare interactivă -->
+            <nav class="flex items-center gap-1 bg-warmHover dark:bg-darkHover p-1 rounded-xl border border-warmBorder/60 dark:border-darkBorder/60">
+                <button onclick="switchTab('dashboard')" id="nav-dashboard" class="nav-btn px-4 py-2 rounded-lg text-sm font-medium transition-all bg-warmCard dark:bg-darkCard text-warmPrimary dark:text-darkPrimary shadow-sm border border-warmBorder/40 dark:border-darkBorder/40">
+                    <i class="fa-solid fa-grip-vertical mr-2"></i>Dashboard
+                </button>
+                <button onclick="switchTab('upload')" id="nav-upload" class="nav-btn px-4 py-2 rounded-lg text-sm font-medium text-warmMuted dark:text-darkMuted transition-all hover:text-warmPrimary dark:hover:text-darkPrimary">
+                    <i class="fa-solid fa-file-arrow-up mr-2"></i>Încarcă Curs
+                </button>
+                <button onclick="switchTab('flashcards')" id="nav-flashcards" class="nav-btn px-4 py-2 rounded-lg text-sm font-medium text-warmMuted dark:text-darkMuted transition-all hover:text-warmPrimary dark:hover:text-darkPrimary">
+                    <i class="fa-solid fa-layer-group mr-2"></i>Flashcards
+                </button>
+                <button onclick="switchTab('quiz')" id="nav-quiz" class="nav-btn px-4 py-2 rounded-lg text-sm font-medium text-warmMuted dark:text-darkMuted transition-all hover:text-warmPrimary dark:hover:text-darkPrimary">
+                    <i class="fa-solid fa-circle-question mr-2"></i>Quiz
+                </button>
+                <button onclick="switchTab('guide')" id="nav-guide" class="nav-btn px-4 py-2 rounded-lg text-sm font-medium text-warmMuted dark:text-darkMuted transition-all hover:text-warmPrimary dark:hover:text-darkPrimary">
+                    <i class="fa-solid fa-palette mr-2"></i>Ghid Culori
+                </button>
+            </nav>
+
+            <!-- Streak, Comutator Mod Cald/Noapte & Utilizator -->
+            <div class="flex items-center gap-3">
+                <!-- Streak de studiu -->
+                <div class="hidden md:flex items-center gap-2 bg-sandBg dark:bg-darkSandBg border border-sandBorder dark:border-darkSandBorder px-3 py-1.5 rounded-lg text-xs font-semibold text-sandText dark:text-darkSandText">
+                    <span>🔥 12 Zile</span>
+                </div>
+
+                <!-- Buton Toggle Theme (Crem / Noapte) -->
+                <button onclick="toggleTheme()" class="w-10 h-10 rounded-xl border border-warmBorder dark:border-darkBorder bg-warmCard dark:bg-darkCard hover:bg-warmHover dark:hover:bg-darkHover flex items-center justify-center text-warmText dark:text-darkText transition-all" title="Schimbă între Modul Cald și Modul Noapte">
+                    <i id="theme-icon" class="fa-solid fa-moon text-sm"></i>
+                </button>
+
+                <div class="w-8 h-8 rounded-full bg-warmPrimaryLight dark:bg-darkPrimaryLight border border-warmBorder dark:border-darkBorder flex items-center justify-center text-xs font-bold text-warmPrimary dark:text-darkPrimary">
+                    AM
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Content Area -->
+    <main class="flex-grow max-w-7xl w-full mx-auto px-6 py-8">
+        
+        <!-- ==========================================================
+             TAB 1: DASHBOARD OVERVIEW
+             ========================================================== -->
+        <div id="tab-dashboard" class="tab-content block space-y-8">
+            <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                <div>
+                    <h1 class="font-serif text-3xl md:text-4xl font-semibold text-warmPrimary dark:text-darkPrimary mb-1">Cameră de studiu</h1>
+                    <p class="text-warmMuted dark:text-darkMuted text-sm md:text-base">AI-ul a structurat 3 cursuri recent. Ce vrei să aprofundezi astăzi?</p>
+                </div>
+                <button onclick="switchTab('upload')" class="bg-warmPrimary hover:bg-warmPrimaryHover dark:bg-darkPrimary dark:hover:bg-darkPrimaryHover text-warmBg dark:text-darkBg px-5 py-2.5 rounded-xl font-medium transition-all shadow-sm text-sm inline-flex items-center gap-2">
+                    <i class="fa-solid fa-plus"></i> Încarcă un curs nou
+                </button>
+            </div>
+
+            <!-- Statistici rapide în tonuri calde (Light / Dark Adaptive) -->
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                <div class="bg-warmCard dark:bg-darkCard border border-warmBorder dark:border-darkBorder rounded-2xl p-6 shadow-sm hover:border-warmPrimary/30 dark:hover:border-darkPrimary/30 transition-all">
+                    <div class="flex justify-between items-start mb-4">
+                        <span class="text-xs font-semibold text-warmMuted dark:text-darkMuted uppercase tracking-wider">Timp de studiu</span>
+                        <span class="p-1.5 bg-warmPrimaryLight dark:bg-darkPrimaryLight text-warmPrimary dark:text-darkPrimary rounded-lg text-xs"><i class="fa-solid fa-clock"></i></span>
+                    </div>
+                    <div class="flex items-baseline gap-2">
+                        <span class="text-4xl font-serif font-bold text-warmPrimary dark:text-darkPrimary">4.2h</span>
+                        <span class="text-xs text-sageText dark:text-darkSageText font-medium bg-sageBg dark:bg-darkSageBg px-2 py-0.5 rounded-full">+12% vs ieri</span>
+                    </div>
+                </div>
+
+                <div class="bg-warmCard dark:bg-darkCard border border-warmBorder dark:border-darkBorder rounded-2xl p-6 shadow-sm hover:border-warmPrimary/30 dark:hover:border-darkPrimary/30 transition-all">
+                    <div class="flex justify-between items-start mb-4">
+                        <span class="text-xs font-semibold text-warmMuted dark:text-darkMuted uppercase tracking-wider">Flashcards Repetate</span>
+                        <span class="p-1.5 bg-warmPrimaryLight dark:bg-darkPrimaryLight text-warmPrimary dark:text-darkPrimary rounded-lg text-xs"><i class="fa-solid fa-clone"></i></span>
+                    </div>
+                    <div class="flex items-baseline gap-2">
+                        <span class="text-4xl font-serif font-bold text-warmPrimary dark:text-darkPrimary">124</span>
+                        <span class="text-xs text-warmMuted dark:text-darkMuted">din 150 țintă</span>
+                    </div>
+                </div>
+
+                <div class="bg-warmCard dark:bg-darkCard border border-warmBorder dark:border-darkBorder rounded-2xl p-6 shadow-sm hover:border-warmPrimary/30 dark:hover:border-darkPrimary/30 transition-all">
+                    <div class="flex justify-between items-start mb-4">
+                        <span class="text-xs font-semibold text-warmMuted dark:text-darkMuted uppercase tracking-wider">Acuratețe Teste</span>
+                        <span class="p-1.5 bg-warmPrimaryLight dark:bg-darkPrimaryLight text-warmPrimary dark:text-darkPrimary rounded-lg text-xs"><i class="fa-solid fa-chart-line"></i></span>
+                    </div>
+                    <div class="flex items-baseline gap-2">
+                        <span class="text-4xl font-serif font-bold text-warmPrimary dark:text-darkPrimary">86%</span>
+                        <span class="text-xs text-sageText dark:text-darkSageText font-medium bg-sageBg dark:bg-darkSageBg px-2 py-0.5 rounded-full">Excelent</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Secțiune Cursuri Active (Carduri adaptive premium) -->
+            <div class="space-y-4">
+                <h2 class="font-serif text-2xl font-semibold text-warmPrimary dark:text-darkPrimary">Mapele tale de studiu</h2>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <!-- Card Curs 1 -->
+                    <div class="bg-warmCard dark:bg-darkCard border border-warmBorder dark:border-darkBorder rounded-2xl p-6 shadow-sm hover:border-warmPrimary/40 dark:hover:border-darkPrimary/40 transition-all flex flex-col justify-between">
+                        <div>
+                            <div class="flex justify-between items-start mb-3">
+                                <span class="text-xs font-medium text-warmMuted dark:text-darkMuted bg-warmHover dark:bg-darkHover px-2.5 py-1 rounded-md">Biologie Celulară</span>
+                                <span class="text-xs text-warmMuted dark:text-darkMuted"><i class="fa-solid fa-calendar mr-1"></i> Ieri</span>
+                            </div>
+                            <h3 class="font-serif text-xl font-semibold text-warmPrimary dark:text-darkPrimary mb-2">Capitolul 3: Sinteza Proteinelor</h3>
+                            <p class="text-warmMuted dark:text-darkMuted text-sm mb-6">AI-ul a extras 18 flashcard-uri, un rezumat dinamic și un test cu 10 întrebări grilă.</p>
+                        </div>
+                        <div class="space-y-4">
+                            <!-- Progress Bar moale -->
+                            <div>
+                                <div class="flex justify-between text-xs text-warmMuted dark:text-darkMuted mb-1.5 font-medium">
+                                    <span>Progres memorare</span>
+                                    <span>70%</span>
+                                </div>
+                                <div class="w-full h-1.5 bg-warmHover dark:bg-darkHover border border-warmBorder/60 dark:border-darkBorder/60 rounded-full overflow-hidden">
+                                    <div class="h-full bg-warmPrimary dark:bg-darkPrimary" style="width: 70%;"></div>
+                                </div>
+                            </div>
+                            <div class="flex gap-2">
+                                <button onclick="switchTab('flashcards')" class="flex-grow bg-warmHover dark:bg-darkHover hover:bg-warmBorder dark:hover:bg-darkBorder text-warmPrimary dark:text-darkPrimary text-xs font-semibold py-2.5 px-4 rounded-xl transition-all border border-warmBorder/80 dark:border-darkBorder/80">
+                                    Repetă Flashcards
+                                </button>
+                                <button onclick="switchTab('quiz')" class="bg-warmPrimary hover:bg-warmPrimaryHover dark:bg-darkPrimary dark:hover:bg-darkPrimaryHover text-warmBg dark:text-darkBg text-xs font-semibold py-2.5 px-4 rounded-xl transition-all">
+                                    Dă Testul
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Card Curs 2 -->
+                    <div class="bg-warmCard dark:bg-darkCard border border-warmBorder dark:border-darkBorder rounded-2xl p-6 shadow-sm hover:border-warmPrimary/40 dark:hover:border-darkPrimary/40 transition-all flex flex-col justify-between">
+                        <div>
+                            <div class="flex justify-between items-start mb-3">
+                                <span class="text-xs font-medium text-warmMuted dark:text-darkMuted bg-warmHover dark:bg-darkHover px-2.5 py-1 rounded-md">Chimie Organică</span>
+                                <span class="text-xs text-warmMuted dark:text-darkMuted"><i class="fa-solid fa-calendar mr-1"></i> Acum 3 zile</span>
+                            </div>
+                            <h3 class="font-serif text-xl font-semibold text-warmPrimary dark:text-darkPrimary mb-2">Compuși Macromoleculari</h3>
+                            <p class="text-warmMuted dark:text-darkMuted text-sm mb-6">Analiză structurată pe baza notițelor tale scanate de la laboratorul de marți.</p>
+                        </div>
+                        <div class="space-y-4">
+                            <div>
+                                <div class="flex justify-between text-xs text-warmMuted dark:text-darkMuted mb-1.5 font-medium">
+                                    <span>Progres memorare</span>
+                                    <span>40%</span>
+                                </div>
+                                <div class="w-full h-1.5 bg-warmHover dark:bg-darkHover border border-warmBorder/60 dark:border-darkBorder/60 rounded-full overflow-hidden">
+                                    <div class="h-full bg-warmPrimary dark:bg-darkPrimary" style="width: 40%;"></div>
+                                </div>
+                            </div>
+                            <div class="flex gap-2">
+                                <button onclick="switchTab('flashcards')" class="flex-grow bg-warmHover dark:bg-darkHover hover:bg-warmBorder dark:hover:bg-darkBorder text-warmPrimary dark:text-darkPrimary text-xs font-semibold py-2.5 px-4 rounded-xl transition-all border border-warmBorder/80 dark:border-darkBorder/80">
+                                    Repetă Flashcards
+                                </button>
+                                <button onclick="switchTab('quiz')" class="bg-warmPrimary hover:bg-warmPrimaryHover dark:bg-darkPrimary dark:hover:bg-darkPrimaryHover text-warmBg dark:text-darkBg text-xs font-semibold py-2.5 px-4 rounded-xl transition-all">
+                                    Dă Testul
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ==========================================================
+             TAB 2: UPLOAD & SIMULARE AI
+             ========================================================== -->
+        <div id="tab-upload" class="tab-content hidden max-w-3xl mx-auto space-y-6">
+            <div class="text-center">
+                <h2 class="font-serif text-3xl font-semibold text-warmPrimary dark:text-darkPrimary mb-2">Încarcă documentele tale</h2>
+                <p class="text-warmMuted dark:text-darkMuted text-sm max-w-md mx-auto">Trage notițele de curs, scanările sau fișierele PDF. AI-ul le va analiza și le va converti într-un plan de studiu relaxant vizual.</p>
+            </div>
+
+            <!-- Zona de Upload Interactivă în noul stil cald (Dark/Light adaptive) -->
+            <div id="dropzone" class="border-2 border-dashed border-warmBorder dark:border-darkBorder bg-warmCard dark:bg-darkCard hover:bg-warmHover/50 dark:hover:bg-darkHover/50 transition-all rounded-3xl p-10 text-center cursor-pointer flex flex-col items-center justify-center min-h-[300px]" onclick="triggerFileSelect()">
+                <input type="file" id="file-input" class="hidden" accept=".pdf,.docx,.txt" onchange="handleFileSelect(event)">
+                <div class="w-16 h-16 rounded-2xl bg-warmPrimaryLight dark:bg-darkPrimaryLight text-warmPrimary dark:text-darkPrimary flex items-center justify-center mb-4 transition-colors">
+                    <i class="fa-solid fa-cloud-arrow-up text-2xl"></i>
+                </div>
+                <h3 class="text-lg font-semibold text-warmPrimary dark:text-darkPrimary mb-1">Click sau trage fișierul aici</h3>
+                <p class="text-xs text-warmMuted dark:text-darkMuted max-w-xs mb-4">Sunt acceptate formatele PDF, Word sau TXT (max. 50 MB)</p>
+                <button class="bg-warmPrimary hover:bg-warmPrimaryHover dark:bg-darkPrimary dark:hover:bg-darkPrimaryHover text-warmBg dark:text-darkBg text-xs font-semibold px-4 py-2 rounded-xl transition-all">
+                    Răsfoiește calculatorul
+                </button>
+            </div>
+
+            <!-- Bara de progres pentru simulare -->
+            <div id="upload-progress-container" class="hidden bg-warmCard dark:bg-darkCard border border-warmBorder dark:border-darkBorder rounded-2xl p-6 space-y-3">
+                <div class="flex justify-between items-center text-sm font-medium">
+                    <span class="flex items-center gap-2 text-warmPrimary dark:text-darkPrimary">
+                        <i class="fa-solid fa-spinner animate-spin text-warmMuted dark:text-darkMuted"></i>
+                        AI-ul structurează și generează planul...
+                    </span>
+                    <span id="progress-percent" class="text-warmMuted dark:text-darkMuted">0%</span>
+                </div>
+                <div class="w-full h-2 bg-warmHover dark:bg-darkHover rounded-full overflow-hidden border border-warmBorder/60 dark:border-darkBorder/60">
+                    <div id="progress-bar" class="h-full bg-warmPrimary dark:bg-darkPrimary transition-all duration-300" style="width: 0%;"></div>
+                </div>
+            </div>
+
+            <!-- Mesaj de Succes Custom post-upload -->
+            <div id="upload-success" class="hidden">
+                <div class="flex items-start gap-4 p-5 bg-sageBg dark:bg-darkSageBg border border-sageBorder dark:border-darkSageBorder rounded-2xl text-sageText dark:text-darkSageText">
+                    <i class="fa-solid fa-circle-check text-xl mt-0.5"></i>
+                    <div class="space-y-1.5">
+                        <p class="font-bold text-sm">Procesare Finalizată!</p>
+                        <p class="text-xs opacity-90 leading-relaxed">Cursul tău <span class="font-semibold" id="loaded-filename">Bio_Celula_C3.pdf</span> a fost mapat corect. AI-ul a generat instantaneu flashcard-urile și quiz-ul în noua ta temă odihnitoare.</p>
+                        <button onclick="switchTab('flashcards')" class="mt-2 bg-sageText dark:bg-darkSageText border border-sageBorder/40 dark:border-darkSageBorder/40 hover:opacity-90 text-xs font-semibold px-4 py-2 rounded-xl transition-all">
+                            Începe Studiul
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ==========================================================
+             TAB 3: FLASHCARDS (3D FLIP INTERACTIV)
+             ========================================================== -->
+        <div id="tab-flashcards" class="tab-content hidden max-w-2xl mx-auto space-y-8">
+            <div class="text-center">
+                <h2 class="font-serif text-3xl font-semibold text-warmPrimary dark:text-darkPrimary mb-1">Flashcards Interactive</h2>
+                <p class="text-warmMuted dark:text-darkMuted text-sm">Apasă pe card pentru a-l întoarce și a vedea răspunsul. Fără elemente agresive vizual.</p>
+            </div>
+
+            <!-- Cardul 3D Flip Container -->
+            <div class="perspective-1000 w-full max-w-md mx-auto h-80 cursor-pointer" onclick="flipCard()">
+                <div id="flashcard" class="transform-style-3d relative w-full h-full duration-500 transform transition-all">
+                    
+                    <!-- Fața Cardului (Întrebarea) -->
+                    <div class="backface-hidden absolute inset-0 w-full h-full bg-warmCard dark:bg-darkCard border border-warmBorder dark:border-darkBorder rounded-3xl p-8 flex flex-col justify-between shadow-sm">
+                        <div class="flex justify-between items-center">
+                            <span class="text-xs font-semibold text-warmMuted dark:text-darkMuted tracking-wider uppercase">Faza Întrebării</span>
+                            <span class="text-xs bg-warmHover dark:bg-darkHover px-2.5 py-1 rounded-md text-warmMuted dark:text-darkMuted">AI Generated</span>
+                        </div>
+                        <div class="text-center">
+                            <h3 id="card-question" class="font-serif text-2xl font-semibold text-warmPrimary dark:text-darkPrimary leading-snug">Care este funcția principală a ribozomilor în celulă?</h3>
+                        </div>
+                        <div class="text-center text-xs text-warmMuted dark:text-darkMuted">
+                            <i class="fa-solid fa-rotate mr-1"></i> Apasă pentru a întoarce
+                        </div>
+                    </div>
+
+                    <!-- Spatele Cardului (Răspunsul) -->
+                    <div class="backface-hidden rotate-y-180 absolute inset-0 w-full h-full bg-warmCard dark:bg-darkCard border border-warmBorder dark:border-darkBorder rounded-3xl p-8 flex flex-col justify-between shadow-sm">
+                        <div class="flex justify-between items-center">
+                            <span class="text-xs font-semibold text-warmMuted dark:text-darkMuted tracking-wider uppercase">Faza Răspunsului</span>
+                            <span class="text-xs bg-sageBg dark:bg-darkSageBg px-2.5 py-1 rounded-md text-sageText dark:text-darkSageText font-semibold border border-sageBorder/40 dark:border-darkSageBorder/40">Corect</span>
+                        </div>
+                        <div class="text-center">
+                            <p id="card-answer" class="text-lg text-warmText dark:text-darkText font-medium leading-relaxed">Ribozomii au rolul principal de a sintetiza proteinele din celulă, prin traducerea ARNm.</p>
+                        </div>
+                        <div class="text-center text-xs text-warmMuted dark:text-darkMuted">
+                            Răspunsul este corect?
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+
+            <!-- Butoanele de feedback (Gamificare Muted) -->
+            <div class="flex justify-center gap-4 max-w-md mx-auto">
+                <button onclick="handleCardFeedback(false)" class="flex-1 border border-clayBorder dark:border-darkClayBorder bg-clayBg dark:bg-darkClayBg hover:opacity-90 text-clayText dark:text-darkClayText font-semibold py-3 px-6 rounded-2xl transition-all text-sm inline-flex justify-center items-center gap-2 shadow-sm">
+                    <i class="fa-solid fa-xmark"></i> Nu am știut
+                </button>
+                <button onclick="handleCardFeedback(true)" class="flex-1 border border-sageBorder dark:border-darkSageBorder bg-sageBg dark:bg-darkSageBg hover:opacity-90 text-sageText dark:text-darkSageText font-semibold py-3 px-6 rounded-2xl transition-all text-sm inline-flex justify-center items-center gap-2 shadow-sm">
+                    <i class="fa-solid fa-check"></i> Am reținut
+                </button>
+            </div>
+
+            <!-- Progresul Pachetului -->
+            <div class="text-center text-sm text-warmMuted dark:text-darkMuted">
+                Card <span id="current-card-num" class="font-bold text-warmPrimary dark:text-darkPrimary">1</span> din <span class="font-bold">4</span> în pachet
+            </div>
+        </div>
+
+        <!-- ==========================================================
+             TAB 4: INTERACTIVE QUIZ
+             ========================================================== -->
+        <div id="tab-quiz" class="tab-content hidden max-w-2xl mx-auto space-y-6">
+            <div class="text-center">
+                <h2 class="font-serif text-3xl font-semibold text-warmPrimary dark:text-darkPrimary mb-1">Testul Tău de Evaluare</h2>
+                <p class="text-warmMuted dark:text-darkMuted text-sm">Fără grabă. Evaluarea este concepută cu contrast redus pentru confort maxim.</p>
+            </div>
+
+            <!-- Card Quiz -->
+            <div class="bg-warmCard dark:bg-darkCard border border-warmBorder dark:border-darkBorder rounded-3xl p-8 shadow-sm space-y-6">
+                <div class="flex justify-between items-center">
+                    <span class="text-xs font-semibold text-warmMuted dark:text-darkMuted tracking-wider uppercase">Întrebarea 1 din 1</span>
+                    <span class="text-xs bg-warmHover dark:bg-darkHover px-2.5 py-1 rounded-md text-warmMuted dark:text-darkMuted">Biologie</span>
+                </div>
+
+                <h3 class="font-serif text-2xl font-semibold text-warmPrimary dark:text-darkPrimary leading-snug">Care dintre următoarele organite celulare este cunoscută drept „centrala energetică” a celulei?</h3>
+
+                <!-- Variante de răspuns interactive -->
+                <div class="space-y-3">
+                    <button onclick="selectQuizOption('option1')" id="option1" class="quiz-option w-full text-left p-4 rounded-2xl border border-warmBorder dark:border-darkBorder bg-warmCard dark:bg-darkCard hover:bg-warmHover dark:hover:bg-darkHover text-warmText dark:text-darkText transition-all font-medium text-sm flex justify-between items-center">
+                        <span>A. Ribozomii</span>
+                        <span class="option-check hidden"><i class="fa-regular fa-circle"></i></span>
+                    </button>
+                    <button onclick="selectQuizOption('option2')" id="option2" class="quiz-option w-full text-left p-4 rounded-2xl border border-warmBorder dark:border-darkBorder bg-warmCard dark:bg-darkCard hover:bg-warmHover dark:hover:bg-darkHover text-warmText dark:text-darkText transition-all font-medium text-sm flex justify-between items-center">
+                        <span>B. Aparatul Golgi</span>
+                        <span class="option-check hidden"><i class="fa-regular fa-circle"></i></span>
+                    </button>
+                    <button onclick="selectQuizOption('option3')" id="option3" class="quiz-option w-full text-left p-4 rounded-2xl border border-warmBorder dark:border-darkBorder bg-warmCard dark:bg-darkCard hover:bg-warmHover dark:hover:bg-darkHover text-warmText dark:text-darkText transition-all font-medium text-sm flex justify-between items-center">
+                        <span>C. Mitocondria</span>
+                        <span class="option-check hidden"><i class="fa-regular fa-circle"></i></span>
+                    </button>
+                    <button onclick="selectQuizOption('option4')" id="option4" class="quiz-option w-full text-left p-4 rounded-2xl border border-warmBorder dark:border-darkBorder bg-warmCard dark:bg-darkCard hover:bg-warmHover dark:hover:bg-darkHover text-warmText dark:text-darkText transition-all font-medium text-sm flex justify-between items-center">
+                        <span>D. Lizozomii</span>
+                        <span class="option-check hidden"><i class="fa-regular fa-circle"></i></span>
+                    </button>
+                </div>
+
+                <div class="pt-4 border-t border-warmBorder dark:border-darkBorder flex justify-end">
+                    <button onclick="submitQuiz()" class="bg-warmPrimary hover:bg-warmPrimaryHover dark:bg-darkPrimary dark:hover:bg-darkPrimaryHover text-warmBg dark:text-darkBg px-6 py-3 rounded-xl font-semibold transition-all text-sm">
+                        Trimite răspunsul
+                    </button>
+                </div>
+            </div>
+
+            <!-- Rezultat Quiz sub formă de notificare semantică integrată caldă -->
+            <div id="quiz-feedback" class="hidden">
+                <div id="quiz-alert-box" class="flex items-start gap-4 p-5 rounded-2xl border">
+                    <i id="quiz-icon" class="text-xl mt-0.5"></i>
+                    <div class="space-y-1">
+                        <p id="quiz-title" class="font-bold text-sm"></p>
+                        <p id="quiz-msg" class="text-xs opacity-90 leading-relaxed"></p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ==========================================================
+             TAB 5: GHID COMPLET CULORI DUAL-MODE (Light & Dark)
+             ========================================================== -->
+        <div id="tab-guide" class="tab-content hidden space-y-8">
+            <div class="max-w-3xl">
+                <h2 class="font-serif text-3xl font-semibold text-warmPrimary dark:text-darkPrimary mb-2">Ghid de Design: Crem Monocrom vs Warm Night</h2>
+                <p class="text-warmMuted dark:text-darkMuted text-sm">Design conceput exclusiv pentru lectură profundă și protecție oculară. Apasă pe codurile HEX pentru copiere rapidă.</p>
+            </div>
+
+            <!-- Grila culorilor active în mod dinamic -->
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                <!-- Color Card: Backgrounds (Light & Dark) -->
+                <div class="bg-warmCard dark:bg-darkCard border border-warmBorder dark:border-darkBorder rounded-2xl p-5 shadow-sm space-y-4">
+                    <div class="flex gap-2">
+                        <div class="flex-1 h-16 rounded-xl bg-[#FAF7F2] border border-warmBorder flex items-end p-2" title="Light Background">
+                            <span class="text-[10px] font-mono font-bold text-[#2C2621]">#FAF7F2</span>
+                        </div>
+                        <div class="flex-1 h-16 rounded-xl bg-[#14110F] border border-darkBorder flex items-end p-2" title="Dark Background">
+                            <span class="text-[10px] font-mono font-bold text-[#F3ECE0]">#14110F</span>
+                        </div>
+                    </div>
+                    <div>
+                        <h4 class="font-serif text-lg font-semibold text-warmPrimary dark:text-darkPrimary">Backgrounds Calde</h4>
+                        <p class="text-xs text-warmMuted dark:text-darkMuted mt-1">Light (Papirus) sau Dark (Espresso). Zero stralucire agresivă de albastru sau alb pur.</p>
+                    </div>
+                    <div class="flex gap-2">
+                        <button onclick="copyToClipboard('#FAF7F2')" class="flex-1 text-[11px] font-medium py-1.5 rounded-lg border border-warmBorder dark:border-darkBorder bg-warmHover dark:bg-darkHover text-warmText dark:text-darkText transition-all">
+                            Light HEX
+                        </button>
+                        <button onclick="copyToClipboard('#14110F')" class="flex-1 text-[11px] font-medium py-1.5 rounded-lg border border-warmBorder dark:border-darkBorder bg-warmHover dark:bg-darkHover text-warmText dark:text-darkText transition-all">
+                            Dark HEX
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Color Card: Surface/Cards (Light & Dark) -->
+                <div class="bg-warmCard dark:bg-darkCard border border-warmBorder dark:border-darkBorder rounded-2xl p-5 shadow-sm space-y-4">
+                    <div class="flex gap-2">
+                        <div class="flex-1 h-16 rounded-xl bg-[#FCFAF7] border border-warmBorder flex items-end p-2" title="Light Card">
+                            <span class="text-[10px] font-mono font-bold text-[#2C2621]">#FCFAF7</span>
+                        </div>
+                        <div class="flex-1 h-16 rounded-xl bg-[#1C1815] border border-darkBorder flex items-end p-2" title="Dark Card">
+                            <span class="text-[10px] font-mono font-bold text-[#F3ECE0]">#1C1815</span>
+                        </div>
+                    </div>
+                    <div>
+                        <h4 class="font-serif text-lg font-semibold text-warmPrimary dark:text-darkPrimary">Surfaces / Carduri</h4>
+                        <p class="text-xs text-warmMuted dark:text-darkMuted mt-1">Contrast fluid și rafinat pentru cutii de text, flashcards și secțiuni.</p>
+                    </div>
+                    <div class="flex gap-2">
+                        <button onclick="copyToClipboard('#FCFAF7')" class="flex-1 text-[11px] font-medium py-1.5 rounded-lg border border-warmBorder dark:border-darkBorder bg-warmHover dark:bg-darkHover text-warmText dark:text-darkText transition-all">
+                            Light HEX
+                        </button>
+                        <button onclick="copyToClipboard('#1C1815')" class="flex-1 text-[11px] font-medium py-1.5 rounded-lg border border-warmBorder dark:border-darkBorder bg-warmHover dark:bg-darkHover text-warmText dark:text-darkText transition-all">
+                            Dark HEX
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Color Card: Primary/Text (Light & Dark) -->
+                <div class="bg-warmCard dark:bg-darkCard border border-warmBorder dark:border-darkBorder rounded-2xl p-5 shadow-sm space-y-4">
+                    <div class="flex gap-2">
+                        <div class="flex-1 h-16 rounded-xl bg-[#2C2621] border border-warmBorder flex items-end p-2" title="Light Text">
+                            <span class="text-[10px] font-mono font-bold text-[#FAF7F2]">#2C2621</span>
+                        </div>
+                        <div class="flex-1 h-16 rounded-xl bg-[#F3ECE0] border border-darkBorder flex items-end p-2" title="Dark Text">
+                            <span class="text-[10px] font-mono font-bold text-[#14110F]">#F3ECE0</span>
+                        </div>
+                    </div>
+                    <div>
+                        <h4 class="font-serif text-lg font-semibold text-warmPrimary dark:text-darkPrimary">Cărbune Cald & Fildeș</h4>
+                        <p class="text-xs text-warmMuted dark:text-darkMuted mt-1">Culorile primare de scriere și accentuare. Nu provoacă stres retinian.</p>
+                    </div>
+                    <div class="flex gap-2">
+                        <button onclick="copyToClipboard('#2C2621')" class="flex-1 text-[11px] font-medium py-1.5 rounded-lg border border-warmBorder dark:border-darkBorder bg-warmHover dark:bg-darkHover text-warmText dark:text-darkText transition-all">
+                            Light HEX
+                        </button>
+                        <button onclick="copyToClipboard('#F3ECE0')" class="flex-1 text-[11px] font-medium py-1.5 rounded-lg border border-warmBorder dark:border-darkBorder bg-warmHover dark:bg-darkHover text-warmText dark:text-darkText transition-all">
+                            Dark HEX
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Color Card: Sage Success (Light & Dark) -->
+                <div class="bg-warmCard dark:bg-darkCard border border-warmBorder dark:border-darkBorder rounded-2xl p-5 shadow-sm space-y-4">
+                    <div class="flex gap-2">
+                        <div class="flex-1 h-16 rounded-xl bg-[#F1F4EE] border border-[#D2DDD0] flex items-end p-2" title="Light Sage">
+                            <span class="text-[10px] font-mono font-bold text-[#3B4D36]">#F1F4EE</span>
+                        </div>
+                        <div class="flex-1 h-16 rounded-xl bg-[#1B241A] border border-[#2B3B2A] flex items-end p-2" title="Dark Sage">
+                            <span class="text-[10px] font-mono font-bold text-[#AFD2A9]">#1B241A</span>
+                        </div>
+                    </div>
+                    <div>
+                        <h4 class="font-serif text-lg font-semibold text-warmPrimary dark:text-darkPrimary">Sage Muted (Succes)</h4>
+                        <p class="text-xs text-warmMuted dark:text-darkMuted mt-1">Verde organic stins (Sage) adaptat perfect pentru ambele medii luminoase.</p>
+                    </div>
+                    <div class="flex gap-2">
+                        <button onclick="copyToClipboard('#F1F4EE')" class="flex-1 text-[11px] font-medium py-1.5 rounded-lg border border-warmBorder dark:border-darkBorder bg-warmHover dark:bg-darkHover text-warmText dark:text-darkText transition-all">
+                            Light HEX
+                        </button>
+                        <button onclick="copyToClipboard('#1B241A')" class="flex-1 text-[11px] font-medium py-1.5 rounded-lg border border-warmBorder dark:border-darkBorder bg-warmHover dark:bg-darkHover text-warmText dark:text-darkText transition-all">
+                            Dark HEX
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Color Card: Clay Danger (Light & Dark) -->
+                <div class="bg-warmCard dark:bg-darkCard border border-warmBorder dark:border-darkBorder rounded-2xl p-5 shadow-sm space-y-4">
+                    <div class="flex gap-2">
+                        <div class="flex-1 h-16 rounded-xl bg-[#FAF3F0] border border-[#ECCEC6] flex items-end p-2" title="Light Clay">
+                            <span class="text-[10px] font-mono font-bold text-[#733B2B]">#FAF3F0</span>
+                        </div>
+                        <div class="flex-1 h-16 rounded-xl bg-[#281A18] border border-[#472B25] flex items-end p-2" title="Dark Clay">
+                            <span class="text-[10px] font-mono font-bold text-[#E6A79A]">#281A18</span>
+                        </div>
+                    </div>
+                    <div>
+                        <h4 class="font-serif text-lg font-semibold text-warmPrimary dark:text-darkPrimary">Clay Muted (Erori)</h4>
+                        <p class="text-xs text-warmMuted dark:text-darkMuted mt-1">Tonuri fine de argilă/terracotta pentru avertizări sau erori, deloc țipătoare.</p>
+                    </div>
+                    <div class="flex gap-2">
+                        <button onclick="copyToClipboard('#FAF3F0')" class="flex-1 text-[11px] font-medium py-1.5 rounded-lg border border-warmBorder dark:border-darkBorder bg-warmHover dark:bg-darkHover text-warmText dark:text-darkText transition-all">
+                            Light HEX
+                        </button>
+                        <button onclick="copyToClipboard('#281A18')" class="flex-1 text-[11px] font-medium py-1.5 rounded-lg border border-warmBorder dark:border-darkBorder bg-warmHover dark:bg-darkHover text-warmText dark:text-darkText transition-all">
+                            Dark HEX
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Color Card: Organic Borders (Light & Dark) -->
+                <div class="bg-warmCard dark:bg-darkCard border border-warmBorder dark:border-darkBorder rounded-2xl p-5 shadow-sm space-y-4">
+                    <div class="flex gap-2">
+                        <div class="flex-1 h-16 rounded-xl bg-[#E6DFD3] border border-warmBorder flex items-end p-2" title="Light Border">
+                            <span class="text-[10px] font-mono font-bold text-[#2C2621]">#E6DFD3</span>
+                        </div>
+                        <div class="flex-1 h-16 rounded-xl bg-[#302823] border border-darkBorder flex items-end p-2" title="Dark Border">
+                            <span class="text-[10px] font-mono font-bold text-[#F3ECE0]">#302823</span>
+                        </div>
+                    </div>
+                    <div>
+                        <h4 class="font-serif text-lg font-semibold text-warmPrimary dark:text-darkPrimary">Organic Borders</h4>
+                        <p class="text-xs text-warmMuted dark:text-darkMuted mt-1">Linii calde și moi care definesc structura elementelor fără a crea distorsiuni vizuale.</p>
+                    </div>
+                    <div class="flex gap-2">
+                        <button onclick="copyToClipboard('#E6DFD3')" class="flex-1 text-[11px] font-medium py-1.5 rounded-lg border border-warmBorder dark:border-darkBorder bg-warmHover dark:bg-darkHover text-warmText dark:text-darkText transition-all">
+                            Light HEX
+                        </button>
+                        <button onclick="copyToClipboard('#302823')" class="flex-1 text-[11px] font-medium py-1.5 rounded-lg border border-warmBorder dark:border-darkBorder bg-warmHover dark:bg-darkHover text-warmText dark:text-darkText transition-all">
+                            Dark HEX
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Prezentare de Alerte în mod Dual (Light / Dark Adaptive) -->
+            <div class="bg-warmCard dark:bg-darkCard border border-warmBorder dark:border-darkBorder rounded-3xl p-8 space-y-6">
+                <h3 class="font-serif text-2xl font-semibold text-warmPrimary dark:text-darkPrimary">Sistemul de Alerte Semantice Muted (Adaptive)</h3>
+                <p class="text-warmMuted dark:text-darkMuted text-xs">Aceste mesaje își schimbă automat structura de culori și contrastul pentru a se asorta cu modul luminos sau întunecat ales de student.</p>
+                
+                <div class="space-y-4">
+                    <!-- Succes -->
+                    <div class="flex items-start gap-4 p-4 bg-sageBg dark:bg-darkSageBg border border-sageBorder dark:border-darkSageBorder rounded-xl text-sageText dark:text-darkSageText">
+                        <i class="fa-solid fa-circle-check text-lg mt-0.5"></i>
+                        <div>
+                            <p class="font-bold text-sm">Upload Reușit</p>
+                            <p class="text-xs opacity-90">Fișierul tău „Curs_Sinteza.pdf” a fost mapat corect în baza ta de cunoștințe.</p>
+                        </div>
+                    </div>
+
+                    <!-- Warning -->
+                    <div class="flex items-start gap-4 p-4 bg-sandBg dark:bg-darkSandBg border border-sandBorder dark:border-darkSandBorder rounded-xl text-sandText dark:text-darkSandText">
+                        <i class="fa-solid fa-triangle-exclamation text-lg mt-0.5"></i>
+                        <div>
+                            <p class="font-bold text-sm">Acțiune Necesară</p>
+                            <p class="text-xs opacity-90">Nu ai mai efectuat un test de retenție pentru acest curs de peste 48 de ore.</p>
+                        </div>
+                    </div>
+
+                    <!-- Info/AI Hint -->
+                    <div class="flex items-start gap-4 p-4 bg-stoneBg dark:bg-darkStoneBg border border-stoneBorder dark:border-darkStoneBorder rounded-xl text-stoneText dark:text-darkStoneText">
+                        <i class="fa-solid fa-lightbulb text-lg mt-0.5"></i>
+                        <div>
+                            <p class="font-bold text-sm">Sfat AI (Tip)</p>
+                            <p class="text-xs opacity-90 font-medium">Încearcă tehnica repetiției spațiate pentru a îmbunătăți reținerea termenilor biologici.</p>
+                        </div>
+                    </div>
+
+                    <!-- Error -->
+                    <div class="flex items-start gap-4 p-4 bg-clayBg dark:bg-darkClayBg border border-clayBorder dark:border-darkClayBorder rounded-xl text-clayText dark:text-darkClayText">
+                        <i class="fa-solid fa-circle-xmark text-lg mt-0.5"></i>
+                        <div>
+                            <p class="font-bold text-sm">Răspuns Incorect</p>
+                            <p class="text-xs opacity-90">„Ribozomii” se ocupă cu traducerea proteinelor, nu „Mitocondria”. Încearcă din nou.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </main>
+
+    <!-- Footer subtil -->
+    <footer class="border-t border-warmBorder/60 dark:border-darkBorder/60 py-6 text-center text-xs text-warmMuted dark:text-darkMuted mt-12 bg-warmCard/40 dark:bg-darkCard/40">
+        <p>© 2026 EduSmart AI. Proiectat cu grijă pentru concentrarea și vederea studenților.</p>
+    </footer>
+
+    <!-- Logica de funcționare, Comutare Teme și Simulatorul Interactive -->
+    <script>
+        // Set de date pentru flashcarduri
+        const flashcardsDataset = [
+            { question: "Care este funcția principală a ribozomilor în celulă?", answer: "Ribozomii au rolul principal de a sintetiza proteinele din celulă, prin traducerea ARNm." },
+            { question: "Unde este stocată cea mai mare parte a ADN-ului celular?", answer: "Cea mai mare parte a informației genetice (ADN) este stocată în nucleul celulei." },
+            { question: "Ce organit este responsabil pentru procesul de fotosinteză?", answer: "Cloroplastele (specifice celulelor vegetale) sunt responsabile de fotosinteză." },
+            { question: "Ce tip de transport celular necesită consum de energie (ATP)?", answer: "Transportul activ necesită energie celulară pentru a muta molecule împotriva gradientului." }
+        ];
+
+        let currentCardIndex = 0;
+        let isCardFlipped = false;
+
+        // Comutarea temei (Light Mode -> Warm Cream / Dark Mode -> Warm Night)
+        function toggleTheme() {
+            const htmlElement = document.documentElement;
+            const themeIcon = document.getElementById('theme-icon');
+            
+            if (htmlElement.classList.contains('dark')) {
+                // Trecem în Light Mode (Warm Cream)
+                htmlElement.classList.remove('dark');
+                themeIcon.className = "fa-solid fa-moon text-sm";
+            } else {
+                // Trecem în Dark Mode (Warm Night)
+                htmlElement.classList.add('dark');
+                themeIcon.className = "fa-solid fa-sun text-sm";
+            }
+        }
+
+        // Schimbarea Tab-urilor (Smooth Navigation)
+        function switchTab(tabId) {
+            // Ascunderea tuturor secțiunilor
+            const tabs = document.querySelectorAll('.tab-content');
+            tabs.forEach(tab => tab.classList.add('hidden'));
+            
+            // Afișarea tabului dorit
+            document.getElementById(`tab-${tabId}`).classList.remove('hidden');
+
+            // Actualizarea stării butoanelor din header (suport pentru clase dark: active)
+            const buttons = document.querySelectorAll('.nav-btn');
+            buttons.forEach(btn => {
+                btn.className = "nav-btn px-4 py-2 rounded-lg text-sm font-medium text-warmMuted dark:text-darkMuted transition-all hover:text-warmPrimary dark:hover:text-darkPrimary";
+            });
+
+            const activeBtn = document.getElementById(`nav-${tabId}`);
+            if (activeBtn) {
+                activeBtn.className = "nav-btn px-4 py-2 rounded-lg text-sm font-medium transition-all bg-warmCard dark:bg-darkCard text-warmPrimary dark:text-darkPrimary shadow-sm border border-warmBorder/40 dark:border-darkBorder/40";
+            }
+
+            // Resetare stare flashcard la tab change
+            if(tabId === 'flashcards') {
+                resetFlashcard();
+            }
+        }
+
+        // Simulare Drag & Drop
+        function triggerFileSelect() {
+            document.getElementById('file-input').click();
+        }
+
+        function handleFileSelect(event) {
+            const file = event.target.files[0];
+            if (file) {
+                simulateProcessing(file.name);
+            }
+        }
+
+        // Simulare procesare AI caldă, fără stres vizual
+        function simulateProcessing(filename) {
+            const dropzone = document.getElementById('dropzone');
+            const progressContainer = document.getElementById('upload-progress-container');
+            const progressBar = document.getElementById('progress-bar');
+            const progressPercent = document.getElementById('progress-percent');
+            const successBox = document.getElementById('upload-success');
+
+            dropzone.classList.add('hidden');
+            progressContainer.classList.remove('hidden');
+            successBox.classList.add('hidden');
+
+            let progress = 0;
+            const interval = setInterval(() => {
+                progress += 5;
+                progressBar.style.width = `${progress}%`;
+                progressPercent.innerText = `${progress}%`;
+
+                if (progress >= 100) {
+                    clearInterval(interval);
+                    setTimeout(() => {
+                        progressContainer.classList.add('hidden');
+                        document.getElementById('loaded-filename').innerText = filename;
+                        successBox.classList.remove('hidden');
+                    }, 400);
+                }
+            }, 100);
+        }
+
+        // Logică Flashcards
+        function flipCard() {
+            const flashcard = document.getElementById('flashcard');
+            isCardFlipped = !isCardFlipped;
+            if (isCardFlipped) {
+                flashcard.classList.add('rotate-y-180');
+            } else {
+                flashcard.classList.remove('rotate-y-180');
+            }
+        }
+
+        function resetFlashcard() {
+            const flashcard = document.getElementById('flashcard');
+            isCardFlipped = false;
+            flashcard.classList.remove('rotate-y-180');
+            
+            // Actualizare text conform index curent
+            document.getElementById('card-question').innerText = flashcardsDataset[currentCardIndex].question;
+            document.getElementById('card-answer').innerText = flashcardsDataset[currentCardIndex].answer;
+            document.getElementById('current-card-num').innerText = currentCardIndex + 1;
+        }
+
+        function handleCardFeedback(isSuccess) {
+            // Trecem la următorul card cu un flip smooth
+            const flashcard = document.getElementById('flashcard');
+            
+            // Reîntoarcem cardul mai întâi înainte de a-l schimba
+            if (isCardFlipped) {
+                flashcard.classList.remove('rotate-y-180');
+                isCardFlipped = false;
+            }
+
+            setTimeout(() => {
+                currentCardIndex = (currentCardIndex + 1) % flashcardsDataset.length;
+                resetFlashcard();
+            }, 250);
+        }
+
+        // Logică Quiz
+        let selectedOptionId = null;
+        function selectQuizOption(optionId) {
+            // Resetăm restul opțiunilor
+            const options = document.querySelectorAll('.quiz-option');
+            options.forEach(opt => {
+                opt.className = "quiz-option w-full text-left p-4 rounded-2xl border border-warmBorder dark:border-darkBorder bg-warmCard dark:bg-darkCard hover:bg-warmHover dark:hover:bg-darkHover text-warmText dark:text-darkText transition-all font-medium text-sm flex justify-between items-center";
+                opt.querySelector('.option-check').classList.add('hidden');
+            });
+
+            // Marcăm opțiunea selectată (adaptivă pe culorile primare)
+            selectedOptionId = optionId;
+            const activeOpt = document.getElementById(optionId);
+            activeOpt.className = "quiz-option w-full text-left p-4 rounded-2xl border border-warmPrimary dark:border-darkPrimary bg-warmPrimaryLight/50 dark:bg-darkPrimaryLight/50 text-warmText dark:text-darkText transition-all font-medium text-sm flex justify-between items-center";
+            activeOpt.querySelector('.option-check').classList.remove('hidden');
+        }
+
+        function submitQuiz() {
+            const feedbackContainer = document.getElementById('quiz-feedback');
+            const alertBox = document.getElementById('quiz-alert-box');
+            const alertIcon = document.getElementById('quiz-icon');
+            const alertTitle = document.getElementById('quiz-title');
+            const alertMsg = document.getElementById('quiz-msg');
+
+            feedbackContainer.classList.remove('hidden');
+
+            if (!selectedOptionId) {
+                // Alerta de atenționare / warning nisip cald
+                alertBox.className = "flex items-start gap-4 p-5 bg-sandBg dark:bg-darkSandBg border border-sandBorder dark:border-darkSandBorder rounded-2xl text-sandText dark:text-darkSandText";
+                alertIcon.className = "fa-solid fa-triangle-exclamation text-xl mt-0.5";
+                alertTitle.innerText = "Alege o opțiune";
+                alertMsg.innerText = "Vă rugăm să bifați unul dintre răspunsurile de mai sus înainte de trimitere.";
+                return;
+            }
+
+            if (selectedOptionId === 'option3') { // Mitocondria (Corect)
+                // Alerta Succes Sage
+                alertBox.className = "flex items-start gap-4 p-5 bg-sageBg dark:bg-darkSageBg border border-sageBorder dark:border-darkSageBorder rounded-2xl text-sageText dark:text-darkSageText";
+                alertIcon.className = "fa-solid fa-circle-check text-xl mt-0.5";
+                alertTitle.innerText = "Răspuns Corect! Excelent.";
+                alertMsg.innerText = "Mitocondria este într-adevăr responsabilă pentru producția de ATP celular, acționând ca o centrală energetică.";
+            } else {
+                // Alerta Eșec Terracotta
+                alertBox.className = "flex items-start gap-4 p-5 bg-clayBg dark:bg-darkClayBg border border-clayBorder dark:border-darkClayBorder rounded-2xl text-clayText dark:text-darkClayText";
+                alertIcon.className = "fa-solid fa-circle-xmark text-xl mt-0.5";
+                alertTitle.innerText = "Incorect, mai repetă puțin.";
+                alertMsg.innerText = "Organitul corect este Mitocondria. Ribozomii produc proteine, aparatul Golgi stochează lipide/proteine, iar lizozomii se ocupă cu digestia.";
+            }
+        }
+
+        // Funcție utilitară pentru copiere HEX codes cu avertizare discretă
+        function copyToClipboard(text) {
+            const dummy = document.createElement("textarea");
+            document.body.appendChild(dummy);
+            dummy.value = text;
+            dummy.select();
+            document.execCommand("copy");
+            document.body.removeChild(dummy);
+            
+            // Creează o notificare discretă tip toast adaptivă light/dark
+            const toast = document.createElement("div");
+            toast.className = "fixed bottom-5 right-5 bg-warmPrimary dark:bg-darkPrimary text-warmBg dark:text-darkBg text-xs font-semibold py-2.5 px-4 rounded-xl shadow-lg transition-all duration-300 transform translate-y-2 opacity-0";
+            toast.innerText = `Copiat în clipboard: ${text}`;
+            document.body.appendChild(toast);
+            
+            setTimeout(() => {
+                toast.classList.remove('translate-y-2', 'opacity-0');
+            }, 50);
+
+            setTimeout(() => {
+                toast.classList.add('translate-y-2', 'opacity-0');
+                setTimeout(() => toast.remove(), 300);
+            }, 2000);
+        }
+
+        // Setează Dark Mode ca fiind default pe baza clasei html (opțional)
+        window.onload = function() {
+            // Setează iconița conform stării de pornire (care este închisă 'class="dark"')
+            const themeIcon = document.getElementById('theme-icon');
+            if (document.documentElement.classList.contains('dark')) {
+                themeIcon.className = "fa-solid fa-sun text-sm";
+            } else {
+                themeIcon.className = "fa-solid fa-moon text-sm";
+            }
+        }
+    </script>
+</body>
+</html>
