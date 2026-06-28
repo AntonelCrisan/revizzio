@@ -542,6 +542,18 @@ export function AccountDashboard({
               </Icon>
               Setări
             </Link>
+            {user.role === "admin" ? (
+              <Link
+                href="/admin/settings"
+                className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold text-content transition hover:bg-surface-hover"
+              >
+                <Icon className="h-[18px] w-[18px]">
+                  <path d="M12 3 20 6v6c0 5-3.4 8.5-8 9-4.6-.5-8-4-8-9V6l8-3z" />
+                  <path d="M9 12l2 2 4-4" />
+                </Icon>
+                Setări admin
+              </Link>
+            ) : null}
             <Link
               href="/upgrade"
               className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold text-content transition hover:bg-surface-hover"
@@ -549,7 +561,7 @@ export function AccountDashboard({
               <Icon className="h-[18px] w-[18px]">
                 <path d="M12 3l3.2 6.5 7.1 1-5.1 5 1.2 7-6.4-3.4-6.4 3.4 1.2-7-5.1-5 7.1-1L12 3z" />
               </Icon>
-              Upgrade
+              Abonament
             </Link>
           </nav>
 
@@ -622,7 +634,7 @@ export function AccountDashboard({
           <div className="mx-4 rounded-2xl border border-subtle bg-app p-4">
             <div className="flex items-center justify-between">
               <p className="text-xs font-bold tracking-[0.08em]">PLAN START</p>
-              <span className="text-[11px] text-muted">gratuit</span>
+              <span className="text-[11px] text-muted">Gratuit</span>
             </div>
             <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-subtle">
               <div className="h-full w-2/3 rounded-full bg-success" />
@@ -634,7 +646,7 @@ export function AccountDashboard({
               href="/upgrade"
               className="mt-3 flex items-center justify-center rounded-full border border-content px-3 py-2 text-xs font-bold transition hover:bg-content hover:text-app"
             >
-              Upgrade plan
+              Schimbă planul
             </Link>
           </div>
         </div>
@@ -669,30 +681,19 @@ export function AccountDashboard({
         </div>
       </aside>
 
-      <div className="min-w-0 flex-1">
-        <header className="sticky top-0 z-30 flex h-14 items-center justify-between border-b border-subtle bg-app px-3 backdrop-blur-xl">
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={() => setSidebarOpen(true)}
-              className="flex h-10 w-10 items-center justify-center rounded-xl text-content transition hover:bg-surface-hover lg:hidden"
-              aria-label="Deschide meniul"
-            >
-              <Icon className="h-5 w-5">
-                <path d="M3 6h18M3 12h18M3 18h18" />
-              </Icon>
-            </button>
-            <Logo />
-          </div>
+      <div className="relative min-w-0 flex-1">
+        <button
+          type="button"
+          onClick={() => setSidebarOpen(true)}
+          className="fixed left-4 top-4 z-30 flex h-11 w-11 items-center justify-center rounded-2xl border border-subtle bg-surface/95 text-content shadow-lg shadow-black/10 backdrop-blur-xl transition hover:bg-surface-hover lg:hidden"
+          aria-label="Deschide meniul"
+        >
+          <Icon className="h-5 w-5">
+            <path d="M3 6h18M3 12h18M3 18h18" />
+          </Icon>
+        </button>
 
-          <div className="flex items-center gap-2">
-            <span className="flex h-8 w-8 items-center justify-center rounded-full border border-subtle bg-success-soft text-xs font-bold text-success">
-              {initials(user.full_name)}
-            </span>
-          </div>
-        </header>
-
-        <main className="mx-auto w-full max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
+        <main className="mx-auto w-full max-w-7xl px-4 pb-6 pt-16 sm:px-6 lg:px-8 lg:py-6">
           {view === "home" ? (
             <HomeView
               firstName={firstName}

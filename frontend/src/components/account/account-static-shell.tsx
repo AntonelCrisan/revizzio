@@ -6,22 +6,31 @@ import { type ReactNode, useEffect, useState } from "react";
 import { useAuth } from "@/components/auth/auth-provider";
 import { BrandLogo } from "@/components/brand-logo";
 
-type AccountPageId = "dashboard" | "settings" | "upgrade";
+type AccountPageId = "dashboard" | "settings" | "upgrade" | "admin-settings";
 
 type AccountStaticShellProps = {
   activePage: AccountPageId;
   children: ReactNode;
 };
 
-const navigationItems = [
-  { href: "/myaccount", label: "Dashboard", page: "dashboard" },
-  { href: "/settings", label: "Setari", page: "settings" },
-  { href: "/upgrade", label: "Upgrade", page: "upgrade" },
-] satisfies Array<{
+type NavigationItem = {
   href: string;
   label: string;
   page: AccountPageId;
-}>;
+  adminOnly?: boolean;
+};
+
+const navigationItems = [
+  { href: "/myaccount", label: "Acasă", page: "dashboard" },
+  { href: "/settings", label: "Setări", page: "settings" },
+  {
+    href: "/admin/settings",
+    label: "Setări admin",
+    page: "admin-settings",
+    adminOnly: true,
+  },
+  { href: "/upgrade", label: "Abonament", page: "upgrade" },
+] satisfies NavigationItem[];
 
 function Icon({
   children,
@@ -114,7 +123,7 @@ export function AccountStaticShell({
       {sidebarOpen ? (
         <button
           type="button"
-          aria-label="Inchide meniul"
+          aria-label="Închide meniul"
           onClick={() => setSidebarOpen(false)}
           className="fixed inset-0 z-40 bg-black/40 lg:hidden"
         />
@@ -132,7 +141,7 @@ export function AccountStaticShell({
             type="button"
             onClick={() => setSidebarOpen(false)}
             className="flex h-10 w-10 items-center justify-center rounded-xl text-content transition hover:bg-surface-hover lg:hidden"
-            aria-label="Inchide meniul"
+            aria-label="Închide meniul"
           >
             <Icon className="h-5 w-5">
               <path d="M18 6 6 18M6 6l12 12" />
@@ -152,7 +161,9 @@ export function AccountStaticShell({
           </Link>
 
           <nav className="space-y-1 px-2">
-            {navigationItems.map((item) => {
+            {navigationItems
+              .filter((item) => !item.adminOnly || user.role === "admin")
+              .map((item) => {
               const isActive = item.page === activePage;
               return (
                 <Link
@@ -182,6 +193,12 @@ export function AccountStaticShell({
                         <path d="M12 3l3.2 6.5 7.1 1-5.1 5 1.2 7-6.4-3.4-6.4 3.4 1.2-7-5.1-5 7.1-1L12 3z" />
                       </>
                     ) : null}
+                    {item.page === "admin-settings" ? (
+                      <>
+                        <path d="M12 3 20 6v6c0 5-3.4 8.5-8 9-4.6-.5-8-4-8-9V6l8-3z" />
+                        <path d="M9 12l2 2 4-4" />
+                      </>
+                    ) : null}
                   </Icon>
                   {item.label}
                 </Link>
@@ -194,7 +211,7 @@ export function AccountStaticShell({
           <div className="mx-4 rounded-2xl border border-subtle bg-app p-4">
             <div className="flex items-center justify-between">
               <p className="text-xs font-bold tracking-[0.08em]">PLAN START</p>
-              <span className="text-[11px] text-muted">gratuit</span>
+              <span className="text-[11px] text-muted">Gratuit</span>
             </div>
             <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-subtle">
               <div className="h-full w-2/3 rounded-full bg-success" />
@@ -206,7 +223,7 @@ export function AccountStaticShell({
               href="/upgrade"
               className="mt-3 flex items-center justify-center rounded-full border border-content px-3 py-2 text-xs font-bold transition hover:bg-content hover:text-app"
             >
-              Upgrade plan
+              Schimbă planul
             </Link>
           </div>
         </div>
@@ -229,7 +246,7 @@ export function AccountStaticShell({
               onClick={handleLogout}
               disabled={isLoggingOut}
               className="flex h-9 w-9 items-center justify-center rounded-xl text-muted transition hover:bg-surface-hover hover:text-content disabled:cursor-wait disabled:opacity-60"
-              aria-label="Iesi din cont"
+              aria-label="Ieși din cont"
             >
               <Icon>
                 <path d="M10 17l5-5-5-5" />
@@ -241,30 +258,19 @@ export function AccountStaticShell({
         </div>
       </aside>
 
-      <div className="min-w-0 flex-1">
-        <header className="sticky top-0 z-30 flex h-14 items-center justify-between border-b border-subtle bg-app/95 px-3 backdrop-blur-xl">
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={() => setSidebarOpen(true)}
-              className="flex h-10 w-10 items-center justify-center rounded-xl text-content transition hover:bg-surface-hover lg:hidden"
-              aria-label="Deschide meniul"
-            >
-              <Icon className="h-5 w-5">
-                <path d="M3 6h18M3 12h18M3 18h18" />
-              </Icon>
-            </button>
-            <Logo />
-          </div>
+      <div className="relative min-w-0 flex-1">
+        <button
+          type="button"
+          onClick={() => setSidebarOpen(true)}
+          className="fixed left-4 top-4 z-30 flex h-11 w-11 items-center justify-center rounded-2xl border border-subtle bg-surface/95 text-content shadow-lg shadow-black/10 backdrop-blur-xl transition hover:bg-surface-hover lg:hidden"
+          aria-label="Deschide meniul"
+        >
+          <Icon className="h-5 w-5">
+            <path d="M3 6h18M3 12h18M3 18h18" />
+          </Icon>
+        </button>
 
-          <div className="flex items-center gap-2">
-            <span className="flex h-8 w-8 items-center justify-center rounded-full border border-subtle bg-success-soft text-xs font-bold text-success">
-              {initials(user.full_name)}
-            </span>
-          </div>
-        </header>
-
-        <main className="mx-auto max-w-6xl px-4 py-6 sm:px-6 lg:px-8">
+        <main className="mx-auto max-w-6xl px-4 pb-6 pt-16 sm:px-6 lg:px-8 lg:py-6">
           {children}
         </main>
       </div>

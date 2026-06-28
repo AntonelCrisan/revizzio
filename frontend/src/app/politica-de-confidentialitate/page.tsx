@@ -1,8 +1,9 @@
 import type { Metadata } from "next";
 import { LegalDocument } from "@/components/legal/legal-document";
 import { readLegalDocument } from "@/lib/legal-content";
+import { getServerLegalDocument } from "@/lib/server-legal";
 
-export const dynamic = "force-static";
+export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
   title: "Politica de confidențialitate | Revizzio",
@@ -11,7 +12,9 @@ export const metadata: Metadata = {
 };
 
 export default async function PrivacyPolicyPage() {
-  const contentHtml = await readLegalDocument("privacy.html");
+  const document = await getServerLegalDocument("privacy_policy");
+  const contentHtml =
+    document?.rendered_content_html ?? (await readLegalDocument("privacy.html"));
 
   return (
     <LegalDocument

@@ -1,10 +1,12 @@
 export type ThemePreference = "light" | "dark" | "system";
+export type UserRole = "admin" | "user";
 
 export type AuthUser = {
   id: string;
   email: string;
   full_name: string;
   is_active: boolean;
+  role: UserRole;
   created_at: string;
   theme_preference: ThemePreference;
 };

@@ -1,8 +1,9 @@
 import type { Metadata } from "next";
 import { LegalDocument } from "@/components/legal/legal-document";
 import { readLegalDocument } from "@/lib/legal-content";
+import { getServerLegalDocument } from "@/lib/server-legal";
 
-export const dynamic = "force-static";
+export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
   title: "Termeni și condiții | Revizzio",
@@ -10,7 +11,9 @@ export const metadata: Metadata = {
 };
 
 export default async function TermsPage() {
-  const contentHtml = await readLegalDocument("terms.html");
+  const document = await getServerLegalDocument("terms_conditions");
+  const contentHtml =
+    document?.rendered_content_html ?? (await readLegalDocument("terms.html"));
 
   return (
     <LegalDocument

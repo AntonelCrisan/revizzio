@@ -30,6 +30,7 @@ class UserRepository:
             full_name=full_name,
             email=email,
             password_hash=password_hash,
+            role="user",
             terms_accepted_at=terms_accepted_at,
             terms_version=terms_version,
             newsletter_consent=newsletter_consent,

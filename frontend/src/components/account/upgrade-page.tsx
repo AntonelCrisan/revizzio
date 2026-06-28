@@ -7,28 +7,28 @@ const plans = [
   {
     name: "Start",
     price: "0",
-    note: "RON / luna",
-    description: "Pentru primul curs si testarea fluxului.",
+    note: "RON / lună",
+    description: "Pentru primul curs și testarea fluxului.",
     cta: "Plan curent",
     paid: false,
     highlighted: false,
     features: [
       "3 materiale procesate lunar",
-      "Flashcard-uri si quiz-uri de baza",
+      "Flashcard-uri și quiz-uri de bază",
       "Istoric limitat al sesiunilor",
     ],
   },
   {
     name: "Focus",
     price: "29",
-    note: "RON / luna",
-    description: "Cel mai bun raport pentru studenti activi.",
+    note: "RON / lună",
+    description: "Cel mai bun raport pentru studenți activi.",
     cta: "Alege Focus",
     paid: true,
     highlighted: true,
     features: [
       "30 materiale procesate lunar",
-      "Repetitie inteligenta si strategii AI",
+      "Repetiție inteligentă și strategii AI",
       "Analiza progresului pe fiecare proiect",
       "Prioritate la generare",
     ],
@@ -36,14 +36,14 @@ const plans = [
   {
     name: "Pro",
     price: "59",
-    note: "RON / luna",
-    description: "Pentru sesiuni intense si mai multe materii.",
+    note: "RON / lună",
+    description: "Pentru sesiuni intense și mai multe materii.",
     cta: "Alege Pro",
     paid: true,
     highlighted: false,
     features: [
       "Materiale nelimitate rezonabil",
-      "Planuri de invatare pe examene",
+      "Planuri de învățare pe examene",
       "Export pentru rezumate si flashcard-uri",
       "Suport prioritar",
     ],
@@ -57,17 +57,17 @@ export function UpgradePage() {
         <div className="relative bg-action px-6 py-8 text-center text-on-action sm:px-8 sm:py-12">
           <div className="pointer-events-none absolute left-1/2 top-0 h-80 w-80 -translate-x-1/2 -translate-y-1/2 rounded-full border border-on-action/10" />
           <p className="text-xs font-bold uppercase tracking-[0.2em] text-on-action/60">
-            Upgrade plan
+            Abonament
           </p>
           <h1 className="mx-auto mt-4 max-w-3xl font-serif text-4xl font-semibold leading-tight sm:text-5xl">
-            Mai mult spatiu pentru cursuri. Mai putin haos in sesiune.
+            Mai mult spațiu pentru cursuri. Mai puțin haos în sesiune.
           </h1>
           <p className="mx-auto mt-4 max-w-2xl text-sm leading-7 text-on-action/70">
-            Planul Focus este pozitionat ca alegerea principala: suficient de
-            puternic pentru utilizare reala, fara costul unui plan mare.
+            Planul Focus este poziționat ca alegerea principală: suficient de
+            puternic pentru utilizare reală, fără costul unui plan mare.
           </p>
           <span className="mt-6 inline-flex rounded-full border border-success-border bg-success-soft px-4 py-2 text-xs font-bold text-success">
-            Poti schimba sau anula planul oricand
+            Poți schimba sau anula planul oricând
           </span>
         </div>
 
@@ -166,11 +166,11 @@ export function UpgradePage() {
         <div className="border-t border-subtle bg-app px-5 py-6 sm:px-8">
           <div className="grid gap-4 md:grid-cols-3">
             {[
-              ["Generare rapida", "Pachetele se creeaza in cateva momente."],
-              ["Datele raman ale tale", "Materialele sunt legate de contul tau."],
+              ["Generare rapidă", "Pachetele se creează în câteva momente."],
+              ["Datele rămân ale tale", "Materialele sunt legate de contul tău."],
               [
-                "Gandit pentru studenti",
-                "Preturi in RON, simple de inteles si comparat.",
+                "Gândit pentru studenți",
+                "Prețuri în RON, simple de înțeles și comparat.",
               ],
             ].map(([title, description]) => (
               <div key={title} className="rounded-2xl bg-surface p-4">

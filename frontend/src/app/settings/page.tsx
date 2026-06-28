@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import { SettingsPage } from "@/components/account/settings-page";
 
 export const metadata: Metadata = {
-  title: "Setari | Revizzio",
-  description: "Configureaza preferintele contului Revizzio.",
+  title: "Setări | Revizzio",
+  description: "Configurează preferințele contului Revizzio.",
 };
 
 export default function SettingsRoute() {

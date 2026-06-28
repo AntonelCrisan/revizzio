@@ -5,6 +5,11 @@ import { SiteFooter } from "@/components/legal/site-footer";
 import { FlashcardStory } from "@/components/marketing/flashcard-story";
 import { MarketingHeader } from "@/components/marketing/marketing-header";
 import { ScrollReveal } from "@/components/marketing/scroll-reveal";
+import type { SubscriptionPlan } from "@/lib/plans-api";
+import {
+  fallbackSubscriptionPlans,
+  getServerPublicPlans,
+} from "@/lib/server-plans";
 
 export const metadata: Metadata = {
   title: "Revizzio | Din cursuri în progres real",
@@ -135,7 +140,7 @@ const workflow = [
   },
 ];
 
-const pricingPlans = [
+const fallbackMarketingPricingPlans = [
   {
     name: "Start",
     description: "Pentru primul curs și primele sesiuni de studiu activ.",
@@ -149,6 +154,8 @@ const pricingPlans = [
     ],
     cta: "Începe gratuit",
     featured: false,
+    discount: "",
+    oldPrice: "",
   },
   {
     name: "Focus",
@@ -164,6 +171,8 @@ const pricingPlans = [
     ],
     cta: "Alege Focus",
     featured: true,
+    discount: "25% reducere lansare",
+    oldPrice: "39",
   },
   {
     name: "Exam Pro",
@@ -179,10 +188,77 @@ const pricingPlans = [
     ],
     cta: "Treci la Exam Pro",
     featured: false,
+    discount: "20 RON economie",
+    oldPrice: "79",
   },
 ] as const;
 
-export default function Home() {
+function formatPlanPrice(value: SubscriptionPlan["price_ron"]) {
+  const numericValue = Number(value);
+  if (!Number.isFinite(numericValue)) return String(value);
+  return Number.isInteger(numericValue)
+    ? String(numericValue)
+    : numericValue.toFixed(2).replace(".", ",");
+}
+
+function billingSuffix(interval: string) {
+  const normalized = interval.trim().toLowerCase();
+  if (normalized.includes("lun")) return "/ lună";
+  if (normalized.includes("an")) return "/ an";
+  return `/ ${interval}`;
+}
+
+function uniqueFeatures(features: string[]) {
+  const seen = new Set<string>();
+  return features.filter((feature) => {
+    const normalized = feature.trim();
+    if (!normalized || seen.has(normalized)) return false;
+    seen.add(normalized);
+    return true;
+  });
+}
+
+function toPricingPlans(plans: SubscriptionPlan[]) {
+  return [...plans]
+    .filter((plan) => plan.is_visible)
+    .sort((first, second) => first.sort_order - second.sort_order)
+    .map((plan) => {
+      const price = formatPlanPrice(plan.price_ron);
+      const isFree = Number(plan.price_ron) === 0;
+      const oldPrice = plan.old_price_ron
+        ? formatPlanPrice(plan.old_price_ron)
+        : "";
+      const sortedFeatures = [...plan.features].sort(
+        (first, second) => first.sort_order - second.sort_order,
+      );
+
+      return {
+        name: plan.name,
+        description: plan.description,
+        price,
+        suffix: isFree ? "gratuit" : billingSuffix(plan.billing_interval),
+        features: uniqueFeatures([
+          plan.material_limit,
+          plan.ai_level,
+          plan.storage,
+          ...sortedFeatures.map((feature) => feature.label),
+        ]),
+        cta: isFree ? "Începe gratuit" : `Alege ${plan.name}`,
+        featured: plan.is_featured,
+        discount: plan.discount_label ?? "",
+        oldPrice,
+      };
+    });
+}
+
+export default async function Home() {
+  const subscriptionPlans =
+    (await getServerPublicPlans()) ?? fallbackSubscriptionPlans;
+  const databasePricingPlans = toPricingPlans(subscriptionPlans);
+  const pricingPlans = databasePricingPlans.length
+    ? databasePricingPlans
+    : fallbackMarketingPricingPlans;
+
   return (
     <main className="min-h-screen overflow-x-clip bg-app text-content">
       <MarketingHeader />
@@ -613,7 +689,16 @@ export default function Home() {
                     </p>
                   </div>
 
-                  <div className="mt-8 flex items-end gap-2">
+                  <div className="mt-8 flex flex-wrap items-end gap-x-2 gap-y-1">
+                    {plan.oldPrice ? (
+                      <span
+                        className={`pb-1 text-lg font-black line-through ${
+                          plan.featured ? "text-on-action/45" : "text-muted"
+                        }`}
+                      >
+                        {plan.oldPrice}
+                      </span>
+                    ) : null}
                     <span className="font-serif text-6xl font-semibold leading-none">
                       {plan.price}
                     </span>
@@ -625,6 +710,18 @@ export default function Home() {
                       RON {plan.suffix}
                     </span>
                   </div>
+
+                  {plan.discount ? (
+                    <p
+                      className={`mt-3 w-fit rounded-full px-3 py-1 text-xs font-black ${
+                        plan.featured
+                          ? "bg-on-action/12 text-on-action"
+                          : "border border-success-border bg-success-soft text-success"
+                      }`}
+                    >
+                      {plan.discount}
+                    </p>
+                  ) : null}
 
                   <div
                     className={`my-8 h-px ${

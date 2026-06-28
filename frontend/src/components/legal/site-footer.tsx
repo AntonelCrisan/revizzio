@@ -8,9 +8,11 @@ import {
   legalLinks,
   supportLinks,
 } from "@/lib/legal-config";
+import { getFallbackCompanyData, getServerCompanyData } from "@/lib/server-legal";
 
-export function SiteFooter() {
+export async function SiteFooter() {
   const currentYear = new Date().getFullYear();
+  const companyData = (await getServerCompanyData()) ?? getFallbackCompanyData();
   const anpcLinks = [
     {
       href: legalConfig.anpcSalUrl,
@@ -91,31 +93,31 @@ export function SiteFooter() {
               <dl className="mt-5 space-y-2 text-xs leading-5 text-muted">
                 <div>
                   <dt className="sr-only">Denumire firmă</dt>
-                  <dd className="font-bold text-content">{legalConfig.companyName}</dd>
+                  <dd className="font-bold text-content">{companyData.name}</dd>
                 </div>
                 <div>
                   <dt className="font-bold text-content">Sediu social</dt>
-                  <dd>{legalConfig.registeredOffice}</dd>
+                  <dd>{companyData.social_location}</dd>
                 </div>
                 <div>
                   <dt className="font-bold text-content">CUI</dt>
-                  <dd>{legalConfig.cui}</dd>
+                  <dd>{companyData.cui}</dd>
                 </div>
                 <div>
                   <dt className="font-bold text-content">Nr. Registrul Comerțului</dt>
-                  <dd>{legalConfig.tradeRegisterNumber}</dd>
+                  <dd>{companyData.register_number}</dd>
                 </div>
                 <div>
                   <dt className="font-bold text-content">Capital social</dt>
-                  <dd>{legalConfig.shareCapital}</dd>
+                  <dd>{companyData.social_capital}</dd>
                 </div>
                 <div>
                   <dt className="font-bold text-content">E-mail</dt>
-                  <dd>{legalConfig.contactEmail}</dd>
+                  <dd>{companyData.email}</dd>
                 </div>
                 <div>
                   <dt className="font-bold text-content">Telefon</dt>
-                  <dd>{legalConfig.phone}</dd>
+                  <dd>{companyData.phone}</dd>
                 </div>
               </dl>
             </div>
@@ -125,7 +127,7 @@ export function SiteFooter() {
         <div className="mt-7 grid gap-6 xl:grid-cols-[1fr_auto] xl:items-center">
           <div className="text-xs leading-6 text-muted">
             <p>
-              © {currentYear} {legalConfig.companyName}. Toate drepturile
+              © {currentYear} {companyData.name}. Toate drepturile
               rezervate.
             </p>
             <p>{footerGeneratedContentDisclaimer}</p>

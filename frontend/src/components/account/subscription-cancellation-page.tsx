@@ -143,7 +143,7 @@ export function SubscriptionCancellationPage() {
             <ul className="mt-4 space-y-3 text-sm leading-6 text-muted">
               <li>Nu vei mai fi taxat la următoarea dată de facturare.</li>
               <li>Materialele și progresul rămân în cont.</li>
-              <li>Poți reactiva un plan oricând din pagina Upgrade.</li>
+              <li>Poți reactiva un plan oricând din pagina Abonament.</li>
             </ul>
           </aside>
         </div>

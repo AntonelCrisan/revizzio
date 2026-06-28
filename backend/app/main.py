@@ -8,6 +8,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.api.routes.auth import router as auth_router
 from app.api.routes.compliance import router as compliance_router
 from app.api.routes.health import router as health_router
+from app.api.routes.legal import router as legal_router
+from app.api.routes.plans import router as plans_router
 from app.core.config import get_settings
 from app.db.session import engine
 
@@ -37,13 +39,15 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.allowed_origins,
     allow_credentials=True,
-    allow_methods=["GET", "POST", "OPTIONS"],
+    allow_methods=["GET", "POST", "PUT", "PATCH", "OPTIONS"],
     allow_headers=["Content-Type", "X-Revizzio-Form-Intent"],
 )
 
 app.include_router(health_router)
 app.include_router(auth_router)
 app.include_router(compliance_router)
+app.include_router(legal_router)
+app.include_router(plans_router)
 
 
 @app.get("/")

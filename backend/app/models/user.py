@@ -18,6 +18,10 @@ class User(Base):
             "theme_preference IN ('light', 'dark', 'system')",
             name="ck_users_theme_preference",
         ),
+        CheckConstraint(
+            "role IN ('admin', 'user')",
+            name="ck_users_role",
+        ),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
@@ -29,6 +33,12 @@ class User(Base):
         nullable=False,
         default=True,
         server_default="true",
+    )
+    role: Mapped[str] = mapped_column(
+        String(16),
+        nullable=False,
+        default="user",
+        server_default="user",
     )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),

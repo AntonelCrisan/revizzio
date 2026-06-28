@@ -17,6 +17,7 @@ def build_user() -> User:
         full_name="Student Test",
         password_hash="not-returned-by-api",
         is_active=True,
+        role="user",
         created_at=datetime.now(UTC),
         updated_at=datetime.now(UTC),
         terms_accepted_at=datetime.now(UTC),
@@ -123,7 +124,23 @@ def test_me_returns_the_authenticated_user() -> None:
 
     assert response.status_code == 200
     assert response.json()["full_name"] == "Student Test"
+    assert response.json()["role"] == "user"
     assert response.json()["theme_preference"] == "system"
+
+
+def test_me_normalizes_role_padding_from_database() -> None:
+    user = build_user()
+    user.role = "admin    "
+    app.dependency_overrides[get_current_user] = lambda: user
+
+    try:
+        with TestClient(app) as client:
+            response = client.get("/api/auth/me")
+    finally:
+        app.dependency_overrides.clear()
+
+    assert response.status_code == 200
+    assert response.json()["role"] == "admin"
 
 
 def test_authenticated_user_can_update_theme_preference() -> None:
