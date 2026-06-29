@@ -2,7 +2,7 @@ from datetime import UTC, datetime
 from decimal import Decimal
 from uuid import UUID
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Request
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
@@ -12,6 +12,7 @@ from app.schemas.plans import (
     SubscriptionPlanResponse,
     SubscriptionPlansUpdate,
 )
+from app.services.audit import add_audit_log
 
 router = APIRouter(prefix="/api/plans", tags=["plans"])
 
@@ -79,6 +80,12 @@ DEFAULT_PLANS = [
         ],
     },
 ]
+
+
+def _client_context(request: Request) -> tuple[str | None, str | None]:
+    user_agent = request.headers.get("user-agent")
+    ip_address = request.client.host if request.client is not None else None
+    return user_agent, ip_address
 
 
 async def _ensure_default_plans(session: DbSession) -> None:
@@ -159,7 +166,8 @@ async def get_admin_plans(
 @router.put("/admin", response_model=list[SubscriptionPlanResponse])
 async def update_admin_plans(
     payload: SubscriptionPlansUpdate,
-    _: CurrentAdminUser,
+    request: Request,
+    admin_user: CurrentAdminUser,
     session: DbSession,
 ) -> list[SubscriptionPlanResponse]:
     await _ensure_default_plans(session)
@@ -220,6 +228,23 @@ async def update_admin_plans(
         if plan.id not in received_plan_ids and plan.slug not in received_slugs:
             await session.delete(plan)
 
+    user_agent, ip_address = _client_context(request)
+    add_audit_log(
+        session,
+        action="admin.subscription_plans.updated",
+        actor=admin_user,
+        resource_type="subscription_plans",
+        details={
+            "plan_count": len(payload.plans),
+            "slugs": [plan.slug for plan in payload.plans],
+            "featured_slugs": [
+                plan.slug for plan in payload.plans if plan.is_featured
+            ],
+            "visible_slugs": [plan.slug for plan in payload.plans if plan.is_visible],
+        },
+        ip_address=ip_address,
+        user_agent=user_agent,
+    )
     await session.commit()
 
     plans = await _get_plans(session, include_hidden=True)

@@ -7,7 +7,7 @@ import { AccountStaticShell } from "@/components/account/account-static-shell";
 type SettingsCard = {
   title: string;
   href: string;
-  icon: "document" | "shield" | "building" | "card";
+  icon: "document" | "shield" | "building" | "card" | "users" | "logs";
 };
 
 const legalCards: SettingsCard[] = [
@@ -33,6 +33,22 @@ const planCards: SettingsCard[] = [
     title: "Planuri și abonamente",
     href: "/admin/settings/planuri",
     icon: "card",
+  },
+];
+
+const userCards: SettingsCard[] = [
+  {
+    title: "Utilizatori",
+    href: "/admin/settings/utilizatori",
+    icon: "users",
+  },
+];
+
+const monitoringCards: SettingsCard[] = [
+  {
+    title: "Jurnal activitate",
+    href: "/admin/settings/loguri",
+    icon: "logs",
   },
 ];
 
@@ -82,6 +98,19 @@ function SettingsIcon({ icon }: { icon: SettingsCard["icon"] }) {
         <SvgIcon>
           <path d="M4 7h16a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2z" />
           <path d="M2 11h20M6 15h4" />
+        </SvgIcon>
+      ) : null}
+      {icon === "users" ? (
+        <SvgIcon>
+          <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+          <circle cx="9" cy="7" r="4" />
+          <path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" />
+        </SvgIcon>
+      ) : null}
+      {icon === "logs" ? (
+        <SvgIcon>
+          <path d="M5 4h14v16H5z" />
+          <path d="M8 8h8M8 12h8M8 16h5" />
         </SvgIcon>
       ) : null}
     </span>
@@ -145,6 +174,8 @@ export function AdminSettingsPage() {
 
         <SettingsGroup title="Aplicație și firmă" cards={legalCards} />
         <SettingsGroup title="Planuri" cards={planCards} />
+        <SettingsGroup title="Utilizatori și acces" cards={userCards} />
+        <SettingsGroup title="Monitorizare" cards={monitoringCards} />
       </section>
     </AccountStaticShell>
   );

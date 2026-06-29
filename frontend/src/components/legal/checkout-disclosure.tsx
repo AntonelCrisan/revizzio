@@ -4,6 +4,7 @@ type CheckoutDisclosureProps = {
   planName: string;
   price: string;
   period?: string;
+  paymentFrequency?: string;
   className?: string;
 };
 
@@ -11,6 +12,7 @@ export function CheckoutDisclosure({
   planName,
   price,
   period = "lunară",
+  paymentFrequency = "Lunar, cu reînnoire automată",
   className = "",
 }: CheckoutDisclosureProps) {
   return (
@@ -41,7 +43,7 @@ export function CheckoutDisclosure({
         </div>
         <div>
           <dt className="font-bold text-content">Frecvența plății</dt>
-          <dd>Lunar, cu reînnoire automată</dd>
+          <dd>{paymentFrequency}</dd>
         </div>
         <div>
           <dt className="font-bold text-content">Anulare</dt>

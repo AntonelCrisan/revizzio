@@ -1,3 +1,4 @@
+from app.models.audit import AuditLog
 from app.models.auth_session import AuthSession
 from app.models.compliance import (
     ComplianceEvent,
@@ -11,6 +12,7 @@ from app.models.subscription import SubscriptionPlan, SubscriptionPlanFeature
 from app.models.user import User
 
 __all__ = [
+    "AuditLog",
     "AuthSession",
     "CompanyData",
     "ComplianceEvent",

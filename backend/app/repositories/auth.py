@@ -90,9 +90,15 @@ class AuthSessionRepository:
             )
         )
 
-    async def revoke(self, *, token_hash: str, revoked_at: datetime) -> None:
+    async def revoke(
+        self,
+        *,
+        token_hash: str,
+        revoked_at: datetime,
+    ) -> AuthSession | None:
         auth_session = await self._session.scalar(
             select(AuthSession).where(AuthSession.token_hash == token_hash)
         )
         if auth_session is not None and auth_session.revoked_at is None:
             auth_session.revoked_at = revoked_at
+        return auth_session

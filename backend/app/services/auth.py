@@ -17,6 +17,7 @@ from app.models import User
 from app.repositories.auth import AuthSessionRepository, UserRepository
 from app.schemas.auth import LoginRequest, RegisterRequest
 from app.schemas.user import ThemePreference
+from app.services.audit import add_audit_log
 
 
 class EmailAlreadyRegisteredError(Exception):
@@ -55,6 +56,17 @@ class AuthService:
     ) -> AuthResult:
         email = payload.email.lower()
         if await self._users.get_by_email(email) is not None:
+            add_audit_log(
+                self._session,
+                action="auth.register_failed",
+                status="failure",
+                actor_email=email,
+                resource_type="user",
+                details={"email": email, "reason": "email_already_registered"},
+                ip_address=ip_address,
+                user_agent=user_agent,
+            )
+            await self._session.commit()
             raise EmailAlreadyRegisteredError
 
         password_hash = await to_thread.run_sync(
@@ -79,6 +91,20 @@ class AuthService:
                 user_agent=user_agent,
                 ip_address=ip_address,
             )
+            add_audit_log(
+                self._session,
+                action="auth.registered",
+                actor=user,
+                resource_type="user",
+                resource_id=str(user.id),
+                details={
+                    "email": email,
+                    "newsletter_consent": payload.newsletter_consent,
+                    "terms_version": self._settings.terms_version,
+                },
+                ip_address=ip_address,
+                user_agent=user_agent,
+            )
             await self._session.commit()
             return result
         except IntegrityError as exc:
@@ -99,6 +125,22 @@ class AuthService:
             user.password_hash if user is not None else dummy_password_hash,
         )
         if user is None or not user.is_active or not password_is_valid:
+            add_audit_log(
+                self._session,
+                action="auth.login_failed",
+                status="failure",
+                actor=user,
+                actor_email=payload.email.lower(),
+                resource_type="user",
+                resource_id=str(user.id) if user is not None else None,
+                details={
+                    "email": payload.email.lower(),
+                    "reason": "invalid_credentials_or_inactive_user",
+                },
+                ip_address=ip_address,
+                user_agent=user_agent,
+            )
+            await self._session.commit()
             raise InvalidCredentialsError
 
         result = await self._create_session(
@@ -106,6 +148,16 @@ class AuthService:
             persistent=payload.remember,
             user_agent=user_agent,
             ip_address=ip_address,
+        )
+        add_audit_log(
+            self._session,
+            action="auth.logged_in",
+            actor=user,
+            resource_type="user",
+            resource_id=str(user.id),
+            details={"remember_session": payload.remember},
+            ip_address=ip_address,
+            user_agent=user_agent,
         )
         await self._session.commit()
         return result
@@ -119,12 +171,33 @@ class AuthService:
             raise InvalidSessionError
         return auth_session.user
 
-    async def logout(self, token: str | None) -> None:
+    async def logout(
+        self,
+        token: str | None,
+        *,
+        user_agent: str | None = None,
+        ip_address: str | None = None,
+    ) -> None:
         if token is None:
             return
-        await self._sessions.revoke(
+        auth_session = await self._sessions.revoke(
             token_hash=self._hash_token(token),
             revoked_at=datetime.now(UTC),
+        )
+        add_audit_log(
+            self._session,
+            action="auth.logged_out" if auth_session is not None else "auth.logout_failed",
+            status="success" if auth_session is not None else "failure",
+            actor_user_id=auth_session.user_id if auth_session is not None else None,
+            resource_type="auth_session",
+            resource_id=str(auth_session.id) if auth_session is not None else None,
+            details={
+                "reason": "session_revoked"
+                if auth_session is not None
+                else "session_not_found",
+            },
+            ip_address=ip_address,
+            user_agent=user_agent,
         )
         await self._session.commit()
 
@@ -133,9 +206,21 @@ class AuthService:
         user: User,
         theme_preference: ThemePreference,
     ) -> User:
+        old_theme_preference = user.theme_preference
         updated_user = await self._users.update_theme_preference(
             user,
             theme_preference,
+        )
+        add_audit_log(
+            self._session,
+            action="user.preferences.updated",
+            actor=updated_user,
+            resource_type="user",
+            resource_id=str(updated_user.id),
+            details={
+                "theme_preference": theme_preference,
+                "previous_theme_preference": old_theme_preference,
+            },
         )
         await self._session.commit()
         return updated_user

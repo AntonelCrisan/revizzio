@@ -122,7 +122,12 @@ async def logout(
     service: AuthServiceDependency,
     settings: AppSettings,
 ) -> MessageResponse:
-    await service.logout(request.cookies.get(settings.session_cookie_name))
+    user_agent, ip_address = _client_context(request)
+    await service.logout(
+        request.cookies.get(settings.session_cookie_name),
+        user_agent=user_agent,
+        ip_address=ip_address,
+    )
     _clear_session_cookie(response, settings)
     return MessageResponse(message="Sesiunea a fost închisă.")
 

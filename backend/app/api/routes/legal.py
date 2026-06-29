@@ -2,7 +2,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 import re
 
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, HTTPException, Request, status
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
@@ -15,6 +15,7 @@ from app.schemas.legal import (
     LegalDocumentSectionResponse,
     LegalDocumentSectionUpdate,
 )
+from app.services.audit import add_audit_log
 from app.services.legal import PLACEHOLDER_KEYS, render_company_placeholders
 
 router = APIRouter(prefix="/api/legal", tags=["legal"])
@@ -46,6 +47,12 @@ DEFAULT_COMPANY_DATA = {
     "payment_provider": "[FURNIZOR_PLATI]",
     "hosting_provider": "[FURNIZOR_HOSTING]",
 }
+
+
+def _client_context(request: Request) -> tuple[str | None, str | None]:
+    user_agent = request.headers.get("user-agent")
+    ip_address = request.client.host if request.client is not None else None
+    return user_agent, ip_address
 
 
 def _strip_tags(value: str) -> str:
@@ -211,13 +218,25 @@ async def get_admin_company_data(
 @router.put("/admin/company-data", response_model=CompanyDataResponse)
 async def update_admin_company_data(
     payload: CompanyDataUpdate,
-    _: CurrentAdminUser,
+    request: Request,
+    admin_user: CurrentAdminUser,
     session: DbSession,
 ) -> CompanyDataResponse:
     company_data = await _get_company_data(session)
     for field, value in payload.model_dump().items():
         setattr(company_data, field, str(value))
     company_data.last_date_modified = datetime.now(UTC)
+    user_agent, ip_address = _client_context(request)
+    add_audit_log(
+        session,
+        action="admin.company_data.updated",
+        actor=admin_user,
+        resource_type="company_data",
+        resource_id=str(company_data.id),
+        details={"fields": list(payload.model_dump().keys())},
+        ip_address=ip_address,
+        user_agent=user_agent,
+    )
     await session.commit()
     await session.refresh(company_data)
     return CompanyDataResponse.model_validate(company_data)
@@ -242,7 +261,8 @@ async def update_admin_legal_document_section(
     slug: str,
     section_key: str,
     payload: LegalDocumentSectionUpdate,
-    _: CurrentAdminUser,
+    request: Request,
+    admin_user: CurrentAdminUser,
     session: DbSession,
 ) -> LegalDocumentResponse:
     document = await _get_document(session, slug)
@@ -264,6 +284,21 @@ async def update_admin_legal_document_section(
     section.content = payload.content
     section.last_date_modified = datetime.now(UTC)
     document.last_date_modified = datetime.now(UTC)
+    user_agent, ip_address = _client_context(request)
+    add_audit_log(
+        session,
+        action="admin.legal_document_section.updated",
+        actor=admin_user,
+        resource_type="legal_document_section",
+        resource_id=str(section.id),
+        details={
+            "document_slug": slug,
+            "section_key": section_key,
+            "section_title": payload.title,
+        },
+        ip_address=ip_address,
+        user_agent=user_agent,
+    )
     await session.commit()
     await session.refresh(document)
 
