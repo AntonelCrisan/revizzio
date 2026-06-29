@@ -2209,7 +2209,7 @@ function AccountFlashcardFaceContent({
         </h3>
       </div>
 
-      <div className="flashcard-card-footer absolute inset-x-6 bottom-6 flex items-center justify-between border-t border-subtle pt-4 text-xs font-bold text-muted sm:inset-x-8">
+      <div className="flashcard-card-footer absolute inset-x-6 bottom-6 flex items-center border-t border-subtle pt-4 text-xs font-bold text-muted sm:inset-x-8">
         {onFlip ? (
           <button
             type="button"
@@ -2224,12 +2224,6 @@ function AccountFlashcardFaceContent({
         ) : (
           <span className="flashcard-card-action">{flipLabel}</span>
         )}
-        <span className="flex items-center gap-2 text-content">
-          Revizzio
-          <Icon>
-            <path d="M5 12h14M13 5l7 7-7 7" />
-          </Icon>
-        </span>
       </div>
     </div>
   );
@@ -2414,7 +2408,7 @@ function FlashcardDeckPage({
         Înapoi la pachete
       </button>
 
-      <div className="grid gap-8 lg:grid-cols-[0.8fr_1.2fr] lg:items-center">
+      <div className="grid gap-8 lg:grid-cols-[0.8fr_1.2fr] lg:items-start">
         <div>
           <p className="text-xs font-bold uppercase tracking-[0.2em] text-muted">
             {deck.eyebrow}
@@ -2463,8 +2457,73 @@ function FlashcardDeckPage({
               </div>
             </div>
           ) : null}
+        </div>
+        <div className="lg:-mt-2">
+          <div
+            ref={flashcardTextRef}
+            onKeyUp={readFlashcardSelection}
+            onMouseUp={readFlashcardSelection}
+            className="flashcard-story-deck relative mx-auto w-full max-w-xl"
+          >
+            {deck.cards.map((card, index) => {
+              const distance =
+                (index - activeIndex + deck.cards.length) % deck.cards.length;
+              const isActive = distance === 0;
+              const isShuffling = shuffle?.cardIndex === index;
 
-          <div className="mt-6 flex items-center gap-3">
+              return (
+                <div
+                  key={card.question}
+                  aria-hidden={!isActive}
+                  className="flashcard-desk-card flashcard-face absolute inset-x-3 top-0 rounded-[1.75rem] text-left outline-none transition sm:inset-x-0"
+                  style={{
+                    zIndex: deck.cards.length - distance,
+                    transform: toAccountFlashcardTransform(
+                      accountFlashcardLayouts[distance],
+                    ),
+                    visibility: isShuffling ? "hidden" : "visible",
+                    pointerEvents: isActive ? "auto" : "none",
+                  }}
+                >
+                  <AccountFlashcardContent
+                    card={card}
+                    flipped={showAnswer && isActive}
+                    onFlip={isActive ? toggleFlashcardSide : undefined}
+                  />
+                </div>
+              );
+            })}
+
+            {shuffle ? (
+              <div
+                key={shuffle.id}
+                aria-hidden="true"
+                className={`flashcard-shuffle-ghost flashcard-face pointer-events-none absolute inset-x-3 top-0 text-left sm:inset-x-0 ${
+                  shuffle.direction === 1
+                    ? "flashcard-shuffle-forward"
+                    : "flashcard-shuffle-reverse"
+                }`}
+                style={
+                  {
+                    "--shuffle-start": toAccountFlashcardTransform(
+                      shuffle.direction === 1
+                        ? accountFlashcardLayouts[0]
+                        : accountFlashcardLayouts[deck.cards.length - 1],
+                    ),
+                    "--shuffle-end": toAccountFlashcardTransform(
+                      shuffle.direction === 1
+                        ? accountFlashcardLayouts[deck.cards.length - 1]
+                        : accountFlashcardLayouts[0],
+                    ),
+                  } as CSSProperties
+                }
+              >
+                <AccountFlashcardContent card={deck.cards[shuffle.cardIndex]} />
+              </div>
+            ) : null}
+          </div>
+
+          <div className="mt-4 flex items-center justify-center gap-3 sm:mt-5">
             <button
               type="button"
               onClick={() => moveCard(-1)}
@@ -2489,70 +2548,6 @@ function FlashcardDeckPage({
               {activeIndex + 1}/{deck.cards.length}
             </span>
           </div>
-        </div>
-
-        <div
-          ref={flashcardTextRef}
-          onKeyUp={readFlashcardSelection}
-          onMouseUp={readFlashcardSelection}
-          className="flashcard-story-deck relative mx-auto w-full max-w-xl"
-        >
-          {deck.cards.map((card, index) => {
-            const distance =
-              (index - activeIndex + deck.cards.length) % deck.cards.length;
-            const isActive = distance === 0;
-            const isShuffling = shuffle?.cardIndex === index;
-
-            return (
-              <div
-                key={card.question}
-                aria-hidden={!isActive}
-                className="flashcard-desk-card flashcard-face absolute inset-x-3 top-0 rounded-[1.75rem] text-left outline-none transition sm:inset-x-0"
-                style={{
-                  zIndex: deck.cards.length - distance,
-                  transform: toAccountFlashcardTransform(
-                    accountFlashcardLayouts[distance],
-                  ),
-                  visibility: isShuffling ? "hidden" : "visible",
-                  pointerEvents: isActive ? "auto" : "none",
-                }}
-              >
-                <AccountFlashcardContent
-                  card={card}
-                  flipped={showAnswer && isActive}
-                  onFlip={isActive ? toggleFlashcardSide : undefined}
-                />
-              </div>
-            );
-          })}
-
-          {shuffle ? (
-            <div
-              key={shuffle.id}
-              aria-hidden="true"
-              className={`flashcard-shuffle-ghost flashcard-face pointer-events-none absolute inset-x-3 top-0 text-left sm:inset-x-0 ${
-                shuffle.direction === 1
-                  ? "flashcard-shuffle-forward"
-                  : "flashcard-shuffle-reverse"
-              }`}
-              style={
-                {
-                  "--shuffle-start": toAccountFlashcardTransform(
-                    shuffle.direction === 1
-                      ? accountFlashcardLayouts[0]
-                      : accountFlashcardLayouts[deck.cards.length - 1],
-                  ),
-                  "--shuffle-end": toAccountFlashcardTransform(
-                    shuffle.direction === 1
-                      ? accountFlashcardLayouts[deck.cards.length - 1]
-                      : accountFlashcardLayouts[0],
-                  ),
-                } as CSSProperties
-              }
-            >
-              <AccountFlashcardContent card={deck.cards[shuffle.cardIndex]} />
-            </div>
-          ) : null}
         </div>
       </div>
 

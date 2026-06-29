@@ -207,6 +207,10 @@ a {
 }
 
 .flashcard-desk-card {
+  border: 0;
+  border-radius: var(--flashcard-radius, 1.75rem);
+  background: transparent;
+  padding: 0;
   transform-origin: 50% 115%;
   transition:
     transform 1050ms cubic-bezier(0.22, 1, 0.36, 1),
@@ -235,10 +239,15 @@ a {
 }
 
 .flashcard-face {
+  --flashcard-radius: 1.75rem;
   height: 17.5rem;
+  border-radius: var(--flashcard-radius);
+  background: transparent;
 }
 
 .flashcard-shuffle-ghost {
+  border-radius: var(--flashcard-radius, 1.75rem);
+  background: transparent;
   transform-origin: 50% 115%;
   will-change: transform;
   backface-visibility: hidden;
@@ -254,12 +263,14 @@ a {
 }
 
 .flashcard-flip {
+  border-radius: inherit;
   perspective: 1400px;
 }
 
 .flashcard-flip-inner {
   position: relative;
   height: 100%;
+  border-radius: inherit;
   transform-style: preserve-3d;
   transition: transform 680ms cubic-bezier(0.22, 1, 0.36, 1);
 }
@@ -271,7 +282,12 @@ a {
 .flashcard-face-side {
   position: absolute;
   inset: 0;
+  overflow: hidden;
+  border-radius: inherit;
   backface-visibility: hidden;
+  background-clip: padding-box;
+  clip-path: inset(0 round var(--flashcard-radius, 1.75rem));
+  -webkit-clip-path: inset(0 round var(--flashcard-radius, 1.75rem));
   transform: rotateY(0deg) translateZ(0);
   -webkit-backface-visibility: hidden;
 }
@@ -310,29 +326,52 @@ a {
 
   42% {
     z-index: 30;
-    transform: translate3d(56%, -8%, 0) rotate(12deg);
-    box-shadow: 0 30px 70px var(--theme-shadow-strong);
+    transform: translate3d(
+        var(--shuffle-forward-x-out, 56%),
+        var(--shuffle-forward-y-out, -8%),
+        0
+      )
+      rotate(var(--shuffle-forward-rotate-out, 12deg));
+    box-shadow: var(
+      --shuffle-shadow-strong,
+      0 30px 70px var(--theme-shadow-strong)
+    );
   }
 
   47% {
     z-index: 30;
-    transform: translate3d(58%, 18%, 0) rotate(10deg);
+    transform: translate3d(
+        var(--shuffle-forward-x-tuck, 58%),
+        var(--shuffle-forward-y-tuck, 18%),
+        0
+      )
+      rotate(var(--shuffle-forward-rotate-tuck, 10deg));
   }
 
   48% {
     z-index: 0;
-    transform: translate3d(58%, 18%, 0) rotate(10deg);
+    transform: translate3d(
+        var(--shuffle-forward-x-tuck, 58%),
+        var(--shuffle-forward-y-tuck, 18%),
+        0
+      )
+      rotate(var(--shuffle-forward-rotate-tuck, 10deg));
   }
 
   72% {
     z-index: 0;
-    transform: translate3d(25%, 24%, 0) rotate(7deg);
+    transform: translate3d(
+        var(--shuffle-forward-x-mid, 25%),
+        var(--shuffle-forward-y-mid, 24%),
+        0
+      )
+      rotate(var(--shuffle-forward-rotate-mid, 7deg));
   }
 
   100% {
     z-index: 0;
     transform: var(--shuffle-end);
-    box-shadow: 0 10px 28px var(--theme-shadow);
+    box-shadow: var(--shuffle-shadow-rest, 0 10px 28px var(--theme-shadow));
   }
 }
 
@@ -344,29 +383,86 @@ a {
 
   34% {
     z-index: 0;
-    transform: translate3d(-34%, 22%, 0) rotate(-7deg);
+    transform: translate3d(
+        var(--shuffle-reverse-x-mid, -34%),
+        var(--shuffle-reverse-y-mid, 22%),
+        0
+      )
+      rotate(var(--shuffle-reverse-rotate-mid, -7deg));
   }
 
   47% {
     z-index: 0;
-    transform: translate3d(-58%, 18%, 0) rotate(-10deg);
+    transform: translate3d(
+        var(--shuffle-reverse-x-tuck, -58%),
+        var(--shuffle-reverse-y-tuck, 18%),
+        0
+      )
+      rotate(var(--shuffle-reverse-rotate-tuck, -10deg));
   }
 
   48% {
     z-index: 30;
-    transform: translate3d(-58%, 18%, 0) rotate(-10deg);
+    transform: translate3d(
+        var(--shuffle-reverse-x-tuck, -58%),
+        var(--shuffle-reverse-y-tuck, 18%),
+        0
+      )
+      rotate(var(--shuffle-reverse-rotate-tuck, -10deg));
   }
 
   62% {
     z-index: 30;
-    transform: translate3d(-54%, -8%, 0) rotate(-12deg);
-    box-shadow: 0 30px 70px var(--theme-shadow-strong);
+    transform: translate3d(
+        var(--shuffle-reverse-x-out, -54%),
+        var(--shuffle-reverse-y-out, -8%),
+        0
+      )
+      rotate(var(--shuffle-reverse-rotate-out, -12deg));
+    box-shadow: var(
+      --shuffle-shadow-strong,
+      0 30px 70px var(--theme-shadow-strong)
+    );
   }
 
   100% {
     z-index: 30;
     transform: var(--shuffle-end);
-    box-shadow: 0 18px 45px var(--theme-shadow);
+    box-shadow: var(--shuffle-shadow-rest, 0 18px 45px var(--theme-shadow));
+  }
+}
+
+@media (max-width: 559px) {
+  .flashcard-story-deck {
+    --shuffle-forward-x-out: 22%;
+    --shuffle-forward-y-out: -4%;
+    --shuffle-forward-rotate-out: 7deg;
+    --shuffle-forward-x-tuck: 24%;
+    --shuffle-forward-y-tuck: 12%;
+    --shuffle-forward-rotate-tuck: 6deg;
+    --shuffle-forward-x-mid: 12%;
+    --shuffle-forward-y-mid: 17%;
+    --shuffle-forward-rotate-mid: 3.5deg;
+    --shuffle-reverse-x-mid: -12%;
+    --shuffle-reverse-y-mid: 17%;
+    --shuffle-reverse-rotate-mid: -3.5deg;
+    --shuffle-reverse-x-tuck: -24%;
+    --shuffle-reverse-y-tuck: 12%;
+    --shuffle-reverse-rotate-tuck: -6deg;
+    --shuffle-reverse-x-out: -22%;
+    --shuffle-reverse-y-out: -4%;
+    --shuffle-reverse-rotate-out: -7deg;
+    --shuffle-shadow-strong: none;
+    --shuffle-shadow-rest: none;
+  }
+
+  .flashcard-desk-card,
+  .flashcard-shuffle-ghost {
+    transform-origin: 50% 72%;
+  }
+
+  .flashcard-face-side {
+    box-shadow: 0 10px 24px var(--theme-shadow);
   }
 }
 
@@ -634,14 +730,30 @@ a {
     --flashcard-y-2: 34px;
     --flashcard-x-3: 12px;
     --flashcard-y-3: 48px;
+    --shuffle-forward-x-out: 15%;
+    --shuffle-forward-x-tuck: 17%;
+    --shuffle-forward-y-tuck: 10%;
+    --shuffle-forward-x-mid: 8%;
+    --shuffle-forward-y-mid: 14%;
+    --shuffle-reverse-x-mid: -8%;
+    --shuffle-reverse-y-mid: 14%;
+    --shuffle-reverse-x-tuck: -17%;
+    --shuffle-reverse-y-tuck: 10%;
+    --shuffle-reverse-x-out: -15%;
     width: calc(100% - 0.5rem);
     height: 24rem;
   }
 
   .flashcard-face {
+    --flashcard-radius: 1.5rem;
     right: 0;
     left: 0;
     height: 20rem;
+    padding: 0;
+    border-radius: 1.5rem;
+  }
+
+  .flashcard-face-side {
     padding: 1.25rem;
     border-radius: 1.5rem;
   }

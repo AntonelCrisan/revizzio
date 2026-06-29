@@ -66,21 +66,6 @@ function toTransform(layout: (typeof deskLayouts)[number]) {
   return `translate3d(${layout.x}, ${layout.y}, 0) rotate(${layout.rotate}deg)`;
 }
 
-function ArrowIcon() {
-  return (
-    <svg
-      aria-hidden="true"
-      className="h-4 w-4"
-      fill="none"
-      viewBox="0 0 24 24"
-      stroke="currentColor"
-      strokeWidth="2"
-    >
-      <path strokeLinecap="round" strokeLinejoin="round" d="M5 12h14m-6-6 6 6-6 6" />
-    </svg>
-  );
-}
-
 function FlashcardFaceContent({
   card,
   side,
@@ -98,13 +83,9 @@ function FlashcardFaceContent({
         </h3>
       </div>
 
-      <div className="flashcard-card-footer absolute inset-x-6 bottom-6 flex items-center justify-between border-t border-subtle pt-4 text-xs font-bold text-muted sm:inset-x-8">
+      <div className="flashcard-card-footer absolute inset-x-6 bottom-6 flex items-center border-t border-subtle pt-4 text-xs font-bold text-muted sm:inset-x-8">
         <span className="flashcard-card-action">
           {isAnswer ? "Vezi întrebarea" : "Vezi răspunsul"}
-        </span>
-        <span className="flex items-center gap-2 text-content">
-          Revizzio
-          <ArrowIcon />
         </span>
       </div>
     </div>
