@@ -2,16 +2,24 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useAuth } from "@/components/auth/auth-provider";
 import {
   AuthApiError,
   login,
   register,
+  requestPasswordReset,
 } from "@/lib/auth-api";
 
 type AuthFormProps = {
   mode: "login" | "register" | "forgot-password";
+};
+
+type SuccessDialog = {
+  eyebrow: string;
+  title: string;
+  message: string;
+  helper: string;
 };
 
 const inputClassName =
@@ -58,17 +66,21 @@ function ArrowIcon() {
 export function AuthForm({ mode }: AuthFormProps) {
   const router = useRouter();
   const { setUser } = useAuth();
+  const resetRequestLockRef = useRef(false);
   const isRegister = mode === "register";
   const isForgotPassword = mode === "forgot-password";
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmation, setShowConfirmation] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  const [successDialog, setSuccessDialog] = useState<SuccessDialog | null>(null);
+  const [hasRequestedReset, setHasRequestedReset] = useState(false);
   const [isError, setIsError] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const formData = new FormData(event.currentTarget);
+    const form = event.currentTarget;
+    const formData = new FormData(form);
 
     if (
       isRegister &&
@@ -79,39 +91,72 @@ export function AuthForm({ mode }: AuthFormProps) {
       return;
     }
 
-    if (isForgotPassword) {
-      setIsError(false);
-      setMessage(
-        "Dacă adresa există în platformă, vei primi în scurt timp un link pentru resetarea parolei.",
-      );
-      return;
-    }
-
     const email = String(formData.get("email") ?? "");
     const password = String(formData.get("password") ?? "");
 
     setIsSubmitting(true);
     setIsError(false);
     setMessage(null);
+    setSuccessDialog(null);
 
     try {
-      const user = isRegister
-        ? await register({
+      if (isForgotPassword) {
+        if (resetRequestLockRef.current || hasRequestedReset) {
+          setSuccessDialog({
+            eyebrow: "Resetare parolă",
+            title: "Linkul de resetare a fost deja solicitat.",
+            message:
+              "Dacă adresa există în platformă, emailul este deja pe drum.",
+            helper:
+              "Pentru siguranță, poți solicita un nou link după expirarea celui curent.",
+          });
+          return;
+        }
+
+        resetRequestLockRef.current = true;
+        const result = await requestPasswordReset(email);
+        setHasRequestedReset(true);
+        setSuccessDialog({
+          eyebrow: "Resetare parolă",
+          title: "Verifică emailul pentru linkul de resetare.",
+          message: result.message,
+          helper:
+            "Poți folosi linkul o singură dată. Dacă nu îl vezi, verifică și folderul Spam sau Promotions.",
+        });
+        return;
+      }
+
+      if (isRegister) {
+        const result = await register({
             full_name: String(formData.get("name") ?? ""),
             email,
             password,
             accepted_terms: formData.get("terms") === "on",
             newsletter_consent: formData.get("newsletter") === "on",
-          })
-        : await login({
-            email,
-            password,
-            remember: formData.get("remember") === "on",
           });
+        form.reset();
+        setSuccessDialog({
+          eyebrow: "Verifică emailul",
+          title: "Linkul de confirmare a fost trimis.",
+          message: result.message,
+          helper:
+            "Linkul este valabil 30 de minute. Dacă nu îl vezi, verifică și folderul Spam sau Promotions.",
+        });
+        return;
+      }
+
+      const user = await login({
+        email,
+        password,
+        remember: formData.get("remember") === "on",
+      });
 
       setUser(user);
       router.replace("/myaccount");
     } catch (error) {
+      if (isForgotPassword && !hasRequestedReset) {
+        resetRequestLockRef.current = false;
+      }
       setIsError(true);
       setMessage(
         error instanceof AuthApiError
@@ -124,6 +169,7 @@ export function AuthForm({ mode }: AuthFormProps) {
   }
 
   return (
+    <>
     <form onSubmit={handleSubmit} className="space-y-4">
       {isRegister ? (
         <div>
@@ -153,6 +199,7 @@ export function AuthForm({ mode }: AuthFormProps) {
           type="email"
           autoComplete="email"
           required
+          disabled={isForgotPassword && hasRequestedReset}
           placeholder="student@universitate.ro"
           className={inputClassName}
         />
@@ -303,18 +350,82 @@ export function AuthForm({ mode }: AuthFormProps) {
 
       <button
         type="submit"
-        disabled={isSubmitting}
+        disabled={isSubmitting || (isForgotPassword && hasRequestedReset)}
         className="theme-shadow-action flex h-11 w-full items-center justify-center gap-3 rounded-xl bg-action px-5 text-sm font-bold text-on-action transition hover:-translate-y-0.5 hover:bg-action-hover disabled:cursor-wait disabled:opacity-65 disabled:hover:translate-y-0"
       >
         {isSubmitting
           ? "Se procesează..."
           : isForgotPassword
-          ? "Trimite linkul de resetare"
+          ? hasRequestedReset
+            ? "Linkul a fost trimis"
+            : "Trimite linkul de resetare"
           : isRegister
             ? "Creează contul"
             : "Intră în cont"}
         <ArrowIcon />
       </button>
     </form>
+
+    {successDialog ? (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 px-4 py-6 backdrop-blur-sm">
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="auth-success-title"
+          className="theme-shadow w-full max-w-md rounded-[1.75rem] border border-subtle bg-surface p-6 text-content"
+        >
+          <div className="mb-5 flex h-12 w-12 items-center justify-center rounded-2xl bg-success-soft text-success">
+            <svg
+              aria-hidden="true"
+              className="h-6 w-6"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+              strokeWidth="2.2"
+            >
+              <path strokeLinecap="round" strokeLinejoin="round" d="m5 12 4 4L19 6" />
+            </svg>
+          </div>
+
+          <p hidden className="mb-2 text-xs font-bold uppercase tracking-[0.18em] text-muted">
+            Verifică emailul
+          </p>
+          <p className="mb-2 text-xs font-bold uppercase tracking-[0.18em] text-muted">
+            {successDialog.eyebrow}
+          </p>
+          <h2
+            hidden
+            id="register-success-title"
+            className="font-serif text-2xl font-semibold leading-tight"
+          >
+            Linkul de confirmare a fost trimis.
+          </h2>
+          <h2
+            id="auth-success-title"
+            className="font-serif text-2xl font-semibold leading-tight"
+          >
+            {successDialog.title}
+          </h2>
+          <p className="mt-3 text-sm leading-6 text-muted">
+            {successDialog.message}
+          </p>
+          <p hidden className="mt-3 rounded-2xl border border-info-border bg-info-soft px-4 py-3 text-xs font-semibold leading-5 text-info">
+            Linkul este valabil 30 de minute. Dacă nu îl vezi, verifică și folderul Spam sau Promotions.
+          </p>
+          <p className="mt-3 rounded-2xl border border-info-border bg-info-soft px-4 py-3 text-xs font-semibold leading-5 text-info">
+            {successDialog.helper}
+          </p>
+
+          <button
+            type="button"
+            onClick={() => setSuccessDialog(null)}
+            className="theme-shadow-action mt-5 flex h-11 w-full items-center justify-center rounded-xl bg-action px-5 text-sm font-bold text-on-action transition hover:-translate-y-0.5 hover:bg-action-hover"
+          >
+            Am înțeles
+          </button>
+        </div>
+      </div>
+    ) : null}
+    </>
   );
 }

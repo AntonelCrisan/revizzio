@@ -49,7 +49,6 @@ function CheckIcon() {
 }
 
 export function AuthShell({
-  eyebrow,
   title,
   description,
   children,
@@ -68,11 +67,6 @@ export function AuthShell({
           className="mb-6 w-fit text-content transition hover:text-action"
           logoClassName="h-9 w-36"
         />
-
-        <div className="mb-5 inline-flex items-center gap-2 rounded-full border border-subtle bg-action-soft px-3.5 py-1.5 text-[10px] font-bold uppercase tracking-[0.17em] text-muted">
-          <SparkIcon />
-          {eyebrow}
-        </div>
 
         <h1 className="max-w-xl font-serif text-3xl font-semibold leading-[1.08] tracking-[-0.025em] sm:text-4xl xl:text-[2.75rem]">
           {title}

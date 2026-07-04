@@ -3,7 +3,10 @@ const allowedRoutes = new Map([
   ["PATCH:me/preferences", "/api/auth/me/preferences"],
   ["POST:login", "/api/auth/login"],
   ["POST:logout", "/api/auth/logout"],
+  ["POST:password-reset/confirm", "/api/auth/password-reset/confirm"],
+  ["POST:password-reset/request", "/api/auth/password-reset/request"],
   ["POST:register", "/api/auth/register"],
+  ["POST:verify-email", "/api/auth/verify-email"],
 ]);
 
 type AuthRouteContext = {

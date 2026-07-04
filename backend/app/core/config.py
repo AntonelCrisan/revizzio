@@ -32,6 +32,13 @@ class Settings(BaseSettings):
     remember_session_ttl_days: int = Field(default=30, ge=1, le=365)
     terms_version: str = "2026-06-11"
 
+    public_app_url: str = "http://localhost:3000"
+    email_logo_url: str | None = None
+    resend_api_key: SecretStr | None = None
+    resend_from_email: str = "Revizzio <onboarding@resend.dev>"
+    email_verification_ttl_minutes: int = Field(default=30, ge=5, le=1440)
+    password_reset_ttl_minutes: int = Field(default=30, ge=5, le=1440)
+
     cors_origins: str = "http://localhost:3000,http://127.0.0.1:3000"
 
     @field_validator("database_url")
@@ -72,6 +79,16 @@ class Settings(BaseSettings):
     @field_validator("session_cookie_domain", mode="before")
     @classmethod
     def empty_cookie_domain_is_none(cls, value: object) -> object:
+        return None if value == "" else value
+
+    @field_validator("public_app_url")
+    @classmethod
+    def normalize_public_app_url(cls, value: str) -> str:
+        return value.rstrip("/")
+
+    @field_validator("email_logo_url", mode="before")
+    @classmethod
+    def empty_email_logo_url_is_none(cls, value: object) -> object:
         return None if value == "" else value
 
     @model_validator(mode="after")

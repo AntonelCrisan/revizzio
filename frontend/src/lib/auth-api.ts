@@ -15,6 +15,10 @@ type ApiErrorPayload = {
   detail?: string | Array<{ msg?: string }>;
 };
 
+type MessageResponse = {
+  message: string;
+};
+
 export class AuthApiError extends Error {
   constructor(
     message: string,
@@ -86,15 +90,39 @@ export function register(payload: {
   password: string;
   accepted_terms: boolean;
   newsletter_consent: boolean;
-}): Promise<AuthUser> {
-  return authRequest<AuthUser>("register", {
+}): Promise<MessageResponse> {
+  return authRequest<MessageResponse>("register", {
     method: "POST",
     body: JSON.stringify(payload),
   });
 }
 
-export function logout(): Promise<{ message: string }> {
-  return authRequest<{ message: string }>("logout", {
+export function verifyEmail(token: string): Promise<AuthUser> {
+  return authRequest<AuthUser>("verify-email", {
+    method: "POST",
+    body: JSON.stringify({ token }),
+  });
+}
+
+export function requestPasswordReset(email: string): Promise<MessageResponse> {
+  return authRequest<MessageResponse>("password-reset/request", {
+    method: "POST",
+    body: JSON.stringify({ email }),
+  });
+}
+
+export function confirmPasswordReset(payload: {
+  token: string;
+  password: string;
+}): Promise<MessageResponse> {
+  return authRequest<MessageResponse>("password-reset/confirm", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export function logout(): Promise<MessageResponse> {
+  return authRequest<MessageResponse>("logout", {
     method: "POST",
     body: "{}",
   });

@@ -102,3 +102,23 @@ class AuthSessionRepository:
         if auth_session is not None and auth_session.revoked_at is None:
             auth_session.revoked_at = revoked_at
         return auth_session
+
+    async def revoke_all_for_user(
+        self,
+        *,
+        user_id: uuid.UUID,
+        revoked_at: datetime,
+    ) -> int:
+        auth_sessions = list(
+            (
+                await self._session.scalars(
+                    select(AuthSession).where(
+                        AuthSession.user_id == user_id,
+                        AuthSession.revoked_at.is_(None),
+                    )
+                )
+            ).all()
+        )
+        for auth_session in auth_sessions:
+            auth_session.revoked_at = revoked_at
+        return len(auth_sessions)

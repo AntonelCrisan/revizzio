@@ -30,5 +30,18 @@ class LoginRequest(BaseModel):
     remember: bool = False
 
 
+class EmailVerificationRequest(BaseModel):
+    token: str = Field(min_length=20, max_length=256)
+
+
+class PasswordResetRequest(BaseModel):
+    email: EmailStr
+
+
+class PasswordResetConfirmRequest(BaseModel):
+    token: str = Field(min_length=20, max_length=256)
+    password: str = Field(min_length=8, max_length=128)
+
+
 class MessageResponse(BaseModel):
     message: str
