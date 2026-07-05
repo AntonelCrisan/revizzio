@@ -13,7 +13,11 @@ class UserRepository:
         self._session = session
 
     async def get_by_email(self, email: str) -> User | None:
-        return await self._session.scalar(select(User).where(User.email == email))
+        return await self._session.scalar(
+            select(User)
+            .options(selectinload(User.current_plan))
+            .where(User.email == email)
+        )
 
     async def add(
         self,
@@ -82,7 +86,7 @@ class AuthSessionRepository:
     ) -> AuthSession | None:
         return await self._session.scalar(
             select(AuthSession)
-            .options(selectinload(AuthSession.user))
+            .options(selectinload(AuthSession.user).selectinload(User.current_plan))
             .where(
                 AuthSession.token_hash == token_hash,
                 AuthSession.revoked_at.is_(None),

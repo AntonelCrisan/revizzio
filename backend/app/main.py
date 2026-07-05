@@ -5,12 +5,13 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from app.api.routes.admin_users import router as admin_users_router
 from app.api.routes.audit_logs import router as audit_logs_router
 from app.api.routes.auth import router as auth_router
-from app.api.routes.admin_users import router as admin_users_router
 from app.api.routes.compliance import router as compliance_router
 from app.api.routes.health import router as health_router
 from app.api.routes.legal import router as legal_router
+from app.api.routes.payments import router as payments_router
 from app.api.routes.plans import router as plans_router
 from app.core.config import get_settings
 from app.db.session import engine
@@ -51,6 +52,7 @@ app.include_router(admin_users_router)
 app.include_router(audit_logs_router)
 app.include_router(compliance_router)
 app.include_router(legal_router)
+app.include_router(payments_router)
 app.include_router(plans_router)
 
 

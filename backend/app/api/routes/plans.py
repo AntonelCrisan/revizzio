@@ -208,6 +208,8 @@ async def update_admin_plans(
         plan.material_limit = plan_payload.material_limit
         plan.ai_level = plan_payload.ai_level
         plan.storage = plan_payload.storage
+        plan.stripe_product_id = plan_payload.stripe_product_id
+        plan.stripe_price_id = plan_payload.stripe_price_id
         plan.is_visible = plan_payload.is_visible
         plan.is_featured = plan_payload.is_featured
         plan.sort_order = plan_payload.sort_order

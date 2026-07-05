@@ -10,8 +10,22 @@ export const metadata: Metadata = {
   description: "Alege planul Revizzio potrivit pentru studiul tău.",
 };
 
-export default async function UpgradeRoute() {
+type UpgradeRouteProps = {
+  searchParams: Promise<{
+    checkout?: string;
+    session_id?: string;
+  }>;
+};
+
+export default async function UpgradeRoute({ searchParams }: UpgradeRouteProps) {
+  const checkoutParams = await searchParams;
   const plans = (await getServerPublicPlans()) ?? fallbackSubscriptionPlans;
 
-  return <UpgradePage plans={plans} />;
+  return (
+    <UpgradePage
+      plans={plans}
+      checkoutSessionId={checkoutParams.session_id}
+      checkoutStatus={checkoutParams.checkout}
+    />
+  );
 }

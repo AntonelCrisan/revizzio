@@ -9,7 +9,13 @@ from app.models.compliance import (
 )
 from app.models.email_tokens import PasswordResetToken, PendingRegistration
 from app.models.legal import CompanyData, LegalDocument, LegalDocumentSection
-from app.models.subscription import SubscriptionPlan, SubscriptionPlanFeature
+from app.models.subscription import (
+    StripeEvent,
+    SubscriptionInvoice,
+    SubscriptionPlan,
+    SubscriptionPlanFeature,
+    UserSubscription,
+)
 from app.models.user import User
 
 __all__ = [
@@ -23,8 +29,11 @@ __all__ = [
     "LegalDocumentSection",
     "PasswordResetToken",
     "PendingRegistration",
+    "StripeEvent",
+    "SubscriptionInvoice",
     "SubscriptionPlan",
     "SubscriptionPlanFeature",
+    "UserSubscription",
     "SubscriptionCancellation",
     "User",
     "WithdrawalRequest",

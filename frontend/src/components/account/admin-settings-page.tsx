@@ -75,7 +75,7 @@ function SvgIcon({
 
 function SettingsIcon({ icon }: { icon: SettingsCard["icon"] }) {
   return (
-    <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-subtle bg-surface text-content transition group-hover:border-action/30 group-hover:bg-action group-hover:text-on-action">
+    <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-surface text-content transition group-hover:bg-action group-hover:text-on-action">
       {icon === "document" ? (
         <SvgIcon>
           <path d="M7 3h7l4 4v14H7z" />
@@ -133,23 +133,26 @@ function SettingsGroup({
   cards: SettingsCard[];
 }) {
   return (
-    <section className="rounded-[1.75rem] border border-subtle bg-surface p-4 sm:p-5">
-      <h2 className="px-1 text-xs font-black uppercase tracking-[0.18em] text-muted">
+    <section className="space-y-3">
+      <h2 className="text-xs font-black uppercase tracking-[0.18em] text-muted">
         {title}
       </h2>
 
-      <div className="mt-4 grid gap-3 md:grid-cols-2">
+      <div className="divide-y divide-subtle border-y border-subtle">
         {cards.map((card) => (
           <Link
             key={card.href}
             href={card.href}
-            className="group flex items-center gap-4 rounded-[1.35rem] border border-subtle bg-app p-4 transition hover:-translate-y-0.5 hover:border-action/30 hover:bg-surface-hover"
+            className="group flex items-center gap-4 py-4 transition hover:bg-surface-hover sm:px-2"
           >
             <SettingsIcon icon={card.icon} />
-            <span className="min-w-0 flex-1 text-base font-black text-content">
+            <span className="min-w-0 flex-1 text-base font-black text-content sm:text-lg">
               {card.title}
             </span>
-            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-muted transition group-hover:bg-action group-hover:text-on-action">
+            <span className="hidden rounded-full border border-subtle px-4 py-2 text-xs font-black text-muted transition group-hover:border-action/30 group-hover:bg-action group-hover:text-on-action sm:inline-flex">
+              Deschide
+            </span>
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-muted transition group-hover:text-content">
               <ArrowIcon />
             </span>
           </Link>
@@ -162,14 +165,18 @@ function SettingsGroup({
 export function AdminSettingsPage() {
   return (
     <AccountStaticShell activePage="admin-settings">
-      <section className="space-y-4">
-        <div className="rounded-[1.75rem] border border-subtle bg-surface p-5 sm:p-6">
+      <section className="space-y-8">
+        <div>
           <p className="text-xs font-bold uppercase tracking-[0.2em] text-muted">
             Administrare
           </p>
-          <h1 className="mt-2 font-serif text-3xl font-semibold leading-tight sm:text-4xl">
+          <h1 className="mt-2 font-serif text-4xl font-semibold leading-tight sm:text-5xl">
             Setări admin
           </h1>
+          <p className="mt-3 max-w-2xl text-sm leading-7 text-muted">
+            Zonele principale de administrare pentru conținut legal, firmă,
+            planuri, utilizatori și monitorizare.
+          </p>
         </div>
 
         <SettingsGroup title="Aplicație și firmă" cards={legalCards} />

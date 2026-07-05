@@ -1,6 +1,19 @@
 export type ThemePreference = "light" | "dark" | "system";
 export type UserRole = "admin" | "user";
 
+export type AuthUserPlan = {
+  id: string;
+  slug: string;
+  name: string;
+  price_ron: string | number;
+  billing_interval: string;
+  badge: string | null;
+  material_limit: string;
+  ai_level: string;
+  storage: string;
+  is_featured: boolean;
+};
+
 export type AuthUser = {
   id: string;
   email: string;
@@ -9,6 +22,7 @@ export type AuthUser = {
   role: UserRole;
   created_at: string;
   theme_preference: ThemePreference;
+  current_plan: AuthUserPlan | null;
 };
 
 type ApiErrorPayload = {

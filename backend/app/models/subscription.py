@@ -1,18 +1,39 @@
+from __future__ import annotations
+
 import uuid
 from datetime import datetime
 from decimal import Decimal
+from typing import TYPE_CHECKING
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, Numeric, String, Text, func
+from sqlalchemy import (
+    Boolean,
+    DateTime,
+    ForeignKey,
+    Integer,
+    Numeric,
+    String,
+    Text,
+    func,
+)
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base
+
+if TYPE_CHECKING:
+    from app.models.user import User
 
 
 class SubscriptionPlan(Base):
     __tablename__ = "subscription_plans"
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
-    slug: Mapped[str] = mapped_column(String(80), nullable=False, unique=True, index=True)
+    slug: Mapped[str] = mapped_column(
+        String(80),
+        nullable=False,
+        unique=True,
+        index=True,
+    )
     name: Mapped[str] = mapped_column(String(120), nullable=False)
     price_ron: Mapped[Decimal] = mapped_column(Numeric(10, 2), nullable=False)
     old_price_ron: Mapped[Decimal | None] = mapped_column(
@@ -26,6 +47,13 @@ class SubscriptionPlan(Base):
     material_limit: Mapped[str] = mapped_column(Text, nullable=False)
     ai_level: Mapped[str] = mapped_column(Text, nullable=False)
     storage: Mapped[str] = mapped_column(Text, nullable=False)
+    stripe_product_id: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    stripe_price_id: Mapped[str | None] = mapped_column(
+        String(120),
+        nullable=True,
+        unique=True,
+        index=True,
+    )
     is_visible: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     is_featured: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     sort_order: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
@@ -41,11 +69,14 @@ class SubscriptionPlan(Base):
         onupdate=func.now(),
     )
 
-    features: Mapped[list["SubscriptionPlanFeature"]] = relationship(
+    features: Mapped[list[SubscriptionPlanFeature]] = relationship(
         back_populates="plan",
         cascade="all, delete-orphan",
         order_by="SubscriptionPlanFeature.sort_order",
         passive_deletes=True,
+    )
+    user_subscriptions: Mapped[list[UserSubscription]] = relationship(
+        back_populates="plan",
     )
 
 
@@ -62,3 +93,146 @@ class SubscriptionPlanFeature(Base):
     sort_order: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
 
     plan: Mapped[SubscriptionPlan] = relationship(back_populates="features")
+
+
+class UserSubscription(Base):
+    __tablename__ = "user_subscriptions"
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    plan_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("subscription_plans.id", ondelete="RESTRICT"),
+        nullable=False,
+        index=True,
+    )
+    stripe_customer_id: Mapped[str] = mapped_column(
+        String(120),
+        nullable=False,
+        index=True,
+    )
+    stripe_subscription_id: Mapped[str] = mapped_column(
+        String(120),
+        nullable=False,
+        unique=True,
+        index=True,
+    )
+    stripe_price_id: Mapped[str] = mapped_column(String(120), nullable=False)
+    status: Mapped[str] = mapped_column(String(40), nullable=False, index=True)
+    current_period_start: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+    )
+    current_period_end: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+    )
+    cancel_at_period_end: Mapped[bool] = mapped_column(
+        Boolean,
+        nullable=False,
+        default=False,
+        server_default="false",
+    )
+    canceled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+        onupdate=func.now(),
+    )
+
+    user: Mapped[User] = relationship(back_populates="subscriptions")
+    plan: Mapped[SubscriptionPlan] = relationship(back_populates="user_subscriptions")
+    invoices: Mapped[list[SubscriptionInvoice]] = relationship(
+        back_populates="subscription",
+    )
+
+
+class SubscriptionInvoice(Base):
+    __tablename__ = "subscription_invoices"
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    plan_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("subscription_plans.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+    user_subscription_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("user_subscriptions.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+    stripe_invoice_id: Mapped[str] = mapped_column(
+        String(120),
+        nullable=False,
+        unique=True,
+        index=True,
+    )
+    stripe_customer_id: Mapped[str] = mapped_column(
+        String(120),
+        nullable=False,
+        index=True,
+    )
+    stripe_subscription_id: Mapped[str | None] = mapped_column(
+        String(120),
+        nullable=True,
+        index=True,
+    )
+    hosted_invoice_url: Mapped[str | None] = mapped_column(Text, nullable=True)
+    invoice_pdf_url: Mapped[str | None] = mapped_column(Text, nullable=True)
+    number: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    status: Mapped[str] = mapped_column(String(40), nullable=False, index=True)
+    currency: Mapped[str] = mapped_column(String(12), nullable=False, default="RON")
+    amount_due: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    amount_paid: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    period_start: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+    )
+    period_end: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+    )
+    paid_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+        onupdate=func.now(),
+    )
+
+    subscription: Mapped[UserSubscription | None] = relationship(
+        back_populates="invoices",
+    )
+    plan: Mapped[SubscriptionPlan | None] = relationship()
+
+
+class StripeEvent(Base):
+    __tablename__ = "stripe_events"
+
+    id: Mapped[str] = mapped_column(String(120), primary_key=True)
+    type: Mapped[str] = mapped_column(String(120), nullable=False, index=True)
+    payload: Mapped[dict[str, object]] = mapped_column(JSONB, nullable=False)
+    processed_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+    )

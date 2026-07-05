@@ -4,7 +4,6 @@ import {
   type CSSProperties,
   type ReactNode,
   useEffect,
-  useRef,
   useState,
 } from "react";
 import { AccountStaticShell } from "@/components/account/account-static-shell";
@@ -14,12 +13,13 @@ import {
   type ThemePreference,
   useTheme,
 } from "@/components/theme-provider";
+import { updateThemePreference } from "@/lib/auth-api";
+import { getActivePlanName } from "@/lib/account-plan";
 import {
   colorThemePresets,
   getColorThemePreset,
   themeColorVariables,
 } from "@/lib/theme-colors";
-import { updateThemePreference } from "@/lib/auth-api";
 
 type SettingsTabId =
   | "account"
@@ -29,6 +29,8 @@ type SettingsTabId =
   | "notifications"
   | "security"
   | "privacy";
+
+const settingsSectionChangeEvent = "revizzio:settings-section-change";
 
 const settingsTabs: Array<{
   id: SettingsTabId;
@@ -89,6 +91,8 @@ const settingsTabs: Array<{
   },
 ];
 
+const defaultSettingsTab: SettingsTabId = "account";
+
 const themeOptions: Array<{
   value: ThemePreference;
   title: string;
@@ -111,20 +115,115 @@ const themeOptions: Array<{
   },
 ];
 
-const studyPreferences = [
+const studyPaceOptions = [
   {
-    label: "Pagina implicită după login",
-    value: "Ultimul proiect deschis",
+    id: "light",
+    title: "Lejer",
+    description: "Pentru zile încărcate, cu recapitulare minimă.",
+    minutes: "9 min",
+    progress: 38,
   },
   {
-    label: "Ritm recomandat de recapitulare",
-    value: "Zilnic, sesiuni scurte",
+    id: "balanced",
+    title: "Echilibrat",
+    description: "Sesiuni scurte, dar constante, pentru progres zilnic.",
+    minutes: "17 min",
+    progress: 64,
   },
   {
-    label: "Nivel feedback AI",
-    value: "Explicații concise",
+    id: "exam",
+    title: "Examen",
+    description: "Ritm intens, cu quiz-uri mai dese și recapitulare activă.",
+    minutes: "32 min",
+    progress: 86,
   },
-];
+] as const;
+
+type StudyPaceId = (typeof studyPaceOptions)[number]["id"];
+
+const aiFeedbackOptions = [
+  {
+    id: "short",
+    title: "Concise",
+    description: "Răspunsuri scurte, bune când repeți rapid.",
+  },
+  {
+    id: "guided",
+    title: "Ghidate",
+    description: "Explicații pas cu pas, cu exemple simple.",
+  },
+  {
+    id: "exam",
+    title: "Stil examen",
+    description: "Feedback orientat pe formulări și capcane de test.",
+  },
+] as const;
+
+type AiFeedbackId = (typeof aiFeedbackOptions)[number]["id"];
+
+const studyAutomationOptions = [
+  {
+    id: "dailyReview",
+    title: "Recapitulare zilnică",
+    description: "Primești recomandarea de 5-20 minute pentru azi.",
+  },
+  {
+    id: "quizAfterSummary",
+    title: "Quiz după rezumat",
+    description: "După fiecare rezumat, Revizzio propune un quiz scurt.",
+  },
+  {
+    id: "weakConceptAlerts",
+    title: "Alerte concepte slabe",
+    description: "Apar când un concept riscă să fie uitat.",
+  },
+] as const;
+
+type StudyAutomationId = (typeof studyAutomationOptions)[number]["id"];
+
+const notificationChannelOptions = [
+  {
+    id: "email",
+    title: "Email",
+    description: "Confirmări, resetare parolă și rapoarte importante.",
+  },
+  {
+    id: "study",
+    title: "Reminder studiu",
+    description: "Alerte blânde pentru recapitularea zilnică.",
+  },
+  {
+    id: "product",
+    title: "Noutăți produs",
+    description: "Funcționalități noi și schimbări relevante în aplicație.",
+  },
+] as const;
+
+type NotificationChannelId = (typeof notificationChannelOptions)[number]["id"];
+
+const notificationAlertOptions = [
+  {
+    id: "projectReady",
+    title: "Proiect generat",
+    description: "Când rezumatul, flashcard-urile sau quiz-ul sunt gata.",
+  },
+  {
+    id: "weakConcepts",
+    title: "Concepte de repetat",
+    description: "Când Revizzio observă zone care scad la retenție.",
+  },
+  {
+    id: "billing",
+    title: "Facturi și abonament",
+    description: "Plăți, facturi noi și schimbări de plan.",
+  },
+] as const;
+
+type NotificationAlertId = (typeof notificationAlertOptions)[number]["id"];
+
+function isSettingsTabId(value: string): value is SettingsTabId {
+  return settingsTabs.some((tab) => tab.id === value);
+}
 
 function initials(name: string) {
   return (
@@ -133,7 +232,7 @@ function initials(name: string) {
       .split(/\s+/)
       .slice(0, 2)
       .map((part) => part[0]?.toUpperCase())
-      .join("") || "EQ"
+      .join("") || "RZ"
   );
 }
 
@@ -197,12 +296,36 @@ export function SettingsPage() {
     setCustomColor,
     resetCustomColors,
   } = useTheme();
-  const [activeTab, setActiveTab] = useState<SettingsTabId>("account");
+  const [activeTab, setActiveTab] =
+    useState<SettingsTabId>(defaultSettingsTab);
   const [isSavingTheme, setIsSavingTheme] = useState(false);
   const [privacyNotice, setPrivacyNotice] = useState<string | null>(null);
-  const tabScrollerRef = useRef<HTMLDivElement | null>(null);
-  const tabScrollTrackRef = useRef<HTMLDivElement | null>(null);
-  const tabScrollThumbRef = useRef<HTMLDivElement | null>(null);
+  const [studyPace, setStudyPace] = useState<StudyPaceId>("balanced");
+  const [aiFeedback, setAiFeedback] = useState<AiFeedbackId>("guided");
+  const [studyAutomations, setStudyAutomations] = useState<
+    Record<StudyAutomationId, boolean>
+  >({
+    dailyReview: true,
+    quizAfterSummary: true,
+    weakConceptAlerts: true,
+  });
+  const [notificationChannels, setNotificationChannels] = useState<
+    Record<NotificationChannelId, boolean>
+  >({
+    email: true,
+    study: true,
+    product: false,
+  });
+  const [notificationAlerts, setNotificationAlerts] = useState<
+    Record<NotificationAlertId, boolean>
+  >({
+    projectReady: true,
+    weakConcepts: true,
+    billing: true,
+  });
+  const [notificationFrequency, setNotificationFrequency] = useState<
+    "instant" | "daily"
+  >("daily");
   const selectedPreset = getColorThemePreset(colorScheme);
   const selectedColors = {
     ...selectedPreset.colors[resolvedTheme],
@@ -211,56 +334,41 @@ export function SettingsPage() {
   const customColorCount = Object.keys(customColors).length;
   const activeTabMeta =
     settingsTabs.find((tab) => tab.id === activeTab) ?? settingsTabs[0];
-
-  function updateTabScrollIndicator() {
-    const scroller = tabScrollerRef.current;
-    const track = tabScrollTrackRef.current;
-    const thumb = tabScrollThumbRef.current;
-
-    if (!scroller || !track || !thumb) {
-      return;
-    }
-
-    const scrollableWidth = scroller.scrollWidth - scroller.clientWidth;
-
-    if (scrollableWidth <= 4) {
-      track.style.opacity = "0";
-      thumb.style.width = "100%";
-      thumb.style.left = "0%";
-      return;
-    }
-
-    const thumbWidth = Math.max(
-      22,
-      (scroller.clientWidth / scroller.scrollWidth) * 100,
-    );
-    const thumbTravel = 100 - thumbWidth;
-    const thumbLeft = (scroller.scrollLeft / scrollableWidth) * thumbTravel;
-
-    track.style.opacity = "1";
-    thumb.style.width = `${thumbWidth}%`;
-    thumb.style.left = `${thumbLeft}%`;
-  }
+  const selectedStudyPace =
+    studyPaceOptions.find((option) => option.id === studyPace) ??
+    studyPaceOptions[1];
+  const selectedAiFeedback =
+    aiFeedbackOptions.find((option) => option.id === aiFeedback) ??
+    aiFeedbackOptions[1];
 
   useEffect(() => {
-    const frame = window.requestAnimationFrame(updateTabScrollIndicator);
-    window.addEventListener("resize", updateTabScrollIndicator);
+    function syncActiveTab() {
+      const hashTab = window.location.hash.replace("#", "");
+      setActiveTab(isSettingsTabId(hashTab) ? hashTab : defaultSettingsTab);
+    }
 
+    function syncActiveTabFromEvent(event: Event) {
+      if (!(event instanceof CustomEvent)) return;
+      const nextTab = event.detail;
+      if (typeof nextTab !== "string" || !isSettingsTabId(nextTab)) return;
+      setActiveTab(nextTab);
+    }
+
+    const frame = window.requestAnimationFrame(syncActiveTab);
+    window.addEventListener("hashchange", syncActiveTab);
+    window.addEventListener(settingsSectionChangeEvent, syncActiveTabFromEvent);
     return () => {
       window.cancelAnimationFrame(frame);
-      window.removeEventListener("resize", updateTabScrollIndicator);
+      window.removeEventListener("hashchange", syncActiveTab);
+      window.removeEventListener(
+        settingsSectionChangeEvent,
+        syncActiveTabFromEvent,
+      );
     };
   }, []);
 
-  useEffect(() => {
-    const frame = window.requestAnimationFrame(updateTabScrollIndicator);
-    return () => window.cancelAnimationFrame(frame);
-  }, [activeTab]);
-
   async function saveThemePreference(themePreference: ThemePreference) {
-    if (!user || isSavingTheme) {
-      return;
-    }
+    if (!user || isSavingTheme) return;
 
     const previousPreference = user.theme_preference;
     setIsSavingTheme(true);
@@ -278,72 +386,243 @@ export function SettingsPage() {
     }
   }
 
+  function toggleStudyAutomation(id: StudyAutomationId) {
+    setStudyAutomations((current) => ({
+      ...current,
+      [id]: !current[id],
+    }));
+  }
+
+  function toggleNotificationChannel(id: NotificationChannelId) {
+    setNotificationChannels((current) => ({
+      ...current,
+      [id]: !current[id],
+    }));
+  }
+
+  function toggleNotificationAlert(id: NotificationAlertId) {
+    setNotificationAlerts((current) => ({
+      ...current,
+      [id]: !current[id],
+    }));
+  }
+
   function renderActiveTab() {
     switch (activeTab) {
       case "account":
         return (
-          <TabCard>
-            <div className="flex flex-col gap-6 lg:flex-row lg:items-center">
-              <span className="flex h-24 w-24 shrink-0 items-center justify-center rounded-[1.75rem] border border-subtle bg-success-soft font-serif text-4xl font-semibold text-success">
-                {initials(user?.full_name ?? "Student Revizzio")}
-              </span>
-              <div className="min-w-0 flex-1">
-                <h3 className="font-serif text-4xl font-semibold leading-tight">
+          <FlatPanel>
+            <div className="grid lg:grid-cols-[minmax(230px,0.34fr)_1fr]">
+              <div className="flex min-h-[320px] flex-col items-center justify-center border-b border-subtle py-10 text-center lg:border-b-0 lg:border-r lg:py-14">
+                <div className="relative">
+                  <span className="flex h-24 w-24 shrink-0 items-center justify-center rounded-full bg-action font-serif text-3xl font-semibold text-on-action shadow-sm">
+                    {initials(user?.full_name ?? "Student Revizzio")}
+                  </span>
+                  <span className="absolute bottom-1 right-0 flex h-6 w-6 items-center justify-center rounded-full border border-subtle bg-app text-success shadow-sm">
+                    <svg
+                      aria-hidden="true"
+                      className="h-3.5 w-3.5"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                      strokeWidth="3"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        d="m5 13 4 4L19 7"
+                      />
+                    </svg>
+                  </span>
+                </div>
+
+                <h2 className="mt-7 font-serif text-2xl font-semibold leading-tight">
                   {user?.full_name ?? "Student Revizzio"}
-                </h3>
-                <p className="mt-2 break-all text-sm text-muted">
+                </h2>
+                <p className="mt-2 max-w-[220px] break-all text-sm text-muted">
                   {user?.email ?? "student@universitate.ro"}
                 </p>
-                <div className="mt-5 grid gap-3 sm:grid-cols-3">
-                  <SettingsStat label="Plan" value="Start" />
-                  <SettingsStat label="Proiecte" value="3" />
-                  <SettingsStat label="Rol" value="Student" />
+              </div>
+
+              <div className="divide-y divide-subtle lg:pl-10">
+                <AccountInfoRow
+                  label="Plan curent"
+                  value={getActivePlanName(user)}
+                  valueClassName="font-black text-content"
+                />
+                <AccountInfoRow
+                  label="Proiecte active"
+                  value="3"
+                  valueClassName="font-black text-content"
+                >
+                  <div className="h-1.5 w-full overflow-hidden rounded-full bg-surface sm:ml-auto sm:max-w-md">
+                    <div className="h-full w-[64%] rounded-full bg-action" />
+                  </div>
+                </AccountInfoRow>
+                <AccountInfoRow label="Rol acces">
+                  <span className="inline-flex w-fit rounded-xl border border-subtle bg-surface px-4 py-2 text-xs font-black sm:ml-auto">
+                    {user?.role === "admin" ? "Admin" : "Utilizator"}
+                  </span>
+                </AccountInfoRow>
+                <div className="grid gap-2 py-6 text-xs sm:grid-cols-[0.42fr_1fr] sm:items-center">
+                  <span className="font-medium text-muted">
+                    Vizualizare securizată a datelor
+                  </span>
+                  <span className="font-serif italic text-warning sm:text-right">
+                    Date protejate
+                  </span>
                 </div>
               </div>
             </div>
-          </TabCard>
+          </FlatPanel>
         );
 
       case "study":
         return (
-          <TabCard>
-            <div className="grid gap-3">
-              {studyPreferences.map((preferenceItem) => (
-                <div
-                  key={preferenceItem.label}
-                  className="flex flex-col gap-2 rounded-2xl border border-subtle bg-app px-4 py-3 sm:flex-row sm:items-center sm:justify-between"
-                >
-                  <span className="text-sm font-semibold">
-                    {preferenceItem.label}
-                  </span>
-                  <span className="rounded-full bg-surface px-3 py-1 text-xs font-bold text-muted">
-                    {preferenceItem.value}
-                  </span>
+          <FlatPanel>
+            <div className="grid lg:grid-cols-[0.9fr_1.1fr]">
+              <div className="border-b border-subtle py-8 lg:border-b-0 lg:border-r lg:pr-10">
+                <SectionLabel>Ritmul tău</SectionLabel>
+                <h2 className="mt-4 font-serif text-4xl font-semibold leading-tight">
+                  {selectedStudyPace.title}
+                </h2>
+                <p className="mt-3 max-w-sm text-sm leading-7 text-muted">
+                  {selectedStudyPace.description}
+                </p>
+
+                <div className="mt-8 space-y-5">
+                  <div className="flex items-end justify-between gap-4">
+                    <span className="text-sm font-medium text-muted">
+                      Timp recomandat azi
+                    </span>
+                    <span className="font-serif text-4xl font-semibold">
+                      {selectedStudyPace.minutes}
+                    </span>
+                  </div>
+                  <div className="h-2 overflow-hidden rounded-full bg-surface">
+                    <div
+                      className="h-full rounded-full bg-action transition-all duration-300"
+                      style={{ width: `${selectedStudyPace.progress}%` }}
+                    />
+                  </div>
+                  <p className="text-xs leading-5 text-muted">
+                    Ajustează ritmul în funcție de cât de aproape e examenul și
+                    cât material ai de parcurs.
+                  </p>
                 </div>
-              ))}
+              </div>
+
+              <div className="divide-y divide-subtle lg:pl-10">
+                {studyPaceOptions.map((option) => {
+                  const isSelected = option.id === studyPace;
+                  return (
+                    <button
+                      key={option.id}
+                      type="button"
+                      onClick={() => setStudyPace(option.id)}
+                      className="group -mx-3 grid w-[calc(100%+1.5rem)] gap-3 rounded-xl px-3 py-5 text-left transition hover:bg-surface-hover sm:grid-cols-[1fr_auto] sm:items-center"
+                    >
+                      <span>
+                        <span className="block text-sm font-black">
+                          {option.title}
+                        </span>
+                        <span className="mt-1 block text-xs leading-5 text-muted">
+                          {option.description}
+                        </span>
+                      </span>
+                      <span className="flex items-center gap-3 sm:justify-end">
+                        <ToggleSwitch checked={isSelected} />
+                        <span className="text-xs font-black text-muted group-hover:text-content">
+                          {isSelected ? "activ" : "alege"}
+                        </span>
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
             </div>
-          </TabCard>
+
+            <div className="grid border-t border-subtle lg:grid-cols-[0.95fr_1.05fr]">
+              <div className="py-8 lg:border-r lg:border-subtle lg:pr-10">
+                <SectionLabel>Feedback AI</SectionLabel>
+                <p className="mt-3 text-sm leading-7 text-muted">
+                  Modul curent:{" "}
+                  <span className="font-black text-content">
+                    {selectedAiFeedback.title}
+                  </span>
+                </p>
+                <div className="mt-5 divide-y divide-subtle border-y border-subtle">
+                  {aiFeedbackOptions.map((option) => {
+                    const isSelected = option.id === aiFeedback;
+                    return (
+                      <button
+                        key={option.id}
+                        type="button"
+                        onClick={() => setAiFeedback(option.id)}
+                        className="group -mx-3 grid w-[calc(100%+1.5rem)] gap-3 rounded-xl px-3 py-4 text-left transition hover:bg-surface-hover sm:grid-cols-[1fr_auto] sm:items-center"
+                      >
+                        <span>
+                          <span className="block text-sm font-black">
+                            {option.title}
+                          </span>
+                          <span className="mt-1 block text-xs leading-5 text-muted">
+                            {option.description}
+                          </span>
+                        </span>
+                        <ToggleSwitch checked={isSelected} />
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div className="border-t border-subtle py-8 lg:border-t-0 lg:pl-10">
+                <SectionLabel>Automatizări</SectionLabel>
+                <div className="mt-5 divide-y divide-subtle border-y border-subtle">
+                  {studyAutomationOptions.map((option) => {
+                    const isActive = studyAutomations[option.id];
+                    return (
+                      <button
+                        key={option.id}
+                        type="button"
+                        onClick={() => toggleStudyAutomation(option.id)}
+                        className="group -mx-3 grid w-[calc(100%+1.5rem)] gap-3 rounded-xl px-3 py-4 text-left transition hover:bg-surface-hover sm:grid-cols-[1fr_auto] sm:items-center"
+                      >
+                        <span>
+                          <span className="block text-sm font-black">
+                            {option.title}
+                          </span>
+                          <span className="mt-1 block text-xs leading-5 text-muted">
+                            {option.description}
+                          </span>
+                        </span>
+                        <span className="flex items-center gap-3 sm:justify-end">
+                          <ToggleSwitch checked={isActive} />
+                          <span className="text-xs font-black text-muted group-hover:text-content">
+                            {isActive ? "pornit" : "oprit"}
+                          </span>
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+          </FlatPanel>
         );
 
       case "appearance":
         return (
-          <TabCard
-            aside={
-              <div className="rounded-3xl border border-info-border bg-info-soft p-5 text-info">
-                <p className="text-xs font-bold uppercase tracking-[0.16em]">
-                  Activ acum
-                </p>
-                <p className="mt-3 font-serif text-3xl font-semibold">
-                  {resolvedTheme}
-                </p>
-                <p className="mt-2 text-sm leading-6">
-                  Modul de afișare controlează luminozitatea. Paleta se schimbă
-                  din tabul Culori.
-                </p>
-              </div>
-            }
-          >
-            <div className="grid gap-3 sm:grid-cols-3">
+          <FlatPanel>
+            <SettingsRows>
+              <SettingsRow label="Mod activ" value={resolvedTheme} />
+              <SettingsRow
+                label="Paletă"
+                value={`${selectedPreset.name}, configurată separat în Culori`}
+              />
+            </SettingsRows>
+
+            <div className="divide-y divide-subtle border-t border-subtle">
               {themeOptions.map((option) => {
                 const isSelected =
                   (user?.theme_preference ?? preference) === option.value;
@@ -353,29 +632,31 @@ export function SettingsPage() {
                     type="button"
                     disabled={isSavingTheme}
                     onClick={() => saveThemePreference(option.value)}
-                    className={`rounded-3xl border p-5 text-left transition hover:-translate-y-0.5 disabled:cursor-wait disabled:opacity-60 ${
-                      isSelected
-                        ? "border-success bg-success-soft text-success"
-                        : "border-subtle bg-app hover:bg-surface-hover"
-                    }`}
+                    className="group -mx-3 grid w-[calc(100%+1.5rem)] gap-3 rounded-xl px-3 py-5 text-left transition hover:bg-surface-hover disabled:cursor-wait disabled:opacity-60 sm:grid-cols-[0.25fr_1fr_auto] sm:items-center"
                   >
-                    <span className="text-base font-bold">{option.title}</span>
-                    <span className="mt-2 block text-sm leading-6 text-muted">
+                    <span className="text-sm font-black">{option.title}</span>
+                    <span className="text-sm leading-6 text-muted">
                       {option.description}
+                    </span>
+                    <span className="flex items-center gap-3 sm:justify-end">
+                      <ToggleSwitch checked={isSelected} />
+                      <span className="text-xs font-black text-muted group-hover:text-content">
+                        {isSelected ? "activ" : "alege"}
+                      </span>
                     </span>
                   </button>
                 );
               })}
             </div>
-          </TabCard>
+          </FlatPanel>
         );
 
       case "colors":
         return (
-          <TabCard>
-            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <FlatPanel>
+            <div className="flex flex-col gap-4 py-5 sm:flex-row sm:items-center sm:justify-between">
               <div>
-                <p className="text-sm font-semibold text-muted">
+                <p className="text-sm font-black">
                   Tema curentă: {selectedPreset.name}
                 </p>
                 <p className="mt-1 text-sm text-muted">
@@ -386,178 +667,273 @@ export function SettingsPage() {
                 <button
                   type="button"
                   onClick={resetCustomColors}
-                  className="w-fit rounded-full border border-danger-border bg-danger-soft px-4 py-2 text-xs font-bold text-danger transition hover:-translate-y-0.5"
+                  className="w-fit rounded-xl border border-danger-border bg-danger-soft px-4 py-2 text-xs font-bold text-danger transition hover:opacity-80"
                 >
                   Resetează modificările
                 </button>
               ) : null}
             </div>
 
-            <div className="mt-6 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-              {colorThemePresets.map((preset) => {
-                const isSelected = preset.id === colorScheme;
-                return (
-                  <button
-                    key={preset.id}
-                    type="button"
-                    onClick={() => setColorScheme(preset.id)}
-                    className={`rounded-3xl border p-4 text-left transition hover:-translate-y-0.5 ${
-                      isSelected
-                        ? "border-action bg-action-soft"
-                        : "border-subtle bg-app hover:bg-surface-hover"
-                    }`}
-                  >
-                    <span className="flex items-start justify-between gap-3">
-                      <span>
-                        <span className="block text-sm font-bold">
-                          {preset.name}
+            <div className="grid gap-8 border-t border-subtle py-6 xl:grid-cols-[0.95fr_1.05fr]">
+              <div>
+                <SectionLabel>Preseturi</SectionLabel>
+                <div className="mt-3 divide-y divide-subtle border-y border-subtle">
+                  {colorThemePresets.map((preset) => {
+                    const isSelected = preset.id === colorScheme;
+                    return (
+                      <button
+                        key={preset.id}
+                        type="button"
+                        onClick={() => setColorScheme(preset.id)}
+                        className="group -mx-3 grid w-[calc(100%+1.5rem)] gap-3 rounded-xl px-3 py-4 text-left transition hover:bg-surface-hover sm:grid-cols-[1fr_auto] sm:items-center"
+                      >
+                        <span>
+                          <span className="block text-sm font-black">
+                            {preset.name}
+                          </span>
+                          <span className="mt-1 block text-xs leading-5 text-muted">
+                            {preset.description}
+                          </span>
                         </span>
-                        <span className="mt-1 block text-xs leading-5 text-muted">
-                          {preset.description}
+                        <span className="flex items-center gap-2">
+                          {preset.preview.map((color) => (
+                            <span
+                              key={color}
+                              className="h-6 w-6 rounded-full border border-subtle"
+                              style={{ backgroundColor: color }}
+                            />
+                          ))}
+                          <ToggleSwitch checked={isSelected} />
+                          <span className="text-[10px] font-black text-muted group-hover:text-content">
+                            {isSelected ? "activ" : "alege"}
+                          </span>
                         </span>
-                      </span>
-                      {isSelected ? (
-                        <span className="rounded-full bg-action px-2.5 py-1 text-[10px] font-bold text-on-action">
-                          activ
-                        </span>
-                      ) : null}
-                    </span>
-                    <span className="mt-4 flex gap-2">
-                      {preset.preview.map((color) => (
-                        <span
-                          key={color}
-                          className="h-8 w-8 rounded-full border border-subtle"
-                          style={{ backgroundColor: color }}
-                        />
-                      ))}
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
-
-            <div className="mt-6 grid gap-5 xl:grid-cols-[0.9fr_1.1fr]">
-              <ThemePreview colors={selectedColors} />
-              <div className="rounded-3xl border border-subtle bg-app p-4">
-                <div className="flex items-center justify-between gap-3">
-                  <div>
-                    <p className="text-xs font-bold uppercase tracking-[0.16em] text-muted">
-                      Editor culori
-                    </p>
-                    <p className="mt-1 text-xs leading-5 text-muted">
-                      Modificările suprascriu paleta selectată.
-                    </p>
-                  </div>
-                  <span className="rounded-full bg-surface px-3 py-1 text-xs font-bold text-muted">
-                    {customColorCount} custom
-                  </span>
-                </div>
-
-                <div className="mt-4 grid gap-3">
-                  {themeColorVariables.map((variable) => (
-                    <ColorControl
-                      key={variable.key}
-                      label={variable.label}
-                      description={variable.description}
-                      value={selectedColors[variable.key]}
-                      isCustom={customColors[variable.key] !== undefined}
-                      onChange={(value) =>
-                        setCustomColor(variable.key, value)
-                      }
-                    />
-                  ))}
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
+
+              <ThemePreview colors={selectedColors} />
             </div>
-          </TabCard>
+
+            <div className="border-t border-subtle py-6">
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+                <div>
+                  <SectionLabel>Editor culori</SectionLabel>
+                  <p className="mt-1 text-xs leading-5 text-muted">
+                    Modificările suprascriu paleta selectată.
+                  </p>
+                </div>
+                <span className="text-xs font-bold text-muted">
+                  {customColorCount} custom
+                </span>
+              </div>
+
+              <div className="mt-4 divide-y divide-subtle border-y border-subtle">
+                {themeColorVariables.map((variable) => (
+                  <ColorControl
+                    key={variable.key}
+                    label={variable.label}
+                    description={variable.description}
+                    value={selectedColors[variable.key]}
+                    isCustom={customColors[variable.key] !== undefined}
+                    onChange={(value) => setCustomColor(variable.key, value)}
+                  />
+                ))}
+              </div>
+            </div>
+          </FlatPanel>
         );
 
       case "notifications":
         return (
-          <TabCard>
-            <div className="grid gap-3">
-              {[
-                "Reminder pentru recapitulare zilnică",
-                "Email când un proiect nou este generat",
-                "Alerte pentru concepte care trebuie repetate",
-              ].map((label) => (
-                <label
-                  key={label}
-                  className="flex items-center justify-between gap-4 rounded-2xl border border-subtle bg-app px-4 py-4 text-sm font-semibold"
-                >
-                  {label}
-                  <input
-                    type="checkbox"
-                    defaultChecked
-                    className="h-4 w-4 accent-action"
-                  />
-                </label>
-              ))}
+          <FlatPanel>
+            <div className="grid lg:grid-cols-[0.85fr_1.15fr]">
+              <div className="border-b border-subtle py-8 lg:border-b-0 lg:border-r lg:pr-10">
+                <SectionLabel>Livrare</SectionLabel>
+                <h2 className="mt-4 font-serif text-4xl font-semibold leading-tight">
+                  Notificări curate, nu zgomot.
+                </h2>
+                <p className="mt-3 max-w-sm text-sm leading-7 text-muted">
+                  Alege ce merită să ajungă la tine și cât de repede. Important
+                  rămâne pornit, marketingul rămâne opțional.
+                </p>
+
+                <div className="mt-8 divide-y divide-subtle border-y border-subtle">
+                  {[
+                    {
+                      id: "instant" as const,
+                      title: "Instant",
+                      description: "Primești alertele imediat ce apar.",
+                    },
+                    {
+                      id: "daily" as const,
+                      title: "Rezumat zilnic",
+                      description: "Un singur email cu ce contează pentru azi.",
+                    },
+                  ].map((option) => {
+                    const isSelected = notificationFrequency === option.id;
+                    return (
+                      <button
+                        key={option.id}
+                        type="button"
+                        onClick={() => setNotificationFrequency(option.id)}
+                        className="group -mx-3 grid w-[calc(100%+1.5rem)] gap-3 rounded-xl px-3 py-4 text-left transition hover:bg-surface-hover sm:grid-cols-[1fr_auto] sm:items-center"
+                      >
+                        <span>
+                          <span className="block text-sm font-black">
+                            {option.title}
+                          </span>
+                          <span className="mt-1 block text-xs leading-5 text-muted">
+                            {option.description}
+                          </span>
+                        </span>
+                        <ToggleSwitch checked={isSelected} />
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div className="divide-y divide-subtle lg:pl-10">
+                <div className="py-8">
+                  <SectionLabel>Canale</SectionLabel>
+                  <div className="mt-5 divide-y divide-subtle border-y border-subtle">
+                    {notificationChannelOptions.map((option) => {
+                      const isActive = notificationChannels[option.id];
+                      return (
+                        <button
+                          key={option.id}
+                          type="button"
+                          onClick={() => toggleNotificationChannel(option.id)}
+                          className="group -mx-3 grid w-[calc(100%+1.5rem)] gap-3 rounded-xl px-3 py-4 text-left transition hover:bg-surface-hover sm:grid-cols-[1fr_auto] sm:items-center"
+                        >
+                          <span>
+                            <span className="block text-sm font-black">
+                              {option.title}
+                            </span>
+                            <span className="mt-1 block text-xs leading-5 text-muted">
+                              {option.description}
+                            </span>
+                          </span>
+                          <span className="flex items-center gap-3 sm:justify-end">
+                            <ToggleSwitch checked={isActive} />
+                            <span className="text-xs font-black text-muted group-hover:text-content">
+                              {isActive ? "pornit" : "oprit"}
+                            </span>
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                <div className="py-8">
+                  <SectionLabel>Evenimente</SectionLabel>
+                  <div className="mt-5 divide-y divide-subtle border-y border-subtle">
+                    {notificationAlertOptions.map((option) => {
+                      const isActive = notificationAlerts[option.id];
+                      return (
+                        <button
+                          key={option.id}
+                          type="button"
+                          onClick={() => toggleNotificationAlert(option.id)}
+                          className="group -mx-3 grid w-[calc(100%+1.5rem)] gap-3 rounded-xl px-3 py-4 text-left transition hover:bg-surface-hover sm:grid-cols-[1fr_auto] sm:items-center"
+                        >
+                          <span>
+                            <span className="block text-sm font-black">
+                              {option.title}
+                            </span>
+                            <span className="mt-1 block text-xs leading-5 text-muted">
+                              {option.description}
+                            </span>
+                          </span>
+                          <span className="flex items-center gap-3 sm:justify-end">
+                            <ToggleSwitch checked={isActive} />
+                            <span className="text-xs font-black text-muted group-hover:text-content">
+                              {isActive ? "activ" : "oprit"}
+                            </span>
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
             </div>
-          </TabCard>
+          </FlatPanel>
         );
 
       case "security":
         return (
-          <TabCard
-            aside={
-              <div className="rounded-3xl border border-warning-border bg-warning-soft p-5 text-warning">
-                <p className="text-xs font-bold uppercase tracking-[0.16em]">
-                  Notă
-                </p>
-                <p className="mt-3 text-sm leading-6">
-                  Sesiunea curentă este protejată prin cookie HttpOnly.
-                  Setările avansate vor fi legate de backend ulterior.
-                </p>
-              </div>
-            }
-          >
-            <div className="grid gap-3">
+          <FlatPanel>
+            <div className="border-b border-warning-border bg-warning-soft px-0 py-4 text-warning">
+              <p className="text-xs font-black uppercase tracking-[0.16em]">
+                Notă
+              </p>
+              <p className="mt-2 max-w-2xl text-sm leading-6">
+                Sesiunea curentă este protejată prin cookie HttpOnly. Setările
+                avansate vor fi legate de backend ulterior.
+              </p>
+            </div>
+
+            <div className="divide-y divide-subtle">
               <button
                 type="button"
-                className="rounded-2xl border border-subtle bg-app px-4 py-4 text-left text-sm font-bold transition hover:bg-surface-hover"
+                className="group -mx-3 grid w-[calc(100%+1.5rem)] gap-3 rounded-xl px-3 py-5 text-left transition hover:bg-surface-hover sm:grid-cols-[1fr_auto] sm:items-center"
               >
-                Schimbă parola
-                <span className="block text-xs font-normal text-muted">
-                  Pregătit pentru integrarea backend.
+                <span>
+                  <span className="block text-sm font-black">
+                    Schimbă parola
+                  </span>
+                  <span className="mt-1 block text-xs text-muted">
+                    Pregătit pentru integrarea backend.
+                  </span>
                 </span>
+                <ActionPill>Schimbă</ActionPill>
               </button>
               <button
                 type="button"
-                className="rounded-2xl border border-danger-border bg-danger-soft px-4 py-4 text-left text-sm font-bold text-danger transition hover:-translate-y-0.5"
+                className="group -mx-3 grid w-[calc(100%+1.5rem)] gap-3 rounded-xl px-3 py-5 text-left transition hover:bg-danger-soft sm:grid-cols-[1fr_auto] sm:items-center"
               >
-                Șterge contul
-                <span className="block text-xs font-normal">
-                  Acțiune critică, dezactivată momentan.
+                <span className="text-danger">
+                  <span className="block text-sm font-black">Șterge contul</span>
+                  <span className="mt-1 block text-xs">
+                    Acțiune critică, dezactivată momentan.
+                  </span>
                 </span>
+                <ActionPill tone="danger">Solicită</ActionPill>
               </button>
             </div>
-          </TabCard>
+          </FlatPanel>
         );
 
       case "privacy":
         return (
-          <TabCard
-            aside={
-              <div className="rounded-3xl border border-warning-border bg-warning-soft p-5 text-warning">
-                <p className="text-xs font-bold uppercase tracking-[0.16em]">
-                  Ștergere cont
-                </p>
-                <p className="mt-3 text-sm leading-6">
-                  Pentru ștergerea completă se cere reconfirmarea parolei sau o
-                  confirmare prin e-mail. Datele fiscale sau cele necesare
-                  apărării drepturilor pot fi păstrate cât cere legea.
-                </p>
-              </div>
-            }
-          >
-            <div className="grid gap-4">
-              <div className="rounded-2xl border border-subtle bg-app p-4">
-                <p className="text-sm font-bold">Descarcă datele contului</p>
-                <p className="mt-1 text-xs leading-5 text-muted">
-                  Include profilul, preferințele, proiectele și istoricul
-                  disponibil pentru contul tău.
-                </p>
+          <FlatPanel>
+            <div className="border-b border-warning-border bg-warning-soft px-0 py-4 text-warning">
+              <p className="text-xs font-black uppercase tracking-[0.16em]">
+                Ștergere cont
+              </p>
+              <p className="mt-2 max-w-3xl text-sm leading-6">
+                Pentru ștergerea completă se cere reconfirmarea parolei sau o
+                confirmare prin e-mail. Datele fiscale sau cele necesare
+                apărării drepturilor pot fi păstrate cât cere legea.
+              </p>
+            </div>
+
+            <div className="divide-y divide-subtle">
+              <div className="group -mx-3 grid gap-3 rounded-xl px-3 py-5 transition hover:bg-surface-hover sm:grid-cols-[1fr_auto] sm:items-center">
+                <span>
+                  <span className="block text-sm font-black">
+                    Descarcă datele contului
+                  </span>
+                  <span className="mt-1 block text-xs leading-5 text-muted">
+                    Include profilul, preferințele, proiectele și istoricul
+                    disponibil pentru contul tău.
+                  </span>
+                </span>
                 <button
                   type="button"
                   onClick={() =>
@@ -565,145 +941,97 @@ export function SettingsPage() {
                       "Exportul datelor va genera o arhivă descărcabilă după conectarea endpointului backend.",
                     )
                   }
-                  className="mt-3 rounded-full border border-content px-4 py-2 text-xs font-bold transition hover:bg-content hover:text-app"
+                  className="w-fit rounded-xl border border-content px-4 py-2 text-xs font-bold transition hover:bg-content hover:text-app"
                 >
                   Descarcă datele
                 </button>
               </div>
 
-              <div className="grid gap-3 sm:grid-cols-2">
-                {[
-                  [
-                    "Șterge materialele încărcate",
-                    "Elimină fișierele sursă asociate proiectelor tale.",
-                  ],
-                  [
-                    "Șterge flashcard-urile",
-                    "Elimină cardurile generate automat din proiecte.",
-                  ],
-                  [
-                    "Retrage consimțământul newsletter",
-                    "Oprește comunicările comerciale prin e-mail.",
-                  ],
-                  [
-                    "Șterge contul",
-                    "Necesită reconfirmarea parolei sau confirmare prin e-mail.",
-                  ],
-                ].map(([title, description]) => (
-                  <button
-                    key={title}
-                    type="button"
-                    onClick={() =>
-                      setPrivacyNotice(
-                        `${title}: solicitarea va fi validată server-side și jurnalizată înainte de executare.`,
-                      )
-                    }
-                    className="rounded-2xl border border-subtle bg-app p-4 text-left transition hover:bg-surface-hover"
-                  >
-                    <span className="text-sm font-bold">{title}</span>
+              {[
+                [
+                  "Șterge materialele încărcate",
+                  "Elimină fișierele sursă asociate proiectelor tale.",
+                ],
+                [
+                  "Șterge flashcard-urile",
+                  "Elimină cardurile generate automat din proiecte.",
+                ],
+                [
+                  "Retrage consimțământul newsletter",
+                  "Oprește comunicările comerciale prin e-mail.",
+                ],
+                [
+                  "Șterge contul",
+                  "Necesită reconfirmarea parolei sau confirmare prin e-mail.",
+                ],
+              ].map(([title, description]) => (
+                <button
+                  key={title}
+                  type="button"
+                  onClick={() =>
+                    setPrivacyNotice(
+                      `${title}: solicitarea va fi validată server-side și jurnalizată înainte de executare.`,
+                    )
+                  }
+                  className="group -mx-3 grid w-[calc(100%+1.5rem)] gap-3 rounded-xl px-3 py-5 text-left transition hover:bg-surface-hover sm:grid-cols-[1fr_auto] sm:items-center"
+                >
+                  <span>
+                    <span className="block text-sm font-black">{title}</span>
                     <span className="mt-1 block text-xs leading-5 text-muted">
                       {description}
                     </span>
-                  </button>
-                ))}
-              </div>
+                  </span>
+                  <ActionPill
+                    tone={title === "Șterge contul" ? "danger" : "default"}
+                  >
+                    {title === "Șterge contul" ? "Solicită" : "Deschide"}
+                  </ActionPill>
+                </button>
+              ))}
 
-              <div className="rounded-2xl border border-info-border bg-info-soft p-4 text-info">
-                <p className="text-sm font-bold">Setări cookie</p>
-                <p className="mt-1 text-xs leading-5">
-                  Poți modifica sau retrage acordul pentru cookie-urile
-                  opționale oricând.
-                </p>
-                <CookieSettingsButton className="mt-3 rounded-full bg-action px-4 py-2 text-xs font-bold text-on-action transition hover:bg-action-hover" />
+              <div className="group -mx-3 grid gap-3 rounded-xl px-3 py-5 transition hover:bg-surface-hover sm:grid-cols-[1fr_auto] sm:items-center">
+                <span>
+                  <span className="block text-sm font-black">
+                    Setări cookie
+                  </span>
+                  <span className="mt-1 block text-xs leading-5 text-muted">
+                    Poți modifica sau retrage acordul pentru cookie-urile
+                    opționale oricând.
+                  </span>
+                </span>
+                <CookieSettingsButton className="w-fit rounded-xl bg-content px-4 py-2 text-xs font-bold text-app transition hover:opacity-90" />
               </div>
-
-              {privacyNotice ? (
-                <div
-                  role="status"
-                  className="rounded-2xl border border-success-border bg-success-soft px-4 py-3 text-xs font-semibold leading-5 text-success"
-                >
-                  {privacyNotice}
-                </div>
-              ) : null}
             </div>
-          </TabCard>
+
+            {privacyNotice ? (
+              <div
+                role="status"
+                className="border-t border-success-border bg-success-soft py-4 text-xs font-semibold leading-5 text-success"
+              >
+                {privacyNotice}
+              </div>
+            ) : null}
+          </FlatPanel>
         );
     }
   }
 
   return (
     <AccountStaticShell activePage="settings">
-      <section className="space-y-5">
-        <div className="overflow-hidden rounded-[2rem] border border-subtle bg-surface">
-          <div className="relative bg-action px-6 py-7 text-on-action sm:px-8">
-            <div className="pointer-events-none absolute -right-20 -top-24 h-64 w-64 rounded-full border border-on-action/10" />
-            <p className="text-xs font-bold uppercase tracking-[0.2em] text-on-action/60">
-              Setări cont
-            </p>
-            <h1 className="mt-3 max-w-3xl font-serif text-4xl font-semibold leading-tight">
-              Controlează contul, studiul și aspectul aplicației.
-            </h1>
-            <p className="mt-3 max-w-2xl text-sm leading-7 text-on-action/70">
-              Setări organizate pe taburi, cu personalizare de culoare aplicată
-              global.
-            </p>
-          </div>
-        </div>
-
-        <div className="sticky top-14 z-20 rounded-[1.5rem] border border-subtle bg-app/90 p-2 shadow-sm backdrop-blur-xl">
-          <div
-            ref={tabScrollerRef}
-            onScroll={updateTabScrollIndicator}
-            className="flex snap-x gap-2 overflow-x-auto px-0.5 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
-            role="tablist"
-            aria-label="Setări cont"
-          >
-            {settingsTabs.map((tab) => {
-              const isActive = tab.id === activeTab;
-              return (
-                <button
-                  key={tab.id}
-                  type="button"
-                  role="tab"
-                  aria-selected={isActive}
-                  onClick={() => setActiveTab(tab.id)}
-                  className={`snap-start shrink-0 rounded-full border px-5 py-2.5 text-sm font-bold transition ${
-                    isActive
-                      ? "border-action bg-action text-on-action shadow-sm"
-                      : "border-subtle bg-surface text-muted hover:bg-surface-hover hover:text-content"
-                  }`}
-                >
-                  {tab.label}
-                </button>
-              );
-            })}
-          </div>
-          <div
-            ref={tabScrollTrackRef}
-            aria-hidden="true"
-            className="relative mx-1 mt-1 block h-1 rounded-full bg-subtle/80 opacity-0 transition-opacity sm:hidden"
-          >
-            <div
-              ref={tabScrollThumbRef}
-              className="absolute inset-y-0 left-0 rounded-full bg-action transition-[left,width] duration-150"
-            />
-          </div>
-        </div>
-
-        <div className="rounded-[2rem] border border-subtle bg-surface p-5 sm:p-6">
-          <p className="text-xs font-bold uppercase tracking-[0.18em] text-muted">
+      <section className="space-y-8">
+        <div className="mx-auto max-w-3xl text-center">
+          <p className="text-xs font-black uppercase tracking-[0.22em] text-warning">
             {activeTabMeta.eyebrow}
           </p>
-          <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-            <div>
-              <h2 className="font-serif text-3xl font-semibold leading-tight sm:text-4xl">
-                {activeTabMeta.title}
-              </h2>
-              <p className="mt-2 max-w-2xl text-sm leading-6 text-muted">
-                {activeTabMeta.description}
-              </p>
-            </div>
-            <span className="w-fit rounded-full border border-info-border bg-info-soft px-3 py-1 text-xs font-bold text-info">
+          <h1 className="mt-3 font-serif text-4xl font-semibold leading-tight sm:text-5xl">
+            {activeTabMeta.title}
+          </h1>
+          <p className="mx-auto mt-4 max-w-xl text-sm leading-7 text-muted">
+            {activeTabMeta.description}
+          </p>
+          <div className="mt-5 inline-flex items-center gap-2 rounded-full border border-subtle bg-surface px-4 py-2 text-xs text-muted">
+            <span>Secțiune:</span>
+            <span className="font-black text-content">
               {activeTabMeta.label}
             </span>
           </div>
@@ -715,26 +1043,94 @@ export function SettingsPage() {
   );
 }
 
-function TabCard({
+function FlatPanel({ children }: { children: ReactNode }) {
+  return <section className="border-y border-subtle">{children}</section>;
+}
+
+function SettingsRows({ children }: { children: ReactNode }) {
+  return (
+    <div className="divide-y divide-subtle border-t border-subtle">
+      {children}
+    </div>
+  );
+}
+
+function SettingsRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="grid gap-2 py-4 text-sm sm:grid-cols-[0.35fr_1fr] sm:items-center">
+      <span className="font-black">{label}</span>
+      <span className="text-muted sm:text-right">{value}</span>
+    </div>
+  );
+}
+
+function AccountInfoRow({
+  label,
+  value,
+  valueClassName = "text-muted",
   children,
-  aside,
 }: {
-  children: ReactNode;
-  aside?: ReactNode;
+  label: string;
+  value?: string;
+  valueClassName?: string;
+  children?: ReactNode;
 }) {
   return (
-    <section className="rounded-[2rem] border border-subtle bg-surface p-5 sm:p-6">
-      <div
-        className={
-          aside
-            ? "grid gap-5 xl:grid-cols-[minmax(0,1fr)_20rem]"
-            : "grid gap-5"
-        }
-      >
-        <div>{children}</div>
-        {aside ? <aside>{aside}</aside> : null}
+    <div className="grid gap-3 py-6 text-sm sm:grid-cols-[0.42fr_1fr] sm:items-center">
+      <span className="text-base font-medium text-muted">{label}</span>
+      <div className="space-y-3 sm:text-right">
+        {value ? <p className={valueClassName}>{value}</p> : null}
+        {children}
       </div>
-    </section>
+    </div>
+  );
+}
+
+function SectionLabel({ children }: { children: ReactNode }) {
+  return (
+    <p className="text-xs font-black uppercase tracking-[0.16em] text-muted">
+      {children}
+    </p>
+  );
+}
+
+function ToggleSwitch({ checked }: { checked: boolean }) {
+  return (
+    <span
+      aria-hidden="true"
+      className={`relative inline-flex h-6 w-11 shrink-0 rounded-full border p-0.5 transition ${
+        checked
+          ? "border-success-border bg-success-soft"
+          : "border-subtle bg-surface"
+      }`}
+    >
+      <span
+        className={`h-5 w-5 rounded-full shadow-sm transition-transform ${
+          checked ? "translate-x-5 bg-success" : "translate-x-0 bg-muted/55"
+        }`}
+      />
+    </span>
+  );
+}
+
+function ActionPill({
+  children,
+  tone = "default",
+}: {
+  children: ReactNode;
+  tone?: "default" | "danger";
+}) {
+  return (
+    <span
+      className={`inline-flex w-fit items-center gap-2 rounded-xl px-4 py-2 text-xs font-black transition group-hover:translate-x-0.5 ${
+        tone === "danger"
+          ? "bg-danger-soft text-danger"
+          : "bg-content text-app"
+      }`}
+    >
+      {children}
+      <span aria-hidden="true">→</span>
+    </span>
   );
 }
 
@@ -766,89 +1162,54 @@ function ThemePreview({
   };
 }) {
   return (
-    <div className="rounded-3xl border p-5" style={getPreviewStyle(colors)}>
-      <div className="overflow-hidden rounded-[1.5rem] border border-[var(--settings-preview-border)] bg-[var(--settings-preview-app)] text-[var(--settings-preview-content)]">
-        <div className="flex items-center justify-between border-b border-[var(--settings-preview-border)] bg-[var(--settings-preview-surface)] px-4 py-3">
+    <div style={getPreviewStyle(colors)}>
+      <SectionLabel>Preview paletă</SectionLabel>
+      <div className="mt-3 border-y border-[var(--settings-preview-border)] bg-[var(--settings-preview-app)] text-[var(--settings-preview-content)]">
+        <div className="flex items-center justify-between border-b border-[var(--settings-preview-border)] py-4">
           <div>
-            <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-[var(--settings-preview-muted)]">
-              Preview paletă
+            <p className="text-[10px] font-black uppercase tracking-[0.18em] text-[var(--settings-preview-muted)]">
+              Curs activ
             </p>
-            <p className="font-serif text-xl font-semibold">Revizzio</p>
+            <p className="mt-1 font-serif text-2xl font-semibold">
+              Biologie celulară
+            </p>
           </div>
-          <div className="flex gap-1.5">
-            <span className="h-2.5 w-2.5 rounded-full bg-[var(--settings-preview-danger-text)]" />
-            <span className="h-2.5 w-2.5 rounded-full bg-[var(--settings-preview-warning-text)]" />
-            <span className="h-2.5 w-2.5 rounded-full bg-[var(--settings-preview-success-text)]" />
-          </div>
+          <span className="rounded-full bg-[var(--settings-preview-action)] px-4 py-2 text-xs font-black text-[var(--settings-preview-on-action)]">
+            Continuă
+          </span>
         </div>
 
-        <div className="space-y-3 p-4">
-          <div className="rounded-2xl border border-[var(--settings-preview-border)] bg-[var(--settings-preview-surface)] p-4">
-            <div className="flex flex-wrap items-start justify-between gap-3">
-              <div>
-                <span className="rounded-full border border-[var(--settings-preview-success-border)] bg-[var(--settings-preview-success-bg)] px-3 py-1 text-[10px] font-bold uppercase tracking-[0.12em] text-[var(--settings-preview-success-text)]">
-                  Gata de studiu
-                </span>
-                <h3 className="mt-3 font-serif text-2xl font-semibold">
-                  Biologie celulară
-                </h3>
-                <p className="mt-1 text-sm text-[var(--settings-preview-muted)]">
-                  24 flashcard-uri · 3 quiz-uri · progres 72%
-                </p>
-              </div>
-              <button
-                type="button"
-                className="rounded-full bg-[var(--settings-preview-action)] px-4 py-2 text-xs font-bold text-[var(--settings-preview-on-action)]"
+        <div className="divide-y divide-[var(--settings-preview-border)]">
+          {[
+            ["Status", "Gata de studiu", "success"],
+            ["Chat AI", "Revizuiește întâi membrana celulară.", "info"],
+            ["Atenție", "5 concepte intră în zona de uitare în 48h.", "warning"],
+          ].map(([label, value, tone]) => (
+            <div
+              key={label}
+              className="grid gap-2 py-4 text-sm sm:grid-cols-[0.3fr_1fr]"
+            >
+              <span
+                className={
+                  tone === "success"
+                    ? "font-black text-[var(--settings-preview-success-text)]"
+                    : tone === "warning"
+                      ? "font-black text-[var(--settings-preview-warning-text)]"
+                      : "font-black text-[var(--settings-preview-info-text)]"
+                }
               >
-                Continuă
-              </button>
-            </div>
-
-            <div className="mt-4 h-2 overflow-hidden rounded-full bg-[var(--settings-preview-hover)]">
-              <div className="h-full w-[72%] rounded-full bg-[var(--settings-preview-action)]" />
-            </div>
-          </div>
-
-          <div className="grid gap-3 sm:grid-cols-2">
-            <div className="rounded-2xl border border-[var(--settings-preview-info-border)] bg-[var(--settings-preview-info-bg)] p-3 text-[var(--settings-preview-info-text)]">
-              <p className="text-[10px] font-bold uppercase tracking-[0.14em]">
-                Chat AI
-              </p>
-              <p className="mt-2 text-sm leading-5">
-                Revizuiește întâi membrana celulară. Ai ezitat la două întrebări.
-              </p>
-            </div>
-
-            <div className="rounded-2xl border border-[var(--settings-preview-warning-border)] bg-[var(--settings-preview-warning-bg)] p-3 text-[var(--settings-preview-warning-text)]">
-              <p className="text-[10px] font-bold uppercase tracking-[0.14em]">
-                Atenție
-              </p>
-              <p className="mt-2 text-sm leading-5">
-                5 concepte intră în zona de uitare în 48h.
-              </p>
-            </div>
-          </div>
-
-          <div className="rounded-2xl border border-[var(--settings-preview-border)] bg-[var(--settings-preview-surface)] p-3">
-            <div className="mb-3 flex items-center justify-between">
-              <p className="text-xs font-bold uppercase tracking-[0.16em] text-[var(--settings-preview-muted)]">
-                Butoane și stări
-              </p>
-              <span className="rounded-full bg-[var(--settings-preview-action-soft)] px-3 py-1 text-[10px] font-bold text-[var(--settings-preview-action)]">
-                accent
+                {label}
+              </span>
+              <span className="text-[var(--settings-preview-muted)]">
+                {value}
               </span>
             </div>
-            <div className="flex flex-wrap gap-2">
-              <span className="rounded-full bg-[var(--settings-preview-action)] px-4 py-2 text-xs font-bold text-[var(--settings-preview-on-action)]">
-                Primary
-              </span>
-              <span className="rounded-full border border-[var(--settings-preview-border)] bg-[var(--settings-preview-hover)] px-4 py-2 text-xs font-bold text-[var(--settings-preview-content)]">
-                Secondary
-              </span>
-              <span className="rounded-full border border-[var(--settings-preview-danger-border)] bg-[var(--settings-preview-danger-bg)] px-4 py-2 text-xs font-bold text-[var(--settings-preview-danger-text)]">
-                Danger
-              </span>
-            </div>
+          ))}
+        </div>
+
+        <div className="py-4">
+          <div className="h-2 overflow-hidden rounded-full bg-[var(--settings-preview-hover)]">
+            <div className="h-full w-[72%] rounded-full bg-[var(--settings-preview-action)]" />
           </div>
         </div>
       </div>
@@ -870,21 +1231,21 @@ function ColorControl({
   onChange: (value: string) => void;
 }) {
   return (
-    <label className="flex items-center gap-3 rounded-2xl border border-subtle bg-surface p-3">
+    <label className="group -mx-3 grid w-[calc(100%+1.5rem)] cursor-pointer gap-3 rounded-xl px-3 py-4 transition hover:bg-surface-hover sm:grid-cols-[auto_1fr_auto] sm:items-center">
       <span
-        className="h-11 w-11 shrink-0 overflow-hidden rounded-2xl border border-subtle"
+        className="h-10 w-10 shrink-0 overflow-hidden rounded-full border border-subtle"
         style={{ backgroundColor: value }}
       >
         <input
           type="color"
           value={value}
           onChange={(event) => onChange(event.target.value)}
-          className="h-14 w-14 -translate-x-1 -translate-y-1 cursor-pointer opacity-0"
+          className="h-12 w-12 -translate-x-1 -translate-y-1 cursor-pointer opacity-0"
           aria-label={`Schimbă culoarea pentru ${label}`}
         />
       </span>
-      <span className="min-w-0 flex-1">
-        <span className="flex items-center gap-2 text-sm font-bold">
+      <span className="min-w-0">
+        <span className="flex items-center gap-2 text-sm font-black">
           {label}
           {isCustom ? (
             <span className="rounded-full bg-warning-soft px-2 py-0.5 text-[10px] text-warning">
@@ -896,18 +1257,12 @@ function ColorControl({
           {description}
         </span>
       </span>
-      <span className="font-mono text-xs text-muted">{value}</span>
+      <span className="flex items-center gap-3 sm:justify-end">
+        <span className="font-mono text-xs text-muted">{value}</span>
+        <span className="rounded-xl border border-subtle bg-surface px-3 py-1.5 text-xs font-black text-content transition group-hover:border-content">
+          Modifică
+        </span>
+      </span>
     </label>
-  );
-}
-
-function SettingsStat({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-2xl border border-subtle bg-app p-4">
-      <p className="text-xs font-bold uppercase tracking-[0.16em] text-muted">
-        {label}
-      </p>
-      <p className="mt-2 font-serif text-2xl font-semibold">{value}</p>
-    </div>
   );
 }

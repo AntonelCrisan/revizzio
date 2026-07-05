@@ -40,6 +40,8 @@ class SubscriptionPlanResponse(BaseModel):
     material_limit: str
     ai_level: str
     storage: str
+    stripe_product_id: str | None = None
+    stripe_price_id: str | None = None
     is_visible: bool
     is_featured: bool
     sort_order: int
@@ -72,6 +74,8 @@ class SubscriptionPlanUpdate(BaseModel):
     material_limit: str = Field(min_length=1, max_length=300)
     ai_level: str = Field(min_length=1, max_length=300)
     storage: str = Field(min_length=1, max_length=300)
+    stripe_product_id: str | None = Field(default=None, max_length=120)
+    stripe_price_id: str | None = Field(default=None, max_length=120)
     is_visible: bool
     is_featured: bool
     sort_order: int = Field(ge=0)
@@ -93,6 +97,8 @@ class SubscriptionPlanUpdate(BaseModel):
         "billing_interval",
         "discount_label",
         "badge",
+        "stripe_product_id",
+        "stripe_price_id",
         mode="after",
     )
     @classmethod

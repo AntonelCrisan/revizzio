@@ -17,6 +17,8 @@ export type SubscriptionPlan = {
   material_limit: string;
   ai_level: string;
   storage: string;
+  stripe_product_id?: string | null;
+  stripe_price_id?: string | null;
   is_visible: boolean;
   is_featured: boolean;
   sort_order: number;
@@ -44,6 +46,8 @@ export type SubscriptionPlanUpdate = {
   material_limit: string;
   ai_level: string;
   storage: string;
+  stripe_product_id?: string | null;
+  stripe_price_id?: string | null;
   is_visible: boolean;
   is_featured: boolean;
   sort_order: number;

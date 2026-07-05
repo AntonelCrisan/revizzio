@@ -1,16 +1,23 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useEffect, useRef, useState } from "react";
 import { AccountStaticShell } from "@/components/account/account-static-shell";
+import { useAuth } from "@/components/auth/auth-provider";
+import { syncCheckoutSession } from "@/lib/payments-api";
 import type { SubscriptionPlan } from "@/lib/plans-api";
 
 type UpgradePageProps = {
   plans: SubscriptionPlan[];
+  checkoutSessionId?: string;
+  checkoutStatus?: string;
 };
 
 type UpgradePlan = {
   slug: string;
   name: string;
+  title: string;
   price: string;
   oldPrice: string;
   note: string;
@@ -45,11 +52,23 @@ function formatPlanPrice(value: SubscriptionPlan["price_ron"]) {
     : numericValue.toFixed(2).replace(".", ",");
 }
 
-function billingNote(interval: string) {
+function billingSuffix(interval: string) {
   const normalized = interval.trim().toLowerCase();
   if (normalized.includes("lun")) return "RON / lună";
   if (normalized.includes("an")) return "RON / an";
   return `RON / ${interval}`;
+}
+
+function planTitle(plan: SubscriptionPlan, index: number) {
+  if (Number(plan.price_ron) === 0) return "Pentru început";
+  if (plan.is_featured || index === 1) return "Studiu Activ";
+  return "Fără Limite";
+}
+
+function planCta(plan: SubscriptionPlan) {
+  if (Number(plan.price_ron) === 0) return "Plan gratuit inclus";
+  if (plan.is_featured) return `Alege ${plan.name}`;
+  return `Upgrade la ${plan.name}`;
 }
 
 function uniqueFeatures(features: string[]) {
@@ -66,8 +85,7 @@ function toUpgradePlans(plans: SubscriptionPlan[]): UpgradePlan[] {
   return [...plans]
     .filter((plan) => plan.is_visible)
     .sort((first, second) => first.sort_order - second.sort_order)
-    .map((plan) => {
-      const price = formatPlanPrice(plan.price_ron);
+    .map((plan, index) => {
       const isFree = Number(plan.price_ron) === 0;
       const sortedFeatures = [...plan.features].sort(
         (first, second) => first.sort_order - second.sort_order,
@@ -76,12 +94,13 @@ function toUpgradePlans(plans: SubscriptionPlan[]): UpgradePlan[] {
       return {
         slug: plan.slug,
         name: plan.name,
-        price,
+        title: planTitle(plan, index),
+        price: formatPlanPrice(plan.price_ron),
         oldPrice: plan.old_price_ron ? formatPlanPrice(plan.old_price_ron) : "",
-        note: isFree ? "RON gratuit" : billingNote(plan.billing_interval),
+        note: isFree ? "RON / permanent" : billingSuffix(plan.billing_interval),
         description: plan.description,
         discount: plan.discount_label ?? "",
-        cta: isFree ? "Plan curent" : "Plătește și activează abonamentul",
+        cta: planCta(plan),
         paid: !isFree,
         highlighted: plan.is_featured,
         features: uniqueFeatures([
@@ -89,164 +108,225 @@ function toUpgradePlans(plans: SubscriptionPlan[]): UpgradePlan[] {
           plan.ai_level,
           plan.storage,
           ...sortedFeatures.map((feature) => feature.label),
-        ]),
+        ]).slice(0, 4),
       };
     });
 }
 
-export function UpgradePage({ plans }: UpgradePageProps) {
+export function UpgradePage({
+  plans,
+  checkoutSessionId,
+  checkoutStatus,
+}: UpgradePageProps) {
+  const router = useRouter();
+  const { user, isLoading, setUser } = useAuth();
+  const syncedCheckoutSessionRef = useRef<string | null>(null);
+  const [checkoutMessage, setCheckoutMessage] = useState<string | null>(() => {
+    if (checkoutStatus === "cancelled") {
+      return "Plata a fost anulată. Planul tău nu a fost schimbat.";
+    }
+    if (checkoutStatus === "success" && checkoutSessionId) {
+      return "Confirmăm plata cu Stripe și actualizăm planul...";
+    }
+    return null;
+  });
+  const currentPlanSlug = user?.current_plan?.slug ?? "start";
   const upgradePlans = toUpgradePlans(plans);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    if (
+      checkoutStatus !== "success" ||
+      !checkoutSessionId ||
+      isLoading ||
+      !user ||
+      syncedCheckoutSessionRef.current === checkoutSessionId
+    ) {
+      return () => {
+        isMounted = false;
+      };
+    }
+
+    syncedCheckoutSessionRef.current = checkoutSessionId;
+    syncCheckoutSession(checkoutSessionId)
+      .then((updatedUser) => {
+        if (!isMounted) return;
+        setUser(updatedUser);
+        setCheckoutMessage(
+          `Plata a fost confirmată. Planul activ este ${updatedUser.current_plan?.name ?? "Start"}.`,
+        );
+        router.refresh();
+      })
+      .catch(() => {
+        syncedCheckoutSessionRef.current = null;
+        if (!isMounted) return;
+        setCheckoutMessage(
+          "Plata a fost înregistrată. Dacă planul nu apare imediat, Stripe îl va sincroniza în scurt timp.",
+        );
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [checkoutSessionId, checkoutStatus, isLoading, router, setUser, user]);
 
   return (
     <AccountStaticShell activePage="upgrade">
-      <section className="overflow-hidden rounded-[2rem] border border-subtle bg-surface">
-        <div className="relative bg-action px-6 py-8 text-center text-on-action sm:px-8 sm:py-12">
-          <div className="pointer-events-none absolute left-1/2 top-0 h-80 w-80 -translate-x-1/2 -translate-y-1/2 rounded-full border border-on-action/10" />
-          <p className="text-xs font-bold uppercase tracking-[0.2em] text-on-action/60">
-            Abonament
+      <section className="space-y-8">
+        <div className="mx-auto max-w-3xl text-center">
+          <p className="text-xs font-black uppercase tracking-[0.22em] text-warning">
+            Abonamentul tău
           </p>
-          <h1 className="mx-auto mt-4 max-w-3xl font-serif text-4xl font-semibold leading-tight sm:text-5xl">
-            Mai mult spațiu pentru cursuri. Mai puțin haos în sesiune.
+          <h1 className="mt-3 font-serif text-4xl font-semibold leading-tight sm:text-5xl">
+            Alege spațiul de studiu potrivit.
           </h1>
-          <p className="mx-auto mt-4 max-w-2xl text-sm leading-7 text-on-action/70">
-            Planul recomandat este poziționat ca alegerea principală: suficient
-            de puternic pentru utilizare reală, fără costul unui plan mare.
+          <p className="mx-auto mt-4 max-w-xl text-sm leading-7 text-muted">
+            Planuri simple, flexibile și transparente în RON. Schimbi sau anulezi
+            oricând dorești.
           </p>
-          <span className="mt-6 inline-flex rounded-full border border-success-border bg-success-soft px-4 py-2 text-xs font-bold text-success">
-            Poți schimba sau anula planul oricând
-          </span>
+          <div className="mt-5 inline-flex flex-wrap items-center justify-center gap-2 rounded-full border border-subtle bg-surface px-4 py-2 text-xs text-muted">
+            <span>Status cont:</span>
+            <span className="h-1.5 w-1.5 rounded-full bg-success" />
+            <span className="font-black text-content">
+              {user?.current_plan?.name ?? "Start"} Activ
+            </span>
+            <span className="text-muted/45">|</span>
+            <span>Anulare oricând</span>
+          </div>
         </div>
 
-        <div className="grid gap-4 p-5 sm:p-6 lg:grid-cols-3 lg:items-stretch">
-          {upgradePlans.map((plan) => (
-            <article
-              key={plan.name}
-              className={`relative flex flex-col rounded-[1.75rem] border p-5 transition ${
-                plan.highlighted
-                  ? "border-action bg-action text-on-action shadow-2xl shadow-black/20 lg:-mt-5 lg:mb-5"
-                  : "border-subtle bg-app"
-              }`}
-            >
-              {plan.highlighted ? (
-                <span className="absolute right-5 top-5 rounded-full bg-on-action px-3 py-1 text-[10px] font-black uppercase tracking-[0.14em] text-action">
-                  Recomandat
-                </span>
-              ) : null}
+        {checkoutMessage ? (
+          <div className="mx-auto max-w-3xl rounded-2xl border border-success-border bg-success-soft px-5 py-4 text-center text-sm font-bold text-success">
+            {checkoutMessage}
+          </div>
+        ) : null}
 
-              <p
-                className={`text-xs font-bold uppercase tracking-[0.18em] ${
-                  plan.highlighted ? "text-on-action/60" : "text-muted"
+        <div className="grid gap-6 lg:grid-cols-3 lg:items-stretch">
+          {upgradePlans.map((plan) => {
+            const isCurrentPlan = plan.slug === currentPlanSlug;
+
+            return (
+              <article
+                key={plan.slug}
+                className={`relative flex min-h-[28rem] flex-col rounded-[1.5rem] border p-7 shadow-sm ${
+                  plan.highlighted
+                    ? "border-action bg-action text-on-action shadow-2xl shadow-black/15 lg:-mt-4"
+                    : "border-subtle bg-surface"
                 }`}
               >
-                {plan.name}
-              </p>
-
-              <p className="mt-8 flex flex-wrap items-end gap-x-2 gap-y-1">
-                {plan.oldPrice ? (
-                  <span
-                    className={`pb-2 text-lg font-black line-through ${
-                      plan.highlighted ? "text-on-action/45" : "text-muted"
-                    }`}
-                  >
-                    {plan.oldPrice}
+                {plan.highlighted ? (
+                  <span className="absolute left-1/2 top-0 -translate-x-1/2 -translate-y-1/2 rounded-full bg-warning-soft px-4 py-1.5 text-[10px] font-black uppercase tracking-[0.12em] text-warning">
+                    Recomandat
                   </span>
                 ) : null}
-                <span className="font-serif text-6xl font-semibold leading-none">
-                  {plan.price}
-                </span>
-                <span
-                  className={`pb-2 text-sm font-bold ${
+
+                <p
+                  className={`text-xs font-black uppercase tracking-[0.18em] ${
                     plan.highlighted ? "text-on-action/65" : "text-muted"
                   }`}
                 >
-                  {plan.note}
-                </span>
-              </p>
-
-              {plan.discount ? (
-                <p
-                  className={`mt-3 w-fit rounded-full px-3 py-1 text-xs font-black ${
-                    plan.highlighted
-                      ? "bg-on-action/12 text-on-action"
-                      : "border border-success-border bg-success-soft text-success"
-                  }`}
-                >
-                  {plan.discount}
+                  {plan.name}
                 </p>
-              ) : null}
+                <h2 className="mt-2 font-serif text-2xl font-semibold">
+                  {plan.title}
+                </h2>
 
-              <p
-                className={`mt-4 text-sm leading-6 ${
-                  plan.highlighted ? "text-on-action/70" : "text-muted"
-                }`}
-              >
-                {plan.description}
-              </p>
-
-              <div
-                className={`my-6 h-px ${
-                  plan.highlighted ? "bg-on-action/15" : "bg-subtle"
-                }`}
-              />
-
-              <ul className="space-y-3 text-sm">
-                {plan.features.map((feature) => (
-                  <li key={feature} className="flex gap-3">
+                <p className="mt-7 flex flex-wrap items-end gap-x-2 gap-y-1">
+                  <span className="font-serif text-5xl font-semibold leading-none">
+                    {plan.price}
+                  </span>
+                  <span
+                    className={`pb-1 text-sm font-medium ${
+                      plan.highlighted ? "text-on-action/75" : "text-muted"
+                    }`}
+                  >
+                    {plan.note}
+                  </span>
+                  {plan.oldPrice ? (
                     <span
-                      className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-xs ${
-                        plan.highlighted
-                          ? "bg-on-action/15 text-on-action"
-                          : "bg-success-soft text-success"
+                      className={`pb-1 text-xs font-bold line-through ${
+                        plan.highlighted ? "text-on-action/45" : "text-muted"
                       }`}
                     >
-                      <CheckIcon />
+                      {plan.oldPrice} RON
                     </span>
-                    <span>{feature}</span>
-                  </li>
-                ))}
-              </ul>
+                  ) : null}
+                </p>
 
-              {plan.paid ? (
-                <Link
-                  href={`/checkout/${plan.slug}`}
-                  className={`mt-auto inline-flex items-center justify-center rounded-full px-5 py-3 text-sm font-black transition ${
-                    plan.highlighted
-                      ? "bg-on-action text-action hover:bg-on-action/90"
-                      : "border border-content bg-surface hover:bg-content hover:text-app"
+                {plan.discount ? (
+                  <p
+                    className={`mt-3 w-fit rounded px-2 py-1 text-[10px] font-black ${
+                      plan.highlighted
+                        ? "bg-warning-soft text-warning"
+                        : "bg-success-soft text-success"
+                    }`}
+                  >
+                    {plan.discount}
+                  </p>
+                ) : null}
+
+                <p
+                  className={`mt-5 text-sm leading-6 ${
+                    plan.highlighted ? "text-on-action/75" : "text-muted"
                   }`}
                 >
-                  {plan.cta}
-                </Link>
-              ) : (
-                <button
-                  type="button"
-                  className="mt-auto rounded-full border border-content bg-surface px-5 py-3 text-sm font-black transition hover:bg-content hover:text-app"
-                >
-                  {plan.cta}
-                </button>
-              )}
-            </article>
-          ))}
-        </div>
-
-        <div className="border-t border-subtle bg-app px-5 py-6 sm:px-8">
-          <div className="grid gap-4 md:grid-cols-3">
-            {[
-              ["Generare rapidă", "Pachetele se creează în câteva momente."],
-              ["Datele rămân ale tale", "Materialele sunt legate de contul tău."],
-              [
-                "Gândit pentru studenți",
-                "Prețuri în RON, simple de înțeles și comparat.",
-              ],
-            ].map(([title, description]) => (
-              <div key={title} className="rounded-2xl bg-surface p-4">
-                <p className="text-sm font-bold">{title}</p>
-                <p className="mt-2 text-xs leading-5 text-muted">
-                  {description}
+                  {plan.description}
                 </p>
-              </div>
-            ))}
-          </div>
+
+                <div
+                  className={`my-6 h-px ${
+                    plan.highlighted ? "bg-on-action/15" : "bg-subtle"
+                  }`}
+                />
+
+                <ul className="space-y-4 text-sm">
+                  {plan.features.map((feature) => (
+                    <li key={feature} className="flex gap-3">
+                      <span
+                        className={`mt-0.5 shrink-0 ${
+                          plan.highlighted ? "text-warning" : "text-success"
+                        }`}
+                      >
+                        <CheckIcon />
+                      </span>
+                      <span>{feature}</span>
+                    </li>
+                  ))}
+                </ul>
+
+                <div className="mt-auto pt-8">
+                  {isCurrentPlan ? (
+                    <button
+                      type="button"
+                      className="w-full rounded-xl border border-subtle bg-surface px-5 py-3 text-sm font-black text-content"
+                    >
+                      Plan actual
+                    </button>
+                  ) : plan.paid ? (
+                    <Link
+                      href={`/checkout/${plan.slug}`}
+                      className={`inline-flex w-full items-center justify-center rounded-xl px-5 py-3 text-sm font-black transition ${
+                        plan.highlighted
+                          ? "bg-on-action text-action hover:bg-on-action/90"
+                          : "bg-surface-hover text-content hover:bg-content hover:text-app"
+                      }`}
+                    >
+                      {plan.cta}
+                    </Link>
+                  ) : (
+                    <button
+                      type="button"
+                      disabled
+                      className="w-full cursor-default rounded-xl border border-subtle bg-surface px-5 py-3 text-sm font-black text-muted"
+                    >
+                      {plan.cta}
+                    </button>
+                  )}
+                </div>
+              </article>
+            );
+          })}
         </div>
       </section>
     </AccountStaticShell>

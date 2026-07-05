@@ -2,13 +2,14 @@ import uuid
 from datetime import datetime
 from typing import TYPE_CHECKING
 
-from sqlalchemy import Boolean, CheckConstraint, DateTime, String, func
+from sqlalchemy import Boolean, CheckConstraint, DateTime, ForeignKey, String, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base
 
 if TYPE_CHECKING:
     from app.models.auth_session import AuthSession
+    from app.models.subscription import SubscriptionPlan, UserSubscription
 
 
 class User(Base):
@@ -72,8 +73,27 @@ class User(Base):
         default="system",
         server_default="system",
     )
+    stripe_customer_id: Mapped[str | None] = mapped_column(
+        String(120),
+        nullable=True,
+        unique=True,
+        index=True,
+    )
+    current_plan_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("subscription_plans.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
 
     sessions: Mapped[list[AuthSession]] = relationship(
+        back_populates="user",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+    )
+    current_plan: Mapped["SubscriptionPlan | None"] = relationship(
+        foreign_keys=[current_plan_id],
+    )
+    subscriptions: Mapped[list["UserSubscription"]] = relationship(
         back_populates="user",
         cascade="all, delete-orphan",
         passive_deletes=True,

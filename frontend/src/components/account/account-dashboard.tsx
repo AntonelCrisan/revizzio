@@ -24,6 +24,7 @@ export type TabId =
   | "progres"
   | "chat";
 type GenerationState = "form" | "generating" | "done";
+type SidebarGroupId = "settings" | "billing";
 
 type StudyProject = {
   id: string;
@@ -138,6 +139,21 @@ const tabRoutes: Record<TabId, string> = {
   progres: "/myaccount/progres",
   chat: "/myaccount/chat-ai",
 };
+
+const sidebarSettingsItems = [
+  { href: "/settings#account", label: "Cont" },
+  { href: "/settings#study", label: "Studiu" },
+  { href: "/settings#appearance", label: "Aspect" },
+  { href: "/settings#colors", label: "Culori" },
+  { href: "/settings#notifications", label: "Notificări" },
+  { href: "/settings#security", label: "Securitate" },
+  { href: "/settings#privacy", label: "Date" },
+];
+
+const sidebarBillingItems = [
+  { href: "/upgrade", label: "Planuri" },
+  { href: "/upgrade/facturi", label: "Facturi" },
+];
 
 const generationSteps = [
   "Rezumat",
@@ -268,6 +284,8 @@ export function AccountDashboard({
         : "rezumat",
   );
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [openSidebarGroup, setOpenSidebarGroup] =
+    useState<SidebarGroupId | null>(null);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [projectName, setProjectName] = useState("");
   const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([]);
@@ -276,7 +294,6 @@ export function AccountDashboard({
   const [generationState, setGenerationState] =
     useState<GenerationState>("form");
   const [completedSteps, setCompletedSteps] = useState<string[]>([]);
-
   const activeProject = useMemo(
     () => getProjectById(projects, activeProjectId),
     [activeProjectId, projects],
@@ -532,16 +549,48 @@ export function AccountDashboard({
               </Icon>
               Acasă
             </button>
-            <Link
-              href="/settings"
-              className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold text-content transition hover:bg-surface-hover"
-            >
-              <Icon className="h-[18px] w-[18px]">
-                <circle cx="12" cy="12" r="3" />
-                <path d="M19.4 15a1.7 1.7 0 0 0 .34 1.88l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06A1.7 1.7 0 0 0 15 19.4a1.7 1.7 0 0 0-1 .6l-.08.08a2 2 0 1 1-2.83-2.83l.08-.08A1.7 1.7 0 0 0 10.6 15a1.7 1.7 0 0 0-1.88-.34l-.1.04a2 2 0 1 1-1.53-3.7l.1-.04A1.7 1.7 0 0 0 7.8 9a1.7 1.7 0 0 0-.6-1l-.08-.08a2 2 0 1 1 2.83-2.83l.08.08A1.7 1.7 0 0 0 12 4.6a1.7 1.7 0 0 0 1-.6l.08-.08a2 2 0 1 1 2.83 2.83l-.08.08A1.7 1.7 0 0 0 16.4 9a1.7 1.7 0 0 0 1.88.34l.1-.04a2 2 0 1 1 1.53 3.7l-.1.04A1.7 1.7 0 0 0 19.4 15z" />
-              </Icon>
-              Setări
-            </Link>
+            <div className="pt-1">
+              <button
+                type="button"
+                onClick={() =>
+                  setOpenSidebarGroup((currentGroup) =>
+                    currentGroup === "settings" ? null : "settings",
+                  )
+                }
+                className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-semibold text-content transition hover:bg-surface-hover"
+                aria-expanded={openSidebarGroup === "settings"}
+              >
+                <Icon className="h-[18px] w-[18px]">
+                  <circle cx="12" cy="12" r="3" />
+                  <path d="M19.4 15a1.7 1.7 0 0 0 .34 1.88l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06A1.7 1.7 0 0 0 15 19.4a1.7 1.7 0 0 0-1 .6l-.08.08a2 2 0 1 1-2.83-2.83l.08-.08A1.7 1.7 0 0 0 10.6 15a1.7 1.7 0 0 0-1.88-.34l-.1.04a2 2 0 1 1-1.53-3.7l.1-.04A1.7 1.7 0 0 0 7.8 9a1.7 1.7 0 0 0-.6-1l-.08-.08a2 2 0 1 1 2.83-2.83l.08.08A1.7 1.7 0 0 0 12 4.6a1.7 1.7 0 0 0 1-.6l.08-.08a2 2 0 1 1 2.83 2.83l-.08.08A1.7 1.7 0 0 0 16.4 9a1.7 1.7 0 0 0 1.88.34l.1-.04a2 2 0 1 1 1.53 3.7l-.1.04A1.7 1.7 0 0 0 19.4 15z" />
+                </Icon>
+                <span className="min-w-0 flex-1">Setări</span>
+                <Icon
+                  className={`h-4 w-4 transition ${
+                    openSidebarGroup === "settings" ? "rotate-90" : ""
+                  }`}
+                >
+                  <path d="M9 18l6-6-6-6" />
+                </Icon>
+              </button>
+              <div
+                className={`ml-8 overflow-hidden transition-[max-height] duration-300 ${
+                  openSidebarGroup === "settings" ? "max-h-80" : "max-h-0"
+                }`}
+              >
+                <div className="mt-1 space-y-1">
+                  {sidebarSettingsItems.map((item) => (
+                    <Link
+                      key={item.href}
+                      href={item.href}
+                      className="flex items-center rounded-xl px-3 py-2 text-sm font-semibold text-muted transition hover:bg-surface-hover hover:text-content"
+                    >
+                      {item.label}
+                    </Link>
+                  ))}
+                </div>
+              </div>
+            </div>
             {user.role === "admin" ? (
               <Link
                 href="/admin/settings"
@@ -554,15 +603,47 @@ export function AccountDashboard({
                 Setări admin
               </Link>
             ) : null}
-            <Link
-              href="/upgrade"
-              className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold text-content transition hover:bg-surface-hover"
-            >
-              <Icon className="h-[18px] w-[18px]">
-                <path d="M12 3l3.2 6.5 7.1 1-5.1 5 1.2 7-6.4-3.4-6.4 3.4 1.2-7-5.1-5 7.1-1L12 3z" />
-              </Icon>
-              Abonament
-            </Link>
+            <div className="pt-1">
+              <button
+                type="button"
+                onClick={() =>
+                  setOpenSidebarGroup((currentGroup) =>
+                    currentGroup === "billing" ? null : "billing",
+                  )
+                }
+                className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-semibold text-content transition hover:bg-surface-hover"
+                aria-expanded={openSidebarGroup === "billing"}
+              >
+                <Icon className="h-[18px] w-[18px]">
+                  <path d="M12 3l3.2 6.5 7.1 1-5.1 5 1.2 7-6.4-3.4-6.4 3.4 1.2-7-5.1-5 7.1-1L12 3z" />
+                </Icon>
+                <span className="min-w-0 flex-1">Abonament</span>
+                <Icon
+                  className={`h-4 w-4 transition ${
+                    openSidebarGroup === "billing" ? "rotate-90" : ""
+                  }`}
+                >
+                  <path d="M9 18l6-6-6-6" />
+                </Icon>
+              </button>
+              <div
+                className={`ml-8 overflow-hidden transition-[max-height] duration-300 ${
+                  openSidebarGroup === "billing" ? "max-h-32" : "max-h-0"
+                }`}
+              >
+                <div className="mt-1 space-y-1">
+                  {sidebarBillingItems.map((item) => (
+                    <Link
+                      key={item.href}
+                      href={item.href}
+                      className="flex items-center rounded-xl px-3 py-2 text-sm font-semibold text-muted transition hover:bg-surface-hover hover:text-content"
+                    >
+                      {item.label}
+                    </Link>
+                  ))}
+                </div>
+              </div>
+            </div>
           </nav>
 
           <p className="px-5 pt-5 text-[11px] font-bold uppercase tracking-[0.12em] text-muted">
@@ -629,26 +710,6 @@ export function AccountDashboard({
             })}
           </div>
 
-          <div className="mx-4 my-5 h-px bg-subtle" />
-
-          <div className="mx-4 rounded-2xl border border-subtle bg-app p-4">
-            <div className="flex items-center justify-between">
-              <p className="text-xs font-bold tracking-[0.08em]">PLAN START</p>
-              <span className="text-[11px] text-muted">Gratuit</span>
-            </div>
-            <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-subtle">
-              <div className="h-full w-2/3 rounded-full bg-success" />
-            </div>
-            <p className="mt-2 text-xs text-muted">
-              2 din 3 materiale procesate luna aceasta
-            </p>
-            <Link
-              href="/upgrade"
-              className="mt-3 flex items-center justify-center rounded-full border border-content px-3 py-2 text-xs font-bold transition hover:bg-content hover:text-app"
-            >
-              Schimbă planul
-            </Link>
-          </div>
         </div>
 
         <div className="border-t border-subtle p-3">

@@ -22,6 +22,8 @@ type AdminPlanDraft = {
   materialLimit: string;
   aiLevel: string;
   storage: string;
+  stripeProductId: string;
+  stripePriceId: string;
   isVisible: boolean;
   isFeatured: boolean;
   options: string[];
@@ -70,6 +72,8 @@ function toDraftPlan(plan: SubscriptionPlan): AdminPlanDraft {
     materialLimit: plan.material_limit,
     aiLevel: plan.ai_level,
     storage: plan.storage,
+    stripeProductId: plan.stripe_product_id ?? "",
+    stripePriceId: plan.stripe_price_id ?? "",
     isVisible: plan.is_visible,
     isFeatured: plan.is_featured,
     options: [...plan.features]
@@ -97,6 +101,8 @@ function toPlanUpdate(
     material_limit: plan.materialLimit,
     ai_level: plan.aiLevel,
     storage: plan.storage,
+    stripe_product_id: optionalText(plan.stripeProductId),
+    stripe_price_id: optionalText(plan.stripePriceId),
     is_visible: plan.isVisible,
     is_featured: plan.isFeatured,
     sort_order: sortOrder,
@@ -515,6 +521,18 @@ export function AdminPlansPage({ initialPlans }: AdminPlansPageProps) {
                 label="Stocare / istoric"
                 value={selectedPlan.storage}
                 onChange={(value) => updateSelectedPlan({ storage: value })}
+              />
+              <TextField
+                label="Stripe Product ID"
+                value={selectedPlan.stripeProductId}
+                onChange={(value) => updateSelectedPlan({ stripeProductId: value })}
+                placeholder="prod_..."
+              />
+              <TextField
+                label="Stripe Price ID"
+                value={selectedPlan.stripePriceId}
+                onChange={(value) => updateSelectedPlan({ stripePriceId: value })}
+                placeholder="price_..."
               />
             </div>
 

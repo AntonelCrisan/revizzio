@@ -39,6 +39,14 @@ class Settings(BaseSettings):
     email_verification_ttl_minutes: int = Field(default=30, ge=5, le=1440)
     password_reset_ttl_minutes: int = Field(default=30, ge=5, le=1440)
 
+    stripe_secret_key: SecretStr | None = None
+    stripe_webhook_secret: SecretStr | None = None
+    stripe_api_base_url: str = "https://api.stripe.com/v1"
+    stripe_checkout_success_path: str = (
+        "/upgrade?checkout=success&session_id={CHECKOUT_SESSION_ID}"
+    )
+    stripe_checkout_cancel_path: str = "/upgrade?checkout=cancelled"
+
     cors_origins: str = "http://localhost:3000,http://127.0.0.1:3000"
 
     @field_validator("database_url")

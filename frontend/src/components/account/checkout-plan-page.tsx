@@ -1,8 +1,9 @@
 "use client";
 
 import Link from "next/link";
+import { useState } from "react";
 import { AccountStaticShell } from "@/components/account/account-static-shell";
-import { CheckoutDisclosure } from "@/components/legal/checkout-disclosure";
+import { createCheckoutSession, PaymentsApiError } from "@/lib/payments-api";
 import type { SubscriptionPlan } from "@/lib/plans-api";
 
 type CheckoutPlanPageProps = {
@@ -34,23 +35,16 @@ function formatPlanPrice(value: SubscriptionPlan["price_ron"]) {
 
 function billingPeriod(interval: string) {
   const normalized = interval.trim().toLowerCase();
-  if (normalized.includes("lun")) return "lunară";
-  if (normalized.includes("an")) return "anuală";
+  if (normalized.includes("lun")) return "Lunar";
+  if (normalized.includes("an")) return "Anual";
   return interval;
-}
-
-function billingNote(interval: string) {
-  const normalized = interval.trim().toLowerCase();
-  if (normalized.includes("lun")) return "RON / lună";
-  if (normalized.includes("an")) return "RON / an";
-  return `RON / ${interval}`;
 }
 
 function paymentFrequency(interval: string) {
   const normalized = interval.trim().toLowerCase();
-  if (normalized.includes("lun")) return "Lunar, cu reînnoire automată";
-  if (normalized.includes("an")) return "Anual, cu reînnoire automată";
-  return `${interval}, cu reînnoire automată`;
+  if (normalized.includes("lun")) return "Lunar, reînnoire automată";
+  if (normalized.includes("an")) return "Anual, reînnoire automată";
+  return `${interval}, reînnoire automată`;
 }
 
 function uniqueFeatures(plan: SubscriptionPlan) {
@@ -72,123 +66,177 @@ function uniqueFeatures(plan: SubscriptionPlan) {
   });
 }
 
+function paymentErrorMessage(error: unknown) {
+  if (error instanceof PaymentsApiError) {
+    if (error.status === 401) {
+      return "Trebuie să fii autentificat ca să activezi un abonament.";
+    }
+    return error.message;
+  }
+  if (error instanceof Error) return error.message;
+  return "Plata nu a putut fi pornită momentan.";
+}
+
 export function CheckoutPlanPage({ plan }: CheckoutPlanPageProps) {
+  const [isStartingPayment, setIsStartingPayment] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const price = formatPlanPrice(plan.price_ron);
-  const oldPrice = plan.old_price_ron ? formatPlanPrice(plan.old_price_ron) : "";
   const isFree = Number(plan.price_ron) === 0;
-  const features = uniqueFeatures(plan);
+  const hasStripePrice = Boolean(plan.stripe_price_id);
+  const canStartPayment = !isFree && hasStripePrice && !isStartingPayment;
+  const features = uniqueFeatures(plan).slice(0, 4);
   const period = billingPeriod(plan.billing_interval);
+
+  async function startPayment() {
+    if (!canStartPayment) return;
+    setIsStartingPayment(true);
+    setErrorMessage(null);
+
+    try {
+      const checkoutSession = await createCheckoutSession(plan.slug);
+      window.location.assign(checkoutSession.checkout_url);
+    } catch (error) {
+      setErrorMessage(paymentErrorMessage(error));
+      setIsStartingPayment(false);
+    }
+  }
 
   return (
     <AccountStaticShell activePage="upgrade">
-      <div className="space-y-5">
-        <Link
-          href="/upgrade"
-          className="inline-flex items-center gap-2 text-sm font-bold text-muted transition hover:text-content"
-        >
-          <span aria-hidden="true">←</span>
-          Înapoi la abonamente
-        </Link>
+      <div className="grid gap-8 lg:grid-cols-[1fr_23rem] lg:items-start">
+        <section>
+          <Link
+            href="/upgrade"
+            className="inline-flex items-center gap-2 text-sm font-bold text-muted transition hover:text-content"
+          >
+            <span aria-hidden="true">←</span>
+            Înapoi la abonamente
+          </Link>
 
-        <section className="overflow-hidden rounded-[2rem] border border-subtle bg-surface">
-          <div className="grid gap-0 lg:grid-cols-[1fr_0.85fr]">
-            <div className="p-5 sm:p-8">
-              <p className="text-xs font-black uppercase tracking-[0.22em] text-muted">
-                Confirmare abonament
-              </p>
-              <h1 className="mt-3 font-serif text-4xl font-semibold leading-tight sm:text-5xl">
-                Verifică planul înainte de plată.
-              </h1>
-              <p className="mt-4 max-w-2xl text-sm leading-7 text-muted">
-                Ai aici sumarul planului, prețul, beneficiile și informațiile
-                obligatorii înainte să continui către procesatorul de plată.
-              </p>
+          <p className="mt-10 text-xs font-black uppercase tracking-[0.22em] text-warning">
+            Confirmare abonament
+          </p>
+          <h1 className="mt-3 max-w-3xl font-serif text-4xl font-semibold leading-tight sm:text-5xl">
+            Verifică planul înainte de plată.
+          </h1>
+          <p className="mt-4 max-w-2xl text-sm leading-7 text-muted">
+            Totul este transparent: planul ales, prețul și beneficiile incluse.
+            Plata se face securizat prin Stripe.
+          </p>
 
-              <div className="mt-8 rounded-[1.75rem] border border-subtle bg-app p-5">
-                <div className="flex flex-wrap items-start justify-between gap-4">
-                  <div>
-                    <p className="text-xs font-black uppercase tracking-[0.18em] text-muted">
-                      Plan ales
-                    </p>
-                    <h2 className="mt-2 font-serif text-3xl font-semibold">
-                      {plan.name}
-                    </h2>
-                    <p className="mt-2 max-w-xl text-sm leading-6 text-muted">
-                      {plan.description}
-                    </p>
-                  </div>
-
-                  {plan.discount_label ? (
-                    <span className="rounded-full border border-success-border bg-success-soft px-3 py-1 text-xs font-black text-success">
-                      {plan.discount_label}
-                    </span>
-                  ) : null}
-                </div>
-
-                <div className="mt-8 flex flex-wrap items-end gap-x-3 gap-y-2">
-                  {oldPrice ? (
-                    <span className="pb-2 text-lg font-black text-muted line-through">
-                      {oldPrice}
-                    </span>
-                  ) : null}
-                  <span className="font-serif text-6xl font-semibold leading-none">
-                    {price}
+          <div className="mt-8 rounded-[1.5rem] border border-subtle bg-surface p-6 shadow-sm">
+            <div className="flex flex-wrap items-start justify-between gap-5">
+              <div>
+                {plan.discount_label ? (
+                  <span className="rounded bg-warning-soft px-3 py-1 text-[10px] font-black uppercase text-warning">
+                    {plan.discount_label}
                   </span>
-                  <span className="pb-2 text-sm font-bold text-muted">
-                    {isFree ? "RON gratuit" : billingNote(plan.billing_interval)}
-                  </span>
-                </div>
-
-                <div className="my-6 h-px bg-subtle" />
-
-                <ul className="grid gap-3 text-sm sm:grid-cols-2">
-                  {features.map((feature) => (
-                    <li key={feature} className="flex gap-3">
-                      <span className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-success-soft text-success">
-                        <CheckIcon />
-                      </span>
-                      <span>{feature}</span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            </div>
-
-            <aside className="border-t border-subtle bg-app p-5 sm:p-8 lg:border-l lg:border-t-0">
-              <CheckoutDisclosure
-                planName={plan.name}
-                price={price}
-                period={period}
-                paymentFrequency={paymentFrequency(plan.billing_interval)}
-                className="bg-surface"
-              />
-
-              <div className="mt-5 rounded-[1.5rem] border border-subtle bg-surface p-4 text-sm leading-6 text-muted">
-                <p className="font-black text-content">Ce urmează?</p>
-                <p className="mt-2">
-                  După confirmare vei fi trimis către pagina de plată. Planul
-                  devine activ după finalizarea tranzacției.
+                ) : null}
+                <h2 className="mt-3 font-serif text-3xl font-semibold">
+                  {plan.name}
+                </h2>
+                <p className="mt-1 max-w-xl text-sm leading-6 text-muted">
+                  {plan.description}
                 </p>
               </div>
 
-              {isFree ? (
-                <Link
-                  href="/myaccount"
-                  className="mt-5 inline-flex w-full items-center justify-center rounded-full bg-content px-5 py-3 text-sm font-black text-app transition hover:opacity-90"
-                >
-                  Continuă în cont
-                </Link>
-              ) : (
-                <Link
-                  href={`/checkout/${plan.slug}/payment`}
-                  className="mt-5 inline-flex w-full items-center justify-center rounded-full bg-content px-5 py-3 text-sm font-black text-app transition hover:opacity-90"
-                >
-                  Continuă către plată
-                </Link>
-              )}
-            </aside>
+              <p className="text-right">
+                <span className="block font-serif text-5xl font-semibold leading-none">
+                  {price}
+                </span>
+                <span className="text-sm text-muted">
+                  {isFree ? "RON" : "RON / lună"}
+                </span>
+              </p>
+            </div>
+
+            <div className="my-6 h-px bg-subtle" />
+
+            <ul className="grid gap-3 text-sm sm:grid-cols-2">
+              {features.map((feature) => (
+                <li key={feature} className="flex gap-3">
+                  <span className="mt-0.5 text-success">
+                    <CheckIcon />
+                  </span>
+                  <span>{feature}</span>
+                </li>
+              ))}
+            </ul>
           </div>
         </section>
+
+        <aside className="rounded-[1.5rem] border border-subtle bg-surface p-6 shadow-lg shadow-black/10 lg:sticky lg:top-6">
+          <h2 className="text-lg font-black">Sumar Plată</h2>
+
+          <dl className="mt-6 space-y-0 text-sm">
+            {[
+              ["Plan selectat", `${plan.name} (${period})`],
+              ["Monedă plată", "RON"],
+              ["TVA inclus", "Da, dacă este aplicabil"],
+              ["Frecvență plată", paymentFrequency(plan.billing_interval)],
+            ].map(([label, value]) => (
+              <div
+                key={label}
+                className="flex items-center justify-between gap-4 border-b border-subtle py-4"
+              >
+                <dt className="text-muted">{label}</dt>
+                <dd className="text-right text-xs font-black">{value}</dd>
+              </div>
+            ))}
+            <div className="flex items-center justify-between gap-4 py-5">
+              <dt className="font-black">Preț Total</dt>
+              <dd className="text-lg font-black">{price} RON</dd>
+            </div>
+          </dl>
+
+          <div className="rounded-2xl bg-app p-4 text-xs leading-6 text-muted">
+            <p className="font-black text-content">Ce urmează?</p>
+            <p className="mt-2">
+              După plată, planul devine activ imediat. Îl poți schimba sau
+              anula din cont.
+            </p>
+          </div>
+
+          {!hasStripePrice && !isFree ? (
+            <p className="mt-4 rounded-2xl border border-warning-border bg-warning-soft px-4 py-3 text-sm font-bold text-warning">
+              Planul nu are încă un Stripe Price ID configurat în administrare.
+            </p>
+          ) : null}
+
+          {errorMessage ? (
+            <p className="mt-4 rounded-2xl border border-danger-border bg-danger-soft px-4 py-3 text-sm font-bold text-danger">
+              {errorMessage}
+            </p>
+          ) : null}
+
+          {isFree ? (
+            <Link
+              href="/myaccount"
+              className="mt-5 inline-flex w-full items-center justify-center rounded-xl bg-content px-5 py-3 text-sm font-black text-app transition hover:opacity-90"
+            >
+              Continuă în cont
+            </Link>
+          ) : (
+            <button
+              type="button"
+              onClick={startPayment}
+              disabled={!canStartPayment}
+              className="mt-5 inline-flex w-full items-center justify-center rounded-xl bg-content px-5 py-3 text-sm font-black text-app transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-55"
+            >
+              {isStartingPayment
+                ? "Se pregătește checkout-ul..."
+                : "Continuă către plată securizată →"}
+            </button>
+          )}
+
+          <p className="mt-5 text-center text-[10px] leading-5 text-muted">
+            Prin apăsarea butonului, ești de acord cu{" "}
+            <Link href="/termeni-si-conditii" className="underline">
+              Termenii și Condițiile
+            </Link>
+            . Informații despre retragere sunt în politica de contract.
+          </p>
+        </aside>
       </div>
     </AccountStaticShell>
   );
