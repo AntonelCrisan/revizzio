@@ -1,7 +1,10 @@
 import uuid
 from datetime import datetime
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
+
+SummaryHighlightColor = Literal["yellow", "green", "blue", "pink", "purple"]
 
 
 class StudyProjectFileResponse(BaseModel):
@@ -47,6 +50,25 @@ class StudyProjectFlashcardResponse(BaseModel):
     source_type: str
     source_quiz_question_id: uuid.UUID | None
     sort_order: int
+
+
+class StudyProjectSummaryHighlightResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    paragraph_index: int
+    text: str
+    color: str
+
+
+class StudyProjectSummaryHighlightCreate(BaseModel):
+    paragraph_index: int = Field(ge=0)
+    text: str = Field(min_length=1, max_length=2000)
+    color: SummaryHighlightColor = "pink"
+
+
+class StudyProjectSummaryHighlightColorUpdate(BaseModel):
+    color: SummaryHighlightColor
 
 
 class StudyProjectQuizOptionResponse(BaseModel):
@@ -111,6 +133,7 @@ class StudyProjectResponse(BaseModel):
     flashcard_count: int = 0
     quiz_count: int = 0
     strategy_count: int = 0
+    summary_highlight_count: int = 0
     markdown_download_url: str | None = None
     prompt_download_url: str | None = None
     files: list[StudyProjectFileResponse] = Field(default_factory=list)
@@ -119,6 +142,9 @@ class StudyProjectResponse(BaseModel):
     flashcards: list[StudyProjectFlashcardResponse] = Field(default_factory=list)
     quizzes: list[StudyProjectQuizResponse] = Field(default_factory=list)
     strategies: list[StudyProjectStrategyResponse] = Field(default_factory=list)
+    summary_highlights: list[StudyProjectSummaryHighlightResponse] = Field(
+        default_factory=list
+    )
 
 
 class StudyProjectPrepareResponse(BaseModel):

@@ -18,13 +18,17 @@ import {
   archiveStudyProject,
   createManualStudyProjectFlashcard,
   createQuizMistakeFlashcard,
+  createSummaryHighlight,
   deleteStudyProject,
+  deleteSummaryHighlight,
   importStudyProjectJson,
   listStudyProjects,
   prepareStudyProject,
   renameStudyProject,
+  updateSummaryHighlightColor,
   type StudyProject as ApiStudyProject,
   type StudyProjectPrepareResponse,
+  type SummaryHighlightColor as ApiSummaryHighlightColor,
 } from "@/lib/projects-api";
 
 type ViewId = "home" | "project" | "new";
@@ -69,6 +73,7 @@ type StudyProject = {
   quizzes: ApiStudyProject["quizzes"];
   quizMistakeFlashcards: StudyFlashcardCard[];
   manualFlashcards: StudyFlashcardCard[];
+  summaryHighlights: UserSummaryHighlight[];
   strategies: Array<{
     title: string;
     description: string;
@@ -228,6 +233,17 @@ function mapManualFlashcards(
     }));
 }
 
+function mapSummaryHighlights(
+  highlights: ApiStudyProject["summary_highlights"],
+): UserSummaryHighlight[] {
+  return highlights.map((highlight) => ({
+    id: highlight.id,
+    text: highlight.text,
+    paragraphIndex: highlight.paragraph_index,
+    color: highlight.color,
+  }));
+}
+
 function mapApiProject(project: ApiStudyProject): StudyProject {
   const generatedFlashcardCount = getGeneratedFlashcards(
     project.flashcards,
@@ -250,6 +266,7 @@ function mapApiProject(project: ApiStudyProject): StudyProject {
     quizzes: project.quizzes,
     quizMistakeFlashcards: mapQuizMistakeFlashcards(project.flashcards),
     manualFlashcards: mapManualFlashcards(project.id, project.flashcards),
+    summaryHighlights: mapSummaryHighlights(project.summary_highlights),
     strategies: project.strategies.length
       ? project.strategies.map((strategy) => ({
           title: strategy.title,
@@ -552,6 +569,56 @@ export function AccountDashboard({
     );
   }
 
+  async function addSummaryHighlight(
+    projectId: string,
+    highlight: {
+      paragraphIndex: number;
+      text: string;
+      color: ApiSummaryHighlightColor;
+    },
+  ) {
+    const apiProject = await createSummaryHighlight({
+      projectId,
+      paragraphIndex: highlight.paragraphIndex,
+      text: highlight.text,
+      color: highlight.color,
+    });
+    const mappedProject = mapApiProject(apiProject);
+    setProjects((currentProjects) =>
+      currentProjects.map((project) =>
+        project.id === mappedProject.id ? mappedProject : project,
+      ),
+    );
+  }
+
+  async function changeSummaryHighlightColor(
+    projectId: string,
+    highlightId: string,
+    color: ApiSummaryHighlightColor,
+  ) {
+    const apiProject = await updateSummaryHighlightColor({
+      projectId,
+      highlightId,
+      color,
+    });
+    const mappedProject = mapApiProject(apiProject);
+    setProjects((currentProjects) =>
+      currentProjects.map((project) =>
+        project.id === mappedProject.id ? mappedProject : project,
+      ),
+    );
+  }
+
+  async function removeSummaryHighlight(projectId: string, highlightId: string) {
+    const apiProject = await deleteSummaryHighlight({ projectId, highlightId });
+    const mappedProject = mapApiProject(apiProject);
+    setProjects((currentProjects) =>
+      currentProjects.map((project) =>
+        project.id === mappedProject.id ? mappedProject : project,
+      ),
+    );
+  }
+
   async function saveQuizMistakeFlashcard(
     projectId: string,
     questionId: string | null,
@@ -723,6 +790,7 @@ export function AccountDashboard({
       quizzes: [],
       quizMistakeFlashcards: [],
       manualFlashcards: [],
+      summaryHighlights: [],
       strategies: [
         {
           title: "Citește mai întâi rezumatul",
@@ -1085,6 +1153,9 @@ export function AccountDashboard({
               onTabChange={changeProjectTab}
               onQuizMistake={saveQuizMistakeFlashcard}
               onManualFlashcardCreate={addManualFlashcard}
+              onHighlightCreate={addSummaryHighlight}
+              onHighlightColorChange={changeSummaryHighlightColor}
+              onHighlightRemove={removeSummaryHighlight}
             />
           ) : null}
 
@@ -1521,6 +1592,9 @@ function ProjectView({
   onTabChange,
   onQuizMistake,
   onManualFlashcardCreate,
+  onHighlightCreate,
+  onHighlightColorChange,
+  onHighlightRemove,
 }: {
   project: StudyProject;
   activeTab: TabId;
@@ -1537,6 +1611,20 @@ function ProjectView({
     projectId: string,
     flashcard: ManualFlashcardPayload,
   ) => Promise<void>;
+  onHighlightCreate: (
+    projectId: string,
+    highlight: {
+      paragraphIndex: number;
+      text: string;
+      color: ApiSummaryHighlightColor;
+    },
+  ) => Promise<void>;
+  onHighlightColorChange: (
+    projectId: string,
+    highlightId: string,
+    color: ApiSummaryHighlightColor,
+  ) => Promise<void>;
+  onHighlightRemove: (projectId: string, highlightId: string) => Promise<void>;
 }) {
   const chatBackLabel =
     tabs.find((tab) => tab.id === chatBackTab)?.label ?? "Rezumat";
@@ -1599,7 +1687,14 @@ function ProjectView({
       </div>
 
       <div className="mt-6">
-        {activeTab === "rezumat" ? <SummaryPanel project={project} /> : null}
+        {activeTab === "rezumat" ? (
+          <SummaryPanel
+            project={project}
+            onHighlightCreate={onHighlightCreate}
+            onHighlightColorChange={onHighlightColorChange}
+            onHighlightRemove={onHighlightRemove}
+          />
+        ) : null}
         {activeTab === "flashcards" ? (
           <FlashcardsPanel
             project={project}
@@ -2244,10 +2339,32 @@ function SummaryHighlightColorPicker({
   );
 }
 
-function SummaryPanel({ project }: { project: StudyProject }) {
+function SummaryPanel({
+  project,
+  onHighlightCreate,
+  onHighlightColorChange,
+  onHighlightRemove,
+}: {
+  project: StudyProject;
+  onHighlightCreate: (
+    projectId: string,
+    highlight: {
+      paragraphIndex: number;
+      text: string;
+      color: ApiSummaryHighlightColor;
+    },
+  ) => Promise<void>;
+  onHighlightColorChange: (
+    projectId: string,
+    highlightId: string,
+    color: ApiSummaryHighlightColor,
+  ) => Promise<void>;
+  onHighlightRemove: (projectId: string, highlightId: string) => Promise<void>;
+}) {
   const summaryRef = useRef<HTMLDivElement | null>(null);
   const keywordFocusTimer = useRef<number | null>(null);
   const aiResponseTimer = useRef<number | null>(null);
+  const selectionChangeTimer = useRef<number | null>(null);
   const [pendingSelection, setPendingSelection] =
     useState<PendingSummarySelection | null>(null);
   const [selectedHighlight, setSelectedHighlight] =
@@ -2256,9 +2373,7 @@ function SummaryPanel({ project }: { project: StudyProject }) {
   const [aiDialog, setAiDialog] = useState<SummaryAiDialog | null>(null);
   const [pendingHighlightColor, setPendingHighlightColor] =
     useState<SummaryHighlightColorId>(defaultSummaryHighlightColor);
-  const [userHighlights, setUserHighlights] = useState<UserSummaryHighlight[]>(
-    [],
-  );
+  const userHighlights = project.summaryHighlights;
   const summaryContent = project.summary?.content ?? "";
   const displayParagraphs = useMemo(() => {
     if (!summaryContent) {
@@ -2294,6 +2409,46 @@ function SummaryPanel({ project }: { project: StudyProject }) {
       if (aiResponseTimer.current) {
         window.clearTimeout(aiResponseTimer.current);
       }
+      if (selectionChangeTimer.current) {
+        window.clearTimeout(selectionChangeTimer.current);
+      }
+    };
+  }, []);
+
+  useEffect(() => {
+    function scheduleSelectionCheck() {
+      if (selectionChangeTimer.current) {
+        window.clearTimeout(selectionChangeTimer.current);
+      }
+      selectionChangeTimer.current = window.setTimeout(() => {
+        readCurrentSelection();
+        selectionChangeTimer.current = null;
+      }, 300);
+    }
+
+    function handleTouchStart() {
+      // The user is actively touching (initial press or handle-drag
+      // adjustment) — cancel any pending check so the popover doesn't
+      // interrupt the gesture.
+      if (selectionChangeTimer.current) {
+        window.clearTimeout(selectionChangeTimer.current);
+        selectionChangeTimer.current = null;
+      }
+    }
+
+    document.addEventListener("touchstart", handleTouchStart, {
+      passive: true,
+    });
+    document.addEventListener("touchend", scheduleSelectionCheck, {
+      passive: true,
+    });
+    document.addEventListener("touchcancel", scheduleSelectionCheck, {
+      passive: true,
+    });
+    return () => {
+      document.removeEventListener("touchstart", handleTouchStart);
+      document.removeEventListener("touchend", scheduleSelectionCheck);
+      document.removeEventListener("touchcancel", scheduleSelectionCheck);
     };
   }, []);
 
@@ -2354,49 +2509,50 @@ function SummaryPanel({ project }: { project: StudyProject }) {
     setSelectedHighlight(null);
   }
 
-  function handleAddHighlight() {
+  async function handleAddHighlight() {
     if (!pendingSelection) {
       return;
     }
 
-    setUserHighlights((currentHighlights) => {
-      const alreadyHighlighted = currentHighlights.some(
-        (highlight) =>
-          highlight.paragraphIndex === pendingSelection.paragraphIndex &&
-          highlight.text === pendingSelection.text,
-      );
+    const existingHighlight = userHighlights.find(
+      (highlight) =>
+        highlight.paragraphIndex === pendingSelection.paragraphIndex &&
+        highlight.text === pendingSelection.text,
+    );
 
-      if (alreadyHighlighted) {
-        return currentHighlights.map((highlight) =>
-          highlight.paragraphIndex === pendingSelection.paragraphIndex &&
-          highlight.text === pendingSelection.text
-            ? { ...highlight, color: pendingHighlightColor }
-            : highlight,
+    try {
+      if (existingHighlight) {
+        await onHighlightColorChange(
+          project.id,
+          existingHighlight.id,
+          pendingHighlightColor,
         );
-      }
-
-      return [
-        ...currentHighlights,
-        {
-          ...pendingSelection,
+      } else {
+        await onHighlightCreate(project.id, {
+          paragraphIndex: pendingSelection.paragraphIndex,
+          text: pendingSelection.text,
           color: pendingHighlightColor,
-          id: `summary-highlight-${Date.now()}`,
-        },
-      ];
-    });
+        });
+      }
+    } catch {
+      // Selection stays available so the user can try highlighting again.
+    }
 
     setPendingSelection(null);
     setSelectedHighlight(null);
     window.getSelection()?.removeAllRanges();
   }
 
-  function handleRemoveHighlight(highlightId: string) {
-    setUserHighlights((currentHighlights) =>
-      currentHighlights.filter((highlight) => highlight.id !== highlightId),
-    );
+  async function handleRemoveHighlight(highlightId: string) {
     setSelectedHighlight((currentHighlight) =>
       currentHighlight?.id === highlightId ? null : currentHighlight,
     );
+
+    try {
+      await onHighlightRemove(project.id, highlightId);
+    } catch {
+      // If deletion failed, the highlight remains in project.summaryHighlights.
+    }
   }
 
   function handleOpenHighlightOptions(highlight: UserSummaryHighlight) {
@@ -2413,14 +2569,12 @@ function SummaryPanel({ project }: { project: StudyProject }) {
       return;
     }
 
-    setUserHighlights((currentHighlights) =>
-      currentHighlights.map((highlight) =>
-        highlight.id === selectedHighlight.id ? { ...highlight, color } : highlight,
-      ),
-    );
     setSelectedHighlight((highlight) =>
       highlight ? { ...highlight, color } : highlight,
     );
+    onHighlightColorChange(project.id, selectedHighlight.id, color).catch(() => {
+      // Optimistic color stays visible; backend sync can be retried later.
+    });
   }
 
   function handleAskAi(selection: PendingSummarySelection | UserSummaryHighlight) {
@@ -3117,7 +3271,7 @@ function FlashcardDeckPage({
   }, []);
 
   function moveCard(direction: 1 | -1) {
-    if (!hasCards || isAnimating) {
+    if (!hasCards || isAnimating || cards.length <= 1) {
       return;
     }
 
@@ -3146,7 +3300,7 @@ function FlashcardDeckPage({
   }
 
   function shuffleDeck() {
-    if (!hasCards || isAnimating) {
+    if (!hasCards || isAnimating || cards.length <= 1) {
       return;
     }
 
@@ -3432,7 +3586,7 @@ function FlashcardDeckPage({
               <button
                 type="button"
                 onClick={shuffleDeck}
-                disabled={isAnimating}
+                disabled={isAnimating || cards.length <= 1}
                 className="inline-flex h-12 items-center gap-2 rounded-full border border-subtle bg-app px-5 text-sm font-bold text-content transition hover:-translate-y-0.5 hover:bg-surface-hover disabled:cursor-not-allowed disabled:opacity-55"
               >
                 <Icon>
@@ -3443,7 +3597,7 @@ function FlashcardDeckPage({
               <button
                 type="button"
                 onClick={() => moveCard(-1)}
-                disabled={isAnimating}
+                disabled={isAnimating || cards.length <= 1}
                 className="flex h-12 w-12 items-center justify-center rounded-full border border-subtle bg-app text-content transition hover:-translate-y-0.5 hover:bg-surface-hover disabled:cursor-not-allowed disabled:opacity-55"
                 aria-label="Flashcard anterior"
               >
@@ -3454,7 +3608,7 @@ function FlashcardDeckPage({
               <button
                 type="button"
                 onClick={() => moveCard(1)}
-                disabled={isAnimating}
+                disabled={isAnimating || cards.length <= 1}
                 className="flex h-12 w-12 items-center justify-center rounded-full bg-content text-app transition hover:-translate-y-0.5 hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-55"
                 aria-label="Flashcard următor"
               >
@@ -4758,8 +4912,16 @@ function StrategiesPanel({
 
       <div className="mt-3 space-y-3">
         {strategies.map((strategy) => (
-          <StrategyCard
+          <StrategyAccordionItem
             key={strategy.title}
+            badge={
+              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-success-soft text-success">
+                <Icon>
+                  <circle cx="12" cy="12" r="10" />
+                  <path d="m16.2 7.8-2 6.4-6.4 2 2-6.4z" />
+                </Icon>
+              </span>
+            }
             title={strategy.title}
             description={strategy.description}
           />
@@ -4767,49 +4929,64 @@ function StrategiesPanel({
       </div>
 
       <SectionLabel>Valabile pentru orice materie</SectionLabel>
-      <div className="mt-3 rounded-2xl border border-subtle bg-surface px-4">
+      <div className="mt-3 space-y-3">
         {universalStrategies.map(([title, description], index) => (
-          <div
+          <StrategyAccordionItem
             key={title}
-            className="flex gap-3 border-t border-subtle py-4 first:border-t-0"
-          >
-            <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-app text-xs font-bold">
-              {index + 1}
-            </span>
-            <span>
-              <span className="block text-sm font-bold">{title}</span>
-              <span className="mt-1 block text-xs leading-5 text-muted">
-                {description}
+            badge={
+              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-app text-xs font-bold">
+                {index + 1}
               </span>
-            </span>
-          </div>
+            }
+            title={title}
+            description={description}
+          />
         ))}
       </div>
     </div>
   );
 }
 
-function StrategyCard({
+function StrategyAccordionItem({
+  badge,
   title,
   description,
 }: {
+  badge: ReactNode;
   title: string;
   description: string;
 }) {
+  const [isOpen, setIsOpen] = useState(false);
+
   return (
-    <div className="flex gap-3 rounded-2xl border border-subtle bg-surface p-4">
-      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-success-soft text-success">
-        <Icon>
-          <circle cx="12" cy="12" r="10" />
-          <path d="m16.2 7.8-2 6.4-6.4 2 2-6.4z" />
+    <div className="overflow-hidden rounded-2xl border border-subtle bg-surface">
+      <button
+        type="button"
+        onClick={() => setIsOpen((open) => !open)}
+        aria-expanded={isOpen}
+        className="flex w-full items-center gap-3 p-4 text-left"
+      >
+        {badge}
+        <span className="flex-1 text-sm font-bold">{title}</span>
+        <Icon
+          className={`h-4 w-4 shrink-0 text-muted transition-transform duration-200 ${
+            isOpen ? "rotate-180" : ""
+          }`}
+        >
+          <path d="m6 9 6 6 6-6" />
         </Icon>
-      </span>
-      <span>
-        <span className="block text-sm font-bold">{title}</span>
-        <span className="mt-1 block text-xs leading-5 text-muted">
-          {description}
-        </span>
-      </span>
+      </button>
+      <div
+        className={`grid transition-all duration-200 ease-out ${
+          isOpen ? "grid-rows-[1fr]" : "grid-rows-[0fr]"
+        }`}
+      >
+        <div className="overflow-hidden">
+          <p className="px-4 pb-4 pl-12 text-xs leading-5 text-muted">
+            {description}
+          </p>
+        </div>
+      </div>
     </div>
   );
 }

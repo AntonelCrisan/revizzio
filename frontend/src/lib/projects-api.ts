@@ -68,6 +68,20 @@ export type StudyProjectStrategy = {
   sort_order: number;
 };
 
+export type SummaryHighlightColor =
+  | "yellow"
+  | "green"
+  | "blue"
+  | "pink"
+  | "purple";
+
+export type StudyProjectSummaryHighlight = {
+  id: string;
+  paragraph_index: number;
+  text: string;
+  color: SummaryHighlightColor;
+};
+
 export type StudyProject = {
   id: string;
   name: string;
@@ -87,6 +101,7 @@ export type StudyProject = {
   flashcard_count: number;
   quiz_count: number;
   strategy_count: number;
+  summary_highlight_count: number;
   markdown_download_url: string | null;
   prompt_download_url: string | null;
   files: StudyProjectFile[];
@@ -95,6 +110,7 @@ export type StudyProject = {
   flashcards: StudyProjectFlashcard[];
   quizzes: StudyProjectQuiz[];
   strategies: StudyProjectStrategy[];
+  summary_highlights: StudyProjectSummaryHighlight[];
 };
 
 export type StudyProjectPrepareResponse = {
@@ -311,5 +327,65 @@ export async function createManualStudyProjectFlashcard(payload: {
     body: formData,
     cache: "no-store",
   });
+  return parseProjectResponse<StudyProject>(response);
+}
+
+export async function createSummaryHighlight(payload: {
+  projectId: string;
+  paragraphIndex: number;
+  text: string;
+  color: SummaryHighlightColor;
+}): Promise<StudyProject> {
+  const response = await fetch(
+    `/api/projects/${payload.projectId}/summary-highlights`,
+    {
+      method: "POST",
+      credentials: "same-origin",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        paragraph_index: payload.paragraphIndex,
+        text: payload.text,
+        color: payload.color,
+      }),
+      cache: "no-store",
+    },
+  );
+  return parseProjectResponse<StudyProject>(response);
+}
+
+export async function updateSummaryHighlightColor(payload: {
+  projectId: string;
+  highlightId: string;
+  color: SummaryHighlightColor;
+}): Promise<StudyProject> {
+  const response = await fetch(
+    `/api/projects/${payload.projectId}/summary-highlights/${payload.highlightId}`,
+    {
+      method: "PATCH",
+      credentials: "same-origin",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ color: payload.color }),
+      cache: "no-store",
+    },
+  );
+  return parseProjectResponse<StudyProject>(response);
+}
+
+export async function deleteSummaryHighlight(payload: {
+  projectId: string;
+  highlightId: string;
+}): Promise<StudyProject> {
+  const response = await fetch(
+    `/api/projects/${payload.projectId}/summary-highlights/${payload.highlightId}`,
+    {
+      method: "DELETE",
+      credentials: "same-origin",
+      cache: "no-store",
+    },
+  );
   return parseProjectResponse<StudyProject>(response);
 }

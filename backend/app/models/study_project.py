@@ -112,6 +112,12 @@ class StudyProject(Base):
         passive_deletes=True,
         order_by="StudyProjectStrategy.sort_order",
     )
+    summary_highlights: Mapped[list[StudyProjectSummaryHighlight]] = relationship(
+        back_populates="project",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+        order_by="StudyProjectSummaryHighlight.created_at",
+    )
     archive: Mapped[StudyProjectArchive | None] = relationship(
         back_populates="project",
         cascade="all, delete-orphan",
@@ -342,6 +348,32 @@ class StudyProjectQuizOption(Base):
     sort_order: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
 
     question: Mapped[StudyProjectQuizQuestion] = relationship(back_populates="options")
+
+
+class StudyProjectSummaryHighlight(Base):
+    __tablename__ = "study_project_summary_highlights"
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    project_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("study_projects.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    paragraph_index: Mapped[int] = mapped_column(Integer, nullable=False)
+    text: Mapped[str] = mapped_column(Text, nullable=False)
+    color: Mapped[str] = mapped_column(
+        String(20),
+        nullable=False,
+        default="pink",
+        server_default="pink",
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+    )
+
+    project: Mapped[StudyProject] = relationship(back_populates="summary_highlights")
 
 
 class StudyProjectStrategy(Base):

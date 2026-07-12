@@ -21,6 +21,7 @@ from app.models.study_project import (
     StudyProjectQuizQuestion,
     StudyProjectStrategy,
     StudyProjectSummary,
+    StudyProjectSummaryHighlight,
 )
 from app.models.subscription import (
     StripeEvent,
@@ -54,6 +55,7 @@ __all__ = [
     "StudyProjectQuizQuestion",
     "StudyProjectStrategy",
     "StudyProjectSummary",
+    "StudyProjectSummaryHighlight",
     "SubscriptionInvoice",
     "SubscriptionPlan",
     "SubscriptionPlanFeature",

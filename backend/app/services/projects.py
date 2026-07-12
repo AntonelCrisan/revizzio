@@ -35,6 +35,7 @@ from app.models import (
     StudyProjectQuizQuestion,
     StudyProjectStrategy,
     StudyProjectSummary,
+    StudyProjectSummaryHighlight,
     User,
 )
 from app.schemas.projects import StudyProjectResponse
@@ -583,6 +584,85 @@ class StudyProjectService:
         media_type = mimetypes.guess_type(image_path.name)[0] or "image/jpeg"
         return long_image_path, media_type
 
+    async def add_summary_highlight(
+        self,
+        *,
+        user: User,
+        project_id: uuid.UUID,
+        paragraph_index: int,
+        text: str,
+        color: str,
+    ) -> StudyProject:
+        project = await self.get_project(user, project_id)
+        clean_text = _clean_text(text)
+        if not clean_text:
+            raise ProjectValidationError(
+                "Selecteaza un fragment de text pentru highlight."
+            )
+
+        existing = next(
+            (
+                highlight
+                for highlight in project.summary_highlights
+                if highlight.paragraph_index == paragraph_index
+                and highlight.text == clean_text
+            ),
+            None,
+        )
+        if existing is not None:
+            existing.color = color
+        else:
+            project.summary_highlights.append(
+                StudyProjectSummaryHighlight(
+                    project_id=project.id,
+                    paragraph_index=paragraph_index,
+                    text=clean_text,
+                    color=color,
+                )
+            )
+        await self.session.commit()
+        return await self.get_project(user, project.id)
+
+    async def update_summary_highlight_color(
+        self,
+        *,
+        user: User,
+        project_id: uuid.UUID,
+        highlight_id: uuid.UUID,
+        color: str,
+    ) -> StudyProject:
+        project = await self.get_project(user, project_id)
+        highlight = next(
+            (item for item in project.summary_highlights if item.id == highlight_id),
+            None,
+        )
+        if highlight is None:
+            raise ProjectNotFoundError("Highlight-ul nu a fost gasit.")
+
+        highlight.color = color
+        await self.session.commit()
+        return await self.get_project(user, project.id)
+
+    async def delete_summary_highlight(
+        self,
+        *,
+        user: User,
+        project_id: uuid.UUID,
+        highlight_id: uuid.UUID,
+    ) -> StudyProject:
+        project = await self.get_project(user, project_id)
+        highlight = next(
+            (item for item in project.summary_highlights if item.id == highlight_id),
+            None,
+        )
+        if highlight is None:
+            raise ProjectNotFoundError("Highlight-ul nu a fost gasit.")
+
+        await self.session.delete(highlight)
+        project.summary_highlights.remove(highlight)
+        await self.session.commit()
+        return await self.get_project(user, project.id)
+
     def to_response(self, project: StudyProject) -> StudyProjectResponse:
         return StudyProjectResponse(
             id=project.id,
@@ -603,6 +683,7 @@ class StudyProjectService:
             flashcard_count=len(project.flashcards),
             quiz_count=len(project.quizzes),
             strategy_count=len(project.strategies),
+            summary_highlight_count=len(project.summary_highlights),
             markdown_download_url=(
                 f"/api/projects/{project.id}/markdown"
                 if project.combined_markdown_path
@@ -617,6 +698,7 @@ class StudyProjectService:
             flashcards=project.flashcards,
             quizzes=project.quizzes,
             strategies=project.strategies,
+            summary_highlights=project.summary_highlights,
         )
 
     def download_path(self, project: StudyProject, kind: str) -> Path:
@@ -647,6 +729,7 @@ class StudyProjectService:
             .selectinload(StudyProjectQuiz.questions)
             .selectinload(StudyProjectQuizQuestion.options),
             selectinload(StudyProject.strategies),
+            selectinload(StudyProject.summary_highlights),
             selectinload(StudyProject.archive),
         )
 

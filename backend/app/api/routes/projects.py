@@ -11,6 +11,8 @@ from app.schemas.projects import (
     StudyProjectQuizMistakeFlashcardCreate,
     StudyProjectRenameRequest,
     StudyProjectResponse,
+    StudyProjectSummaryHighlightColorUpdate,
+    StudyProjectSummaryHighlightCreate,
 )
 from app.services.projects import (
     ProjectConversionError,
@@ -347,6 +349,100 @@ async def download_flashcard_front_image(
         media_type=media_type,
         filename=image_path.name,
     )
+
+
+@router.post(
+    "/{project_id}/summary-highlights",
+    response_model=StudyProjectResponse,
+)
+async def create_summary_highlight(
+    project_id: uuid.UUID,
+    payload: StudyProjectSummaryHighlightCreate,
+    current_user: CurrentUser,
+    session: DbSession,
+    settings: AppSettings,
+) -> StudyProjectResponse:
+    service = _service(session, settings)
+    try:
+        project = await service.add_summary_highlight(
+            user=current_user,
+            project_id=project_id,
+            paragraph_index=payload.paragraph_index,
+            text=payload.text,
+            color=payload.color,
+        )
+    except ProjectNotFoundError as exc:
+        await session.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Proiectul nu a fost gasit.",
+        ) from exc
+    except ProjectValidationError as exc:
+        await session.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(exc),
+        ) from exc
+
+    return service.to_response(project)
+
+
+@router.patch(
+    "/{project_id}/summary-highlights/{highlight_id}",
+    response_model=StudyProjectResponse,
+)
+async def update_summary_highlight(
+    project_id: uuid.UUID,
+    highlight_id: uuid.UUID,
+    payload: StudyProjectSummaryHighlightColorUpdate,
+    current_user: CurrentUser,
+    session: DbSession,
+    settings: AppSettings,
+) -> StudyProjectResponse:
+    service = _service(session, settings)
+    try:
+        project = await service.update_summary_highlight_color(
+            user=current_user,
+            project_id=project_id,
+            highlight_id=highlight_id,
+            color=payload.color,
+        )
+    except ProjectNotFoundError as exc:
+        await session.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Highlight-ul nu a fost gasit.",
+        ) from exc
+
+    return service.to_response(project)
+
+
+@router.delete(
+    "/{project_id}/summary-highlights/{highlight_id}",
+    response_model=StudyProjectResponse,
+)
+async def delete_summary_highlight(
+    project_id: uuid.UUID,
+    highlight_id: uuid.UUID,
+    current_user: CurrentUser,
+    session: DbSession,
+    settings: AppSettings,
+) -> StudyProjectResponse:
+    service = _service(session, settings)
+    try:
+        project = await service.delete_summary_highlight(
+            user=current_user,
+            project_id=project_id,
+            highlight_id=highlight_id,
+        )
+    except ProjectNotFoundError as exc:
+        await session.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Highlight-ul nu a fost gasit.",
+        ) from exc
+
+    return service.to_response(project)
 
 
 @router.get("/{project_id}/markdown")
