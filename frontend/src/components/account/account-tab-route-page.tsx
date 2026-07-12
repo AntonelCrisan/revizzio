@@ -1,5 +1,6 @@
 import {
   AccountDashboard,
+  type FlashcardPanelMode,
   type TabId,
 } from "@/components/account/account-dashboard";
 
@@ -27,9 +28,11 @@ function getChatBackTab(from: string | string[] | undefined): TabId | undefined 
 export async function AccountTabRoutePage({
   searchParams,
   tab,
+  flashcardMode = "packages",
 }: {
   searchParams: AccountTabSearchParams;
   tab: TabId;
+  flashcardMode?: FlashcardPanelMode;
 }) {
   const params = await searchParams;
 
@@ -38,6 +41,7 @@ export async function AccountTabRoutePage({
       initialProjectId={getProjectId(params.project)}
       initialTab={tab}
       initialChatBackTab={getChatBackTab(params.from)}
+      initialFlashcardMode={flashcardMode}
       initialView="project"
       useTabPages
     />

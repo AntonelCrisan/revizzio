@@ -26,6 +26,7 @@ export type StudyProjectKeyword = {
 export type StudyProjectFlashcard = {
   id: string;
   front: string;
+  front_image: string | null;
   back: string;
   category: string | null;
   difficulty: string | null;
@@ -280,5 +281,35 @@ export async function createQuizMistakeFlashcard(payload: {
       cache: "no-store",
     },
   );
+  return parseProjectResponse<StudyProject>(response);
+}
+
+export async function createManualStudyProjectFlashcard(payload: {
+  projectId: string;
+  front: string;
+  back: string;
+  category?: string;
+  difficulty?: string;
+  frontImage?: File;
+}): Promise<StudyProject> {
+  const formData = new FormData();
+  formData.set("front", payload.front);
+  formData.set("back", payload.back);
+  if (payload.category?.trim()) {
+    formData.set("category", payload.category.trim());
+  }
+  if (payload.difficulty?.trim()) {
+    formData.set("difficulty", payload.difficulty.trim());
+  }
+  if (payload.frontImage) {
+    formData.set("front_image", payload.frontImage);
+  }
+
+  const response = await fetch(`/api/projects/${payload.projectId}/flashcards`, {
+    method: "POST",
+    credentials: "same-origin",
+    body: formData,
+    cache: "no-store",
+  });
   return parseProjectResponse<StudyProject>(response);
 }

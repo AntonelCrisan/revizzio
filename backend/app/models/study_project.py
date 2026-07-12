@@ -262,6 +262,7 @@ class StudyProjectFlashcard(Base):
         index=True,
     )
     front: Mapped[str] = mapped_column(Text, nullable=False)
+    front_image: Mapped[str | None] = mapped_column(Text)
     back: Mapped[str] = mapped_column(Text, nullable=False)
     category: Mapped[str | None] = mapped_column(String(120))
     difficulty: Mapped[str | None] = mapped_column(String(40))

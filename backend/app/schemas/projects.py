@@ -40,6 +40,7 @@ class StudyProjectFlashcardResponse(BaseModel):
 
     id: uuid.UUID
     front: str
+    front_image: str | None
     back: str
     category: str | None
     difficulty: str | None

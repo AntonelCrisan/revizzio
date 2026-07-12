@@ -282,6 +282,73 @@ async def create_quiz_mistake_flashcard(
     return service.to_response(project)
 
 
+@router.post("/{project_id}/flashcards", response_model=StudyProjectResponse)
+async def create_manual_flashcard(
+    project_id: uuid.UUID,
+    current_user: CurrentUser,
+    session: DbSession,
+    settings: AppSettings,
+    back: Annotated[str, Form(min_length=1, max_length=8000)],
+    front: Annotated[str | None, Form(max_length=8000)] = None,
+    category: Annotated[str | None, Form(max_length=120)] = None,
+    difficulty: Annotated[str | None, Form(max_length=40)] = None,
+    front_image: Annotated[UploadFile | None, File()] = None,
+) -> StudyProjectResponse:
+    service = _service(session, settings)
+    try:
+        project = await service.create_manual_flashcard(
+            user=current_user,
+            project_id=project_id,
+            front=front,
+            back=back,
+            category=category,
+            difficulty=difficulty,
+            front_image=front_image,
+        )
+    except ProjectNotFoundError as exc:
+        await session.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Proiectul nu a fost gasit.",
+        ) from exc
+    except ProjectValidationError as exc:
+        await session.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(exc),
+        ) from exc
+
+    return service.to_response(project)
+
+
+@router.get("/{project_id}/flashcards/{flashcard_id}/front-image")
+async def download_flashcard_front_image(
+    project_id: uuid.UUID,
+    flashcard_id: uuid.UUID,
+    current_user: CurrentUser,
+    session: DbSession,
+    settings: AppSettings,
+) -> FileResponse:
+    service = _service(session, settings)
+    try:
+        image_path, media_type = await service.flashcard_front_image_path(
+            user=current_user,
+            project_id=project_id,
+            flashcard_id=flashcard_id,
+        )
+    except ProjectNotFoundError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Imaginea nu a fost gasita.",
+        ) from exc
+
+    return FileResponse(
+        image_path,
+        media_type=media_type,
+        filename=image_path.name,
+    )
+
+
 @router.get("/{project_id}/markdown")
 async def download_project_markdown(
     project_id: uuid.UUID,

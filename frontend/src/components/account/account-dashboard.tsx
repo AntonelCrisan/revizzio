@@ -16,6 +16,7 @@ import { BrandLogo } from "@/components/brand-logo";
 import { GeneratedContentDisclaimer } from "@/components/legal/generated-content-disclaimer";
 import {
   archiveStudyProject,
+  createManualStudyProjectFlashcard,
   createQuizMistakeFlashcard,
   deleteStudyProject,
   importStudyProjectJson,
@@ -34,6 +35,7 @@ export type TabId =
   | "strategii"
   | "progres"
   | "chat";
+export type FlashcardPanelMode = "packages" | "create";
 type GenerationState = "form" | "generating" | "done";
 type SidebarGroupId = "settings" | "billing";
 type StudyFlashcardTone = "success" | "warning" | "info" | "danger";
@@ -45,6 +47,9 @@ type StudyFlashcardCard = {
   answer: string;
   tone: StudyFlashcardTone;
   sourceQuestionId?: string;
+  questionImage?: string;
+  category?: string;
+  difficulty?: string;
 };
 
 type StudyProject = {
@@ -63,6 +68,7 @@ type StudyProject = {
   flashcards: ApiStudyProject["flashcards"];
   quizzes: ApiStudyProject["quizzes"];
   quizMistakeFlashcards: StudyFlashcardCard[];
+  manualFlashcards: StudyFlashcardCard[];
   strategies: Array<{
     title: string;
     description: string;
@@ -193,13 +199,33 @@ function mapQuizMistakeFlashcards(
       answer: flashcard.back,
       tone: "danger",
       sourceQuestionId: flashcard.source_quiz_question_id ?? undefined,
+      category: flashcard.category ?? undefined,
+      difficulty: flashcard.difficulty ?? undefined,
     }));
 }
 
 function getGeneratedFlashcards(flashcards: ApiStudyProject["flashcards"]) {
-  return flashcards.filter(
-    (flashcard) => flashcard.source_type !== "quiz_mistake",
-  );
+  return flashcards.filter((flashcard) => flashcard.source_type === "generated");
+}
+
+function mapManualFlashcards(
+  projectId: string,
+  flashcards: ApiStudyProject["flashcards"],
+): StudyFlashcardCard[] {
+  return flashcards
+    .filter((flashcard) => flashcard.source_type === "manually")
+    .map((flashcard, index) => ({
+      id: `manual-${flashcard.id || index}`,
+      topic: flashcard.category || "Creat de tine",
+      question: flashcard.front,
+      answer: flashcard.back,
+      tone: "info",
+      category: flashcard.category ?? undefined,
+      difficulty: flashcard.difficulty ?? undefined,
+      questionImage: flashcard.front_image
+        ? `/api/projects/${projectId}/flashcards/${flashcard.id}/front-image`
+        : undefined,
+    }));
 }
 
 function mapApiProject(project: ApiStudyProject): StudyProject {
@@ -223,6 +249,7 @@ function mapApiProject(project: ApiStudyProject): StudyProject {
     flashcards: project.flashcards,
     quizzes: project.quizzes,
     quizMistakeFlashcards: mapQuizMistakeFlashcards(project.flashcards),
+    manualFlashcards: mapManualFlashcards(project.id, project.flashcards),
     strategies: project.strategies.length
       ? project.strategies.map((strategy) => ({
           title: strategy.title,
@@ -265,6 +292,7 @@ type AccountDashboardProps = {
   initialProjectId?: string;
   initialTab?: TabId;
   initialChatBackTab?: TabId;
+  initialFlashcardMode?: FlashcardPanelMode;
   initialView?: ViewId;
   useTabPages?: boolean;
 };
@@ -273,6 +301,7 @@ export function AccountDashboard({
   initialProjectId,
   initialTab = "rezumat",
   initialChatBackTab,
+  initialFlashcardMode = "packages",
   initialView = "home",
   useTabPages = false,
 }: AccountDashboardProps = {}) {
@@ -503,6 +532,26 @@ export function AccountDashboard({
     );
   }
 
+  async function addManualFlashcard(
+    projectId: string,
+    flashcard: ManualFlashcardPayload,
+  ) {
+    const apiProject = await createManualStudyProjectFlashcard({
+      projectId,
+      front: flashcard.question,
+      back: flashcard.answer,
+      category: flashcard.category,
+      difficulty: flashcard.difficulty,
+      frontImage: flashcard.questionImageFile,
+    });
+    const mappedProject = mapApiProject(apiProject);
+    setProjects((currentProjects) =>
+      currentProjects.map((project) =>
+        project.id === mappedProject.id ? mappedProject : project,
+      ),
+    );
+  }
+
   async function saveQuizMistakeFlashcard(
     projectId: string,
     questionId: string | null,
@@ -521,9 +570,13 @@ export function AccountDashboard({
       });
       const mappedProject = mapApiProject(apiProject);
       setProjects((currentProjects) =>
-        currentProjects.map((project) =>
-          project.id === mappedProject.id ? mappedProject : project,
-        ),
+        currentProjects.map((project) => {
+          if (project.id !== mappedProject.id) {
+            return project;
+          }
+
+          return mappedProject;
+        }),
       );
     } catch {
       // The optimistic flashcard stays visible; backend sync can be retried later.
@@ -669,6 +722,7 @@ export function AccountDashboard({
       flashcards: [],
       quizzes: [],
       quizMistakeFlashcards: [],
+      manualFlashcards: [],
       strategies: [
         {
           title: "Citește mai întâi rezumatul",
@@ -1026,9 +1080,11 @@ export function AccountDashboard({
               project={activeProject}
               activeTab={activeTab}
               chatBackTab={chatBackTab}
+              flashcardMode={initialFlashcardMode}
               onBack={showHome}
               onTabChange={changeProjectTab}
               onQuizMistake={saveQuizMistakeFlashcard}
+              onManualFlashcardCreate={addManualFlashcard}
             />
           ) : null}
 
@@ -1460,13 +1516,16 @@ function ProjectView({
   project,
   activeTab,
   chatBackTab,
+  flashcardMode,
   onBack,
   onTabChange,
   onQuizMistake,
+  onManualFlashcardCreate,
 }: {
   project: StudyProject;
   activeTab: TabId;
   chatBackTab: TabId;
+  flashcardMode: FlashcardPanelMode;
   onBack: () => void;
   onTabChange: (tab: TabId) => void;
   onQuizMistake: (
@@ -1474,6 +1533,10 @@ function ProjectView({
     questionId: string | null,
     fallbackFlashcard: StudyFlashcardCard,
   ) => void;
+  onManualFlashcardCreate: (
+    projectId: string,
+    flashcard: ManualFlashcardPayload,
+  ) => Promise<void>;
 }) {
   const chatBackLabel =
     tabs.find((tab) => tab.id === chatBackTab)?.label ?? "Rezumat";
@@ -1537,7 +1600,13 @@ function ProjectView({
 
       <div className="mt-6">
         {activeTab === "rezumat" ? <SummaryPanel project={project} /> : null}
-        {activeTab === "flashcards" ? <FlashcardsPanel project={project} /> : null}
+        {activeTab === "flashcards" ? (
+          <FlashcardsPanel
+            project={project}
+            mode={flashcardMode}
+            onManualFlashcardCreate={onManualFlashcardCreate}
+          />
+        ) : null}
         {activeTab === "quiz" ? (
           <QuizPanel project={project} onQuizMistake={onQuizMistake} />
         ) : null}
@@ -2647,7 +2716,7 @@ type FlashcardStudyCard = {
   metric: string;
 };
 
-type FlashcardDeckId = "initial" | "quiz";
+type FlashcardDeckId = "initial" | "quiz" | "manual";
 
 type AccountFlashcard = StudyFlashcardCard;
 
@@ -2738,6 +2807,7 @@ function buildProjectFlashcardDecks(
     tone: tones[index % tones.length],
   }));
   const quizMistakeCards = project.quizMistakeFlashcards;
+  const manualCards = project.manualFlashcards;
 
   return {
     initial: {
@@ -2761,6 +2831,15 @@ function buildProjectFlashcardDecks(
           ? "Fiecare greșeală din quiz devine automat un card de recapitulare."
           : "Fă un quiz. Când greșești, Revizzio pune întrebarea și răspunsul corect aici.",
       cards: quizMistakeCards,
+    },
+    manual: {
+      eyebrow: "Create de tine",
+      title: manualCards.length
+        ? "Flashcardurile tale"
+        : "Creează primul flashcard",
+      description:
+        "Flashcardurile create manual rămân separate de cele generate automat.",
+      cards: manualCards,
     },
   };
 }
@@ -2922,19 +3001,32 @@ function AccountFlashcardFaceContent({
 }) {
   const isAnswer = side === "answer";
   const text = isAnswer ? card.answer : card.question;
+  const image = isAnswer ? undefined : card.questionImage;
   const textDensity = getFlashcardTextDensity(text);
   const flipLabel = isAnswer ? "Vezi întrebarea" : "Vezi răspunsul";
 
   return (
     <div className="flashcard-card-content h-full">
-      <div className="flashcard-card-main flex min-h-0 flex-1 items-center overflow-hidden">
-        <h3
-          data-flashcard-text={side}
-          data-density={textDensity}
-          className="flashcard-card-question select-text font-serif font-semibold"
-        >
-          {text}
-        </h3>
+      <div className="flashcard-card-main flex min-h-0 flex-1 flex-col justify-center gap-4 overflow-hidden">
+        {image ? (
+          <div className="flex min-h-0 flex-1 items-center justify-center overflow-hidden rounded-2xl border border-subtle bg-app/60 p-2">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={image}
+              alt=""
+              className="h-full max-h-full w-full max-w-full object-contain"
+            />
+          </div>
+        ) : null}
+        {text ? (
+          <h3
+            data-flashcard-text={side}
+            data-density={textDensity}
+            className="flashcard-card-question select-text font-serif font-semibold"
+          >
+            {text}
+          </h3>
+        ) : null}
       </div>
 
       <div className="flashcard-card-footer absolute inset-x-6 bottom-6 flex items-center border-t border-subtle pt-4 text-xs font-bold text-muted sm:inset-x-8">
@@ -3473,10 +3565,272 @@ function FlashcardDeckPage({
   );
 }
 
-function FlashcardsPanel({ project }: { project: StudyProject }) {
+type ManualFlashcardPayload = {
+  question: string;
+  answer: string;
+  category: string;
+  difficulty: string;
+  questionImageFile?: File;
+};
+
+const manualFlashcardDifficulties = [
+  { value: "low", label: "Ușor" },
+  { value: "medium", label: "Mediu" },
+  { value: "high", label: "Greu" },
+];
+
+function readImageAsDataUrl(file: File) {
+  return new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result));
+    reader.onerror = () => reject(reader.error);
+    reader.readAsDataURL(file);
+  });
+}
+
+function ManualFlashcardBuilderPage({
+  onBack,
+  onCreate,
+}: {
+  onBack: () => void;
+  onCreate: (flashcard: ManualFlashcardPayload) => Promise<void>;
+}) {
+  const [question, setQuestion] = useState("");
+  const [answer, setAnswer] = useState("");
+  const [category, setCategory] = useState("");
+  const [difficulty, setDifficulty] = useState("medium");
+  const [questionImage, setQuestionImage] = useState<string | undefined>();
+  const [questionImageFile, setQuestionImageFile] = useState<File | undefined>();
+  const [isSaving, setIsSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const canSave =
+    category.trim().length > 0 &&
+    (question.trim().length > 0 || Boolean(questionImage)) &&
+    answer.trim().length > 0 &&
+    !isSaving;
+
+  function resetForm() {
+    setQuestion("");
+    setAnswer("");
+    setCategory("");
+    setDifficulty("medium");
+    setQuestionImage(undefined);
+    setQuestionImageFile(undefined);
+    setSaveError(null);
+  }
+
+  async function handleImageChange(file: File | undefined) {
+    if (!file) return;
+    const dataUrl = await readImageAsDataUrl(file);
+    setQuestionImage(dataUrl);
+    setQuestionImageFile(file);
+  }
+
+  function handleCancel() {
+    resetForm();
+    onBack();
+  }
+
+  async function handleSave() {
+    if (!canSave) return;
+
+    setIsSaving(true);
+    setSaveError(null);
+    try {
+      await onCreate({
+        question: question.trim(),
+        answer: answer.trim(),
+        category: category.trim(),
+        difficulty,
+        questionImageFile,
+      });
+      resetForm();
+    } catch {
+      setSaveError("Flashcardul nu a putut fi salvat momentan.");
+    } finally {
+      setIsSaving(false);
+    }
+  }
+
+  return (
+    <section className="rounded-[2rem] border border-subtle bg-surface p-5 sm:p-7 lg:p-8">
+      <button
+        type="button"
+        onClick={onBack}
+        className="mb-6 inline-flex h-11 cursor-pointer items-center gap-2 rounded-full border border-subtle bg-app px-4 text-sm font-semibold text-content shadow-sm transition hover:-translate-y-0.5 hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-action"
+      >
+        <Icon>
+          <path d="M19 12H5M12 19l-7-7 7-7" />
+        </Icon>
+        Înapoi la pachete
+      </button>
+
+      <div className="mb-5 grid gap-3 lg:grid-cols-[1fr_auto]">
+        <label className="block rounded-[1.5rem] border border-subtle bg-app px-4 py-3">
+          <span className="text-[11px] font-black uppercase tracking-[0.16em] text-muted">
+            Categorie
+          </span>
+          <input
+            value={category}
+            onChange={(event) => setCategory(event.target.value)}
+            placeholder="Ex: Farmacognozie, formule, capitol 2"
+            className="mt-2 w-full bg-transparent text-base font-semibold text-content outline-none placeholder:text-muted/50"
+          />
+        </label>
+        <div className="flex flex-wrap items-center gap-2 rounded-[1.5rem] border border-subtle bg-app p-2">
+          {manualFlashcardDifficulties.map((option) => {
+            const isActive = difficulty === option.value;
+
+            return (
+              <button
+                key={option.value}
+                type="button"
+                onClick={() => setDifficulty(option.value)}
+                className={`rounded-full px-3 py-1.5 text-xs font-bold transition sm:px-4 sm:py-2 sm:text-sm ${
+                  isActive
+                    ? "bg-content text-app"
+                    : "text-muted hover:bg-surface-hover hover:text-content"
+                }`}
+              >
+                {option.label}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      <div className="grid gap-5 xl:grid-cols-2">
+        <ManualFlashcardEditorCard
+          label="Întrebare"
+          value={question}
+          image={questionImage}
+          placeholder="Scrie întrebarea sau adaugă o imagine..."
+          onChange={setQuestion}
+          onImageChange={handleImageChange}
+          onImageRemove={() => {
+            setQuestionImage(undefined);
+            setQuestionImageFile(undefined);
+          }}
+        />
+        <ManualFlashcardEditorCard
+          label="Răspuns"
+          value={answer}
+          placeholder="Scrie răspunsul..."
+          onChange={setAnswer}
+          allowImage={false}
+        />
+      </div>
+
+      <div className="mt-5 flex flex-wrap justify-end gap-3">
+        {saveError ? (
+          <p className="mr-auto rounded-full border border-danger-border bg-danger-soft px-4 py-3 text-sm font-bold text-danger">
+            {saveError}
+          </p>
+        ) : null}
+        <button
+          type="button"
+          onClick={handleCancel}
+          disabled={isSaving}
+          className="rounded-full border border-subtle px-5 py-3 text-sm font-bold text-content transition hover:bg-surface-hover"
+        >
+          Anulare
+        </button>
+        <button
+          type="button"
+          onClick={handleSave}
+          disabled={!canSave}
+          className="rounded-full bg-content px-6 py-3 text-sm font-bold text-app transition hover:opacity-90 disabled:cursor-not-allowed disabled:bg-subtle disabled:text-muted"
+        >
+          {isSaving ? "Se salvează..." : "Salvare"}
+        </button>
+      </div>
+    </section>
+  );
+}
+
+function ManualFlashcardEditorCard({
+  label,
+  value,
+  image,
+  placeholder,
+  onChange,
+  onImageChange,
+  onImageRemove,
+  allowImage = true,
+}: {
+  label: string;
+  value: string;
+  image?: string;
+  placeholder: string;
+  onChange: (value: string) => void;
+  onImageChange?: (file: File | undefined) => void;
+  onImageRemove?: () => void;
+  allowImage?: boolean;
+}) {
+  return (
+    <article className="min-h-[20rem] rounded-[2rem] border border-subtle bg-app p-4 shadow-xl shadow-black/5 sm:min-h-[26rem] sm:p-5">
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+        <span className="rounded-full bg-success-soft px-3 py-1 text-[11px] font-black uppercase tracking-[0.12em] text-success">
+          {label}
+        </span>
+        {allowImage ? (
+          <label className="cursor-pointer rounded-full border border-subtle bg-surface px-3 py-2 text-xs font-bold text-content transition hover:bg-surface-hover">
+            Imagine
+            <input
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={(event) => {
+                onImageChange?.(event.target.files?.[0]);
+                event.currentTarget.value = "";
+              }}
+            />
+          </label>
+        ) : null}
+      </div>
+
+      <div className="flex h-[15rem] flex-col gap-4 sm:h-[20rem]">
+        <textarea
+          value={value}
+          onChange={(event) => onChange(event.target.value)}
+          placeholder={placeholder}
+          className="min-h-0 flex-1 resize-none rounded-3xl border border-subtle bg-surface p-4 font-serif text-lg font-semibold leading-tight text-content outline-none transition placeholder:text-muted/50 focus:border-success focus:ring-4 focus:ring-success-soft sm:p-5 sm:text-2xl"
+        />
+        {allowImage && image ? (
+          <div className="relative h-28 overflow-hidden rounded-3xl border border-subtle bg-surface p-3 sm:h-40">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={image} alt="" className="h-full w-full object-contain" />
+            <button
+              type="button"
+              onClick={onImageRemove}
+              className="absolute right-3 top-3 rounded-full bg-content px-3 py-1.5 text-xs font-bold text-app"
+            >
+              Șterge
+            </button>
+          </div>
+        ) : null}
+      </div>
+    </article>
+  );
+}
+
+function FlashcardsPanel({
+  project,
+  mode,
+  onManualFlashcardCreate,
+}: {
+  project: StudyProject;
+  mode: FlashcardPanelMode;
+  onManualFlashcardCreate: (
+    projectId: string,
+    flashcard: ManualFlashcardPayload,
+  ) => Promise<void>;
+}) {
+  const router = useRouter();
   const [activeDeckId, setActiveDeckId] = useState<FlashcardDeckId | null>(null);
   const decks = useMemo(() => buildProjectFlashcardDecks(project), [project]);
   const quizMistakeCount = project.quizMistakeFlashcards.length;
+  const manualFlashcardCount = project.manualFlashcards.length;
   const flashcardCards: FlashcardStudyCard[] = [
     {
       id: "initial",
@@ -3502,6 +3856,31 @@ function FlashcardsPanel({ project }: { project: StudyProject }) {
     },
   ];
 
+  if (manualFlashcardCount > 0) {
+    flashcardCards.push({
+      id: "manual",
+      badge: "Create manual",
+      title: `${manualFlashcardCount} flashcard-uri create de tine`,
+      description:
+        "Cardurile adăugate manual, separate de pachetele generate automat.",
+      duration: `${Math.max(2, manualFlashcardCount * 2)} min`,
+      metric: "create manual",
+    });
+  }
+
+  if (mode === "create") {
+    return (
+      <ManualFlashcardBuilderPage
+        onBack={() =>
+          router.push(`/myaccount/flashcarduri?project=${project.id}`)
+        }
+        onCreate={(flashcard) =>
+          onManualFlashcardCreate(project.id, flashcard)
+        }
+      />
+    );
+  }
+
   if (activeDeckId) {
     return (
       <FlashcardDeckPage
@@ -3513,7 +3892,21 @@ function FlashcardsPanel({ project }: { project: StudyProject }) {
 
   return (
     <div className="space-y-4">
-      <GeneratedContentDisclaimer />
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <GeneratedContentDisclaimer className="w-fit max-w-full" />
+        <button
+          type="button"
+          onClick={() =>
+            router.push(`/myaccount/flashcarduri/creeaza?project=${project.id}`)
+          }
+          className="inline-flex h-11 w-fit shrink-0 items-center gap-2 rounded-full bg-content px-5 text-sm font-bold text-app transition hover:-translate-y-0.5 hover:opacity-90 sm:ml-auto"
+        >
+          <Icon>
+            <path d="M12 5v14M5 12h14" />
+          </Icon>
+          Creează flashcard
+        </button>
+      </div>
       <div className="grid gap-4 lg:grid-cols-2">
         {flashcardCards.map((card) => (
           <FlashcardTicket

@@ -2,7 +2,17 @@
 
 import { useEffect, useRef, useState } from "react";
 
-const flashcards = [
+type FlashcardTone = "success" | "warning" | "info" | "danger";
+
+type FlashcardEntry = {
+  topic: string;
+  question: string;
+  questionImage?: string;
+  answer: string;
+  tone: FlashcardTone;
+};
+
+const flashcards: FlashcardEntry[] = [
   {
     topic: "Biologie celulară",
     question: "Care este rolul principal al ribozomilor?",
@@ -24,12 +34,12 @@ const flashcards = [
   },
   {
     topic: "Programare",
-    question: "Ce este complexitatea O(log n)?",
-    answer:
-      "Un timp de execuție care crește logaritmic odată cu dimensiunea datelor.",
+    question: "",
+    questionImage: "/bubble-sort.png",
+    answer: "Bubble sort",
     tone: "danger",
   },
-] as const;
+];
 
 const deskLayouts = [
   {
@@ -74,13 +84,27 @@ function FlashcardFaceContent({
   side: "question" | "answer";
 }) {
   const isAnswer = side === "answer";
+  const text = isAnswer ? card.answer : card.question;
+  const image = isAnswer ? undefined : card.questionImage;
 
   return (
     <div className="flashcard-card-content h-full">
-      <div className="flex min-h-0 flex-1 items-center">
-        <h3 className="flashcard-card-question font-serif text-2xl font-semibold leading-snug sm:text-3xl">
-          {isAnswer ? card.answer : card.question}
-        </h3>
+      <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-4 overflow-hidden">
+        {image ? (
+          <div className="flex min-h-0 flex-1 items-center justify-center overflow-hidden rounded-2xl border border-subtle bg-app/60 p-2">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={image}
+              alt=""
+              className="h-full max-h-full w-full max-w-full object-contain"
+            />
+          </div>
+        ) : null}
+        {text ? (
+          <h3 className="flashcard-card-question font-serif text-2xl font-semibold leading-snug sm:text-3xl">
+            {text}
+          </h3>
+        ) : null}
       </div>
 
       <div className="flashcard-card-footer absolute inset-x-6 bottom-6 flex items-center border-t border-subtle pt-4 text-xs font-bold text-muted sm:inset-x-8">
@@ -129,12 +153,24 @@ function StaticFlashcards() {
         <div className="mt-10 grid gap-4 md:grid-cols-2">
           {flashcards.map((card) => (
             <article
-              key={card.question}
+              key={card.topic}
               className="rounded-3xl border border-subtle bg-surface p-6"
             >
-              <h3 className="font-serif text-2xl font-semibold">
-                {card.question}
-              </h3>
+              {card.questionImage ? (
+                <div className="mb-4 overflow-hidden rounded-2xl border border-subtle bg-app/60 p-2">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={card.questionImage}
+                    alt=""
+                    className="w-full object-contain"
+                  />
+                </div>
+              ) : null}
+              {card.question ? (
+                <h3 className="font-serif text-2xl font-semibold">
+                  {card.question}
+                </h3>
+              ) : null}
               <p className="mt-4 text-sm leading-7 text-muted">{card.answer}</p>
             </article>
           ))}
@@ -287,7 +323,7 @@ export function FlashcardStory() {
 
               return (
                 <button
-                  key={card.question}
+                  key={card.topic}
                   type="button"
                   onClick={() => isActive && setShowAnswer((visible) => !visible)}
                   tabIndex={isActive ? 0 : -1}

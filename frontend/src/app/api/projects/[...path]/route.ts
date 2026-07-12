@@ -9,6 +9,12 @@ const allowedRoutes = [
   { method: "POST", pattern: /^[0-9a-fA-F-]{36}\/archive$/ },
   { method: "POST", pattern: /^[0-9a-fA-F-]{36}\/restore$/ },
   { method: "POST", pattern: /^[0-9a-fA-F-]{36}\/import-json$/ },
+  { method: "POST", pattern: /^[0-9a-fA-F-]{36}\/flashcards$/ },
+  {
+    method: "GET",
+    pattern:
+      /^[0-9a-fA-F-]{36}\/flashcards\/[0-9a-fA-F-]{36}\/front-image$/,
+  },
   {
     method: "POST",
     pattern: /^[0-9a-fA-F-]{36}\/quiz-mistake-flashcards$/,

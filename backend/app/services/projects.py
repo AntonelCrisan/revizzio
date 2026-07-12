@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import json
 import logging
+import mimetypes
+import os
 import re
 import shutil
 import subprocess
@@ -57,6 +59,8 @@ LEGACY_OFFICE_TARGETS = {
     ".ppt": ".pptx",
 }
 MAX_JSON_IMPORT_BYTES = 5 * 1024 * 1024
+MAX_FLASHCARD_IMAGE_BYTES = 5 * 1024 * 1024
+ALLOWED_FLASHCARD_IMAGE_EXTENSIONS = {".gif", ".jpeg", ".jpg", ".png", ".webp"}
 
 
 class ProjectError(Exception):
@@ -104,6 +108,16 @@ def _safe_filename(filename: str) -> str:
     stem = re.sub(r"[^A-Za-z0-9._-]+", "-", Path(clean_name).stem).strip("-")
     suffix = Path(clean_name).suffix.lower()
     return f"{stem or 'material'}{suffix}"
+
+
+def _long_path(path: Path) -> Path:
+    """Bypass Windows' 260-char MAX_PATH limit for deeply nested storage roots."""
+    if os.name != "nt":
+        return path
+    resolved = str(path if path.is_absolute() else path.resolve())
+    if resolved.startswith("\\\\?\\"):
+        return path
+    return Path(f"\\\\?\\{resolved}")
 
 
 def _validate_upload_extension(filename: str) -> None:
@@ -491,6 +505,84 @@ class StudyProjectService:
 
         return await self.get_project(user, project.id)
 
+    async def create_manual_flashcard(
+        self,
+        *,
+        user: User,
+        project_id: uuid.UUID,
+        front: str | None,
+        back: str,
+        category: str | None,
+        difficulty: str | None,
+        front_image: UploadFile | None,
+    ) -> StudyProject:
+        project = await self.get_project(user, project_id)
+        clean_front = _clean_text(front or "")
+        clean_back = _clean_text(back)
+        clean_category = _clean_text(category or "")[:120] or None
+        clean_difficulty = _clean_text(difficulty or "")[:40] or None
+
+        has_image = front_image is not None and bool(front_image.filename)
+        if not clean_front and not has_image:
+            raise ProjectValidationError("Adauga o intrebare sau o imagine.")
+        if not clean_back:
+            raise ProjectValidationError("Adauga raspunsul flashcardului.")
+
+        flashcard = StudyProjectFlashcard(
+            id=uuid.uuid4(),
+            project_id=project.id,
+            front=clean_front,
+            back=clean_back,
+            category=clean_category,
+            difficulty=clean_difficulty,
+            source_type="manually",
+            sort_order=len(project.flashcards),
+        )
+
+        if has_image and front_image is not None:
+            flashcard.front_image = await self._store_flashcard_front_image(
+                user_id=user.id,
+                project_id=project.id,
+                flashcard_id=flashcard.id,
+                upload=front_image,
+            )
+
+        project.flashcards.append(flashcard)
+        project.updated_at = datetime.now(UTC)
+        await self.session.commit()
+        return await self.get_project(user, project.id)
+
+    async def flashcard_front_image_path(
+        self,
+        *,
+        user: User,
+        project_id: uuid.UUID,
+        flashcard_id: uuid.UUID,
+    ) -> tuple[Path, str]:
+        project = await self.get_project(user, project_id)
+        flashcard = next(
+            (
+                item
+                for item in project.flashcards
+                if item.id == flashcard_id and item.front_image
+            ),
+            None,
+        )
+        if flashcard is None or not flashcard.front_image:
+            raise ProjectNotFoundError("Imaginea flashcardului nu exista.")
+
+        project_dir = self._project_dir(user.id, project.id).resolve()
+        image_path = (project_dir / flashcard.front_image).resolve()
+        if project_dir != image_path and project_dir not in image_path.parents:
+            raise ProjectNotFoundError("Imaginea flashcardului nu exista.")
+
+        long_image_path = _long_path(image_path)
+        if not long_image_path.exists() or not long_image_path.is_file():
+            raise ProjectNotFoundError("Imaginea flashcardului nu exista.")
+
+        media_type = mimetypes.guess_type(image_path.name)[0] or "image/jpeg"
+        return long_image_path, media_type
+
     def to_response(self, project: StudyProject) -> StudyProjectResponse:
         return StudyProjectResponse(
             id=project.id,
@@ -575,6 +667,58 @@ class StudyProjectService:
             return
 
         shutil.rmtree(resolved_project_dir, ignore_errors=True)
+
+    async def _store_flashcard_front_image(
+        self,
+        *,
+        user_id: uuid.UUID,
+        project_id: uuid.UUID,
+        flashcard_id: uuid.UUID,
+        upload: UploadFile,
+    ) -> str:
+        safe_name = _safe_filename(upload.filename or "front-image")
+        extension = Path(safe_name).suffix.lower()
+        if extension not in ALLOWED_FLASHCARD_IMAGE_EXTENSIONS:
+            raise ProjectValidationError(
+                "Imaginea trebuie sa fie PNG, JPG, WEBP sau GIF."
+            )
+        if upload.content_type and not upload.content_type.startswith("image/"):
+            raise ProjectValidationError("Fisierul incarcat nu pare sa fie imagine.")
+
+        relative_path = Path("flashcard-images") / f"{flashcard_id}-front{extension}"
+        image_path = self._project_dir(user_id, project_id) / relative_path
+        temp_image_path = image_path.with_suffix(f"{image_path.suffix}.tmp")
+        long_image_path = _long_path(image_path)
+        long_temp_image_path = _long_path(temp_image_path)
+        size_bytes = 0
+
+        try:
+            long_image_path.parent.mkdir(parents=True, exist_ok=True)
+            with long_temp_image_path.open("wb") as destination:
+                while chunk := await upload.read(1024 * 1024):
+                    size_bytes += len(chunk)
+                    if size_bytes > MAX_FLASHCARD_IMAGE_BYTES:
+                        raise ProjectValidationError(
+                            "Imaginea pentru flashcard nu poate depasi 5MB."
+                        )
+                    destination.write(chunk)
+            long_temp_image_path.replace(long_image_path)
+        except ProjectValidationError:
+            long_temp_image_path.unlink(missing_ok=True)
+            raise
+        except OSError as exc:
+            long_temp_image_path.unlink(missing_ok=True)
+            logger.exception(
+                "Could not store flashcard image %s at %s",
+                safe_name,
+                image_path,
+            )
+            detail = exc.strerror or str(exc)
+            raise ProjectValidationError(
+                f"Imaginea nu a putut fi salvata pe server: {detail}"
+            ) from exc
+
+        return relative_path.as_posix()
 
     async def _store_and_convert_file(
         self,
@@ -676,15 +820,14 @@ class StudyProjectService:
     async def _clear_generated_content(self, project: StudyProject) -> None:
         if project.summary is not None:
             await self.session.delete(project.summary)
-        for collection in (
-            project.keywords,
-            project.flashcards,
-            project.quizzes,
-            project.strategies,
-        ):
+        for collection in (project.keywords, project.quizzes, project.strategies):
             for item in list(collection):
                 await self.session.delete(item)
             collection.clear()
+        for flashcard in list(project.flashcards):
+            if flashcard.source_type == "generated":
+                await self.session.delete(flashcard)
+                project.flashcards.remove(flashcard)
         await self.session.flush()
 
     def _apply_generated_payload(
@@ -753,6 +896,7 @@ class StudyProjectService:
                     ),
                     difficulty=_string_or_default(item_dict.get("difficulty"))[:40]
                     or None,
+                    source_type="generated",
                     sort_order=index,
                 )
             )
