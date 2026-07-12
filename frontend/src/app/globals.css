@@ -262,6 +262,37 @@ a {
   -webkit-font-smoothing: antialiased;
 }
 
+.flashcard-card-question {
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  text-wrap: balance;
+  font-size: clamp(1.5rem, 3vw, 2.25rem);
+  line-height: 1.14;
+}
+
+.flashcard-card-question[data-density="md"] {
+  font-size: clamp(1.25rem, 2.25vw, 1.8rem);
+  line-height: 1.13;
+}
+
+.flashcard-card-question[data-density="sm"] {
+  font-size: clamp(0.96rem, 1.55vw, 1.2rem);
+  line-height: 1.16;
+  text-wrap: pretty;
+}
+
+.flashcard-card-question[data-density="xs"] {
+  font-size: clamp(0.76rem, 1.18vw, 0.92rem);
+  line-height: 1.18;
+  text-wrap: pretty;
+}
+
+.flashcard-card-question[data-density="xxs"] {
+  font-size: clamp(0.64rem, 0.95vw, 0.78rem);
+  line-height: 1.2;
+  text-wrap: pretty;
+}
+
 .flashcard-flip {
   border-radius: inherit;
   perspective: 1400px;
@@ -309,13 +340,69 @@ a {
 }
 
 .flashcard-shuffle-forward {
-  animation: flashcard-shuffle-forward 1750ms cubic-bezier(0.45, 0, 0.2, 1)
+  animation: flashcard-shuffle-forward var(--shuffle-duration, 1750ms)
+    cubic-bezier(0.45, 0, 0.2, 1)
     both;
 }
 
 .flashcard-shuffle-reverse {
-  animation: flashcard-shuffle-reverse 1750ms cubic-bezier(0.45, 0, 0.2, 1)
+  animation: flashcard-shuffle-reverse var(--shuffle-duration, 1750ms)
+    cubic-bezier(0.45, 0, 0.2, 1)
     both;
+}
+
+.flashcard-shuffle-mix {
+  animation: flashcard-shuffle-mix var(--shuffle-duration, 920ms)
+    cubic-bezier(0.42, 0, 0.18, 1) both;
+  animation-delay: var(--shuffle-delay, 0ms);
+}
+
+.flashcard-shuffle-mix-0 {
+  --mix-x-1: -16%;
+  --mix-y-1: -12%;
+  --mix-rotate-1: -9deg;
+  --mix-x-2: 24%;
+  --mix-y-2: 11%;
+  --mix-rotate-2: 8deg;
+  --mix-x-3: -7%;
+  --mix-y-3: 18%;
+  --mix-rotate-3: -4deg;
+}
+
+.flashcard-shuffle-mix-1 {
+  --mix-x-1: 18%;
+  --mix-y-1: -10%;
+  --mix-rotate-1: 10deg;
+  --mix-x-2: -24%;
+  --mix-y-2: 14%;
+  --mix-rotate-2: -8deg;
+  --mix-x-3: 8%;
+  --mix-y-3: 20%;
+  --mix-rotate-3: 5deg;
+}
+
+.flashcard-shuffle-mix-2 {
+  --mix-x-1: -22%;
+  --mix-y-1: 7%;
+  --mix-rotate-1: -11deg;
+  --mix-x-2: 18%;
+  --mix-y-2: -13%;
+  --mix-rotate-2: 9deg;
+  --mix-x-3: -12%;
+  --mix-y-3: 14%;
+  --mix-rotate-3: -6deg;
+}
+
+.flashcard-shuffle-mix-3 {
+  --mix-x-1: 20%;
+  --mix-y-1: 9%;
+  --mix-rotate-1: 11deg;
+  --mix-x-2: -18%;
+  --mix-y-2: -12%;
+  --mix-rotate-2: -9deg;
+  --mix-x-3: 12%;
+  --mix-y-3: 15%;
+  --mix-rotate-3: 6deg;
 }
 
 @keyframes flashcard-shuffle-forward {
@@ -372,6 +459,41 @@ a {
     z-index: 0;
     transform: var(--shuffle-end);
     box-shadow: var(--shuffle-shadow-rest, 0 10px 28px var(--theme-shadow));
+  }
+}
+
+@keyframes flashcard-shuffle-mix {
+  0% {
+    z-index: 60;
+    transform: var(--shuffle-start);
+  }
+
+  24% {
+    z-index: 70;
+    transform: translate3d(var(--mix-x-1), var(--mix-y-1), 0)
+      rotate(var(--mix-rotate-1));
+    box-shadow: var(
+      --shuffle-shadow-strong,
+      0 30px 70px var(--theme-shadow-strong)
+    );
+  }
+
+  52% {
+    z-index: 50;
+    transform: translate3d(var(--mix-x-2), var(--mix-y-2), 0)
+      rotate(var(--mix-rotate-2));
+  }
+
+  76% {
+    z-index: 65;
+    transform: translate3d(var(--mix-x-3), var(--mix-y-3), 0)
+      rotate(var(--mix-rotate-3));
+  }
+
+  100% {
+    z-index: 40;
+    transform: var(--shuffle-end);
+    box-shadow: var(--shuffle-shadow-rest, 0 14px 34px var(--theme-shadow));
   }
 }
 
@@ -802,6 +924,44 @@ a {
 
   .flashcard-card-question {
     font-size: 1.25rem;
+  }
+}
+
+.flashcard-card-question[data-density="md"] {
+  font-size: clamp(1.25rem, 2.25vw, 1.8rem);
+  line-height: 1.13;
+}
+
+.flashcard-card-question[data-density="sm"] {
+  font-size: clamp(0.96rem, 1.55vw, 1.2rem);
+  line-height: 1.16;
+}
+
+.flashcard-card-question[data-density="xs"] {
+  font-size: clamp(0.76rem, 1.18vw, 0.92rem);
+  line-height: 1.18;
+}
+
+.flashcard-card-question[data-density="xxs"] {
+  font-size: clamp(0.64rem, 0.95vw, 0.78rem);
+  line-height: 1.2;
+}
+
+@media (max-width: 400px) {
+  .flashcard-card-question[data-density="md"] {
+    font-size: clamp(1.05rem, 5.2vw, 1.28rem);
+  }
+
+  .flashcard-card-question[data-density="sm"] {
+    font-size: clamp(0.82rem, 3.7vw, 0.96rem);
+  }
+
+  .flashcard-card-question[data-density="xs"] {
+    font-size: clamp(0.7rem, 3.05vw, 0.82rem);
+  }
+
+  .flashcard-card-question[data-density="xxs"] {
+    font-size: clamp(0.6rem, 2.65vw, 0.7rem);
   }
 }
 

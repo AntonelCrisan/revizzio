@@ -39,6 +39,7 @@ type SidebarGroupId = "settings" | "billing";
 type StudyFlashcardTone = "success" | "warning" | "info" | "danger";
 
 type StudyFlashcardCard = {
+  id: string;
   topic: string;
   question: string;
   answer: string;
@@ -137,15 +138,6 @@ function Icon({
   );
 }
 
-function BookIcon({ className = "h-4 w-4" }: { className?: string }) {
-  return (
-    <Icon className={className}>
-      <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
-      <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
-    </Icon>
-  );
-}
-
 function Logo() {
   return (
     <BrandLogo
@@ -194,7 +186,8 @@ function mapQuizMistakeFlashcards(
 ): StudyFlashcardCard[] {
   return flashcards
     .filter((flashcard) => flashcard.source_type === "quiz_mistake")
-    .map((flashcard) => ({
+    .map((flashcard, index) => ({
+      id: `quiz-${flashcard.id || flashcard.source_quiz_question_id || index}`,
       topic: flashcard.category || "Quiz",
       question: flashcard.front,
       answer: flashcard.back,
@@ -203,7 +196,17 @@ function mapQuizMistakeFlashcards(
     }));
 }
 
+function getGeneratedFlashcards(flashcards: ApiStudyProject["flashcards"]) {
+  return flashcards.filter(
+    (flashcard) => flashcard.source_type !== "quiz_mistake",
+  );
+}
+
 function mapApiProject(project: ApiStudyProject): StudyProject {
+  const generatedFlashcardCount = getGeneratedFlashcards(
+    project.flashcards,
+  ).length;
+
   return {
     id: project.id,
     name: project.name,
@@ -212,8 +215,8 @@ function mapApiProject(project: ApiStudyProject): StudyProject {
     isArchived: project.is_archived,
     archivedAt: project.archived_at,
     meta: `${project.subject_name} · ${project.file_count} materiale · ${apiProjectStatusLabel(project.status)}`,
-    flashcardsDue: project.flashcard_count,
-    flashcardsTotal: project.flashcard_count,
+    flashcardsDue: generatedFlashcardCount,
+    flashcardsTotal: generatedFlashcardCount,
     progress: project.status === "ready" ? 100 : 15,
     summary: project.summary,
     keywords: project.keywords,
@@ -268,7 +271,7 @@ type AccountDashboardProps = {
 
 export function AccountDashboard({
   initialProjectId,
-  initialTab = "flashcards",
+  initialTab = "rezumat",
   initialChatBackTab,
   initialView = "home",
   useTabPages = false,
@@ -398,17 +401,16 @@ export function AccountDashboard({
   }
 
   function showHome() {
+    setView("home");
+    setSidebarOpen(false);
+
     if (useTabPages) {
-      setSidebarOpen(false);
       router.push("/myaccount");
       return;
     }
-
-    setView("home");
-    setSidebarOpen(false);
   }
 
-  function openProject(projectId: string, tab: TabId = "flashcards") {
+  function openProject(projectId: string, tab: TabId = "rezumat") {
     setActiveProjectId(projectId);
     setOpenProjectId(projectId);
     setActiveTab(tab);
@@ -1497,11 +1499,11 @@ function ProjectView({
 
   return (
     <section>
-      <button
-        type="button"
-        onClick={onBack}
-        className="mb-4 inline-flex items-center gap-2 text-sm font-semibold text-muted"
-      >
+        <button
+          type="button"
+          onClick={onBack}
+          className="mb-4 inline-flex cursor-pointer items-center gap-2 rounded-full border border-subtle bg-surface px-4 py-2 text-sm font-semibold text-muted transition hover:bg-surface-hover hover:text-content"
+        >
         <Icon>
           <path d="M19 12H5M12 19l-7-7 7-7" />
         </Icon>
@@ -2656,11 +2658,27 @@ type AccountFlashcardDeck = {
   cards: AccountFlashcard[];
 };
 
-type FlashcardShuffleState = {
-  id: number;
-  cardIndex: number;
-  direction: 1 | -1;
+type FlashcardShuffleMixGhost = {
+  card: AccountFlashcard;
+  startDistance: number;
+  endDistance: number;
+  variant: number;
 };
+
+type FlashcardShuffleState =
+  | {
+      id: number;
+      mode: "move";
+      card: AccountFlashcard;
+      direction: 1 | -1;
+      durationMs: number;
+    }
+  | {
+      id: number;
+      mode: "mix";
+      ghosts: FlashcardShuffleMixGhost[];
+      durationMs: number;
+    };
 
 type FlashcardTextSide = "question" | "answer";
 
@@ -2704,9 +2722,7 @@ const accountFlashcardLayouts = [
 function buildProjectFlashcardDecks(
   project: StudyProject,
 ): Record<FlashcardDeckId, AccountFlashcardDeck> {
-  const generatedFlashcards = project.flashcards.filter(
-    (flashcard) => flashcard.source_type !== "quiz_mistake",
-  );
+  const generatedFlashcards = getGeneratedFlashcards(project.flashcards);
 
   const tones: AccountFlashcard["tone"][] = [
     "success",
@@ -2715,6 +2731,7 @@ function buildProjectFlashcardDecks(
     "danger",
   ];
   const cards = generatedFlashcards.map((card, index) => ({
+    id: `initial-${card.id || index}-${index}`,
     topic: card.category || project.subjectName,
     question: card.front,
     answer: card.back,
@@ -2760,6 +2777,53 @@ function getAccountFlashcardLayout(distance: number) {
   ];
 }
 
+function shuffleAccountFlashcards(
+  cards: AccountFlashcard[],
+  activeIndex: number,
+) {
+  const shuffledCards = [...cards];
+
+  for (let index = shuffledCards.length - 1; index > 0; index -= 1) {
+    const randomIndex = Math.floor(Math.random() * (index + 1));
+    [shuffledCards[index], shuffledCards[randomIndex]] = [
+      shuffledCards[randomIndex],
+      shuffledCards[index],
+    ];
+  }
+
+  if (
+    shuffledCards.length > 1 &&
+    shuffledCards[0]?.id === cards[activeIndex]?.id
+  ) {
+    const nextDifferentCardIndex = shuffledCards.findIndex(
+      (card) => card.id !== cards[activeIndex]?.id,
+    );
+
+    if (nextDifferentCardIndex > 0) {
+      [shuffledCards[0], shuffledCards[nextDifferentCardIndex]] = [
+        shuffledCards[nextDifferentCardIndex],
+        shuffledCards[0],
+      ];
+    }
+  }
+
+  return shuffledCards;
+}
+
+function getFlashcardShuffleMixGhosts(
+  cards: AccountFlashcard[],
+  activeIndex: number,
+): FlashcardShuffleMixGhost[] {
+  const visibleCount = Math.min(cards.length, accountFlashcardLayouts.length);
+
+  return Array.from({ length: visibleCount }, (_, distance) => ({
+    card: cards[(activeIndex + distance) % cards.length],
+    startDistance: distance,
+    endDistance: (distance * 2 + 1) % visibleCount,
+    variant: distance % accountFlashcardLayouts.length,
+  }));
+}
+
 function getFlashcardTextSide(node: Node | null): FlashcardTextSide | null {
   const element = node instanceof Element ? node : node?.parentElement;
   const textElement = element?.closest<HTMLElement>("[data-flashcard-text]");
@@ -2770,6 +2834,16 @@ function getFlashcardTextSide(node: Node | null): FlashcardTextSide | null {
   }
 
   return null;
+}
+
+function getFlashcardTextDensity(text: string) {
+  const normalizedLength = text.trim().replace(/\s+/g, " ").length;
+
+  if (normalizedLength > 480) return "xxs";
+  if (normalizedLength > 320) return "xs";
+  if (normalizedLength > 200) return "sm";
+  if (normalizedLength > 110) return "md";
+  return "lg";
 }
 
 function buildFlashcardAiResponse(
@@ -2847,16 +2921,19 @@ function AccountFlashcardFaceContent({
   onFlip?: () => void;
 }) {
   const isAnswer = side === "answer";
+  const text = isAnswer ? card.answer : card.question;
+  const textDensity = getFlashcardTextDensity(text);
   const flipLabel = isAnswer ? "Vezi întrebarea" : "Vezi răspunsul";
 
   return (
     <div className="flashcard-card-content h-full">
-      <div className="flex min-h-0 flex-1 items-center">
+      <div className="flashcard-card-main flex min-h-0 flex-1 items-center overflow-hidden">
         <h3
           data-flashcard-text={side}
-          className="flashcard-card-question select-text font-serif text-2xl font-semibold leading-snug sm:text-3xl"
+          data-density={textDensity}
+          className="flashcard-card-question select-text font-serif font-semibold"
         >
-          {isAnswer ? card.answer : card.question}
+          {text}
         </h3>
       </div>
 
@@ -2925,6 +3002,7 @@ function FlashcardDeckPage({
   const shuffleIdRef = useRef(0);
   const shuffleTimerRef = useRef<number | null>(null);
   const aiResponseTimerRef = useRef<number | null>(null);
+  const [cards, setCards] = useState<AccountFlashcard[]>(deck.cards);
   const [activeIndex, setActiveIndex] = useState(0);
   const [shuffle, setShuffle] = useState<FlashcardShuffleState | null>(null);
   const [showAnswer, setShowAnswer] = useState(false);
@@ -2932,7 +3010,8 @@ function FlashcardDeckPage({
     useState<PendingFlashcardSelection | null>(null);
   const [flashcardAiDialog, setFlashcardAiDialog] =
     useState<FlashcardAiDialog | null>(null);
-  const hasCards = deck.cards.length > 0;
+  const hasCards = cards.length > 0;
+  const isAnimating = Boolean(shuffle);
 
   useEffect(() => {
     return () => {
@@ -2946,18 +3025,14 @@ function FlashcardDeckPage({
   }, []);
 
   function moveCard(direction: 1 | -1) {
-    if (!hasCards) {
+    if (!hasCards || isAnimating) {
       return;
-    }
-
-    if (shuffleTimerRef.current) {
-      window.clearTimeout(shuffleTimerRef.current);
     }
 
     const previousIndex = activeIndex;
     const nextIndex =
-      (activeIndex + direction + deck.cards.length) % deck.cards.length;
-    const animatedCardIndex = direction === 1 ? previousIndex : nextIndex;
+      (activeIndex + direction + cards.length) % cards.length;
+    const animatedCard = cards[direction === 1 ? previousIndex : nextIndex];
 
     shuffleIdRef.current += 1;
     setShowAnswer(false);
@@ -2965,15 +3040,44 @@ function FlashcardDeckPage({
     window.getSelection()?.removeAllRanges();
     setShuffle({
       id: shuffleIdRef.current,
-      cardIndex: animatedCardIndex,
+      mode: "move",
+      card: animatedCard,
       direction,
+      durationMs: 1150,
     });
     setActiveIndex(nextIndex);
 
     shuffleTimerRef.current = window.setTimeout(() => {
       setShuffle(null);
       shuffleTimerRef.current = null;
-    }, 1750);
+    }, 1150);
+  }
+
+  function shuffleDeck() {
+    if (!hasCards || isAnimating) {
+      return;
+    }
+
+    const shuffledCards = shuffleAccountFlashcards(cards, activeIndex);
+    const ghosts = getFlashcardShuffleMixGhosts(cards, activeIndex);
+
+    shuffleIdRef.current += 1;
+    setShowAnswer(false);
+    setPendingFlashcardSelection(null);
+    window.getSelection()?.removeAllRanges();
+    setShuffle({
+      id: shuffleIdRef.current,
+      mode: "mix",
+      ghosts,
+      durationMs: 920,
+    });
+
+    shuffleTimerRef.current = window.setTimeout(() => {
+      setCards(shuffledCards);
+      setActiveIndex(0);
+      setShuffle(null);
+      shuffleTimerRef.current = null;
+    }, 920);
   }
 
   function toggleFlashcardSide() {
@@ -3017,7 +3121,7 @@ function FlashcardDeckPage({
     setPendingFlashcardSelection({
       text: selectedText,
       side: anchorSide,
-      topic: deck.cards[activeIndex].topic,
+      topic: cards[activeIndex].topic,
     });
   }
 
@@ -3054,12 +3158,19 @@ function FlashcardDeckPage({
     setFlashcardAiDialog(null);
   }
 
+  const shufflingCardIds =
+    shuffle?.mode === "move"
+      ? [shuffle.card.id]
+      : shuffle?.mode === "mix"
+        ? shuffle.ghosts.map((ghost) => ghost.card.id)
+        : [];
+
   return (
     <section className="overflow-hidden rounded-[2rem] border border-subtle bg-surface p-5 sm:p-7 lg:p-8">
       <button
         type="button"
         onClick={onBack}
-        className="mb-6 inline-flex items-center gap-2 text-sm font-semibold text-muted transition hover:text-content"
+        className="mb-6 inline-flex h-11 cursor-pointer items-center gap-2 rounded-full border border-subtle bg-app px-4 text-sm font-semibold text-content shadow-sm transition hover:-translate-y-0.5 hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-action"
       >
         <Icon>
           <path d="M19 12H5M12 19l-7-7 7-7" />
@@ -3075,15 +3186,6 @@ function FlashcardDeckPage({
           <h2 className="mt-3 max-w-xl font-serif text-3xl font-semibold leading-tight sm:text-5xl">
             {deck.title}
           </h2>
-          <p className="mt-5 max-w-lg text-sm leading-7 text-muted sm:text-base">
-            {deck.description}
-          </p>
-
-          <p className="mt-6 max-w-md text-sm font-semibold leading-6 text-muted">
-            Selectează text din întrebare sau răspuns pentru explicații AI.
-            Flip-ul se face doar din butonul de pe card.
-          </p>
-
           {pendingFlashcardSelection ? (
             <div className="sticky top-16 z-20 mt-4 rounded-2xl border border-info-border bg-info-soft/95 p-4 text-info shadow-2xl shadow-black/10 backdrop-blur-xl">
               <p className="text-[11px] font-bold uppercase tracking-[0.16em]">
@@ -3125,66 +3227,99 @@ function FlashcardDeckPage({
               onMouseUp={readFlashcardSelection}
               className="flashcard-story-deck relative mx-auto w-full max-w-xl"
             >
-              {deck.cards.map((card, index) => {
-              const distance =
-                (index - activeIndex + deck.cards.length) % deck.cards.length;
-              const isActive = distance === 0;
-              const isShuffling = shuffle?.cardIndex === index;
+              {cards.map((card, index) => {
+                const distance =
+                  (index - activeIndex + cards.length) % cards.length;
+                const isActive = distance === 0;
+                const isShuffling = shufflingCardIds.includes(card.id);
+                const visibleLayer = Math.max(
+                  0,
+                  accountFlashcardLayouts.length - distance,
+                );
 
-              if (distance >= accountFlashcardLayouts.length && !isShuffling) {
-                return null;
-              }
+                if (
+                  distance >= accountFlashcardLayouts.length &&
+                  !isShuffling
+                ) {
+                  return null;
+                }
 
-              return (
-                <div
-                  key={card.question}
-                  aria-hidden={!isActive}
-                  className="flashcard-desk-card flashcard-face absolute inset-x-3 top-0 rounded-[1.75rem] text-left outline-none transition sm:inset-x-0"
-                  style={{
-                    zIndex: deck.cards.length - distance,
-                    transform: toAccountFlashcardTransform(
-                      getAccountFlashcardLayout(distance),
-                    ),
-                    visibility: isShuffling ? "hidden" : "visible",
-                    pointerEvents: isActive ? "auto" : "none",
-                  }}
-                >
-                  <AccountFlashcardContent
-                    card={card}
-                    flipped={showAnswer && isActive}
-                    onFlip={isActive ? toggleFlashcardSide : undefined}
-                  />
-                </div>
-              );
+                return (
+                  <div
+                    key={card.id}
+                    aria-hidden={!isActive}
+                    className="flashcard-desk-card flashcard-face absolute inset-x-3 top-0 rounded-[1.75rem] text-left outline-none transition sm:inset-x-0"
+                    style={{
+                      zIndex: isShuffling ? 0 : visibleLayer,
+                      transform: toAccountFlashcardTransform(
+                        getAccountFlashcardLayout(distance),
+                      ),
+                      visibility: isShuffling ? "hidden" : "visible",
+                      pointerEvents: isActive ? "auto" : "none",
+                    }}
+                  >
+                    <AccountFlashcardContent
+                      card={card}
+                      flipped={showAnswer && isActive}
+                      onFlip={isActive ? toggleFlashcardSide : undefined}
+                    />
+                  </div>
+                );
               })}
 
-              {shuffle ? (
-              <div
-                key={shuffle.id}
-                aria-hidden="true"
-                className={`flashcard-shuffle-ghost flashcard-face pointer-events-none absolute inset-x-3 top-0 text-left sm:inset-x-0 ${
-                  shuffle.direction === 1
-                    ? "flashcard-shuffle-forward"
-                    : "flashcard-shuffle-reverse"
-                }`}
-                style={
-                  {
-                    "--shuffle-start": toAccountFlashcardTransform(
-                      shuffle.direction === 1
-                        ? getAccountFlashcardLayout(0)
-                        : getAccountFlashcardLayout(deck.cards.length - 1),
-                    ),
-                    "--shuffle-end": toAccountFlashcardTransform(
-                      shuffle.direction === 1
-                        ? getAccountFlashcardLayout(deck.cards.length - 1)
-                        : getAccountFlashcardLayout(0),
-                    ),
-                  } as CSSProperties
-                }
-              >
-                <AccountFlashcardContent card={deck.cards[shuffle.cardIndex]} />
-              </div>
+              {shuffle?.mode === "move" ? (
+                <div
+                  key={shuffle.id}
+                  aria-hidden="true"
+                  className={`flashcard-shuffle-ghost flashcard-face pointer-events-none absolute inset-x-3 top-0 text-left sm:inset-x-0 ${
+                    shuffle.direction === 1
+                      ? "flashcard-shuffle-forward"
+                      : "flashcard-shuffle-reverse"
+                  }`}
+                  style={
+                    {
+                      "--shuffle-start": toAccountFlashcardTransform(
+                        shuffle.direction === 1
+                          ? getAccountFlashcardLayout(0)
+                          : getAccountFlashcardLayout(cards.length - 1),
+                      ),
+                      "--shuffle-end": toAccountFlashcardTransform(
+                        shuffle.direction === 1
+                          ? getAccountFlashcardLayout(cards.length - 1)
+                          : getAccountFlashcardLayout(0),
+                      ),
+                      "--shuffle-duration": `${shuffle.durationMs}ms`,
+                    } as CSSProperties
+                  }
+                >
+                  <AccountFlashcardContent card={shuffle.card} />
+                </div>
               ) : null}
+
+              {shuffle?.mode === "mix"
+                ? shuffle.ghosts.map((ghost, index) => (
+                    <div
+                      key={`${shuffle.id}-${ghost.card.id}`}
+                      aria-hidden="true"
+                      className={`flashcard-shuffle-ghost flashcard-shuffle-mix flashcard-shuffle-mix-${ghost.variant} flashcard-face pointer-events-none absolute inset-x-3 top-0 text-left sm:inset-x-0`}
+                      style={
+                        {
+                          "--shuffle-start": toAccountFlashcardTransform(
+                            getAccountFlashcardLayout(ghost.startDistance),
+                          ),
+                          "--shuffle-end": toAccountFlashcardTransform(
+                            getAccountFlashcardLayout(ghost.endDistance),
+                          ),
+                          "--shuffle-duration": `${shuffle.durationMs}ms`,
+                          "--shuffle-delay": `${index * 35}ms`,
+                          "--mix-layer": index,
+                        } as CSSProperties
+                      }
+                    >
+                      <AccountFlashcardContent card={ghost.card} />
+                    </div>
+                  ))
+                : null}
             </div>
           ) : (
             <div className="grid min-h-[22rem] place-items-center rounded-[2rem] border border-dashed border-subtle bg-app p-6 text-center">
@@ -3201,30 +3336,43 @@ function FlashcardDeckPage({
           )}
 
           {hasCards ? (
-            <div className="mt-4 flex items-center justify-center gap-3 sm:mt-5">
-            <button
-              type="button"
-              onClick={() => moveCard(-1)}
-              className="flex h-12 w-12 items-center justify-center rounded-full border border-subtle bg-app text-content transition hover:-translate-y-0.5 hover:bg-surface-hover"
-              aria-label="Flashcard anterior"
-            >
-              <Icon>
-                <path d="M19 12H5M11 5l-7 7 7 7" />
-              </Icon>
-            </button>
-            <button
-              type="button"
-              onClick={() => moveCard(1)}
-              className="flex h-12 w-12 items-center justify-center rounded-full bg-content text-app transition hover:-translate-y-0.5 hover:opacity-90"
-              aria-label="Flashcard următor"
-            >
-              <Icon>
-                <path d="M5 12h14M13 5l7 7-7 7" />
-              </Icon>
-            </button>
-            <span className="text-xs font-bold text-muted">
-              {activeIndex + 1}/{deck.cards.length}
-            </span>
+            <div className="mt-4 flex flex-wrap items-center justify-center gap-3 sm:mt-5">
+              <button
+                type="button"
+                onClick={shuffleDeck}
+                disabled={isAnimating}
+                className="inline-flex h-12 items-center gap-2 rounded-full border border-subtle bg-app px-5 text-sm font-bold text-content transition hover:-translate-y-0.5 hover:bg-surface-hover disabled:cursor-not-allowed disabled:opacity-55"
+              >
+                <Icon>
+                  <path d="M16 3h5v5M4 20l17-17M21 16v5h-5M15 15l6 6M4 4l5 5" />
+                </Icon>
+                Amestecă
+              </button>
+              <button
+                type="button"
+                onClick={() => moveCard(-1)}
+                disabled={isAnimating}
+                className="flex h-12 w-12 items-center justify-center rounded-full border border-subtle bg-app text-content transition hover:-translate-y-0.5 hover:bg-surface-hover disabled:cursor-not-allowed disabled:opacity-55"
+                aria-label="Flashcard anterior"
+              >
+                <Icon>
+                  <path d="M19 12H5M11 5l-7 7 7 7" />
+                </Icon>
+              </button>
+              <button
+                type="button"
+                onClick={() => moveCard(1)}
+                disabled={isAnimating}
+                className="flex h-12 w-12 items-center justify-center rounded-full bg-content text-app transition hover:-translate-y-0.5 hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-55"
+                aria-label="Flashcard următor"
+              >
+                <Icon>
+                  <path d="M5 12h14M13 5l7 7-7 7" />
+                </Icon>
+              </button>
+              <span className="text-xs font-bold text-muted">
+                {activeIndex + 1}/{cards.length}
+              </span>
             </div>
           ) : null}
         </div>
@@ -3561,6 +3709,7 @@ function buildMistakeFlashcardFromQuestion(
     .filter(Boolean);
 
   return {
+    id: `quiz-${question.sourceQuestionId ?? question.id}`,
     topic: question.concept,
     question: question.question,
     answer: [
@@ -4666,12 +4815,23 @@ function NewProjectView({
   onImportJson: (file: File) => void | Promise<void>;
   onOpenGeneratedProject: () => void;
 }) {
+  const totalFileSize = files.reduce((total, file) => total + file.size, 0);
+  const detailFieldsCompleted =
+    projectName.trim().length > 0 &&
+    subjectName.trim().length > 0 &&
+    institutionName.trim().length > 0;
+  const setupSteps = [
+    { label: "Detalii", done: detailFieldsCompleted },
+    { label: "Materiale", done: files.length > 0 },
+    { label: "Drepturi", done: hasMaterialRights },
+  ];
+
   return (
     <section>
       <button
         type="button"
         onClick={onBack}
-        className="mb-4 inline-flex items-center gap-2 text-sm font-semibold text-muted"
+        className="mb-4 inline-flex cursor-pointer items-center gap-2 rounded-full border border-subtle bg-surface px-4 py-2 text-sm font-semibold text-muted transition hover:bg-surface-hover hover:text-content"
       >
         <Icon>
           <path d="M19 12H5M12 19l-7-7 7-7" />
@@ -4681,10 +4841,40 @@ function NewProjectView({
 
       {generationState === "form" ? (
         <>
-          <h1 className="font-serif text-2xl font-semibold">Proiect nou</h1>
-          <p className="mt-1 text-sm text-muted">
-            Încarcă materialele, iar Revizzio pregătește pachetul de studiu.
-          </p>
+          <div className="flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
+            <div>
+              <p className="text-xs font-black uppercase tracking-[0.18em] text-warning">
+                Proiect nou
+              </p>
+              <h1 className="mt-2 font-serif text-4xl font-semibold leading-tight sm:text-5xl">
+                Încarcă un curs.
+              </h1>
+              <p className="mt-3 max-w-xl text-sm leading-6 text-muted">
+                Adaugi contextul, pui materialele și primești pachetul de
+                studiu pregătit pentru import.
+              </p>
+            </div>
+
+            <div className="flex flex-wrap gap-2">
+              {setupSteps.map((step) => (
+                <span
+                  key={step.label}
+                  className={`inline-flex items-center gap-2 rounded-full border px-3 py-2 text-xs font-black ${
+                    step.done
+                      ? "border-success-border bg-success-soft text-success"
+                      : "border-subtle bg-surface text-muted"
+                  }`}
+                >
+                  <span
+                    className={`h-2 w-2 rounded-full ${
+                      step.done ? "bg-success" : "bg-muted/30"
+                    }`}
+                  />
+                  {step.label}
+                </span>
+              ))}
+            </div>
+          </div>
 
           {generationError ? (
             <div className="mt-5 rounded-2xl border border-danger-border bg-danger-soft px-4 py-3 text-sm font-semibold text-danger">
@@ -4692,179 +4882,211 @@ function NewProjectView({
             </div>
           ) : null}
 
-          <label className="mt-5 block text-xs font-bold">
-            Numele proiectului
-            <input
-              value={projectName}
-              onChange={(event) => onProjectNameChange(event.target.value)}
-              type="text"
-              placeholder="Ex: Curs semestrul 2"
-              className="mt-2 h-12 w-full rounded-2xl border border-subtle bg-surface px-4 text-[15px] outline-none transition focus:border-success"
-            />
-          </label>
-
-          <div className="mt-4 grid gap-4 sm:grid-cols-2">
-            <label className="block text-xs font-bold">
-              Nume materie
-              <input
-                value={subjectName}
-                onChange={(event) => onSubjectNameChange(event.target.value)}
-                type="text"
-                placeholder="Ex: Materia cursului"
-                className="mt-2 h-12 w-full rounded-2xl border border-subtle bg-surface px-4 text-[15px] outline-none transition focus:border-success"
-              />
-            </label>
-
-            <label className="block text-xs font-bold">
-              Facultatea / Școala
-              <input
-                value={institutionName}
-                onChange={(event) =>
-                  onInstitutionNameChange(event.target.value)
-                }
-                type="text"
-                placeholder="Ex: UTCN, UMF, liceu"
-                className="mt-2 h-12 w-full rounded-2xl border border-subtle bg-surface px-4 text-[15px] outline-none transition focus:border-success"
-              />
-            </label>
-          </div>
-
-          <p className="mt-2 text-xs leading-5 text-muted">
-            Aceste date ajută AI-ul să calibreze nivelul explicațiilor,
-            exemplele și dificultatea quiz-urilor.
-          </p>
-
-          <label className="mt-5 block text-xs font-bold">
-            Materiale de curs
-            <div className="mt-2 rounded-2xl border border-warning-border bg-warning-soft px-4 py-3 text-xs font-semibold leading-5 text-warning">
-              Nu încărca parole, date bancare, informații medicale, documente
-              confidențiale sau date personale ale altor persoane fără un temei
-              legal.
-            </div>
-            <button
-              type="button"
-              onClick={() => fileInputRef.current?.click()}
-              onDragOver={(event) => {
-                event.preventDefault();
-                onDragStateChange(true);
-              }}
-              onDragEnter={(event) => {
-                event.preventDefault();
-                onDragStateChange(true);
-              }}
-              onDragLeave={(event) => {
-                event.preventDefault();
-                onDragStateChange(false);
-              }}
-              onDrop={onDrop}
-              className={`mt-2 flex w-full flex-col items-center rounded-2xl border border-dashed p-7 text-center transition ${
-                isDragging
-                  ? "border-success bg-success-soft"
-                  : "border-subtle bg-surface hover:bg-surface-hover"
-              }`}
-            >
-              <span className="flex h-10 w-10 items-center justify-center rounded-full bg-app">
-                <Icon>
-                  <path d="M12 16V4M7 9l5-5 5 5" />
-                  <path d="M4 16v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3" />
-                </Icon>
-              </span>
-              <span className="mt-3 text-sm font-semibold">
-                Trage fișierele aici sau atinge pentru a alege
-              </span>
-              <span className="mt-1 text-xs font-normal text-muted">
-                PDF, PPTX, DOCX, XLSX, TXT · max 50MB / fișier
-              </span>
-            </button>
-            <input
-              ref={fileInputRef}
-              type="file"
-              multiple
-              accept=".pdf,.pptx,.docx,.txt,.md,.html,.csv,.xls,.xlsx"
-              className="hidden"
-              onChange={(event) => onAddFiles(event.target.files)}
-            />
-          </label>
-
-          <label className="mt-4 flex items-start gap-3 rounded-2xl border border-subtle bg-surface p-4 text-xs leading-5 text-muted">
-            <input
-              type="checkbox"
-              checked={hasMaterialRights}
-              onChange={(event) => onMaterialRightsChange(event.target.checked)}
-              className="mt-0.5 h-4 w-4 accent-action"
-            />
-            Confirm că am dreptul să folosesc și să încarc acest material.
-          </label>
-
-          {files.length > 0 ? (
-            <div className="mt-3 space-y-2">
-              {files.map((file, index) => (
-                <div
-                  key={`${file.name}-${index}`}
-                  className="flex items-center gap-3 rounded-2xl border border-subtle bg-surface p-3"
-                >
-                  <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-app">
-                    <BookIcon />
+          <div className="mt-6 grid gap-5 xl:grid-cols-[minmax(0,1fr)_360px]">
+            <div className="overflow-hidden rounded-[2rem] border border-subtle bg-surface">
+              <div className="grid gap-0 divide-y divide-subtle lg:grid-cols-3 lg:divide-x lg:divide-y-0">
+                <label className="block p-5">
+                  <span className="text-xs font-black uppercase tracking-[0.14em] text-muted">
+                    Nume
                   </span>
-                  <span className="min-w-0 flex-1">
-                    <span className="block truncate text-sm font-semibold">
-                      {file.name}
-                    </span>
-                    <span className="text-xs text-muted">
-                      {formatBytes(file.size)}
-                    </span>
+                  <input
+                    value={projectName}
+                    onChange={(event) => onProjectNameChange(event.target.value)}
+                    type="text"
+                    placeholder="Ex: Farma sem. 2"
+                    className="mt-3 h-14 w-full rounded-2xl border border-subtle bg-app px-4 font-serif text-xl font-semibold outline-none transition placeholder:text-muted/45 focus:border-success focus:bg-surface focus:ring-4 focus:ring-success-soft"
+                  />
+                </label>
+
+                <label className="block p-5">
+                  <span className="text-xs font-black uppercase tracking-[0.14em] text-muted">
+                    Materie
                   </span>
-                  <button
-                    type="button"
-                    onClick={() => onRemoveFile(index)}
-                    className="flex h-8 w-8 items-center justify-center rounded-full text-muted hover:bg-surface-hover"
-                    aria-label="Elimină fișierul"
-                  >
-                    <Icon>
-                      <path d="M18 6 6 18M6 6l12 12" />
-                    </Icon>
-                  </button>
+                  <input
+                    value={subjectName}
+                    onChange={(event) => onSubjectNameChange(event.target.value)}
+                    type="text"
+                    placeholder="Ex: Imunologie"
+                    className="mt-3 h-14 w-full rounded-2xl border border-subtle bg-app px-4 text-base font-semibold outline-none transition placeholder:text-muted/45 focus:border-success focus:bg-surface focus:ring-4 focus:ring-success-soft"
+                  />
+                </label>
+
+                <label className="block p-5">
+                  <span className="text-xs font-black uppercase tracking-[0.14em] text-muted">
+                    Școală
+                  </span>
+                  <input
+                    value={institutionName}
+                    onChange={(event) =>
+                      onInstitutionNameChange(event.target.value)
+                    }
+                    type="text"
+                    placeholder="Ex: UMF / UTCN"
+                    className="mt-3 h-14 w-full rounded-2xl border border-subtle bg-app px-4 text-base font-semibold outline-none transition placeholder:text-muted/45 focus:border-success focus:bg-surface focus:ring-4 focus:ring-success-soft"
+                  />
+                </label>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                onDragOver={(event) => {
+                  event.preventDefault();
+                  onDragStateChange(true);
+                }}
+                onDragEnter={(event) => {
+                  event.preventDefault();
+                  onDragStateChange(true);
+                }}
+                onDragLeave={(event) => {
+                  event.preventDefault();
+                  onDragStateChange(false);
+                }}
+                onDrop={onDrop}
+                className={`flex w-full items-center gap-4 border-t border-dashed p-6 text-left transition sm:p-8 ${
+                  isDragging
+                    ? "border-success bg-success-soft"
+                    : "border-subtle hover:bg-surface-hover"
+                }`}
+              >
+                <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-app text-content">
+                  <Icon className="h-6 w-6">
+                    <path d="M12 16V4M7 9l5-5 5 5" />
+                    <path d="M4 16v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3" />
+                  </Icon>
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="block font-serif text-2xl font-semibold leading-tight">
+                    {files.length
+                      ? `${files.length} materiale selectate`
+                      : "Adaugă materialele"}
+                  </span>
+                  <span className="mt-1 block text-sm text-muted">
+                    {files.length
+                      ? `${formatBytes(totalFileSize)} în total`
+                      : "PDF, PPTX, DOCX, XLSX, TXT sau Markdown"}
+                  </span>
+                </span>
+                <span className="hidden rounded-full bg-content px-4 py-2 text-xs font-black text-app sm:inline-flex">
+                  Alege fișiere
+                </span>
+              </button>
+
+              <input
+                ref={fileInputRef}
+                type="file"
+                multiple
+                accept=".pdf,.pptx,.docx,.txt,.md,.html,.csv,.xls,.xlsx"
+                className="hidden"
+                onChange={(event) => onAddFiles(event.target.files)}
+              />
+
+              {files.length > 0 ? (
+                <div className="divide-y divide-subtle border-t border-subtle px-5">
+                  {files.map((file, index) => (
+                    <div
+                      key={`${file.name}-${index}`}
+                      className="grid gap-3 py-4 sm:grid-cols-[1fr_auto] sm:items-center"
+                    >
+                      <span className="min-w-0">
+                        <span className="block truncate text-sm font-black">
+                          {file.name}
+                        </span>
+                        <span className="mt-1 block text-xs text-muted">
+                          {formatBytes(file.size)}
+                        </span>
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => onRemoveFile(index)}
+                        className="w-fit rounded-full border border-subtle px-3 py-2 text-xs font-bold text-muted transition hover:bg-surface-hover hover:text-content"
+                      >
+                        Elimină
+                      </button>
+                    </div>
+                  ))}
                 </div>
-              ))}
+              ) : null}
             </div>
-          ) : null}
 
-          <SectionLabel>Ce generează AI</SectionLabel>
-          <GeneratedContentDisclaimer className="mt-3" />
-          <div className="mt-3 grid grid-cols-2 gap-3">
-            {[
-              ["Rezumat", "Esența cursului, gata de citit rapid"],
-              ["Flashcard-uri", "Carduri de recapitulare pe concepte"],
-              ["Quiz-uri", "Întrebări cu feedback"],
-              ["Cuvinte cheie", "Termeni esențiali definiți clar"],
-            ].map(([title, description]) => (
-              <GenerationCard
-                key={title}
-                title={title}
-                description={description}
-              />
-            ))}
-            <div className="col-span-2">
-              <GenerationCard
-                title="Strategii de învățare"
-                description="Recomandări personalizate în funcție de material și progres"
-              />
-            </div>
+            <aside className="h-fit rounded-[2rem] border border-subtle bg-surface p-5 xl:sticky xl:top-6">
+              <p className="text-xs font-black uppercase tracking-[0.16em] text-warning">
+                Pregătire
+              </p>
+              <div className="mt-4 divide-y divide-subtle border-y border-subtle">
+                {setupSteps.map((step) => (
+                  <div
+                    key={step.label}
+                    className="flex items-center justify-between gap-4 py-3"
+                  >
+                    <span className="text-sm font-bold">{step.label}</span>
+                    <span
+                      className={`rounded-full px-3 py-1 text-xs font-black ${
+                        step.done
+                          ? "bg-success-soft text-success"
+                          : "bg-surface-hover text-muted"
+                      }`}
+                    >
+                      {step.done ? "ok" : "lipsește"}
+                    </span>
+                  </div>
+                ))}
+              </div>
+
+              <label className="mt-5 flex cursor-pointer items-start gap-3 rounded-2xl border border-subtle bg-app p-4 text-sm font-semibold leading-6">
+                <input
+                  type="checkbox"
+                  checked={hasMaterialRights}
+                  onChange={(event) =>
+                    onMaterialRightsChange(event.target.checked)
+                  }
+                  className="mt-1 h-4 w-4 accent-action"
+                />
+                Am dreptul să folosesc aceste materiale.
+              </label>
+
+              <button
+                type="button"
+                disabled={!canGenerate}
+                onClick={onStartGeneration}
+                className="mt-5 flex w-full items-center justify-center gap-2 rounded-full bg-content px-5 py-4 text-sm font-black text-app transition disabled:cursor-not-allowed disabled:bg-subtle disabled:text-muted"
+              >
+                Pregătește proiectul
+                <Icon>
+                  <path d="M5 12h14M13 5l7 7-7 7" />
+                </Icon>
+              </button>
+
+              <p className="mt-4 text-xs leading-5 text-muted">
+                Nu încărca date sensibile. Limita curentă este 50MB / fișier.
+              </p>
+
+              <div className="mt-5 grid grid-cols-2 gap-2 text-xs font-bold text-muted">
+                {["Rezumat", "Flashcard-uri", "Quiz-uri", "Cuvinte cheie"].map(
+                  (item) => (
+                    <span
+                      key={item}
+                      className="rounded-full border border-subtle px-3 py-2 text-center"
+                    >
+                      {item}
+                    </span>
+                  ),
+                )}
+              </div>
+            </aside>
           </div>
 
-          <div className="sticky bottom-0 -mx-4 mt-6 border-t border-subtle bg-app p-4">
-            <button
-              type="button"
-              disabled={!canGenerate}
-              onClick={onStartGeneration}
-              className="flex w-full items-center justify-center gap-2 rounded-full bg-content px-5 py-4 text-sm font-semibold text-app transition disabled:cursor-not-allowed disabled:bg-subtle disabled:text-muted"
-            >
-              Generează proiectul
-              <Icon>
-                <path d="M5 12h14M13 5l7 7-7 7" />
-              </Icon>
-            </button>
-          </div>
+          <button
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            className="mt-4 flex w-full items-center justify-center gap-2 rounded-2xl border border-dashed border-subtle px-4 py-4 text-sm font-black text-muted transition hover:bg-surface-hover sm:hidden"
+          >
+            <Icon>
+              <path d="M12 16V4M7 9l5-5 5 5" />
+              <path d="M4 16v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3" />
+            </Icon>
+            Alege fișiere
+          </button>
         </>
       ) : (
           <GenerationView
@@ -4881,27 +5103,6 @@ function NewProjectView({
           />
       )}
     </section>
-  );
-}
-
-function GenerationCard({
-  title,
-  description,
-}: {
-  title: string;
-  description: string;
-}) {
-  return (
-    <div className="rounded-2xl border border-subtle bg-surface p-4">
-      <span className="mb-3 flex h-8 w-8 items-center justify-center rounded-xl bg-success-soft text-success">
-        <Icon>
-          <path d="M9 11l3 3L22 4" />
-          <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" />
-        </Icon>
-      </span>
-      <p className="text-sm font-bold">{title}</p>
-      <p className="mt-1 text-xs leading-5 text-muted">{description}</p>
-    </div>
   );
 }
 
