@@ -11,6 +11,7 @@ from app.models.email_tokens import PasswordResetToken, PendingRegistration
 from app.models.legal import CompanyData, LegalDocument, LegalDocumentSection
 from app.models.study_project import (
     StudyProject,
+    StudyProjectArchive,
     StudyProjectFile,
     StudyProjectFlashcard,
     StudyProjectImport,
@@ -43,6 +44,7 @@ __all__ = [
     "PendingRegistration",
     "StripeEvent",
     "StudyProject",
+    "StudyProjectArchive",
     "StudyProjectFile",
     "StudyProjectFlashcard",
     "StudyProjectImport",

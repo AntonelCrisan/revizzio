@@ -9,6 +9,7 @@ from app.schemas.projects import (
     StudyProjectImportResponse,
     StudyProjectPrepareResponse,
     StudyProjectQuizMistakeFlashcardCreate,
+    StudyProjectRenameRequest,
     StudyProjectResponse,
 )
 from app.services.projects import (
@@ -33,6 +34,17 @@ async def list_projects(
 ) -> list[StudyProjectResponse]:
     service = _service(session, settings)
     projects = await service.list_projects(current_user)
+    return [service.to_response(project) for project in projects]
+
+
+@router.get("/archived", response_model=list[StudyProjectResponse])
+async def list_archived_projects(
+    current_user: CurrentUser,
+    session: DbSession,
+    settings: AppSettings,
+) -> list[StudyProjectResponse]:
+    service = _service(session, settings)
+    projects = await service.list_archived_projects(current_user)
     return [service.to_response(project) for project in projects]
 
 
@@ -107,6 +119,104 @@ async def get_project(
             detail="Proiectul nu a fost gasit.",
         ) from exc
     return service.to_response(project)
+
+
+@router.patch("/{project_id}", response_model=StudyProjectResponse)
+async def rename_project(
+    project_id: uuid.UUID,
+    payload: StudyProjectRenameRequest,
+    current_user: CurrentUser,
+    session: DbSession,
+    settings: AppSettings,
+) -> StudyProjectResponse:
+    service = _service(session, settings)
+    try:
+        project = await service.rename_project(
+            user=current_user,
+            project_id=project_id,
+            name=payload.name,
+        )
+    except ProjectNotFoundError as exc:
+        await session.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Proiectul nu a fost gasit.",
+        ) from exc
+    except ProjectValidationError as exc:
+        await session.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(exc),
+        ) from exc
+
+    return service.to_response(project)
+
+
+@router.post("/{project_id}/archive", response_model=StudyProjectResponse)
+async def archive_project(
+    project_id: uuid.UUID,
+    current_user: CurrentUser,
+    session: DbSession,
+    settings: AppSettings,
+) -> StudyProjectResponse:
+    service = _service(session, settings)
+    try:
+        project = await service.archive_project(
+            user=current_user,
+            project_id=project_id,
+        )
+    except ProjectNotFoundError as exc:
+        await session.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Proiectul nu a fost gasit.",
+        ) from exc
+
+    return service.to_response(project)
+
+
+@router.post("/{project_id}/restore", response_model=StudyProjectResponse)
+async def restore_project(
+    project_id: uuid.UUID,
+    current_user: CurrentUser,
+    session: DbSession,
+    settings: AppSettings,
+) -> StudyProjectResponse:
+    service = _service(session, settings)
+    try:
+        project = await service.restore_project(
+            user=current_user,
+            project_id=project_id,
+        )
+    except ProjectNotFoundError as exc:
+        await session.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Proiectul arhivat nu a fost gasit.",
+        ) from exc
+
+    return service.to_response(project)
+
+
+@router.delete("/{project_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_project(
+    project_id: uuid.UUID,
+    current_user: CurrentUser,
+    session: DbSession,
+    settings: AppSettings,
+) -> None:
+    service = _service(session, settings)
+    try:
+        await service.delete_project(
+            user=current_user,
+            project_id=project_id,
+        )
+    except ProjectNotFoundError as exc:
+        await session.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Proiectul nu a fost gasit.",
+        ) from exc
 
 
 @router.post("/{project_id}/import-json", response_model=StudyProjectImportResponse)

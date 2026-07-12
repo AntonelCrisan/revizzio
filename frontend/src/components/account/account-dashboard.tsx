@@ -15,10 +15,13 @@ import { useAuth } from "@/components/auth/auth-provider";
 import { BrandLogo } from "@/components/brand-logo";
 import { GeneratedContentDisclaimer } from "@/components/legal/generated-content-disclaimer";
 import {
+  archiveStudyProject,
   createQuizMistakeFlashcard,
+  deleteStudyProject,
   importStudyProjectJson,
   listStudyProjects,
   prepareStudyProject,
+  renameStudyProject,
   type StudyProject as ApiStudyProject,
   type StudyProjectPrepareResponse,
 } from "@/lib/projects-api";
@@ -48,6 +51,8 @@ type StudyProject = {
   name: string;
   subjectName: string;
   institutionName: string;
+  isArchived: boolean;
+  archivedAt: string | null;
   meta: string;
   flashcardsDue: number;
   flashcardsTotal: number;
@@ -204,6 +209,8 @@ function mapApiProject(project: ApiStudyProject): StudyProject {
     name: project.name,
     subjectName: project.subject_name,
     institutionName: project.institution_name,
+    isArchived: project.is_archived,
+    archivedAt: project.archived_at,
     meta: `${project.subject_name} · ${project.file_count} materiale · ${apiProjectStatusLabel(project.status)}`,
     flashcardsDue: project.flashcard_count,
     flashcardsTotal: project.flashcard_count,
@@ -419,6 +426,48 @@ export function AccountDashboard({
     window.scrollTo({ top: 0, behavior: "instant" });
   }
 
+  async function renameProject(projectId: string, name: string) {
+    const apiProject = await renameStudyProject({ projectId, name });
+    const mappedProject = mapApiProject(apiProject);
+    setProjects((currentProjects) =>
+      currentProjects.map((project) =>
+        project.id === mappedProject.id ? mappedProject : project,
+      ),
+    );
+  }
+
+  async function archiveProject(projectId: string) {
+    await archiveStudyProject(projectId);
+    setProjects((currentProjects) =>
+      currentProjects.filter((project) => project.id !== projectId),
+    );
+
+    if (activeProjectId === projectId || openProjectId === projectId) {
+      setActiveProjectId("");
+      setOpenProjectId(null);
+      setView("home");
+      if (useTabPages) {
+        router.push("/myaccount");
+      }
+    }
+  }
+
+  async function removeProject(projectId: string) {
+    await deleteStudyProject(projectId);
+    setProjects((currentProjects) =>
+      currentProjects.filter((project) => project.id !== projectId),
+    );
+
+    if (activeProjectId === projectId || openProjectId === projectId) {
+      setActiveProjectId("");
+      setOpenProjectId(null);
+      setView("home");
+      if (useTabPages) {
+        router.push("/myaccount");
+      }
+    }
+  }
+
   function addQuizMistakeFlashcard(
     projectId: string,
     flashcard: StudyFlashcardCard,
@@ -607,6 +656,8 @@ export function AccountDashboard({
       name,
       subjectName: subjectName.trim() || "Materie",
       institutionName: institutionName.trim() || "Instituție",
+      isArchived: false,
+      archivedAt: null,
       meta: `${subjectName.trim() || "Materie"} · ${uploadedFiles.length} materiale · generat azi`,
       flashcardsDue: 24,
       flashcardsTotal: 24,
@@ -962,6 +1013,9 @@ export function AccountDashboard({
               projects={projects}
               onOpenProject={openProject}
               onOpenNewProject={openNewProject}
+              onRenameProject={renameProject}
+              onArchiveProject={archiveProject}
+              onDeleteProject={removeProject}
             />
           ) : null}
 
@@ -1030,12 +1084,30 @@ function HomeView({
   projects,
   onOpenProject,
   onOpenNewProject,
+  onRenameProject,
+  onArchiveProject,
+  onDeleteProject,
 }: {
   firstName: string;
   projects: StudyProject[];
   onOpenProject: (projectId: string, tab?: TabId) => void;
   onOpenNewProject: () => void;
+  onRenameProject: (projectId: string, name: string) => Promise<void> | void;
+  onArchiveProject: (projectId: string) => Promise<void> | void;
+  onDeleteProject: (projectId: string) => Promise<void> | void;
 }) {
+  const [openMenuProjectId, setOpenMenuProjectId] = useState<string | null>(
+    null,
+  );
+  const [renamingProjectId, setRenamingProjectId] = useState<string | null>(
+    null,
+  );
+  const [renameDraft, setRenameDraft] = useState("");
+  const [busyProjectId, setBusyProjectId] = useState<string | null>(null);
+  const [projectError, setProjectError] = useState<string | null>(null);
+  const [deleteCandidateProject, setDeleteCandidateProject] =
+    useState<StudyProject | null>(null);
+  const deletingProjectIdsRef = useRef(new Set<string>());
   const projectCountLabel =
     projects.length === 0
       ? "Nu ai încă proiecte. Încarcă primul curs și începem."
@@ -1043,46 +1115,251 @@ function HomeView({
         ? "Ai 1 proiect pregătit pentru studiu."
         : `Ai ${projects.length} proiecte pregătite pentru studiu.`;
 
+  function startRename(project: StudyProject) {
+    setProjectError(null);
+    setOpenMenuProjectId(null);
+    setRenamingProjectId(project.id);
+    setRenameDraft(project.name);
+  }
+
+  async function submitRename(projectId: string) {
+    const nextName = renameDraft.trim();
+    if (nextName.length < 2) {
+      setProjectError("Numele proiectului trebuie să aibă cel puțin 2 caractere.");
+      return;
+    }
+
+    setBusyProjectId(projectId);
+    setProjectError(null);
+    try {
+      await onRenameProject(projectId, nextName);
+      setRenamingProjectId(null);
+      setRenameDraft("");
+    } catch (error) {
+      setProjectError(
+        error instanceof Error
+          ? error.message
+          : "Proiectul nu a putut fi redenumit.",
+      );
+    } finally {
+      setBusyProjectId(null);
+    }
+  }
+
+  async function archiveProject(projectId: string) {
+    setBusyProjectId(projectId);
+    setProjectError(null);
+    setOpenMenuProjectId(null);
+    try {
+      await onArchiveProject(projectId);
+    } catch (error) {
+      setProjectError(
+        error instanceof Error
+          ? error.message
+          : "Proiectul nu a putut fi arhivat.",
+      );
+    } finally {
+      setBusyProjectId(null);
+    }
+  }
+
+  async function confirmDeleteProject(projectId: string) {
+    if (deletingProjectIdsRef.current.has(projectId)) return;
+
+    deletingProjectIdsRef.current.add(projectId);
+    setBusyProjectId(projectId);
+    setProjectError(null);
+    try {
+      await onDeleteProject(projectId);
+      setDeleteCandidateProject(null);
+    } catch (error) {
+      setProjectError(
+        error instanceof Error
+          ? error.message
+          : "Proiectul nu a putut fi șters.",
+      );
+    } finally {
+      deletingProjectIdsRef.current.delete(projectId);
+      setBusyProjectId(null);
+    }
+  }
+
   return (
     <section>
-      <h1 className="font-serif text-2xl font-semibold">
-        Bună, <em className="text-success">{firstName}</em>
-      </h1>
-      <p className="mt-1 text-sm text-muted">{projectCountLabel}</p>
+      <div className="flex flex-col gap-5 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <h1 className="font-serif text-2xl font-semibold">
+            Bună, <em className="text-success">{firstName}</em>
+          </h1>
+          <p className="mt-1 text-sm text-muted">{projectCountLabel}</p>
+        </div>
+        <button
+          type="button"
+          onClick={onOpenNewProject}
+          className="inline-flex items-center justify-center gap-2 rounded-full bg-content px-5 py-3 text-sm font-bold text-app shadow-sm transition hover:opacity-90"
+        >
+          <Icon>
+            <path d="M12 5v14M5 12h14" />
+          </Icon>
+          Proiect nou
+        </button>
+      </div>
 
       <SectionLabel>Proiectele tale</SectionLabel>
-      <div className="mt-3 flex flex-col gap-3">
+      {projectError ? (
+        <div className="mt-3 rounded-2xl border border-danger-border bg-danger-soft px-4 py-3 text-sm font-semibold text-danger">
+          {projectError}
+        </div>
+      ) : null}
+
+      <div className="mt-3">
         {projects.length ? (
-          projects.map((project) => (
-            <button
-              key={project.id}
-              type="button"
-              onClick={() => onOpenProject(project.id)}
-              className="flex w-full items-center gap-3 rounded-2xl border border-subtle bg-surface p-4 text-left transition hover:bg-surface-hover"
-            >
-              <span
-                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-[10px] font-bold text-success"
-                style={{
-                  background: `conic-gradient(var(--theme-success-text) ${project.progress}%, var(--theme-border) 0)`,
-                }}
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+            {projects.map((project) => (
+              <article
+                key={project.id}
+                className="group relative min-h-[210px] rounded-[2rem] border border-subtle bg-surface p-5 shadow-[0_18px_45px_rgba(0,0,0,0.04)] transition hover:-translate-y-0.5 hover:border-content/25 hover:shadow-[0_24px_60px_rgba(0,0,0,0.07)]"
               >
-                <span className="flex h-7 w-7 items-center justify-center rounded-full bg-surface">
-                  {project.progress}%
-                </span>
-              </span>
-              <span className="min-w-0 flex-1">
-                <span className="block truncate text-[15px] font-semibold">
-                  {project.name}
-                </span>
-                <span className="block truncate text-xs text-muted">
-                  {project.meta}
-                </span>
-              </span>
-              <Icon className="h-4 w-4 shrink-0 text-muted">
-                <path d="M9 18l6-6-6-6" />
-              </Icon>
-            </button>
-          ))
+                <button
+                  type="button"
+                  onClick={() =>
+                    setOpenMenuProjectId((currentProjectId) =>
+                      currentProjectId === project.id ? null : project.id,
+                    )
+                  }
+                  className="absolute right-4 top-4 z-20 flex h-10 w-10 items-center justify-center rounded-full border border-subtle bg-surface/90 text-content backdrop-blur transition hover:bg-surface-hover"
+                  aria-label={`Deschide meniul pentru ${project.name}`}
+                >
+                  <svg
+                    aria-hidden="true"
+                    className="h-5 w-5"
+                    fill="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <circle cx="12" cy="5" r="1.8" />
+                    <circle cx="12" cy="12" r="1.8" />
+                    <circle cx="12" cy="19" r="1.8" />
+                  </svg>
+                </button>
+
+                {openMenuProjectId === project.id ? (
+                  <div className="absolute right-4 top-16 z-30 w-52 rounded-2xl border border-subtle bg-surface p-2 shadow-2xl shadow-black/10">
+                    <button
+                      type="button"
+                      onClick={() => startRename(project)}
+                      className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm font-semibold transition hover:bg-surface-hover"
+                    >
+                      <Icon>
+                        <path d="M12 20h9" />
+                        <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" />
+                      </Icon>
+                      Redenumire
+                    </button>
+                    <button
+                      type="button"
+                      disabled={busyProjectId === project.id}
+                      onClick={() => void archiveProject(project.id)}
+                      className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm font-semibold transition hover:bg-surface-hover disabled:cursor-wait disabled:opacity-60"
+                    >
+                      <Icon>
+                        <path d="M21 8v13H3V8" />
+                        <path d="M1 3h22v5H1z" />
+                        <path d="M10 12h4" />
+                      </Icon>
+                      Arhivare
+                    </button>
+                    <button
+                      type="button"
+                      disabled={busyProjectId === project.id}
+                      onClick={() => {
+                        setOpenMenuProjectId(null);
+                        setDeleteCandidateProject(project);
+                      }}
+                      className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm font-semibold text-danger transition hover:bg-danger-soft disabled:cursor-wait disabled:opacity-60"
+                    >
+                      <Icon>
+                        <path d="M3 6h18" />
+                        <path d="M8 6V4h8v2" />
+                        <path d="M19 6l-1 14H6L5 6" />
+                        <path d="M10 11v6M14 11v6" />
+                      </Icon>
+                      Ștergere
+                    </button>
+                  </div>
+                ) : null}
+
+                <button
+                  type="button"
+                  onClick={() => onOpenProject(project.id)}
+                  className="flex h-full w-full flex-col items-start text-left"
+                >
+                  <span
+                    className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full text-[11px] font-black text-success"
+                    style={{
+                      background: `conic-gradient(var(--theme-success-text) ${project.progress}%, var(--theme-border) 0)`,
+                    }}
+                  >
+                    <span className="flex h-10 w-10 items-center justify-center rounded-full bg-surface">
+                      {project.progress}%
+                    </span>
+                  </span>
+
+                  <span className="mt-8 block pr-10 font-serif text-2xl font-semibold leading-tight">
+                    {project.name}
+                  </span>
+                  <span className="mt-3 block text-sm leading-6 text-muted">
+                    {project.meta}
+                  </span>
+                  <span className="mt-auto inline-flex items-center gap-2 pt-6 text-xs font-black uppercase tracking-[0.12em] text-muted transition group-hover:text-content">
+                    Deschide proiectul
+                    <Icon className="h-3.5 w-3.5">
+                      <path d="M5 12h14M13 5l7 7-7 7" />
+                    </Icon>
+                  </span>
+                </button>
+
+                {renamingProjectId === project.id ? (
+                  <div className="absolute inset-x-4 bottom-4 z-20 rounded-2xl border border-subtle bg-app/95 p-3 shadow-xl shadow-black/10 backdrop-blur">
+                    <label className="block text-[11px] font-black uppercase tracking-[0.12em] text-muted">
+                      Nume proiect
+                      <input
+                        value={renameDraft}
+                        onChange={(event) => setRenameDraft(event.target.value)}
+                        onKeyDown={(event) => {
+                          if (event.key === "Enter") {
+                            event.preventDefault();
+                            void submitRename(project.id);
+                          }
+                          if (event.key === "Escape") {
+                            setRenamingProjectId(null);
+                          }
+                        }}
+                        className="mt-2 h-11 w-full rounded-xl border border-subtle bg-surface px-3 text-sm font-semibold text-content outline-none transition focus:border-success"
+                        autoFocus
+                      />
+                    </label>
+                    <div className="mt-3 flex justify-end gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setRenamingProjectId(null)}
+                        className="rounded-full border border-subtle px-3 py-2 text-xs font-bold"
+                      >
+                        Renunță
+                      </button>
+                      <button
+                        type="button"
+                        disabled={busyProjectId === project.id}
+                        onClick={() => void submitRename(project.id)}
+                        className="rounded-full bg-content px-3 py-2 text-xs font-bold text-app disabled:cursor-wait disabled:opacity-60"
+                      >
+                        Salvează
+                      </button>
+                    </div>
+                  </div>
+                ) : null}
+              </article>
+            ))}
+          </div>
         ) : (
           <div className="rounded-2xl border border-dashed border-subtle bg-surface p-6 text-center">
             <p className="font-serif text-xl font-semibold">
@@ -1096,17 +1373,84 @@ function HomeView({
         )}
       </div>
 
-      <button
-        type="button"
-        onClick={onOpenNewProject}
-        className="mt-3 flex w-full items-center justify-center gap-2 rounded-2xl border border-dashed border-subtle px-4 py-4 text-sm font-bold text-muted transition hover:bg-surface-hover"
-      >
-        <Icon>
-          <path d="M12 5v14M5 12h14" />
-        </Icon>
-        Proiect nou
-      </button>
+      {deleteCandidateProject ? (
+        <ProjectDeleteModal
+          project={deleteCandidateProject}
+          isDeleting={busyProjectId === deleteCandidateProject.id}
+          onCancel={() => setDeleteCandidateProject(null)}
+          onConfirm={() => void confirmDeleteProject(deleteCandidateProject.id)}
+        />
+      ) : null}
     </section>
+  );
+}
+
+function ProjectDeleteModal({
+  project,
+  isDeleting,
+  onCancel,
+  onConfirm,
+}: {
+  project: StudyProject;
+  isDeleting: boolean;
+  onCancel: () => void;
+  onConfirm: () => void;
+}) {
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-content/35 px-4 py-6 backdrop-blur-sm"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="delete-project-title"
+    >
+      <div className="w-full max-w-lg rounded-[2rem] border border-subtle bg-surface p-6 shadow-2xl shadow-black/20">
+        <div className="flex items-start gap-4">
+          <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-danger-border bg-danger-soft text-danger">
+            <Icon className="h-5 w-5">
+              <path d="M3 6h18" />
+              <path d="M8 6V4h8v2" />
+              <path d="M19 6l-1 14H6L5 6" />
+              <path d="M10 11v6M14 11v6" />
+            </Icon>
+          </span>
+          <div className="min-w-0">
+            <p className="text-xs font-black uppercase tracking-[0.16em] text-danger">
+              Ștergere definitivă
+            </p>
+            <h2
+              id="delete-project-title"
+              className="mt-2 font-serif text-3xl font-semibold leading-tight"
+            >
+              Ștergi proiectul „{project.name}”?
+            </h2>
+            <p className="mt-3 text-sm leading-6 text-muted">
+              Proiectul, materialele convertite și conținutul generat vor fi
+              eliminate definitiv. Pentru păstrare fără afișare, folosește
+              arhivarea.
+            </p>
+          </div>
+        </div>
+
+        <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+          <button
+            type="button"
+            onClick={onCancel}
+            disabled={isDeleting}
+            className="rounded-full border border-subtle px-5 py-3 text-sm font-bold transition hover:bg-surface-hover disabled:cursor-wait disabled:opacity-60"
+          >
+            Renunță
+          </button>
+          <button
+            type="button"
+            onClick={onConfirm}
+            disabled={isDeleting}
+            className="rounded-full bg-danger px-5 py-3 text-sm font-bold text-app transition hover:opacity-90 disabled:cursor-wait disabled:opacity-60"
+          >
+            {isDeleting ? "Se șterge..." : "Șterge definitiv"}
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }
 

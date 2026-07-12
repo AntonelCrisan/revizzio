@@ -1,14 +1,19 @@
 const allowedRoutes = [
   { method: "GET", pattern: /^$/ },
+  { method: "GET", pattern: /^archived$/ },
   { method: "GET", pattern: /^[0-9a-fA-F-]{36}$/ },
   { method: "GET", pattern: /^[0-9a-fA-F-]{36}\/markdown$/ },
   { method: "GET", pattern: /^[0-9a-fA-F-]{36}\/prompt$/ },
+  { method: "PATCH", pattern: /^[0-9a-fA-F-]{36}$/ },
   { method: "POST", pattern: /^prepare$/ },
+  { method: "POST", pattern: /^[0-9a-fA-F-]{36}\/archive$/ },
+  { method: "POST", pattern: /^[0-9a-fA-F-]{36}\/restore$/ },
   { method: "POST", pattern: /^[0-9a-fA-F-]{36}\/import-json$/ },
   {
     method: "POST",
     pattern: /^[0-9a-fA-F-]{36}\/quiz-mistake-flashcards$/,
   },
+  { method: "DELETE", pattern: /^[0-9a-fA-F-]{36}$/ },
 ];
 
 type ProjectsRouteContext = {
@@ -72,6 +77,13 @@ async function proxyProjectsRequest(
       if (value) responseHeaders.set(headerName, value);
     }
 
+    if (backendResponse.status === 204 || backendResponse.status === 304) {
+      return new Response(null, {
+        status: backendResponse.status,
+        headers: responseHeaders,
+      });
+    }
+
     return new Response(await backendResponse.arrayBuffer(), {
       status: backendResponse.status,
       headers: responseHeaders,
@@ -92,6 +104,20 @@ export function GET(
 }
 
 export function POST(
+  request: Request,
+  context: ProjectsRouteContext,
+): Promise<Response> {
+  return proxyProjectsRequest(request, context);
+}
+
+export function PATCH(
+  request: Request,
+  context: ProjectsRouteContext,
+): Promise<Response> {
+  return proxyProjectsRequest(request, context);
+}
+
+export function DELETE(
   request: Request,
   context: ProjectsRouteContext,
 ): Promise<Response> {

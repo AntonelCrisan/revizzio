@@ -112,6 +112,42 @@ class StudyProject(Base):
         passive_deletes=True,
         order_by="StudyProjectStrategy.sort_order",
     )
+    archive: Mapped[StudyProjectArchive | None] = relationship(
+        back_populates="project",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+        uselist=False,
+    )
+
+
+class StudyProjectArchive(Base):
+    __tablename__ = "study_project_archives"
+    __table_args__ = (
+        UniqueConstraint(
+            "project_id",
+            name="uq_study_project_archives_project_id",
+        ),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    project_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("study_projects.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    archived_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+    )
+
+    project: Mapped[StudyProject] = relationship(back_populates="archive")
+    user: Mapped[User] = relationship(back_populates="study_project_archives")
 
 
 class StudyProjectFile(Base):

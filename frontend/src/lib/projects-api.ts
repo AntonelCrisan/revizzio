@@ -78,6 +78,8 @@ export type StudyProject = {
   error_message: string | null;
   created_at: string;
   updated_at: string;
+  is_archived: boolean;
+  archived_at: string | null;
   file_count: number;
   summary_count: number;
   keyword_count: number;
@@ -150,6 +152,70 @@ export async function listStudyProjects(): Promise<StudyProject[]> {
     cache: "no-store",
   });
   return parseProjectResponse<StudyProject[]>(response);
+}
+
+export async function listArchivedStudyProjects(): Promise<StudyProject[]> {
+  const response = await fetch("/api/projects/archived", {
+    credentials: "same-origin",
+    cache: "no-store",
+  });
+  return parseProjectResponse<StudyProject[]>(response);
+}
+
+export async function renameStudyProject(payload: {
+  projectId: string;
+  name: string;
+}): Promise<StudyProject> {
+  const response = await fetch(`/api/projects/${payload.projectId}`, {
+    method: "PATCH",
+    credentials: "same-origin",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ name: payload.name }),
+    cache: "no-store",
+  });
+  return parseProjectResponse<StudyProject>(response);
+}
+
+export async function archiveStudyProject(projectId: string): Promise<StudyProject> {
+  const response = await fetch(`/api/projects/${projectId}/archive`, {
+    method: "POST",
+    credentials: "same-origin",
+    cache: "no-store",
+  });
+  return parseProjectResponse<StudyProject>(response);
+}
+
+export async function restoreStudyProject(projectId: string): Promise<StudyProject> {
+  const response = await fetch(`/api/projects/${projectId}/restore`, {
+    method: "POST",
+    credentials: "same-origin",
+    cache: "no-store",
+  });
+  return parseProjectResponse<StudyProject>(response);
+}
+
+export async function deleteStudyProject(projectId: string): Promise<void> {
+  const response = await fetch(`/api/projects/${projectId}`, {
+    method: "DELETE",
+    credentials: "same-origin",
+    cache: "no-store",
+  });
+
+  if (!response.ok) {
+    if (response.status === 404) {
+      return;
+    }
+
+    let payload: ApiErrorPayload = {};
+    try {
+      payload = (await response.json()) as ApiErrorPayload;
+    } catch {
+      // Non-JSON upstream errors are handled by the fallback.
+    }
+    throw new ProjectsApiError(extractErrorMessage(payload), response.status);
+  }
 }
 
 export async function prepareStudyProject(payload: {

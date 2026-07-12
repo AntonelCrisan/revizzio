@@ -9,7 +9,7 @@ from app.db.base import Base
 
 if TYPE_CHECKING:
     from app.models.auth_session import AuthSession
-    from app.models.study_project import StudyProject
+    from app.models.study_project import StudyProject, StudyProjectArchive
     from app.models.subscription import SubscriptionPlan, UserSubscription
 
 
@@ -100,6 +100,11 @@ class User(Base):
         passive_deletes=True,
     )
     study_projects: Mapped[list[StudyProject]] = relationship(
+        back_populates="user",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+    )
+    study_project_archives: Mapped[list[StudyProjectArchive]] = relationship(
         back_populates="user",
         cascade="all, delete-orphan",
         passive_deletes=True,

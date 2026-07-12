@@ -102,6 +102,8 @@ class StudyProjectResponse(BaseModel):
     error_message: str | None
     created_at: datetime
     updated_at: datetime
+    is_archived: bool = False
+    archived_at: datetime | None = None
     file_count: int = 0
     summary_count: int = 0
     keyword_count: int = 0
@@ -129,6 +131,10 @@ class StudyProjectImportResponse(BaseModel):
     project: StudyProjectResponse
     imported: bool
     message: str
+
+
+class StudyProjectRenameRequest(BaseModel):
+    name: str = Field(min_length=2, max_length=160)
 
 
 class StudyProjectQuizMistakeFlashcardCreate(BaseModel):

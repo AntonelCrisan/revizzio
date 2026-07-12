@@ -1,3 +1,5 @@
+# ruff: noqa: E501
+
 from __future__ import annotations
 
 import json
@@ -21,6 +23,7 @@ from starlette.concurrency import run_in_threadpool
 from app.core.config import Settings
 from app.models import (
     StudyProject,
+    StudyProjectArchive,
     StudyProjectFile,
     StudyProjectFlashcard,
     StudyProjectImport,
@@ -198,21 +201,102 @@ class StudyProjectService:
     async def list_projects(self, user: User) -> list[StudyProject]:
         result = await self.session.scalars(
             self._project_query()
-            .where(StudyProject.user_id == user.id)
+            .where(
+                StudyProject.user_id == user.id,
+                ~StudyProject.archive.has(),
+            )
             .order_by(StudyProject.created_at.desc())
         )
         return list(result.all())
 
-    async def get_project(self, user: User, project_id: uuid.UUID) -> StudyProject:
-        project = await self.session.scalar(
-            self._project_query().where(
-                StudyProject.id == project_id,
+    async def list_archived_projects(self, user: User) -> list[StudyProject]:
+        result = await self.session.scalars(
+            self._project_query()
+            .join(StudyProjectArchive)
+            .where(
                 StudyProject.user_id == user.id,
+                StudyProjectArchive.user_id == user.id,
             )
+            .order_by(StudyProjectArchive.archived_at.desc())
+        )
+        return list(result.all())
+
+    async def get_project(
+        self,
+        user: User,
+        project_id: uuid.UUID,
+        *,
+        include_archived: bool = False,
+    ) -> StudyProject:
+        conditions = [
+            StudyProject.id == project_id,
+            StudyProject.user_id == user.id,
+        ]
+        if not include_archived:
+            conditions.append(~StudyProject.archive.has())
+
+        project = await self.session.scalar(
+            self._project_query().where(*conditions)
         )
         if project is None:
             raise ProjectNotFoundError("Proiectul nu a fost gasit.")
         return project
+
+    async def rename_project(
+        self,
+        *,
+        user: User,
+        project_id: uuid.UUID,
+        name: str,
+    ) -> StudyProject:
+        project = await self.get_project(user, project_id)
+        clean_name = _clean_text(name)
+        if len(clean_name) < 2:
+            raise ProjectValidationError("Numele proiectului este prea scurt.")
+
+        project.name = clean_name[:160]
+        project.slug = _slugify(clean_name)
+        project.updated_at = datetime.now(UTC)
+        await self.session.commit()
+        return await self.get_project(user, project.id)
+
+    async def archive_project(
+        self,
+        *,
+        user: User,
+        project_id: uuid.UUID,
+    ) -> StudyProject:
+        project = await self.get_project(user, project_id)
+        project.archive = StudyProjectArchive(
+            project_id=project.id,
+            user_id=user.id,
+        )
+        project.updated_at = datetime.now(UTC)
+        await self.session.commit()
+        return await self.get_project(user, project.id, include_archived=True)
+
+    async def restore_project(
+        self,
+        *,
+        user: User,
+        project_id: uuid.UUID,
+    ) -> StudyProject:
+        project = await self.get_project(user, project_id, include_archived=True)
+        if project.archive is None or project.archive.user_id != user.id:
+            raise ProjectNotFoundError("Proiectul arhivat nu a fost gasit.")
+
+        await self.session.delete(project.archive)
+        project.updated_at = datetime.now(UTC)
+        await self.session.commit()
+        return await self.get_project(user, project.id)
+
+    async def delete_project(self, *, user: User, project_id: uuid.UUID) -> None:
+        project = await self.get_project(user, project_id, include_archived=True)
+        project_dir = self._project_dir(user.id, project.id)
+
+        await self.session.delete(project)
+        await self.session.commit()
+        self._delete_project_storage(project_dir)
 
     async def prepare_project(
         self,
@@ -419,6 +503,8 @@ class StudyProjectService:
             error_message=project.error_message,
             created_at=project.created_at,
             updated_at=project.updated_at,
+            is_archived=project.archive is not None,
+            archived_at=project.archive.archived_at if project.archive else None,
             file_count=len(project.files),
             summary_count=1 if project.summary is not None else 0,
             keyword_count=len(project.keywords),
@@ -469,10 +555,26 @@ class StudyProjectService:
             .selectinload(StudyProjectQuiz.questions)
             .selectinload(StudyProjectQuizQuestion.options),
             selectinload(StudyProject.strategies),
+            selectinload(StudyProject.archive),
         )
 
     def _project_dir(self, user_id: uuid.UUID, project_id: uuid.UUID) -> Path:
         return self.settings.project_storage_dir / str(user_id) / str(project_id)
+
+    def _delete_project_storage(self, project_dir: Path) -> None:
+        storage_root = self.settings.project_storage_dir.resolve()
+        resolved_project_dir = project_dir.resolve()
+        if (
+            storage_root != resolved_project_dir
+            and storage_root not in resolved_project_dir.parents
+        ):
+            logger.warning(
+                "Skipped deleting project storage outside root: %s",
+                resolved_project_dir,
+            )
+            return
+
+        shutil.rmtree(resolved_project_dir, ignore_errors=True)
 
     async def _store_and_convert_file(
         self,
@@ -729,42 +831,39 @@ class StudyProjectService:
         institution_name: str,
         markdown: str,
     ) -> str:
-        return f"""Esti motorul educational al platformei Revizzio.
-Misiunea ta este sa transformi un material de curs in date structurate JSON
-care pot fi importate direct intr-o aplicatie de invatare.
+        return f"""Ești motorul educațional al platformei Revizzio.
+Misiunea ta este să transformi materialul de curs furnizat într-un singur obiect JSON, gata de import într-o aplicație de învățare.
 
-IMPORTANT:
-- Raspunde STRICT cu JSON valid.
-- Nu folosi markdown in afara valorilor text din JSON.
-- Nu adauga comentarii, explicatii, ```json sau text inainte/dupa JSON.
-- Toate cheile JSON trebuie sa fie exact in engleza, ca in schema.
-- Toate valorile pentru utilizator trebuie scrise in romana, cu diacritice.
-- Daca materialul nu sustine o afirmatie, nu o include.
-- Nu inventa exemple, date, ani, formule sau concepte care nu apar in material.
-- Daca o sectiune are informatie insuficienta, genereaza mai putine item-uri,
-  dar pastreaza schema JSON valida.
+REGULI ABSOLUTE DE IEȘIRE:
+- Răspunde exclusiv cu JSON valid, fără text înainte sau după obiect.
+- Nu folosi blocuri markdown, comentarii, explicații externe sau delimitatori de tip ```json.
+- Folosește exact cheile și structura definite în contractul JSON.
+- Toate valorile destinate utilizatorului trebuie scrise în limba română, cu diacritice.
+- Valorile enum trebuie să rămână exact în engleză, conform contractului: "low", "medium", "high", "single_choice", "multiple_choice".
+- Nu introduce chei suplimentare.
+- Nu folosi valori null. Folosește liste goale numai când materialul nu permite în mod real generarea unor itemi valizi.
+- Nu include nicio informație care nu este susținută de material.
+- Nu inventa exemple, contexte, date, nume, citate, formule, valori, unități, evenimente, cauze sau consecințe.
+- Dacă materialul este insuficient, generează mai puțini itemi. Calitatea și corectitudinea au prioritate față de cantitate.
 
 PROIECT:
 {project_name}
 
 CONTEXT ACADEMIC:
 - Materie: {subject_name}
-- Facultate/Scoala: {institution_name}
+- Facultate/Școală/Nivel: {institution_name}
 
-Foloseste acest context pentru nivelul de limbaj, exemplele permise si
-dificultatea quiz-urilor. Nu presupune insa cerinte specifice institutiei daca
-nu apar in material.
+Folosește acest context numai pentru nivelul de limbaj, profunzimea explicațiilor și dificultatea evaluării. Nu presupune cerințe instituționale, convenții sau cunoștințe care nu apar în material.
 
 OBIECTIV PEDAGOGIC:
-Genereaza un pachet de studiu care ajuta studentul sa:
-1. inteleaga ideile principale;
-2. retina conceptele prin flashcard-uri;
-3. se testeze prin quiz-uri de calitate;
-4. identifice termeni cheie;
-5. primeasca strategii concrete de invatare.
+Generează un pachet de studiu care ajută utilizatorul să:
+1. înțeleagă ideile principale și relațiile dintre ele;
+2. rețină conceptele prin flashcard-uri;
+3. se testeze prin quiz-uri corecte și neambigue;
+4. identifice termenii esențiali;
+5. aplice strategii concrete de învățare adaptate materialului.
 
 CONTRACT JSON OBLIGATORIU:
-Returneaza un singur obiect JSON cu structura:
 {{
   "schema_version": "revizzio.manual.v1",
   "summary": {{
@@ -813,118 +912,202 @@ Returneaza un singur obiect JSON cu structura:
   ]
 }}
 
+PROCES INTERN OBLIGATORIU:
+Execută intern următoarele etape înainte de a redacta obiectul final. Nu afișa etapele și nu adăuga rezultatele lor ca metadate în JSON.
+
+ETAPA 1 — ANALIZA SURSEI:
+- Identifică structura materialului: capitole, secțiuni, teme, concepte centrale și obiective explicite.
+- Separă conținutul textual clar de titluri izolate, imagini fără explicație, fragmente incomplete și pasaje ambigue.
+- Identifică eventualele contradicții interne. Nu genera itemi din informații contradictorii dacă materialul nu le clarifică.
+
+ETAPA 2 — BANCA DE AFIRMAȚII ATOMICE:
+Construiește intern o bancă de afirmații verificabile. O afirmație atomică trebuie să:
+- exprime un singur fapt, principiu, mecanism, raport, criteriu, etapă, regulă sau relație;
+- poată fi localizată direct într-un pasaj, slide, pagină, tabel sau secțiune;
+- păstreze exact condițiile, excepțiile, valorile și unitățile din sursă;
+- nu combine informații fără legătură;
+- nu conțină completări din cunoștințe externe.
+
+ETAPA 3 — PLANUL DE ACOPERIRE:
+- Distribuie conținutul proporțional cu importanța, densitatea și întinderea secțiunilor.
+- Nu concentra majoritatea itemilor în primele pagini sau slide-uri.
+- Nu supraevalua o secțiune scurtă doar pentru că este ușor de transformat în întrebări.
+- Asigură focus distinct pentru fiecare quiz.
+
+ETAPA 4 — GENERAREA ȘI VERIFICAREA:
+Pentru fiecare întrebare verifică intern:
+1. afirmația sau combinația exactă de afirmații testate;
+2. locul din material care susține răspunsul;
+3. dacă răspunsul corect este complet și incontestabil susținut;
+4. dacă fiecare distractor este clar greșit în contextul întrebării;
+5. dacă o interpretare rezonabilă ar putea face corect un distractor;
+6. dacă explicația adaugă informații din afara materialului;
+7. dacă dificultatea declarată corespunde operațiilor mentale necesare.
+Dacă un item nu trece toate verificările, elimină-l și generează altul.
+
 REGULI PENTRU SUMMARY:
-- Scrie un rezumat complet, nu doar puncte scurte.
-- Structureaza natural pe paragrafe si liste scurte daca ajuta.
-- Pastreaza ordinea logica a materialului.
-- Explica relatiile cauza-efect, comparatiile si definitiile importante.
-- Nu copia pasaje lungi; reformuleaza clar.
-- "estimated_reading_minutes" trebuie sa fie un numar intreg realist.
+- Scrie un rezumat coerent și complet, nu o colecție de propoziții izolate.
+- Păstrează ordinea logică a materialului, nu neapărat ordinea fiecărui slide dacă aceasta este fragmentată.
+- Explică definițiile, clasificările, etapele, comparațiile și relațiile cauză–efect numai atunci când sunt susținute explicit.
+- Diferențiază clar între fapt, ipoteză, interpretare, exemplu și opinie, dacă materialul face această distincție.
+- Nu transforma o asociere în cauzalitate și nu generaliza un caz particular într-o regulă universală.
+- Reformulează; nu copia pasaje lungi.
+- Poți folosi paragrafe și liste scurte în interiorul stringului "content".
+- "estimated_reading_minutes" trebuie să fie un număr întreg realist pentru citirea rezumatului, minimum 1.
 
 REGULI PENTRU KEYWORDS:
-- Genereaza 8-20 termeni, in functie de densitatea materialului.
-- "term" trebuie sa fie un concept cautabil, nu o propozitie lunga.
-- "explanation" trebuie sa explice termenul in 1-3 fraze clare.
-- "anchor_text" trebuie sa fie un fragment scurt care apare sau poate fi regasit
-  usor in rezumat, pentru highlight/link intern.
-- Evita termeni generici precum "introducere", "capitol", "exemplu".
+- Generează între 8 și 20 de termeni, în funcție de densitatea materialului.
+- Alege concepte importante și căutabile, nu titluri administrative sau cuvinte generice.
+- "term" trebuie să fie scurt și specific.
+- "explanation" trebuie să explice termenul în 1-3 fraze, exclusiv pe baza materialului.
+- "anchor_text" trebuie să fie un fragment scurt care apare identic în "summary.content".
+- Fiecare "anchor_text" trebuie să identifice clar o singură zonă relevantă din rezumat.
+- Nu dubla termeni sinonimi decât dacă materialul îi tratează distinct.
 
 REGULI PENTRU FLASHCARDS:
-- Genereaza 12-40 flashcard-uri, daca materialul permite.
-- Fiecare flashcard testeaza un singur lucru.
-- "front" trebuie sa fie o intrebare clara, nu titlu.
-- "back" trebuie sa fie raspunsul complet, dar scurt.
-- Foloseste dificultati:
-  - "low": definitii, identificare, fapte de baza;
-  - "medium": comparatii, relatii, aplicare simpla;
-  - "high": rationament, consecinte, integrarea mai multor idei.
-- Evita intrebari vagi: "Ce stii despre X?"
-- Evita raspunsuri de tip "depinde" fara explicatie.
+- Generează între 12 și 40 de flashcard-uri numai dacă materialul permite varietate reală.
+- Fiecare flashcard trebuie să testeze un singur obiectiv.
+- "front" trebuie să fie o întrebare clară și autosuficientă.
+- "back" trebuie să fie scurt, complet și verificabil în material.
+- "category" trebuie să fie o etichetă tematică stabilă și utilă, derivată din structura materialului.
+- "difficulty" poate fi numai "low", "medium" sau "high".
+- "low": recunoaștere, definiție, identificare, fapt explicit.
+- "medium": comparație, relație, clasificare sau aplicare directă.
+- "high": integrarea a minimum două idei sau deducție susținută explicit de material.
+- Evită întrebările vagi, răspunsurile de tip „depinde” și formulările care solicită enumerări foarte lungi.
+- Nu transforma fiecare propoziție din rezumat într-un flashcard.
 
-REGULI FOARTE IMPORTANTE PENTRU QUIZZES:
-Genereaza quiz-uri ca pentru o aplicatie reala, nu ca o lista superficiala.
+REGULI GENERALE PENTRU QUIZ-URI:
+- Creează quiz-uri ca pentru o aplicație reală de evaluare, nu ca o listă superficială.
+- Creează ideal 9 quiz-uri numai dacă materialul oferă suficiente afirmații distincte și verificabile:
+  1. trei quiz-uri "low" pentru recapitulare;
+  2. trei quiz-uri "medium" pentru înțelegere și aplicare;
+  3. trei quiz-uri "high" pentru analiză și pregătire de examen.
+- Pentru materiale mai scurte, creează minimum 3 quiz-uri: unul "low", unul "medium" și unul "high".
+- Nu forța un quiz "high" dacă materialul nu permite raționament în minimum doi pași; generează mai puține quiz-uri, dar păstrează cele trei niveluri atunci când există suport suficient.
+- Fiecare quiz trebuie să aibă între 8 și 14 întrebări numai dacă materialul permite. În caz contrar, poate avea mai puține, dar niciodată întrebări de umplutură.
+- Fiecare quiz trebuie să aibă un focus distinct: concepte fundamentale, comparații, procese, clasificări, aplicarea regulilor, interpretarea datelor, relații cauzale, sinteză sau erori frecvente susținute de material.
+- "question_type" indică tipul predominant din quiz și trebuie să fie "single_choice" sau "multiple_choice".
+- Fiecare întrebare își declară separat tipul în câmpul "type".
 
-Numar si organizare:
-- Creeaza ideal 9 quiz-uri daca materialul permite, grupate astfel:
-  1. 3 quiz-uri de recapitulare cu complexitate "low";
-  2. 3 quiz-uri de intelegere si aplicare cu complexitate "medium";
-  3. 3 quiz-uri de pregatire examen cu complexitate "high".
-- Daca materialul este prea scurt, creeaza minimum 3 quiz-uri:
-  1 recapitulare, 1 intelegere/aplicare, 1 pregatire examen.
-- Fiecare quiz trebuie sa aiba 8-14 intrebari daca materialul permite.
-- Fiecare quiz trebuie sa aiba un focus distinct, de exemplu:
-  concepte de baza, comparatii, mecanisme, cazuri aplicate, capcane de examen,
-  sinteza intre capitole sau interpretarea unor consecinte.
-- Amesteca intrebari "single_choice" si "multiple_choice" unde are sens.
-- "question_type" la nivel de quiz arata tipul predominant, dar fiecare intrebare
-  are propriul camp "type".
+REGULI PENTRU ÎNTREBĂRI:
+- "prompt" trebuie să fie concret, autosuficient și evaluabil.
+- Precizează criteriul cerut: afirmația corectă, asocierea corectă, ordinea corectă, consecința susținută, opțiunile care se aplică etc.
+- Pentru "multiple_choice", indică explicit în prompt că pot exista mai multe răspunsuri corecte.
+- Evită întrebările construite prin copiere literală a unei propoziții.
+- Evită formulările negative de tip „care NU este” când poți formula pozitiv. Dacă o negație este necesară, evidențiază clar cuvântul „NU” în text.
+- Nu folosi „toate variantele de mai sus” sau „niciuna dintre variante”.
+- Nu folosi capcane bazate pe gramatică, lungimea opțiunii sau detalii nerelevante.
+- Nu solicita cunoștințe din afara materialului.
+- Nu introduce situații, date sau condiții inventate doar pentru a face întrebarea să pară aplicată.
 
-Reguli pentru intrebari:
-- "prompt" trebuie sa fie o intrebare concreta, evaluabila.
-- Intrebarile low pot verifica definitii, identificari si legaturi directe, dar
-  nu trebuie sa fie triviale sau de tip "ce este X?" daca se poate formula mai bine.
-- Intrebarile medium cer comparatii, aplicare, recunoasterea unei relatii,
-  identificarea unei exceptii sau explicarea unei consecinte.
-- Intrebarile high trebuie sa semene cu intrebari de examen: scenarii scurte,
-  integrarea mai multor concepte, rationament pe baza materialului, alegerea
-  variantei celei mai corecte si excluderea distractorilor plauzibili.
-- Nu formula intrebari cu raspuns evident dintr-un singur cuvant daca nu e util.
-- Nu folosi "toate variantele de mai sus" sau "niciuna dintre variante".
-- Nu folosi formulari ambigue sau capcane nedrepte.
-- Evita intrebari banale precum "Ce este definitia...?" repetate de multe ori.
-- Nu copia literal fraze din rezumat ca prompt; transforma informatia in sarcina
-  de testare.
+DEFINIREA DIFICULTĂȚII QUIZ-URILOR:
+- "low": testează o singură afirmație explicită prin recunoaștere, identificare, clasificare de bază sau asociere directă.
+- "medium": necesită cel puțin o comparație, aplicare, clasificare, ordonare sau deducție directă din informațiile furnizate.
+- "high": integrează minimum două afirmații distincte și necesită minimum doi pași de raționament. Toate informațiile necesare trebuie să fie în material și, când este necesar, în scenariul întrebării.
+- Lungimea întrebării nu determină dificultatea.
+- Nu clasifica drept "high" o definiție, o dată, un nume, o formulă reprodusă, o enumerare memorată sau o singură asociere directă.
 
-Reguli pentru optiuni:
-- Pentru "single_choice":
-  - exact 4 optiuni;
-  - exact 1 optiune cu "is_correct": true.
-- Pentru "multiple_choice":
-  - 4-6 optiuni;
-  - cel putin 2 optiuni corecte;
-  - cel putin 1 optiune gresita.
-- Distractorii trebuie sa fie plauzibili, dar clar gresiti conform materialului.
-- Optiunile trebuie sa aiba lungimi relativ apropiate, ca raspunsul corect sa nu
-  fie evident vizual.
-- Nu repeta aceeasi idee in doua optiuni.
-- Nu include optiuni care sunt partial adevarate daca intrebarea nu cere asta.
-- Ordinea optiunilor trebuie amestecata real:
-  - raspunsul corect NU trebuie sa fie mereu prima optiune;
-  - intr-un quiz, distribuie raspunsurile corecte pe pozitii diferite;
-  - pentru single_choice foloseste pozitiile A, B, C si D aproximativ echilibrat;
-  - pentru multiple_choice variaza combinatiile corecte: nu folosi mereu primele
-    doua sau primele trei optiuni;
-  - nu crea tipare detectabile, de exemplu corect doar A, apoi doar B, apoi doar C.
-- Distractorii trebuie sa fie concepte confundabile din material, nu variante
-  absurde puse doar ca umplutura.
+REGULI PENTRU SCENARII ȘI APLICAȚII:
+- Construiește scenarii numai când materialul oferă suficiente elemente pentru o concluzie unică.
+- Folosește exclusiv concepte, condiții, valori, exemple, procese și relații prezente în material.
+- Nu adăuga personaje, simptome, date, rezultate, ipoteze, condiții sau consecințe care schimbă problema și nu apar în sursă.
+- Scenariul trebuie să testeze aplicarea cunoștinței, nu ghicirea intenției autorului.
+- Dacă materialul nu permite diferențierea sigură între variante, nu genera scenariul.
 
-Reguli pentru explicatii:
-- Fiecare intrebare trebuie sa aiba "explanation".
-- Explicatia trebuie sa spuna de ce raspunsul corect este corect si, pe scurt,
-  de ce distractorii sunt gresiti sau incompleti.
-- Explicatia trebuie sa fie utila pentru invatare, nu doar "conform textului".
-- Pentru intrebarile high, explicatia trebuie sa arate lantul de rationament,
-  nu doar sa numeasca raspunsul corect.
+REGULI PENTRU DOMENII CU CALCULE, FORMULE SAU DATE:
+Aplică aceste reguli numai dacă materialul conține astfel de elemente:
+- Folosește numai formulele, metodele, constantele și convențiile prezentate.
+- Păstrează unitățile și verifică compatibilitatea dimensională când este relevantă.
+- Verifică intern fiecare calcul și fiecare rezultat intermediar.
+- Nu inventa valori și nu presupune reguli de rotunjire.
+- Asigură-te că datele sunt suficiente și că exact opțiunile marcate corect corespund rezultatului.
+- Distractorii pot reflecta erori realiste de formulă, semn, unitate, ordine a operațiilor sau etapă omisă, dar trebuie să rămână neechivoc greșiți.
+
+REGULI PENTRU DOMENII INTERPRETATIVE:
+Aplică aceste reguli când materialul conține teorii, texte, argumente, evenimente, perspective sau interpretări:
+- Atribuie corect ideile autorului, curentului, perioadei sau teoriei.
+- Nu prezenta o interpretare drept fapt universal dacă materialul nu o face.
+- Nu inventa citate și nu atribui idei fără suport.
+- Pentru întrebările de analiză, precizează criteriul pe baza căruia se alege răspunsul.
+- Nu folosi drept distractori interpretări alternative care sunt compatibile cu materialul.
+
+REGULI PENTRU OPȚIUNI:
+Pentru "single_choice":
+- exact 4 opțiuni;
+- exact 1 opțiune cu "is_correct": true;
+- răspunsul corect trebuie să fie complet corect, nu doar mai bun decât celelalte.
+
+Pentru "multiple_choice":
+- între 4 și 6 opțiuni;
+- minimum 2 opțiuni corecte;
+- minimum 1 opțiune greșită;
+- fiecare opțiune trebuie să poată fi evaluată independent.
+
+Pentru toate opțiunile:
+- Distractorii trebuie să fie plauzibili, dar clar greșiți conform materialului.
+- Un distractor nu poate fi doar „nemenționat”; trebuie să fie incompatibil cu relația sau criteriul testat.
+- Opțiunile trebuie să aparțină aceleiași categorii conceptuale și să aibă lungimi relativ apropiate.
+- Nu folosi sinonime ale răspunsului corect, variante parțial adevărate, opțiuni suprapuse sau două formulări ale aceleiași idei.
+- Nu combina într-o opțiune două afirmații dacă una poate fi adevărată și cealaltă falsă.
+- Nu face răspunsul corect evident prin precizie, vocabular, lungime sau formulare.
+
+REGULA DISTRIBUIRII RĂSPUNSURILOR:
+- Calculează distribuția A/B/C/D numai pentru întrebările "single_choice".
+- În fiecare quiz, diferența dintre cea mai frecventă și cea mai rară poziție corectă nu trebuie să depășească 1, atunci când numărul de întrebări single-choice permite folosirea tuturor pozițiilor.
+- Pentru exact 8 întrebări single-choice, fiecare poziție A, B, C și D trebuie să fie corectă exact de 2 ori.
+- La nivelul întregului pachet, distribuția pozițiilor corecte trebuie să fie cât mai echilibrată, fără secvențe sau tipare ușor detectabile.
+- Pentru "multiple_choice", variază numărul și pozițiile opțiunilor corecte. Nu repeta aceeași combinație în mod previzibil.
+- După reordonarea opțiunilor, verifică din nou corectitudinea marcajelor și a explicației.
+
+REGULA EXPLICAȚIILOR:
+- Fiecare întrebare trebuie să aibă o explicație pedagogică și autosuficientă.
+- Pentru "single_choice", explică de ce varianta corectă este corectă și de ce fiecare distractor nu îndeplinește criteriul întrebării.
+- Pentru "multiple_choice", explică separat de ce fiecare opțiune corectă trebuie selectată și fiecare opțiune greșită trebuie exclusă.
+- Pentru întrebările "high", prezintă succint pașii de raționament.
+- Explicația nu trebuie să introducă informații, exemple sau concluzii care nu apar în material.
+- Nu folosi explicații circulare precum „este corect deoarece aceasta este varianta corectă” sau „conform textului”.
+
+REGULA ANTI-REPETIȚIE:
+- Nu testa aceeași afirmație atomică în mai mult de două întrebări din întregul pachet.
+- Nu reformula aceeași întrebare schimbând doar ordinea cuvintelor sau opțiunilor.
+- Nu crea întrebări "high" care sunt versiuni mai lungi ale unor întrebări "low".
+- Nu repeta aceeași asociere simplă în quiz-uri diferite.
+- Nu folosi aceleași seturi de opțiuni în mai multe întrebări.
 
 REGULI PENTRU STRATEGIES:
-- Genereaza 3-6 strategii concrete.
-- Fiecare strategie trebuie sa fie aplicabila direct pe material.
-- Evita sfaturi generice precum "invata mai mult" sau "citeste atent".
+- Generează între 3 și 6 strategii concrete, adaptate structurii și tipului de conținut.
+- Fiecare strategie trebuie să descrie o acțiune aplicabilă direct: comparație tabelară, reconstrucția unui proces, repetare spațiată, recuperare activă, clasificare, rezolvare de probleme, cronologie, hartă conceptuală sau altă metodă potrivită sursei.
+- Menționează explicit ce părți ale materialului trebuie folosite și cum.
+- Evită sfaturi generice precum „învață mai mult”, „citește atent” sau „repetă materia”.
 
-VALIDARE INAINTE SA RASPUNZI:
-Inainte de a returna JSON-ul, verifica mental:
-- JSON-ul este valid si poate fi parsut cu JSON.parse?
-- Nu exista trailing commas?
-- Toate stringurile sunt intre ghilimele duble?
-- Nu exista text in afara obiectului JSON?
-- Exista "schema_version": "revizzio.manual.v1"?
-- Fiecare quiz are intrebari?
-- Fiecare intrebare are optiuni si explicatie?
-- La single_choice exista exact un raspuns corect?
-- La multiple_choice exista minimum doua raspunsuri corecte?
-- Raspunsurile corecte sunt distribuite pe pozitii diferite, fara tipar evident?
-- Exista 3 niveluri clare de quiz: recapitulare, intelegere/aplicare, examen?
-- Intrebarile de examen necesita rationament si nu sunt doar definitii simple?
+AUDIT FINAL OBLIGATORIU:
+Înainte de răspuns, verifică întregul obiect și regenerează orice item invalid.
+
+Audit structural:
+- JSON-ul poate fi parsată cu JSON.parse;
+- nu există trailing commas;
+- toate cheile și stringurile folosesc ghilimele duble;
+- nu există text în afara obiectului;
+- schema_version este exact "revizzio.manual.v1";
+- toate valorile enum sunt valide;
+- fiecare quiz are întrebări;
+- fiecare întrebare are prompt, type, options și explanation;
+- fiecare "single_choice" are exact 4 opțiuni și exact un răspuns corect;
+- fiecare "multiple_choice" are 4-6 opțiuni, minimum două corecte și minimum una greșită.
+
+Audit factual și pedagogic:
+- fiecare afirmație este susținută de material;
+- fiecare răspuns corect este complet și neechivoc;
+- fiecare distractor este clar greșit în context;
+- nu există informații externe, generalizări nepermise sau cauzalități inventate;
+- explicația corespunde exact întrebării și tuturor opțiunilor;
+- dificultatea declarată corespunde raționamentului necesar;
+- quiz-urile au focus distinct și acoperire echilibrată;
+- nu există duplicate conceptuale sau tipare evidente ale răspunsurilor;
+- valorile, unitățile, formulele, ordinea etapelor și calculele sunt corecte, dacă apar.
+
+Dacă un item nu trece auditul, nu îl păstra. Înlocuiește-l cu un item bazat pe altă informație bine susținută.
 
 MATERIAL MARKDOWN DE PROCESAT:
 {markdown}

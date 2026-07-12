@@ -4,6 +4,7 @@ import {
   type CSSProperties,
   type ReactNode,
   useEffect,
+  useRef,
   useState,
 } from "react";
 import { AccountStaticShell } from "@/components/account/account-static-shell";
@@ -20,6 +21,12 @@ import {
   getColorThemePreset,
   themeColorVariables,
 } from "@/lib/theme-colors";
+import {
+  deleteStudyProject,
+  listArchivedStudyProjects,
+  restoreStudyProject,
+  type StudyProject,
+} from "@/lib/projects-api";
 
 type SettingsTabId =
   | "account"
@@ -92,6 +99,20 @@ const settingsTabs: Array<{
 ];
 
 const defaultSettingsTab: SettingsTabId = "account";
+
+function formatArchiveDate(value: string | null) {
+  if (!value) return "data necunoscută";
+
+  try {
+    return new Intl.DateTimeFormat("ro-RO", {
+      day: "2-digit",
+      month: "short",
+      year: "numeric",
+    }).format(new Date(value));
+  } catch {
+    return "data necunoscută";
+  }
+}
 
 const themeOptions: Array<{
   value: ThemePreference;
@@ -300,6 +321,16 @@ export function SettingsPage() {
     useState<SettingsTabId>(defaultSettingsTab);
   const [isSavingTheme, setIsSavingTheme] = useState(false);
   const [privacyNotice, setPrivacyNotice] = useState<string | null>(null);
+  const [archivedProjects, setArchivedProjects] = useState<StudyProject[]>([]);
+  const [isLoadingArchive, setIsLoadingArchive] = useState(false);
+  const [archiveActionProjectId, setArchiveActionProjectId] = useState<
+    string | null
+  >(null);
+  const [archiveError, setArchiveError] = useState<string | null>(null);
+  const [isArchiveModalOpen, setIsArchiveModalOpen] = useState(false);
+  const [archiveDeleteCandidate, setArchiveDeleteCandidate] =
+    useState<StudyProject | null>(null);
+  const deletingArchivedProjectIdsRef = useRef(new Set<string>());
   const [studyPace, setStudyPace] = useState<StudyPaceId>("balanced");
   const [aiFeedback, setAiFeedback] = useState<AiFeedbackId>("guided");
   const [studyAutomations, setStudyAutomations] = useState<
@@ -366,6 +397,87 @@ export function SettingsPage() {
       );
     };
   }, []);
+
+  useEffect(() => {
+    if (activeTab !== "privacy" || !user) return;
+
+    let isMounted = true;
+
+    async function loadArchivedProjects() {
+      setIsLoadingArchive(true);
+      setArchiveError(null);
+
+      try {
+        const projects = await listArchivedStudyProjects();
+        if (isMounted) {
+          setArchivedProjects(projects);
+        }
+      } catch (error) {
+        if (!isMounted) return;
+        setArchivedProjects([]);
+        setArchiveError(
+          error instanceof Error
+            ? error.message
+            : "Arhiva proiectelor nu a putut fi încărcată.",
+        );
+      } finally {
+        if (isMounted) {
+          setIsLoadingArchive(false);
+        }
+      }
+    }
+
+    void loadArchivedProjects();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [activeTab, user]);
+
+  async function restoreArchivedProject(projectId: string) {
+    setArchiveActionProjectId(projectId);
+    setArchiveError(null);
+    try {
+      await restoreStudyProject(projectId);
+      setArchivedProjects((projects) =>
+        projects.filter((project) => project.id !== projectId),
+      );
+      setPrivacyNotice("Proiectul a fost restabilit în lista proiectelor active.");
+    } catch (error) {
+      setArchiveError(
+        error instanceof Error
+          ? error.message
+          : "Proiectul nu a putut fi restabilit.",
+      );
+    } finally {
+      setArchiveActionProjectId(null);
+    }
+  }
+
+  async function deleteArchivedProject(projectId: string) {
+    if (deletingArchivedProjectIdsRef.current.has(projectId)) return;
+
+    deletingArchivedProjectIdsRef.current.add(projectId);
+    setArchiveActionProjectId(projectId);
+    setArchiveError(null);
+    try {
+      await deleteStudyProject(projectId);
+      setArchivedProjects((projects) =>
+        projects.filter((project) => project.id !== projectId),
+      );
+      setArchiveDeleteCandidate(null);
+      setPrivacyNotice("Proiectul arhivat a fost șters definitiv.");
+    } catch (error) {
+      setArchiveError(
+        error instanceof Error
+          ? error.message
+          : "Proiectul nu a putut fi șters.",
+      );
+    } finally {
+      deletingArchivedProjectIdsRef.current.delete(projectId);
+      setArchiveActionProjectId(null);
+    }
+  }
 
   async function saveThemePreference(themePreference: ThemePreference) {
     if (!user || isSavingTheme) return;
@@ -1001,6 +1113,28 @@ export function SettingsPage() {
                 </span>
                 <CookieSettingsButton className="w-fit rounded-xl bg-content px-4 py-2 text-xs font-bold text-app transition hover:opacity-90" />
               </div>
+
+              <div className="group -mx-3 grid gap-3 rounded-xl px-3 py-5 transition hover:bg-surface-hover sm:grid-cols-[1fr_auto] sm:items-center">
+                <span>
+                  <span className="block text-sm font-black">
+                    Arhiva proiectelor
+                  </span>
+                  <span className="mt-1 block text-xs leading-5 text-muted">
+                    Proiectele arhivate sunt ascunse din dashboard și pot fi
+                    restabilite dintr-o fereastră separată.
+                  </span>
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setIsArchiveModalOpen(true)}
+                  className="inline-flex w-fit items-center gap-2 rounded-xl border border-content px-4 py-2 text-xs font-bold transition hover:bg-content hover:text-app"
+                >
+                  Vezi arhiva
+                  <span className="rounded-full bg-surface-hover px-2 py-0.5 text-[10px]">
+                    {archivedProjects.length}
+                  </span>
+                </button>
+              </div>
             </div>
 
             {privacyNotice ? (
@@ -1010,6 +1144,31 @@ export function SettingsPage() {
               >
                 {privacyNotice}
               </div>
+            ) : null}
+
+            {isArchiveModalOpen ? (
+              <ArchivedProjectsModal
+                projects={archivedProjects}
+                isLoading={isLoadingArchive}
+                actionProjectId={archiveActionProjectId}
+                error={archiveError}
+                onClose={() => setIsArchiveModalOpen(false)}
+                onRestore={(projectId) => void restoreArchivedProject(projectId)}
+                onDelete={(project) => setArchiveDeleteCandidate(project)}
+              />
+            ) : null}
+
+            {archiveDeleteCandidate ? (
+              <ArchiveDeleteModal
+                project={archiveDeleteCandidate}
+                isDeleting={
+                  archiveActionProjectId === archiveDeleteCandidate.id
+                }
+                onCancel={() => setArchiveDeleteCandidate(null)}
+                onConfirm={() =>
+                  void deleteArchivedProject(archiveDeleteCandidate.id)
+                }
+              />
             ) : null}
           </FlatPanel>
         );
@@ -1040,6 +1199,183 @@ export function SettingsPage() {
         {renderActiveTab()}
       </section>
     </AccountStaticShell>
+  );
+}
+
+function ArchivedProjectsModal({
+  projects,
+  isLoading,
+  actionProjectId,
+  error,
+  onClose,
+  onRestore,
+  onDelete,
+}: {
+  projects: StudyProject[];
+  isLoading: boolean;
+  actionProjectId: string | null;
+  error: string | null;
+  onClose: () => void;
+  onRestore: (projectId: string) => void;
+  onDelete: (project: StudyProject) => void;
+}) {
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-content/35 px-4 py-6 backdrop-blur-sm"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="archive-projects-title"
+    >
+      <div className="flex max-h-[82vh] w-full max-w-3xl flex-col rounded-[2rem] border border-subtle bg-surface shadow-2xl shadow-black/20">
+        <div className="flex items-start justify-between gap-4 border-b border-subtle p-6">
+          <div>
+            <p className="text-xs font-black uppercase tracking-[0.16em] text-warning">
+              Arhivă
+            </p>
+            <h2
+              id="archive-projects-title"
+              className="mt-2 font-serif text-3xl font-semibold leading-tight"
+            >
+              Proiecte arhivate
+            </h2>
+            <p className="mt-2 text-sm leading-6 text-muted">
+              Restabilește proiectele pe care vrei să le readuci în dashboard
+              sau șterge-le definitiv.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-subtle transition hover:bg-surface-hover"
+            aria-label="Închide arhiva"
+          >
+            <svg
+              aria-hidden="true"
+              className="h-4 w-4"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+              strokeWidth="2"
+            >
+              <path d="M18 6 6 18M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+
+        {error ? (
+          <div className="border-b border-danger-border bg-danger-soft px-6 py-3 text-sm font-semibold text-danger">
+            {error}
+          </div>
+        ) : null}
+
+        <div className="min-h-0 overflow-y-auto px-6">
+          {isLoading ? (
+            <div className="py-8 text-sm font-semibold text-muted">
+              Se încarcă arhiva...
+            </div>
+          ) : projects.length ? (
+            <div className="divide-y divide-subtle">
+              {projects.map((project) => {
+                const isBusy = actionProjectId === project.id;
+                return (
+                  <div
+                    key={project.id}
+                    className="grid gap-4 py-5 sm:grid-cols-[1fr_auto] sm:items-center"
+                  >
+                    <span className="min-w-0">
+                      <span className="block truncate text-base font-black">
+                        {project.name}
+                      </span>
+                      <span className="mt-1 block text-xs leading-5 text-muted">
+                        {project.subject_name} · {project.file_count} materiale ·
+                        arhivat pe {formatArchiveDate(project.archived_at)}
+                      </span>
+                    </span>
+                    <span className="flex flex-wrap gap-2 sm:justify-end">
+                      <button
+                        type="button"
+                        disabled={isBusy}
+                        onClick={() => onRestore(project.id)}
+                        className="rounded-full border border-content px-4 py-2 text-xs font-bold transition hover:bg-content hover:text-app disabled:cursor-wait disabled:opacity-60"
+                      >
+                        Restabilește
+                      </button>
+                      <button
+                        type="button"
+                        disabled={isBusy}
+                        onClick={() => onDelete(project)}
+                        className="rounded-full border border-danger-border px-4 py-2 text-xs font-bold text-danger transition hover:bg-danger-soft disabled:cursor-wait disabled:opacity-60"
+                      >
+                        Șterge
+                      </button>
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <div className="py-8 text-sm font-semibold text-muted">
+              Nu ai proiecte arhivate.
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ArchiveDeleteModal({
+  project,
+  isDeleting,
+  onCancel,
+  onConfirm,
+}: {
+  project: StudyProject;
+  isDeleting: boolean;
+  onCancel: () => void;
+  onConfirm: () => void;
+}) {
+  return (
+    <div
+      className="fixed inset-0 z-[60] flex items-center justify-center bg-content/40 px-4 py-6 backdrop-blur-sm"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="archive-delete-title"
+    >
+      <div className="w-full max-w-lg rounded-[2rem] border border-subtle bg-surface p-6 shadow-2xl shadow-black/20">
+        <p className="text-xs font-black uppercase tracking-[0.16em] text-danger">
+          Ștergere definitivă
+        </p>
+        <h2
+          id="archive-delete-title"
+          className="mt-3 font-serif text-3xl font-semibold leading-tight"
+        >
+          Ștergi proiectul arhivat „{project.name}”?
+        </h2>
+        <p className="mt-3 text-sm leading-6 text-muted">
+          Această acțiune elimină proiectul și fișierele lui. Dacă vrei să-l
+          folosești din nou, alege Restabilește.
+        </p>
+        <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+          <button
+            type="button"
+            onClick={onCancel}
+            disabled={isDeleting}
+            className="rounded-full border border-subtle px-5 py-3 text-sm font-bold transition hover:bg-surface-hover disabled:cursor-wait disabled:opacity-60"
+          >
+            Renunță
+          </button>
+          <button
+            type="button"
+            onClick={onConfirm}
+            disabled={isDeleting}
+            className="rounded-full bg-danger px-5 py-3 text-sm font-bold text-app transition hover:opacity-90 disabled:cursor-wait disabled:opacity-60"
+          >
+            {isDeleting ? "Se șterge..." : "Șterge definitiv"}
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }
 
