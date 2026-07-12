@@ -13,6 +13,7 @@ from app.api.routes.health import router as health_router
 from app.api.routes.legal import router as legal_router
 from app.api.routes.payments import router as payments_router
 from app.api.routes.plans import router as plans_router
+from app.api.routes.projects import router as projects_router
 from app.core.config import get_settings
 from app.db.session import engine
 
@@ -54,6 +55,7 @@ app.include_router(compliance_router)
 app.include_router(legal_router)
 app.include_router(payments_router)
 app.include_router(plans_router)
+app.include_router(projects_router)
 
 
 @app.get("/")

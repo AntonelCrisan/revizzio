@@ -9,6 +9,18 @@ from app.models.compliance import (
 )
 from app.models.email_tokens import PasswordResetToken, PendingRegistration
 from app.models.legal import CompanyData, LegalDocument, LegalDocumentSection
+from app.models.study_project import (
+    StudyProject,
+    StudyProjectFile,
+    StudyProjectFlashcard,
+    StudyProjectImport,
+    StudyProjectKeyword,
+    StudyProjectQuiz,
+    StudyProjectQuizOption,
+    StudyProjectQuizQuestion,
+    StudyProjectStrategy,
+    StudyProjectSummary,
+)
 from app.models.subscription import (
     StripeEvent,
     SubscriptionInvoice,
@@ -30,6 +42,16 @@ __all__ = [
     "PasswordResetToken",
     "PendingRegistration",
     "StripeEvent",
+    "StudyProject",
+    "StudyProjectFile",
+    "StudyProjectFlashcard",
+    "StudyProjectImport",
+    "StudyProjectKeyword",
+    "StudyProjectQuiz",
+    "StudyProjectQuizOption",
+    "StudyProjectQuizQuestion",
+    "StudyProjectStrategy",
+    "StudyProjectSummary",
     "SubscriptionInvoice",
     "SubscriptionPlan",
     "SubscriptionPlanFeature",

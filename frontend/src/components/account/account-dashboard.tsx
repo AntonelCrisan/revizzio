@@ -14,6 +14,14 @@ import {
 import { useAuth } from "@/components/auth/auth-provider";
 import { BrandLogo } from "@/components/brand-logo";
 import { GeneratedContentDisclaimer } from "@/components/legal/generated-content-disclaimer";
+import {
+  createQuizMistakeFlashcard,
+  importStudyProjectJson,
+  listStudyProjects,
+  prepareStudyProject,
+  type StudyProject as ApiStudyProject,
+  type StudyProjectPrepareResponse,
+} from "@/lib/projects-api";
 
 type ViewId = "home" | "project" | "new";
 export type TabId =
@@ -25,14 +33,30 @@ export type TabId =
   | "chat";
 type GenerationState = "form" | "generating" | "done";
 type SidebarGroupId = "settings" | "billing";
+type StudyFlashcardTone = "success" | "warning" | "info" | "danger";
+
+type StudyFlashcardCard = {
+  topic: string;
+  question: string;
+  answer: string;
+  tone: StudyFlashcardTone;
+  sourceQuestionId?: string;
+};
 
 type StudyProject = {
   id: string;
   name: string;
+  subjectName: string;
+  institutionName: string;
   meta: string;
   flashcardsDue: number;
   flashcardsTotal: number;
   progress: number;
+  summary: ApiStudyProject["summary"];
+  keywords: ApiStudyProject["keywords"];
+  flashcards: ApiStudyProject["flashcards"];
+  quizzes: ApiStudyProject["quizzes"];
+  quizMistakeFlashcards: StudyFlashcardCard[];
   strategies: Array<{
     title: string;
     description: string;
@@ -42,85 +66,10 @@ type StudyProject = {
 type UploadedFile = {
   name: string;
   size: number;
+  file: File;
 };
 
-const initialProjects: StudyProject[] = [
-  {
-    id: "biologie",
-    name: "Biologie celulară",
-    meta: "Capitolul 3 · Celula · 28 pagini",
-    flashcardsDue: 12,
-    flashcardsTotal: 32,
-    progress: 64,
-    strategies: [
-      {
-        title: "Desenează celula din memorie",
-        description:
-          "După ce citești o secțiune, închide cartea și redesenează schema cu organitele. Comparațiile vizuale fixează informația mai bine decât textul.",
-      },
-      {
-        title: "Asociază organitul cu funcția lui printr-o poveste",
-        description:
-          "Mitocondria produce energie ca o uzină. Micro-poveștile scurte ajută la reținerea funcțiilor fiecărui organit.",
-      },
-      {
-        title: "Tabel comparativ celulă animală vs. vegetală",
-        description:
-          "Pune-le pe coloane. Diferențele ies în evidență mult mai ușor decât citite separat.",
-      },
-    ],
-  },
-  {
-    id: "chimie",
-    name: "Chimie organică",
-    meta: "Reacții de adiție · 19 pagini",
-    flashcardsDue: 5,
-    flashcardsTotal: 18,
-    progress: 30,
-    strategies: [
-      {
-        title: "Rescrie mecanismele pas cu pas",
-        description:
-          "Desenează săgețile electronilor de mână, de fiecare dată, până devine reflex.",
-      },
-      {
-        title: "Grupează reacțiile după mecanism",
-        description:
-          "Reacțiile cu mecanism similar se rețin împreună mai ușor decât în ordinea din curs.",
-      },
-      {
-        title: "Codează culorile atomilor care se mută",
-        description:
-          "Marchează atomii implicați direct în reacție ca să vezi tiparul mult mai rapid.",
-      },
-    ],
-  },
-  {
-    id: "drept",
-    name: "Drept civil",
-    meta: "Obligații contractuale · 34 pagini",
-    flashcardsDue: 0,
-    flashcardsTotal: 40,
-    progress: 88,
-    strategies: [
-      {
-        title: "Construiește spețe proprii din fiecare articol",
-        description:
-          "Transformă fiecare normă într-un scenariu concret. Este mai ușor de reținut decât textul de lege gol.",
-      },
-      {
-        title: "Tabel cu condițiile de valabilitate",
-        description:
-          "Pune tipurile de contracte unul lângă altul ca să vezi imediat ce este comun și ce diferă.",
-      },
-      {
-        title: "Reformulează definițiile cu propriile cuvinte",
-        description:
-          "Dacă nu poți reformula un termen juridic simplu, încă nu l-ai înțeles complet.",
-      },
-    ],
-  },
-];
+const initialProjects: StudyProject[] = [];
 
 const tabs: Array<{ id: TabId; label: string }> = [
   { id: "rezumat", label: "Rezumat" },
@@ -156,11 +105,10 @@ const sidebarBillingItems = [
 ];
 
 const generationSteps = [
-  "Rezumat",
-  "Flashcard-uri",
-  "Quiz-uri",
-  "Cuvinte cheie",
-  "Strategii",
+  "Încărcare materiale",
+  "Conversie Markdown",
+  "Fișier prompt",
+  "Pregătit pentru ChatGPT",
 ];
 
 function Icon({
@@ -225,9 +173,64 @@ function initials(name: string) {
 }
 
 function getProjectById(projects: StudyProject[], projectId?: string) {
-  return (
-    projects.find((project) => project.id === projectId) ?? projects[0]
-  );
+  return projects.find((project) => project.id === projectId) ?? projects[0];
+}
+
+function apiProjectStatusLabel(status: ApiStudyProject["status"]) {
+  if (status === "ready") return "gata";
+  if (status === "awaiting_ai_json") return "așteaptă JSON";
+  if (status === "processing") return "în procesare";
+  if (status === "failed") return "eroare";
+  return status;
+}
+
+function mapQuizMistakeFlashcards(
+  flashcards: ApiStudyProject["flashcards"],
+): StudyFlashcardCard[] {
+  return flashcards
+    .filter((flashcard) => flashcard.source_type === "quiz_mistake")
+    .map((flashcard) => ({
+      topic: flashcard.category || "Quiz",
+      question: flashcard.front,
+      answer: flashcard.back,
+      tone: "danger",
+      sourceQuestionId: flashcard.source_quiz_question_id ?? undefined,
+    }));
+}
+
+function mapApiProject(project: ApiStudyProject): StudyProject {
+  return {
+    id: project.id,
+    name: project.name,
+    subjectName: project.subject_name,
+    institutionName: project.institution_name,
+    meta: `${project.subject_name} · ${project.file_count} materiale · ${apiProjectStatusLabel(project.status)}`,
+    flashcardsDue: project.flashcard_count,
+    flashcardsTotal: project.flashcard_count,
+    progress: project.status === "ready" ? 100 : 15,
+    summary: project.summary,
+    keywords: project.keywords,
+    flashcards: project.flashcards,
+    quizzes: project.quizzes,
+    quizMistakeFlashcards: mapQuizMistakeFlashcards(project.flashcards),
+    strategies: project.strategies.length
+      ? project.strategies.map((strategy) => ({
+          title: strategy.title,
+          description: strategy.description,
+        }))
+      : [
+          {
+            title:
+              project.status === "ready"
+                ? "Continuă cu rezumatul generat"
+                : "Încarcă JSON-ul generat de ChatGPT",
+            description:
+              project.status === "ready"
+                ? "Pachetul proiectului este importat și poate fi folosit pentru studiu."
+                : "Descarcă markdown-ul și promptul, cere JSON-ul în ChatGPT, apoi revino cu fișierul generat.",
+          },
+        ],
+  };
 }
 
 function isChatBackTab(tab: TabId | undefined): tab is Exclude<TabId, "chat"> {
@@ -267,13 +270,14 @@ export function AccountDashboard({
   const { user, isLoading, logout } = useAuth();
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const generationTimers = useRef<number[]>([]);
-  const startingProject = getProjectById(initialProjects, initialProjectId);
 
   const [projects, setProjects] = useState(initialProjects);
   const [view, setView] = useState<ViewId>(initialView);
-  const [activeProjectId, setActiveProjectId] = useState(startingProject.id);
+  const [activeProjectId, setActiveProjectId] = useState(
+    initialProjectId ?? "",
+  );
   const [openProjectId, setOpenProjectId] = useState<string | null>(
-    startingProject.id,
+    initialProjectId ?? null,
   );
   const [activeTab, setActiveTab] = useState<TabId>(initialTab);
   const [chatBackTab, setChatBackTab] = useState<TabId>(
@@ -288,12 +292,19 @@ export function AccountDashboard({
     useState<SidebarGroupId | null>(null);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [projectName, setProjectName] = useState("");
+  const [subjectName, setSubjectName] = useState("");
+  const [institutionName, setInstitutionName] = useState("");
   const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([]);
   const [hasMaterialRights, setHasMaterialRights] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const [generationState, setGenerationState] =
     useState<GenerationState>("form");
   const [completedSteps, setCompletedSteps] = useState<string[]>([]);
+  const [preparedProject, setPreparedProject] =
+    useState<StudyProjectPrepareResponse | null>(null);
+  const [generationError, setGenerationError] = useState<string | null>(null);
+  const [isImportingJson, setIsImportingJson] = useState(false);
+  const [jsonImportMessage, setJsonImportMessage] = useState<string | null>(null);
   const activeProject = useMemo(
     () => getProjectById(projects, activeProjectId),
     [activeProjectId, projects],
@@ -301,7 +312,11 @@ export function AccountDashboard({
 
   const firstName = user?.full_name.split(" ")[0] ?? "student";
   const canGenerate =
-    projectName.trim().length > 0 && uploadedFiles.length > 0 && hasMaterialRights;
+    projectName.trim().length > 0 &&
+    subjectName.trim().length > 0 &&
+    institutionName.trim().length > 0 &&
+    uploadedFiles.length > 0 &&
+    hasMaterialRights;
   const generationProgress = Math.round(
     (completedSteps.length / generationSteps.length) * 100,
   );
@@ -311,6 +326,42 @@ export function AccountDashboard({
       router.replace("/login");
     }
   }, [isLoading, router, user]);
+
+  useEffect(() => {
+    if (isLoading || !user) return;
+    let isMounted = true;
+
+    listStudyProjects()
+      .then((apiProjects) => {
+        if (!isMounted) return;
+
+        const mappedProjects = apiProjects.map(mapApiProject);
+        setProjects(mappedProjects);
+
+        if (mappedProjects.length === 0) {
+          setActiveProjectId("");
+          setOpenProjectId(null);
+          setView("home");
+          return;
+        }
+
+        setActiveProjectId((currentProjectId) =>
+          initialProjectId &&
+          mappedProjects.some((project) => project.id === initialProjectId)
+            ? initialProjectId
+            : mappedProjects.some((project) => project.id === currentProjectId)
+              ? currentProjectId
+              : mappedProjects[0].id,
+        );
+      })
+      .catch(() => {
+        setProjects([]);
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [initialProjectId, isLoading, user]);
 
   useEffect(() => {
     return () => {
@@ -368,6 +419,66 @@ export function AccountDashboard({
     window.scrollTo({ top: 0, behavior: "instant" });
   }
 
+  function addQuizMistakeFlashcard(
+    projectId: string,
+    flashcard: StudyFlashcardCard,
+  ) {
+    setProjects((currentProjects) =>
+      currentProjects.map((project) => {
+        if (project.id !== projectId) {
+          return project;
+        }
+
+        const alreadySaved = project.quizMistakeFlashcards.some(
+          (existingFlashcard) =>
+            (flashcard.sourceQuestionId &&
+              existingFlashcard.sourceQuestionId ===
+                flashcard.sourceQuestionId) ||
+            existingFlashcard.question === flashcard.question,
+        );
+
+        if (alreadySaved) {
+          return project;
+        }
+
+        return {
+          ...project,
+          quizMistakeFlashcards: [
+            flashcard,
+            ...project.quizMistakeFlashcards,
+          ],
+        };
+      }),
+    );
+  }
+
+  async function saveQuizMistakeFlashcard(
+    projectId: string,
+    questionId: string | null,
+    fallbackFlashcard: StudyFlashcardCard,
+  ) {
+    addQuizMistakeFlashcard(projectId, fallbackFlashcard);
+
+    if (!questionId) {
+      return;
+    }
+
+    try {
+      const apiProject = await createQuizMistakeFlashcard({
+        projectId,
+        questionId,
+      });
+      const mappedProject = mapApiProject(apiProject);
+      setProjects((currentProjects) =>
+        currentProjects.map((project) =>
+          project.id === mappedProject.id ? mappedProject : project,
+        ),
+      );
+    } catch {
+      // The optimistic flashcard stays visible; backend sync can be retried later.
+    }
+  }
+
   function changeProjectTab(tab: TabId) {
     const nextChatBackTab = isChatBackTab(tab)
       ? tab
@@ -401,10 +512,16 @@ export function AccountDashboard({
     generationTimers.current.forEach((timer) => window.clearTimeout(timer));
     generationTimers.current = [];
     setProjectName("");
+    setSubjectName("");
+    setInstitutionName("");
     setUploadedFiles([]);
     setHasMaterialRights(false);
     setCompletedSteps([]);
     setGenerationState("form");
+    setPreparedProject(null);
+    setGenerationError(null);
+    setJsonImportMessage(null);
+    setIsImportingJson(false);
   }
 
   function addFiles(files: FileList | null) {
@@ -414,6 +531,7 @@ export function AccountDashboard({
       ...Array.from(files).map((file) => ({
         name: file.name,
         size: file.size,
+        file,
       })),
     ]);
   }
@@ -424,26 +542,62 @@ export function AccountDashboard({
     addFiles(event.dataTransfer.files);
   }
 
-  function startGeneration() {
+  async function startGeneration() {
     if (!canGenerate) return;
 
     generationTimers.current.forEach((timer) => window.clearTimeout(timer));
     generationTimers.current = [];
     setGenerationState("generating");
     setCompletedSteps([]);
+    setPreparedProject(null);
+    setGenerationError(null);
+    setJsonImportMessage(null);
 
-    generationSteps.forEach((step, index) => {
-      const timer = window.setTimeout(() => {
-        setCompletedSteps((currentSteps) => [...currentSteps, step]);
-        if (index === generationSteps.length - 1) {
-          setGenerationState("done");
-        }
-      }, 650 * (index + 1));
-      generationTimers.current.push(timer);
-    });
+    try {
+      setCompletedSteps(["Încărcare materiale"]);
+      const response = await prepareStudyProject({
+        name: projectName,
+        subjectName,
+        institutionName,
+        files: uploadedFiles.map((file) => file.file),
+        materialRightsConfirmed: hasMaterialRights,
+      });
+      const apiProject = mapApiProject(response.project);
+      setProjects((currentProjects) => [
+        apiProject,
+        ...currentProjects.filter((project) => project.id !== apiProject.id),
+      ]);
+      setActiveProjectId(apiProject.id);
+      setOpenProjectId(apiProject.id);
+      setPreparedProject(response);
+      setCompletedSteps(generationSteps);
+      setGenerationState("done");
+    } catch (error) {
+      setGenerationState("form");
+      setCompletedSteps([]);
+      setGenerationError(
+        error instanceof Error
+          ? error.message
+          : "Proiectul nu a putut fi pregătit momentan.",
+      );
+    }
   }
 
   function createGeneratedProject() {
+    if (preparedProject) {
+      const apiProject = mapApiProject(preparedProject.project);
+      setProjects((currentProjects) => [
+        apiProject,
+        ...currentProjects.filter((project) => project.id !== apiProject.id),
+      ]);
+      setActiveProjectId(apiProject.id);
+      setOpenProjectId(apiProject.id);
+      setActiveTab("rezumat");
+      setView("project");
+      resetNewProject();
+      return;
+    }
+
     const name = projectName.trim();
     if (!name) return;
 
@@ -451,10 +605,17 @@ export function AccountDashboard({
     const newProject: StudyProject = {
       id,
       name,
-      meta: `${uploadedFiles.length} materiale · generat azi`,
+      subjectName: subjectName.trim() || "Materie",
+      institutionName: institutionName.trim() || "Instituție",
+      meta: `${subjectName.trim() || "Materie"} · ${uploadedFiles.length} materiale · generat azi`,
       flashcardsDue: 24,
       flashcardsTotal: 24,
       progress: 0,
+      summary: null,
+      keywords: [],
+      flashcards: [],
+      quizzes: [],
+      quizMistakeFlashcards: [],
       strategies: [
         {
           title: "Citește mai întâi rezumatul",
@@ -480,6 +641,40 @@ export function AccountDashboard({
     setActiveTab("rezumat");
     setView("project");
     resetNewProject();
+  }
+
+  async function importGeneratedJson(file: File) {
+    if (!preparedProject) return;
+
+    setIsImportingJson(true);
+    setJsonImportMessage(null);
+    setGenerationError(null);
+
+    try {
+      const response = await importStudyProjectJson({
+        projectId: preparedProject.project.id,
+        file,
+      });
+      const nextPreparedProject = {
+        ...preparedProject,
+        project: response.project,
+      };
+      const apiProject = mapApiProject(response.project);
+      setPreparedProject(nextPreparedProject);
+      setProjects((currentProjects) => [
+        apiProject,
+        ...currentProjects.filter((project) => project.id !== apiProject.id),
+      ]);
+      setJsonImportMessage(response.message);
+    } catch (error) {
+      setGenerationError(
+        error instanceof Error
+          ? error.message
+          : "JSON-ul nu a putut fi importat momentan.",
+      );
+    } finally {
+      setIsImportingJson(false);
+    }
   }
 
   if (isLoading || !user) {
@@ -651,7 +846,8 @@ export function AccountDashboard({
           </p>
 
           <div className="mt-2 space-y-1 px-2">
-            {projects.map((project) => {
+            {projects.length ? (
+              projects.map((project) => {
               const isOpen = openProjectId === project.id;
               return (
                 <div key={project.id} className="overflow-hidden rounded-2xl">
@@ -707,7 +903,12 @@ export function AccountDashboard({
                   </div>
                 </div>
               );
-            })}
+              })
+            ) : (
+              <p className="rounded-2xl border border-dashed border-subtle px-3 py-4 text-xs leading-5 text-muted">
+                Nu ai proiecte încă.
+              </p>
+            )}
           </div>
 
         </div>
@@ -771,22 +972,31 @@ export function AccountDashboard({
               chatBackTab={chatBackTab}
               onBack={showHome}
               onTabChange={changeProjectTab}
+              onQuizMistake={saveQuizMistakeFlashcard}
             />
           ) : null}
 
           {view === "new" ? (
             <NewProjectView
               projectName={projectName}
+              subjectName={subjectName}
+              institutionName={institutionName}
               files={uploadedFiles}
               canGenerate={canGenerate}
               hasMaterialRights={hasMaterialRights}
               generationState={generationState}
               generationProgress={generationProgress}
               completedSteps={completedSteps}
+              preparedProject={preparedProject}
+              generationError={generationError}
+              isImportingJson={isImportingJson}
+              jsonImportMessage={jsonImportMessage}
               isDragging={isDragging}
               fileInputRef={fileInputRef}
               onBack={showHome}
               onProjectNameChange={setProjectName}
+              onSubjectNameChange={setSubjectName}
+              onInstitutionNameChange={setInstitutionName}
               onMaterialRightsChange={setHasMaterialRights}
               onAddFiles={addFiles}
               onRemoveFile={(index) =>
@@ -797,6 +1007,7 @@ export function AccountDashboard({
               onDrop={handleDrop}
               onDragStateChange={setIsDragging}
               onStartGeneration={startGeneration}
+              onImportJson={importGeneratedJson}
               onOpenGeneratedProject={createGeneratedProject}
             />
           ) : null}
@@ -825,47 +1036,64 @@ function HomeView({
   onOpenProject: (projectId: string, tab?: TabId) => void;
   onOpenNewProject: () => void;
 }) {
+  const projectCountLabel =
+    projects.length === 0
+      ? "Nu ai încă proiecte. Încarcă primul curs și începem."
+      : projects.length === 1
+        ? "Ai 1 proiect pregătit pentru studiu."
+        : `Ai ${projects.length} proiecte pregătite pentru studiu.`;
+
   return (
     <section>
       <h1 className="font-serif text-2xl font-semibold">
         Bună, <em className="text-success">{firstName}</em>
       </h1>
-      <p className="mt-1 text-sm text-muted">
-        Ai 2 proiecte cu sesiuni pregătite azi.
-      </p>
+      <p className="mt-1 text-sm text-muted">{projectCountLabel}</p>
 
       <SectionLabel>Proiectele tale</SectionLabel>
       <div className="mt-3 flex flex-col gap-3">
-        {projects.map((project) => (
-          <button
-            key={project.id}
-            type="button"
-            onClick={() => onOpenProject(project.id)}
-            className="flex w-full items-center gap-3 rounded-2xl border border-subtle bg-surface p-4 text-left transition hover:bg-surface-hover"
-          >
-            <span
-              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-[10px] font-bold text-success"
-              style={{
-                background: `conic-gradient(var(--theme-success-text) ${project.progress}%, var(--theme-border) 0)`,
-              }}
+        {projects.length ? (
+          projects.map((project) => (
+            <button
+              key={project.id}
+              type="button"
+              onClick={() => onOpenProject(project.id)}
+              className="flex w-full items-center gap-3 rounded-2xl border border-subtle bg-surface p-4 text-left transition hover:bg-surface-hover"
             >
-              <span className="flex h-7 w-7 items-center justify-center rounded-full bg-surface">
-                {project.progress}%
+              <span
+                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-[10px] font-bold text-success"
+                style={{
+                  background: `conic-gradient(var(--theme-success-text) ${project.progress}%, var(--theme-border) 0)`,
+                }}
+              >
+                <span className="flex h-7 w-7 items-center justify-center rounded-full bg-surface">
+                  {project.progress}%
+                </span>
               </span>
-            </span>
-            <span className="min-w-0 flex-1">
-              <span className="block truncate text-[15px] font-semibold">
-                {project.name}
+              <span className="min-w-0 flex-1">
+                <span className="block truncate text-[15px] font-semibold">
+                  {project.name}
+                </span>
+                <span className="block truncate text-xs text-muted">
+                  {project.meta}
+                </span>
               </span>
-              <span className="block truncate text-xs text-muted">
-                {project.meta}
-              </span>
-            </span>
-            <Icon className="h-4 w-4 shrink-0 text-muted">
-              <path d="M9 18l6-6-6-6" />
-            </Icon>
-          </button>
-        ))}
+              <Icon className="h-4 w-4 shrink-0 text-muted">
+                <path d="M9 18l6-6-6-6" />
+              </Icon>
+            </button>
+          ))
+        ) : (
+          <div className="rounded-2xl border border-dashed border-subtle bg-surface p-6 text-center">
+            <p className="font-serif text-xl font-semibold">
+              Niciun proiect încă.
+            </p>
+            <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-muted">
+              Creează primul proiect, încarcă materialele și Revizzio îți
+              pregătește rezumatul, flashcardurile și quizurile.
+            </p>
+          </div>
+        )}
       </div>
 
       <button
@@ -888,12 +1116,18 @@ function ProjectView({
   chatBackTab,
   onBack,
   onTabChange,
+  onQuizMistake,
 }: {
   project: StudyProject;
   activeTab: TabId;
   chatBackTab: TabId;
   onBack: () => void;
   onTabChange: (tab: TabId) => void;
+  onQuizMistake: (
+    projectId: string,
+    questionId: string | null,
+    fallbackFlashcard: StudyFlashcardCard,
+  ) => void;
 }) {
   const chatBackLabel =
     tabs.find((tab) => tab.id === chatBackTab)?.label ?? "Rezumat";
@@ -956,9 +1190,11 @@ function ProjectView({
       </div>
 
       <div className="mt-6">
-        {activeTab === "rezumat" ? <SummaryPanel /> : null}
+        {activeTab === "rezumat" ? <SummaryPanel project={project} /> : null}
         {activeTab === "flashcards" ? <FlashcardsPanel project={project} /> : null}
-        {activeTab === "quiz" ? <QuizPanel /> : null}
+        {activeTab === "quiz" ? (
+          <QuizPanel project={project} onQuizMistake={onQuizMistake} />
+        ) : null}
         {activeTab === "strategii" ? (
           <StrategiesPanel strategies={project.strategies} />
         ) : null}
@@ -1308,61 +1544,48 @@ const summaryHighlightColors: Array<{
   },
 ];
 
-const summaryParagraphs = [
-  "Celula este unitatea de bază a vieții și funcționează ca un sistem organizat, în care fiecare componentă are un rol precis. În interiorul ei se află organite specializate care împart sarcinile esențiale: coordonare, producție de energie, sinteză de proteine, transport și reciclare celulară.",
-  "Centrul de control este nucleul, unde se găsește materialul genetic. ADN-ul conține instrucțiuni pentru funcționarea celulei, iar aceste informații sunt folosite pentru a produce molecule necesare creșterii, reparării și adaptării celulare.",
-  "Producția de proteine începe prin citirea informației genetice și continuă în ribozomi. Aceștia pot fi liberi în citoplasmă sau atașați de reticulul endoplasmatic rugos. Proteinele rezultate pot rămâne în celulă sau pot fi trimise către alte zone unde sunt modificate, transportate ori secretate.",
-  "Energia necesară acestor procese este produsă în principal de mitocondrie. Aici are loc transformarea substanțelor nutritive în ATP, moneda energetică a celulei. Cu cât o celulă are activitate mai intensă, cu atât are nevoie de mai multă energie și, de obicei, de mai multe mitocondrii.",
-  "Limita dintre interiorul și exteriorul celulei este controlată de membrana celulară. Aceasta nu este doar o barieră, ci un filtru selectiv: permite intrarea substanțelor utile, eliminarea deșeurilor și comunicarea cu alte celule prin receptori specializați.",
-  "Un proces central pentru supraviețuire este respirația celulară, prin care glucoza și oxigenul sunt folosite pentru a genera energie. Acest proces explică legătura dintre nutriție, respirație și activitatea fiecărei celule din organism.",
-  "În paralel, sinteza proteică susține funcțiile structurale și enzimatice ale celulei. Fără proteine, celula nu ar putea construi componente noi, nu ar putea repara structuri afectate și nu ar putea regla reacțiile chimice interne.",
-  "Diferențele dintre celula animală și cea vegetală apar prin structuri specifice. Celula vegetală are perete celular, cloroplaste și o vacuolă mare, în timp ce celula animală este mai flexibilă și nu realizează fotosinteză. Totuși, ambele tipuri de celule au aceleași principii de organizare: separarea funcțiilor, reglarea schimburilor și coordonarea proceselor interne.",
-];
+function splitSummaryParagraphs(content: string) {
+  return content
+    .split(/\n{2,}/)
+    .map((paragraph) => normalizeSummarySelection(paragraph))
+    .filter(Boolean);
+}
 
-const summaryKeywords: SummaryKeyword[] = [
-  {
-    id: "rezumat-organite",
-    label: "Organite",
-    text: "organite",
-    paragraphIndex: 0,
-  },
-  {
-    id: "rezumat-nucleu",
-    label: "Nucleu",
-    text: "nucleul",
-    paragraphIndex: 1,
-  },
-  {
-    id: "rezumat-ribozomi",
-    label: "Ribozomi",
-    text: "ribozomi",
-    paragraphIndex: 2,
-  },
-  {
-    id: "rezumat-mitocondrie",
-    label: "Mitocondrie",
-    text: "mitocondrie",
-    paragraphIndex: 3,
-  },
-  {
-    id: "rezumat-membrana",
-    label: "Membrana celulară",
-    text: "membrana celulară",
-    paragraphIndex: 4,
-  },
-  {
-    id: "rezumat-respiratie",
-    label: "Respirație celulară",
-    text: "respirația celulară",
-    paragraphIndex: 5,
-  },
-  {
-    id: "rezumat-sinteza",
-    label: "Sinteză proteică",
-    text: "sinteza proteică",
-    paragraphIndex: 6,
-  },
-];
+function findParagraphIndexForKeyword(paragraphs: string[], anchorText: string) {
+  const normalizedAnchor = anchorText.toLocaleLowerCase("ro-RO");
+  const index = paragraphs.findIndex((paragraph) =>
+    paragraph.toLocaleLowerCase("ro-RO").includes(normalizedAnchor),
+  );
+
+  return index === -1 ? 0 : index;
+}
+
+function buildProjectSummaryKeywords(
+  keywords: StudyProject["keywords"],
+  paragraphs: string[],
+): SummaryKeyword[] {
+  return keywords.map((keyword) => {
+    const anchorText = keyword.anchor_text || keyword.term;
+
+    return {
+      id: `rezumat-${keyword.id}`,
+      label: keyword.term,
+      text: anchorText,
+      paragraphIndex: findParagraphIndexForKeyword(paragraphs, anchorText),
+    };
+  });
+}
+
+function getSummaryCentralIdea(project: StudyProject, paragraphs: string[]) {
+  if (!project.summary?.content) {
+    return `Conținutul pentru ${project.name} nu este generat încă.`;
+  }
+
+  return (
+    paragraphs[0]?.split(/(?<=[.!?])\s+/)[0] ??
+    `Materialul pentru ${project.subjectName} este pregătit pentru studiu.`
+  );
+}
 
 function normalizeSummarySelection(value: string) {
   return value.replace(/\s+/g, " ").trim();
@@ -1389,15 +1612,17 @@ function getSummaryHighlightStyle(
 
 function buildSummaryAiResponse(
   selection: PendingSummarySelection,
+  paragraphs: string[],
+  keywords: SummaryKeyword[],
 ): LearningAiResponse {
   const normalizedText = selection.text.toLocaleLowerCase("ro-RO");
-  const matchedKeyword = summaryKeywords.find(
+  const matchedKeyword = keywords.find(
     (keyword) =>
       normalizedText.includes(keyword.text.toLocaleLowerCase("ro-RO")) ||
       normalizedText.includes(keyword.label.toLocaleLowerCase("ro-RO")),
   );
   const concept = matchedKeyword?.label ?? "fragmentul selectat";
-  const sourceParagraph = summaryParagraphs[selection.paragraphIndex];
+  const sourceParagraph = paragraphs[selection.paragraphIndex] ?? selection.text;
 
   return {
     title: `Explicație rapidă pentru ${concept}`,
@@ -1429,10 +1654,12 @@ function findSummaryRanges(
   range: Omit<SummaryRange, "start" | "end">,
 ) {
   const ranges: SummaryRange[] = [];
+  const normalizedParagraph = paragraph.toLocaleLowerCase("ro-RO");
+  const normalizedSearchText = searchText.toLocaleLowerCase("ro-RO");
   let searchFrom = 0;
 
   while (searchFrom < paragraph.length) {
-    const start = paragraph.indexOf(searchText, searchFrom);
+    const start = normalizedParagraph.indexOf(normalizedSearchText, searchFrom);
 
     if (start === -1) {
       break;
@@ -1449,13 +1676,14 @@ function findSummaryRanges(
 function renderSummaryText(
   paragraph: string,
   paragraphIndex: number,
+  keywords: SummaryKeyword[],
   userHighlights: UserSummaryHighlight[],
   keywordClass: string,
   userHighlightClass: string,
   activeKeywordId: string | null,
   onUserHighlightClick: (highlight: UserSummaryHighlight) => void,
 ) {
-  const keywordRanges = summaryKeywords
+  const keywordRanges = keywords
     .filter((keyword) => keyword.paragraphIndex === paragraphIndex)
     .flatMap((keyword) =>
       findSummaryRanges(paragraph, keyword.text, {
@@ -1601,7 +1829,7 @@ function SummaryHighlightColorPicker({
   );
 }
 
-function SummaryPanel() {
+function SummaryPanel({ project }: { project: StudyProject }) {
   const summaryRef = useRef<HTMLDivElement | null>(null);
   const keywordFocusTimer = useRef<number | null>(null);
   const aiResponseTimer = useRef<number | null>(null);
@@ -1616,6 +1844,27 @@ function SummaryPanel() {
   const [userHighlights, setUserHighlights] = useState<UserSummaryHighlight[]>(
     [],
   );
+  const summaryContent = project.summary?.content ?? "";
+  const displayParagraphs = useMemo(() => {
+    if (!summaryContent) {
+      return [];
+    }
+
+    const paragraphs = splitSummaryParagraphs(summaryContent);
+    return paragraphs.length ? paragraphs : [summaryContent];
+  }, [summaryContent]);
+  const displayKeywords = useMemo(() => {
+    if (!project.keywords.length) {
+      return [];
+    }
+
+    return buildProjectSummaryKeywords(project.keywords, displayParagraphs);
+  }, [displayParagraphs, project.keywords]);
+  const summaryTitle = `Rezumat pentru ${project.name}`;
+  const centralIdea = getSummaryCentralIdea(project, displayParagraphs);
+  const estimatedMinutes =
+    project.summary?.estimated_reading_minutes ?? Math.max(1, Math.ceil(displayParagraphs.length * 0.75));
+  const keywordCount = displayKeywords.length;
 
   const keywordHighlightClass =
     "scroll-mt-28 rounded-md border border-warning-border bg-warning-soft px-1.5 py-0.5 font-semibold text-warning";
@@ -1632,6 +1881,23 @@ function SummaryPanel() {
       }
     };
   }, []);
+
+  if (!project.summary?.content) {
+    return (
+      <article className="rounded-[2rem] border border-subtle bg-surface p-6 text-center sm:p-8">
+        <p className="text-xs font-bold uppercase tracking-[0.18em] text-muted">
+          Rezumat
+        </p>
+        <h2 className="mx-auto mt-3 max-w-2xl font-serif text-3xl font-semibold leading-tight">
+          Rezumatul nu este generat încă.
+        </h2>
+        <p className="mx-auto mt-3 max-w-xl text-sm leading-7 text-muted">
+          Descarcă promptul proiectului, generează JSON-ul în ChatGPT și
+          importă fișierul ca să vezi conținutul real aici.
+        </p>
+      </article>
+    );
+  }
 
   function readCurrentSelection() {
     const root = summaryRef.current;
@@ -1761,7 +2027,11 @@ function SummaryPanel() {
       setAiDialog({
         ...aiSelection,
         status: "done",
-        response: buildSummaryAiResponse(aiSelection),
+        response: buildSummaryAiResponse(
+          aiSelection,
+          displayParagraphs,
+          displayKeywords,
+        ),
       });
       aiResponseTimer.current = null;
     }, 950);
@@ -1801,7 +2071,7 @@ function SummaryPanel() {
             Rezumat complet
           </p>
           <h2 className="mt-3 font-serif text-3xl font-semibold leading-tight">
-            Celula ca sistem viu: structură, energie și producție de proteine.
+            {summaryTitle}
           </h2>
 
           <div className="mt-5 rounded-2xl border border-dashed border-subtle bg-app px-4 py-3 text-sm leading-6 text-muted">
@@ -1869,15 +2139,16 @@ function SummaryPanel() {
             onMouseUp={readCurrentSelection}
             className="mt-6 space-y-5 text-sm leading-7 text-content/85 sm:text-base sm:leading-8"
           >
-            {summaryParagraphs.map((paragraph, paragraphIndex) => (
+            {displayParagraphs.map((paragraph, paragraphIndex) => (
               <p
-                key={paragraph}
+                key={`${paragraphIndex}-${paragraph.slice(0, 24)}`}
                 data-summary-paragraph={paragraphIndex}
                 className="select-text"
               >
                 {renderSummaryText(
                   paragraph,
                   paragraphIndex,
+                  displayKeywords,
                   userHighlights,
                   keywordHighlightClass,
                   userHighlightClass,
@@ -1893,7 +2164,7 @@ function SummaryPanel() {
               Cuvinte cheie din rezumat
             </p>
             <div className="mt-3 flex flex-wrap gap-2">
-              {summaryKeywords.map((keyword) => (
+              {displayKeywords.map((keyword) => (
                 <a
                   key={keyword.id}
                   href={`#${keyword.id}`}
@@ -1912,16 +2183,19 @@ function SummaryPanel() {
             Ideea centrală
           </p>
           <p className="mt-3 font-serif text-2xl font-semibold leading-tight">
-            Celula funcționează ca un oraș mic: are centru de comandă, fabrici,
-            filtre și surse de energie.
+            {centralIdea}
           </p>
           <div className="mt-5 grid grid-cols-2 gap-3 text-sm">
             <div className="rounded-2xl border border-subtle bg-surface p-4">
-              <p className="font-serif text-2xl font-semibold">6 min</p>
+              <p className="font-serif text-2xl font-semibold">
+                {estimatedMinutes} min
+              </p>
               <p className="mt-1 text-xs text-muted">timp estimat</p>
             </div>
             <div className="rounded-2xl border border-subtle bg-surface p-4">
-              <p className="font-serif text-2xl font-semibold">7</p>
+              <p className="font-serif text-2xl font-semibold">
+                {keywordCount}
+              </p>
               <p className="mt-1 text-xs text-muted">concepte cheie</p>
             </div>
           </div>
@@ -2029,11 +2303,13 @@ type FlashcardStudyCard = {
 
 type FlashcardDeckId = "initial" | "quiz";
 
-type AccountFlashcard = {
-  topic: string;
-  question: string;
-  answer: string;
-  tone: "success" | "warning" | "info" | "danger";
+type AccountFlashcard = StudyFlashcardCard;
+
+type AccountFlashcardDeck = {
+  eyebrow: string;
+  title: string;
+  description: string;
+  cards: AccountFlashcard[];
 };
 
 type FlashcardShuffleState = {
@@ -2081,93 +2357,63 @@ const accountFlashcardLayouts = [
   },
 ];
 
-const accountFlashcardDecks: Record<
-  FlashcardDeckId,
-  {
-    eyebrow: string;
-    title: string;
-    description: string;
-    cards: AccountFlashcard[];
-  }
-> = {
-  initial: {
-    eyebrow: "Generate initial",
-    title: "Flashcard-uri generate din rezumat",
-    description:
-      "Primul pachet extras din materialele încărcate, bun pentru recapitularea conceptelor de bază.",
-    cards: [
-      {
-        topic: "Biologie celulară",
-        question: "Care este rolul principal al ribozomilor?",
-        answer:
-          "Ribozomii sintetizează proteine prin traducerea informației din ARNm.",
-        tone: "success",
-      },
-      {
-        topic: "Energie celulară",
-        question: "Ce produce mitocondria pentru celulă?",
-        answer:
-          "Mitocondria produce ATP, moneda energetică folosită în procesele celulare.",
-        tone: "warning",
-      },
-      {
-        topic: "Nucleu",
-        question: "De ce este nucleul considerat centrul de control?",
-        answer:
-          "Nucleul conține ADN-ul și coordonează instrucțiunile pentru funcționarea celulei.",
-        tone: "info",
-      },
-      {
-        topic: "Membrană",
-        question: "Ce face membrana celulară?",
-        answer:
-          "Membrana controlează schimburile cu exteriorul și ajută celula să comunice.",
-        tone: "danger",
-      },
-    ],
-  },
-  quiz: {
-    eyebrow: "Din quiz-urile tale",
-    title: "Flashcard-uri din răspunsurile dificile",
-    description:
-      "Pachet adaptiv construit din întrebările unde ai ezitat sau unde răspunsul are nevoie de repetare.",
-    cards: [
-      {
-        topic: "Quiz · ATP",
-        question: "Ce organit trebuie asociat cu producția de ATP?",
-        answer:
-          "Mitocondria, pentru că transformă nutrienții în energie utilizabilă.",
-        tone: "warning",
-      },
-      {
-        topic: "Quiz · Proteine",
-        question: "Ce structură este direct implicată în sinteza proteică?",
-        answer:
-          "Ribozomul, liber în citoplasmă sau atașat de reticulul endoplasmatic rugos.",
-        tone: "success",
-      },
-      {
-        topic: "Quiz · Transport",
-        question: "De ce membrana celulară este selectivă?",
-        answer:
-          "Permite intrarea substanțelor utile și eliminarea deșeurilor, fără să lase totul să treacă liber.",
-        tone: "info",
-      },
-      {
-        topic: "Quiz · Organizare",
-        question: "Care este ideea centrală despre organite?",
-        answer:
-          "Organitele împart sarcinile celulei: coordonare, energie, sinteză, transport și reciclare.",
-        tone: "danger",
-      },
-    ],
-  },
-};
+function buildProjectFlashcardDecks(
+  project: StudyProject,
+): Record<FlashcardDeckId, AccountFlashcardDeck> {
+  const generatedFlashcards = project.flashcards.filter(
+    (flashcard) => flashcard.source_type !== "quiz_mistake",
+  );
+
+  const tones: AccountFlashcard["tone"][] = [
+    "success",
+    "warning",
+    "info",
+    "danger",
+  ];
+  const cards = generatedFlashcards.map((card, index) => ({
+    topic: card.category || project.subjectName,
+    question: card.front,
+    answer: card.back,
+    tone: tones[index % tones.length],
+  }));
+  const quizMistakeCards = project.quizMistakeFlashcards;
+
+  return {
+    initial: {
+      eyebrow: "Generate initial",
+      title: generatedFlashcards.length
+        ? `Flashcard-uri pentru ${project.name}`
+        : "Flashcardurile nu sunt generate încă",
+      description:
+        generatedFlashcards.length
+          ? "Pachetul importat din JSON-ul generat, pregătit pentru recapitulare activă."
+          : "Importă JSON-ul generat ca să vezi aici flashcardurile reale ale proiectului.",
+      cards,
+    },
+    quiz: {
+      eyebrow: "Din quiz-urile tale",
+      title: quizMistakeCards.length
+        ? "Întrebările greșite transformate în flashcarduri"
+        : "Aici apar întrebările greșite",
+      description:
+        quizMistakeCards.length
+          ? "Fiecare greșeală din quiz devine automat un card de recapitulare."
+          : "Fă un quiz. Când greșești, Revizzio pune întrebarea și răspunsul corect aici.",
+      cards: quizMistakeCards,
+    },
+  };
+}
 
 function toAccountFlashcardTransform(
   layout: (typeof accountFlashcardLayouts)[number],
 ) {
   return `translate3d(${layout.x}, ${layout.y}, 0) rotate(${layout.rotate}deg)`;
+}
+
+function getAccountFlashcardLayout(distance: number) {
+  return accountFlashcardLayouts[
+    Math.min(distance, accountFlashcardLayouts.length - 1)
+  ];
 }
 
 function getFlashcardTextSide(node: Node | null): FlashcardTextSide | null {
@@ -2325,13 +2571,12 @@ function AccountFlashcardContent({
 }
 
 function FlashcardDeckPage({
-  deckId,
+  deck,
   onBack,
 }: {
-  deckId: FlashcardDeckId;
+  deck: AccountFlashcardDeck;
   onBack: () => void;
 }) {
-  const deck = accountFlashcardDecks[deckId];
   const flashcardTextRef = useRef<HTMLDivElement | null>(null);
   const shuffleIdRef = useRef(0);
   const shuffleTimerRef = useRef<number | null>(null);
@@ -2343,6 +2588,7 @@ function FlashcardDeckPage({
     useState<PendingFlashcardSelection | null>(null);
   const [flashcardAiDialog, setFlashcardAiDialog] =
     useState<FlashcardAiDialog | null>(null);
+  const hasCards = deck.cards.length > 0;
 
   useEffect(() => {
     return () => {
@@ -2356,6 +2602,10 @@ function FlashcardDeckPage({
   }, []);
 
   function moveCard(direction: 1 | -1) {
+    if (!hasCards) {
+      return;
+    }
+
     if (shuffleTimerRef.current) {
       window.clearTimeout(shuffleTimerRef.current);
     }
@@ -2389,6 +2639,10 @@ function FlashcardDeckPage({
   }
 
   function readFlashcardSelection() {
+    if (!hasCards) {
+      return;
+    }
+
     const root = flashcardTextRef.current;
     const selection = window.getSelection();
 
@@ -2520,17 +2774,22 @@ function FlashcardDeckPage({
           ) : null}
         </div>
         <div className="lg:-mt-2">
-          <div
-            ref={flashcardTextRef}
-            onKeyUp={readFlashcardSelection}
-            onMouseUp={readFlashcardSelection}
-            className="flashcard-story-deck relative mx-auto w-full max-w-xl"
-          >
-            {deck.cards.map((card, index) => {
+          {hasCards ? (
+            <div
+              ref={flashcardTextRef}
+              onKeyUp={readFlashcardSelection}
+              onMouseUp={readFlashcardSelection}
+              className="flashcard-story-deck relative mx-auto w-full max-w-xl"
+            >
+              {deck.cards.map((card, index) => {
               const distance =
                 (index - activeIndex + deck.cards.length) % deck.cards.length;
               const isActive = distance === 0;
               const isShuffling = shuffle?.cardIndex === index;
+
+              if (distance >= accountFlashcardLayouts.length && !isShuffling) {
+                return null;
+              }
 
               return (
                 <div
@@ -2540,7 +2799,7 @@ function FlashcardDeckPage({
                   style={{
                     zIndex: deck.cards.length - distance,
                     transform: toAccountFlashcardTransform(
-                      accountFlashcardLayouts[distance],
+                      getAccountFlashcardLayout(distance),
                     ),
                     visibility: isShuffling ? "hidden" : "visible",
                     pointerEvents: isActive ? "auto" : "none",
@@ -2553,9 +2812,9 @@ function FlashcardDeckPage({
                   />
                 </div>
               );
-            })}
+              })}
 
-            {shuffle ? (
+              {shuffle ? (
               <div
                 key={shuffle.id}
                 aria-hidden="true"
@@ -2568,23 +2827,37 @@ function FlashcardDeckPage({
                   {
                     "--shuffle-start": toAccountFlashcardTransform(
                       shuffle.direction === 1
-                        ? accountFlashcardLayouts[0]
-                        : accountFlashcardLayouts[deck.cards.length - 1],
+                        ? getAccountFlashcardLayout(0)
+                        : getAccountFlashcardLayout(deck.cards.length - 1),
                     ),
                     "--shuffle-end": toAccountFlashcardTransform(
                       shuffle.direction === 1
-                        ? accountFlashcardLayouts[deck.cards.length - 1]
-                        : accountFlashcardLayouts[0],
+                        ? getAccountFlashcardLayout(deck.cards.length - 1)
+                        : getAccountFlashcardLayout(0),
                     ),
                   } as CSSProperties
                 }
               >
                 <AccountFlashcardContent card={deck.cards[shuffle.cardIndex]} />
               </div>
-            ) : null}
-          </div>
+              ) : null}
+            </div>
+          ) : (
+            <div className="grid min-h-[22rem] place-items-center rounded-[2rem] border border-dashed border-subtle bg-app p-6 text-center">
+              <div>
+                <p className="font-serif text-3xl font-semibold">
+                  Încă nu ai flashcarduri din quizuri.
+                </p>
+                <p className="mx-auto mt-3 max-w-md text-sm leading-7 text-muted">
+                  Intră într-un quiz și răspunde. Când greșești, întrebarea și
+                  răspunsul corect vor fi salvate automat aici.
+                </p>
+              </div>
+            </div>
+          )}
 
-          <div className="mt-4 flex items-center justify-center gap-3 sm:mt-5">
+          {hasCards ? (
+            <div className="mt-4 flex items-center justify-center gap-3 sm:mt-5">
             <button
               type="button"
               onClick={() => moveCard(-1)}
@@ -2608,7 +2881,8 @@ function FlashcardDeckPage({
             <span className="text-xs font-bold text-muted">
               {activeIndex + 1}/{deck.cards.length}
             </span>
-          </div>
+            </div>
+          ) : null}
         </div>
       </div>
 
@@ -2709,6 +2983,8 @@ function FlashcardDeckPage({
 
 function FlashcardsPanel({ project }: { project: StudyProject }) {
   const [activeDeckId, setActiveDeckId] = useState<FlashcardDeckId | null>(null);
+  const decks = useMemo(() => buildProjectFlashcardDecks(project), [project]);
+  const quizMistakeCount = project.quizMistakeFlashcards.length;
   const flashcardCards: FlashcardStudyCard[] = [
     {
       id: "initial",
@@ -2722,18 +2998,22 @@ function FlashcardsPanel({ project }: { project: StudyProject }) {
     {
       id: "quiz",
       badge: "Recapitulare adaptivă",
-      title: "Din quiz-urile tale",
+      title: quizMistakeCount
+        ? `${quizMistakeCount} flashcard-uri din greșeli`
+        : "Din quiz-urile tale",
       description:
-        "Flashcard-uri construite din întrebările dificile și din răspunsurile care au nevoie de repetare.",
-      duration: "6 min",
-      metric: "bazate pe quiz-uri",
+        quizMistakeCount
+          ? "Întrebările greșite sunt salvate automat aici cu răspunsul corect."
+          : "Aici vor apărea automat întrebările greșite la quizuri.",
+      duration: quizMistakeCount ? `${Math.max(3, quizMistakeCount * 2)} min` : "0 min",
+      metric: "din greșeli reale",
     },
   ];
 
   if (activeDeckId) {
     return (
       <FlashcardDeckPage
-        deckId={activeDeckId}
+        deck={decks[activeDeckId]}
         onBack={() => setActiveDeckId(null)}
       />
     );
@@ -2761,6 +3041,7 @@ type QuizModeLabel = "Single choice" | "Multiple choice" | "Mixt";
 
 type AccountQuizQuestion = {
   id: string;
+  sourceQuestionId?: string;
   concept: string;
   difficulty: "Ușor" | "Mediu" | "Greu";
   mode: QuizQuestionMode;
@@ -2784,471 +3065,133 @@ type AccountQuiz = {
   questionIds: string[];
 };
 
-const accountQuizQuestionBank: Record<string, AccountQuizQuestion> = {
-  "celula-unitate": {
-    id: "celula-unitate",
-    concept: "Celula",
-    difficulty: "Ușor",
-    mode: "single",
-    question: "Ce reprezintă celula într-un organism viu?",
-    answers: [
-      "Unitatea de bază a vieții",
-      "Un țesut specializat",
-      "O moleculă energetică",
-      "Un tip de proteină",
-    ],
-    correctIndexes: [0],
-    explanation:
-      "Celula este unitatea structurală și funcțională de bază a vieții.",
-    aiInsight:
-      "Aceasta este ancora capitolului. Dacă o reții, poți lega mai ușor organitele de funcțiile lor.",
-    source: "Rezumat · introducere",
-  },
-  "organite-roluri": {
-    id: "organite-roluri",
-    concept: "Organite",
-    difficulty: "Ușor",
-    mode: "single",
-    question: "Ce sunt organitele celulare?",
-    answers: [
-      "Structuri specializate care îndeplinesc funcții precise",
-      "Fragmente de ADN libere în exteriorul celulei",
-      "Substanțe nutritive fără rol structural",
-      "Tipuri de celule independente",
-    ],
-    correctIndexes: [0],
-    explanation:
-      "Organitele împart sarcinile celulei: coordonare, energie, sinteză, transport și reciclare.",
-    aiInsight:
-      "Gândește organitele ca departamente într-un sistem viu, nu ca elemente izolate.",
-    source: "Rezumat · organite",
-  },
-  "nucleu-control": {
-    id: "nucleu-control",
-    concept: "Nucleu",
-    difficulty: "Ușor",
-    mode: "single",
-    question: "De ce nucleul este considerat centrul de control al celulei?",
-    answers: [
-      "Conține materialul genetic",
-      "Produce direct ATP",
-      "Filtrează substanțele care intră",
-      "Descompune deșeurile celulare",
-    ],
-    correctIndexes: [0],
-    explanation:
-      "Nucleul conține ADN-ul, care păstrează instrucțiunile necesare funcționării celulei.",
-    aiInsight:
-      "Pentru întrebările despre control și instrucțiuni genetice, nucleul este aproape mereu conceptul-cheie.",
-    source: "Rezumat · nucleu",
-  },
-  "ribozomi-proteine": {
-    id: "ribozomi-proteine",
-    concept: "Sinteză proteică",
-    difficulty: "Mediu",
-    mode: "single",
-    question: "De ce ribozomii sunt esențiali pentru funcționarea celulei?",
-    answers: [
-      "Controlează intrarea apei",
-      "Stochează materialul genetic",
-      "Construiesc proteine pe baza informației genetice",
-      "Transformă glucoza în oxigen",
-    ],
-    correctIndexes: [2],
-    explanation:
-      "Ribozomii citesc informația transmisă prin ARNm și construiesc proteinele necesare celulei.",
-    aiInsight:
-      "Leagă procesul de sinteză proteică de ARNm și ribozomi, nu doar de numele organitului.",
-    source: "Flashcard-uri · sinteză proteică",
-  },
-  "mitocondrie-atp": {
-    id: "mitocondrie-atp",
-    concept: "Mitocondrie",
-    difficulty: "Ușor",
-    mode: "single",
-    question: "Care organit produce cea mai mare parte din ATP în celulă?",
-    answers: ["Ribozomul", "Mitocondria", "Aparatul Golgi", "Nucleul"],
-    correctIndexes: [1],
-    explanation:
-      "Mitocondria transformă energia nutrienților în ATP, forma de energie folosită direct de celulă.",
-    aiInsight:
-      "Întrebarea testează asocierea dintre organit și funcție. Dacă ai ezitat, repetă relația energie -> mitocondrie -> ATP.",
-    source: "Rezumat · paragraful despre energie celulară",
-  },
-  "membrana-selectiva": {
-    id: "membrana-selectiva",
-    concept: "Transport celular",
-    difficulty: "Mediu",
-    mode: "single",
-    question:
-      "Ce înseamnă că membrana celulară funcționează ca un filtru selectiv?",
-    answers: [
-      "Lasă toate moleculele să intre liber",
-      "Permite doar schimburile utile și controlate",
-      "Produce proteine pentru citoplasmă",
-      "Înlocuiește rolul nucleului",
-    ],
-    correctIndexes: [1],
-    explanation:
-      "Membrana permite intrarea substanțelor utile, eliminarea deșeurilor și comunicarea cu alte celule.",
-    aiInsight:
-      "Conceptul-cheie este selecția. Nu te gândi la membrană ca la un zid, ci ca la o poartă controlată.",
-    source: "Rezumat · membrana celulară",
-  },
-  "respiratie-proces": {
-    id: "respiratie-proces",
-    concept: "Respirație celulară",
-    difficulty: "Mediu",
-    mode: "single",
-    question:
-      "Ce explică procesul de respirație celulară în contextul energiei?",
-    answers: [
-      "Transformarea glucozei și oxigenului în energie utilizabilă",
-      "Formarea peretelui celular la celulele animale",
-      "Copierea directă a membranei celulare",
-      "Blocarea schimburilor cu exteriorul",
-    ],
-    correctIndexes: [0],
-    explanation:
-      "Respirația celulară folosește glucoza și oxigenul pentru a genera energie sub formă de ATP.",
-    aiInsight:
-      "Dacă apare legătura nutriție + oxigen + energie, gândește imediat la respirație celulară.",
-    source: "Rezumat · respirație celulară",
-  },
-  "vegetala-animala": {
-    id: "vegetala-animala",
-    concept: "Celulă animală vs vegetală",
-    difficulty: "Ușor",
-    mode: "single",
-    question: "Ce structură este specifică celulei vegetale?",
-    answers: [
-      "Perete celular",
-      "Ribozom",
-      "Membrană celulară",
-      "Nucleu",
-    ],
-    correctIndexes: [0],
-    explanation:
-      "Celula vegetală are perete celular, cloroplaste și o vacuolă mare.",
-    aiInsight:
-      "Când compari celula animală cu cea vegetală, caută structurile care apar doar la vegetală.",
-    source: "Rezumat · comparație celule",
-  },
-  "adn-arn": {
-    id: "adn-arn",
-    concept: "ADN vs ARN",
-    difficulty: "Greu",
-    mode: "single",
-    question:
-      "Care este rolul informației genetice în producția de proteine?",
-    answers: [
-      "ADN-ul conține instrucțiuni care sunt folosite pentru sinteza proteinelor",
-      "ADN-ul produce direct ATP în mitocondrie",
-      "ARN-ul blochează citirea informației genetice",
-      "Proteinele sunt produse fără instrucțiuni genetice",
-    ],
-    correctIndexes: [0],
-    explanation:
-      "ADN-ul conține instrucțiunile, iar informația este folosită în procesul care duce la sinteza proteinelor.",
-    aiInsight:
-      "Aici se testează lanțul logic: ADN -> informație -> ribozomi -> proteine. Merită transformat în flashcard.",
-    source: "Quiz adaptiv · greșeli frecvente",
-  },
-  "proteine-traseu": {
-    id: "proteine-traseu",
-    concept: "Sinteză și transport",
-    difficulty: "Greu",
-    mode: "multiple",
-    question:
-      "Selectează structurile implicate în producția și procesarea proteinelor.",
-    answers: [
-      "Ribozomi",
-      "Cloroplaste",
-      "Reticul endoplasmatic rugos",
-      "Aparatul Golgi",
-    ],
-    correctIndexes: [0, 2, 3],
-    explanation:
-      "Ribozomii sintetizează proteinele, reticulul rugos le ajută în procesare, iar aparatul Golgi le modifică și sortează.",
-    aiInsight:
-      "Întrebarea verifică traseul proteinelor. Nu e suficient să alegi ribozomii; contează și procesarea ulterioară.",
-    source: "Quiz-uri · procesare proteine",
-  },
-  "membrana-roluri": {
-    id: "membrana-roluri",
-    concept: "Membrană celulară",
-    difficulty: "Mediu",
-    mode: "multiple",
-    question: "Ce roluri are membrana celulară?",
-    answers: [
-      "Controlează schimburile cu exteriorul",
-      "Ajută comunicarea prin receptori",
-      "Depozitează ADN-ul",
-      "Permite eliminarea deșeurilor",
-    ],
-    correctIndexes: [0, 1, 3],
-    explanation:
-      "Membrana este un filtru selectiv și o suprafață de comunicare cu mediul extern.",
-    aiInsight:
-      "Ai grijă la opțiunile care mută rolul nucleului către membrană. ADN-ul nu este depozitat în membrană.",
-    source: "Rezumat · membrana celulară",
-  },
-  "vegetala-structuri": {
-    id: "vegetala-structuri",
-    concept: "Celulă vegetală",
-    difficulty: "Mediu",
-    mode: "multiple",
-    question: "Ce structuri sunt caracteristice celulei vegetale?",
-    answers: [
-      "Perete celular",
-      "Cloroplaste",
-      "Vacuolă mare",
-      "Centriol ca element definitoriu",
-    ],
-    correctIndexes: [0, 1, 2],
-    explanation:
-      "Celula vegetală are perete celular, cloroplaste și o vacuolă mare.",
-    aiInsight:
-      "Aceasta este o întrebare de comparație. Marchează ce diferențiază vegetalul, nu ce există în orice celulă.",
-    source: "Rezumat · celule animale și vegetale",
-  },
-  "respiratie-input-output": {
-    id: "respiratie-input-output",
-    concept: "Respirație celulară",
-    difficulty: "Greu",
-    mode: "multiple",
-    question:
-      "Ce elemente sunt corect asociate cu respirația celulară?",
-    answers: [
-      "Glucoză",
-      "Oxigen",
-      "ATP",
-      "Fotosinteză obligatorie în celula animală",
-    ],
-    correctIndexes: [0, 1, 2],
-    explanation:
-      "Respirația celulară folosește glucoza și oxigenul pentru a genera ATP.",
-    aiInsight:
-      "Capcana este fotosinteza. Celula animală nu realizează fotosinteză, dar are respirație celulară.",
-    source: "Quiz adaptiv · respirație celulară",
-  },
-  "energie-mitocondrii": {
-    id: "energie-mitocondrii",
-    concept: "Energie celulară",
-    difficulty: "Greu",
-    mode: "multiple",
-    question:
-      "Ce afirmații sunt corecte despre celulele cu activitate intensă?",
-    answers: [
-      "Au nevoie de mai mult ATP",
-      "Pot avea mai multe mitocondrii",
-      "Nu folosesc deloc nutrienți",
-      "Consumă mai multă energie",
-    ],
-    correctIndexes: [0, 1, 3],
-    explanation:
-      "O activitate celulară mai intensă cere mai multă energie și, de obicei, mai multe mitocondrii.",
-    aiInsight:
-      "Leagă cererea de energie de numărul de mitocondrii. Asta explică multe exemple din biologie.",
-    source: "Rezumat · mitocondrie",
-  },
-  "adn-arn-afirmatii": {
-    id: "adn-arn-afirmatii",
-    concept: "ADN vs ARN",
-    difficulty: "Greu",
-    mode: "multiple",
-    question: "Selectează afirmațiile corecte despre informația genetică.",
-    answers: [
-      "ADN-ul conține instrucțiuni pentru funcționarea celulei",
-      "Informația genetică poate fi folosită pentru producția de proteine",
-      "Ribozomii sunt implicați în sinteza proteinelor",
-      "ADN-ul este produs de membrana celulară",
-    ],
-    correctIndexes: [0, 1, 2],
-    explanation:
-      "ADN-ul conține instrucțiuni, iar informația este folosită în sinteza proteinelor cu ajutorul ribozomilor.",
-    aiInsight:
-      "Aceasta verifică lanțul logic complet: informație genetică -> ribozomi -> proteine.",
-    source: "Quiz adaptiv · ADN vs ARN",
-  },
-  "reciclare-celulara": {
-    id: "reciclare-celulara",
-    concept: "Reciclare celulară",
-    difficulty: "Mediu",
-    mode: "single",
-    question: "De ce este importantă reciclarea celulară?",
-    answers: [
-      "Ajută la eliminarea și refolosirea componentelor afectate",
-      "Înlocuiește complet producția de energie",
-      "Transformă ADN-ul în perete celular",
-      "Blochează comunicarea dintre celule",
-    ],
-    correctIndexes: [0],
-    explanation:
-      "Reciclarea celulară permite eliminarea deșeurilor și refolosirea unor componente.",
-    aiInsight:
-      "Dacă vezi termeni precum deșeuri, degradare sau refolosire, gândește-te la reciclare celulară.",
-    source: "Rezumat · organizare celulară",
-  },
-  "receptori-comunicare": {
-    id: "receptori-comunicare",
-    concept: "Comunicare celulară",
-    difficulty: "Mediu",
-    mode: "single",
-    question: "Cum comunică membrana celulară cu alte celule?",
-    answers: [
-      "Prin receptori specializați",
-      "Prin distrugerea nucleului",
-      "Prin eliminarea tuturor proteinelor",
-      "Prin blocarea oxigenului",
-    ],
-    correctIndexes: [0],
-    explanation:
-      "Membrana are receptori specializați care ajută celula să primească și să transmită semnale.",
-    aiInsight:
-      "Membrana nu este doar o barieră; este și o interfață de comunicare.",
-    source: "Rezumat · membrană și receptori",
-  },
-};
+function getQuizQuestions(
+  quiz: AccountQuiz,
+  questionBank: Record<string, AccountQuizQuestion>,
+) {
+  return quiz.questionIds
+    .map((questionId) => questionBank[questionId])
+    .filter(Boolean);
+}
 
-const accountQuizCatalog: AccountQuiz[] = [
-  {
-    id: "start-rapid",
-    title: "Start rapid: celula",
-    description:
-      "Quiz scurt pentru încălzire, cu întrebări simple despre conceptele de bază.",
-    complexity: "Mică",
-    mode: "Single choice",
-    duration: "5 min",
-    focus: "Bazele capitolului",
-    recommended: true,
-    questionIds: [
-      "celula-unitate",
-      "organite-roluri",
-      "nucleu-control",
-      "mitocondrie-atp",
-      "vegetala-animala",
-      "reciclare-celulara",
-    ],
-  },
-  {
-    id: "organite-functii",
-    title: "Organite și funcții",
-    description:
-      "Asociază fiecare organit cu rolul lui și verifică rapid dacă ai înțeles sistemul.",
-    complexity: "Mică",
-    mode: "Single choice",
-    duration: "7 min",
-    focus: "Organite",
-    questionIds: [
-      "organite-roluri",
-      "nucleu-control",
-      "ribozomi-proteine",
-      "mitocondrie-atp",
-      "reciclare-celulara",
-      "receptori-comunicare",
-      "vegetala-animala",
-    ],
-  },
-  {
-    id: "transport-celular",
-    title: "Transport celular",
-    description:
-      "Întrebări despre membrană, selectivitate, receptori și schimburi cu exteriorul.",
-    complexity: "Medie",
-    mode: "Mixt",
-    duration: "8 min",
-    focus: "Membrană celulară",
-    questionIds: [
-      "membrana-selectiva",
-      "receptori-comunicare",
-      "membrana-roluri",
-      "respiratie-proces",
-      "organite-roluri",
-      "reciclare-celulara",
-      "vegetala-animala",
-    ],
-  },
-  {
-    id: "adn-proteine",
-    title: "ADN, ARN și proteine",
-    description:
-      "Quiz mixt despre traseul informației genetice și sinteza proteică.",
-    complexity: "Ridicată",
-    mode: "Mixt",
-    duration: "10 min",
-    focus: "Sinteză proteică",
-    questionIds: [
-      "adn-arn",
-      "ribozomi-proteine",
-      "proteine-traseu",
-      "adn-arn-afirmatii",
-      "nucleu-control",
-      "receptori-comunicare",
-    ],
-  },
-  {
-    id: "respiratie-energie",
-    title: "Respirație și energie",
-    description:
-      "Întrebări mai grele despre ATP, mitocondrii și consumul energetic al celulei.",
-    complexity: "Ridicată",
-    mode: "Mixt",
-    duration: "9 min",
-    focus: "Energie celulară",
-    questionIds: [
-      "respiratie-proces",
-      "mitocondrie-atp",
-      "respiratie-input-output",
-      "energie-mitocondrii",
-      "membrana-selectiva",
-      "organite-roluri",
-    ],
-  },
-  {
-    id: "capcane-multiple-choice",
-    title: "Capcane multiple choice",
-    description:
-      "Selectează toate răspunsurile corecte și exersează întrebările unde apar cele mai multe confuzii.",
-    complexity: "Ridicată",
-    mode: "Multiple choice",
-    duration: "11 min",
-    focus: "Atenție la detalii",
-    questionIds: [
-      "proteine-traseu",
-      "membrana-roluri",
-      "vegetala-structuri",
-      "respiratie-input-output",
-      "energie-mitocondrii",
-      "adn-arn-afirmatii",
-    ],
-  },
-  {
-    id: "simulare-examen",
-    title: "Simulare examen",
-    description:
-      "Quiz mixt, cu single choice și multiple choice, construit ca o mini-simulare de examen.",
-    complexity: "Ridicată",
-    mode: "Mixt",
-    duration: "14 min",
-    focus: "Toate conceptele",
-    questionIds: [
-      "celula-unitate",
-      "organite-roluri",
-      "nucleu-control",
-      "ribozomi-proteine",
-      "proteine-traseu",
-      "membrana-selectiva",
-      "membrana-roluri",
-      "respiratie-input-output",
-      "adn-arn-afirmatii",
-      "vegetala-structuri",
-    ],
-  },
-];
+function normalizeGeneratedQuestionMode(value: string | null | undefined) {
+  return value?.toLowerCase().includes("multiple") ? "multiple" : "single";
+}
 
-function getQuizQuestions(quiz: AccountQuiz) {
-  return quiz.questionIds.map((questionId) => accountQuizQuestionBank[questionId]);
+function normalizeGeneratedQuizComplexity(
+  value: string | null | undefined,
+): QuizComplexity {
+  const normalizedValue = value?.toLocaleLowerCase("ro-RO") ?? "";
+
+  if (
+    normalizedValue.includes("rid") ||
+    normalizedValue.includes("high") ||
+    normalizedValue.includes("greu")
+  ) {
+    return "Ridicată";
+  }
+
+  if (
+    normalizedValue.includes("med") ||
+    normalizedValue.includes("medium")
+  ) {
+    return "Medie";
+  }
+
+  return "Mică";
+}
+
+function getGeneratedQuizModeLabel(
+  modes: QuizQuestionMode[],
+): QuizModeLabel {
+  const hasSingle = modes.includes("single");
+  const hasMultiple = modes.includes("multiple");
+
+  if (hasSingle && hasMultiple) return "Mixt";
+  if (hasMultiple) return "Multiple choice";
+  return "Single choice";
+}
+
+function buildProjectQuizData(project: StudyProject) {
+  if (!project.quizzes.length) {
+    return {
+      catalog: [],
+      questionBank: {},
+    };
+  }
+
+  const questionBank: Record<string, AccountQuizQuestion> = {};
+  const catalog: AccountQuiz[] = project.quizzes
+    .map<AccountQuiz | null>((quiz, quizIndex) => {
+      const complexity = normalizeGeneratedQuizComplexity(quiz.complexity);
+      const questionIds: string[] = [];
+      const questionModes: QuizQuestionMode[] = [];
+
+      quiz.questions.forEach((question) => {
+        const options = question.options.filter((option) => option.label.trim());
+
+        if (options.length < 2) {
+          return;
+        }
+
+        const id = `${quiz.id}-${question.id}`;
+        const mode = normalizeGeneratedQuestionMode(question.question_type);
+        const correctIndexes = options
+          .map((option, optionIndex) => (option.is_correct ? optionIndex : -1))
+          .filter((optionIndex) => optionIndex >= 0);
+
+        questionIds.push(id);
+        questionModes.push(mode);
+        questionBank[id] = {
+          id,
+          sourceQuestionId: question.id,
+          concept: quiz.title,
+          difficulty:
+            complexity === "Ridicată"
+              ? "Greu"
+              : complexity === "Medie"
+                ? "Mediu"
+                : "Ușor",
+          mode,
+          question: question.prompt,
+          answers: options.map((option) => option.label),
+          correctIndexes: correctIndexes.length ? correctIndexes : [0],
+          explanation:
+            question.explanation ??
+            "Explicația nu a fost inclusă în JSON, dar răspunsul corect este marcat.",
+          aiInsight: `Întrebarea verifică un concept din ${project.subjectName}. Revizuiește fragmentul din rezumat dacă ai ezitat.`,
+          source: `Quiz generat · ${project.name}`,
+        };
+      });
+
+      if (!questionIds.length) {
+        return null;
+      }
+
+      return {
+        id: quiz.id,
+        title: quiz.title,
+        description:
+          quiz.description ??
+          "Quiz generat din materialele importate pentru acest proiect.",
+        complexity,
+        mode: getGeneratedQuizModeLabel(questionModes),
+        duration: `${Math.max(3, Math.ceil(questionIds.length * 1.4))} min`,
+        focus: project.subjectName,
+        recommended: quizIndex === 0,
+        questionIds,
+      };
+    })
+    .filter((quiz): quiz is AccountQuiz => quiz !== null);
+
+  if (!catalog.length) {
+    return {
+      catalog: [],
+      questionBank: {},
+    };
+  }
+
+  return { catalog, questionBank };
 }
 
 function areAnswerSetsEqual(expected: number[], received: number[] = []) {
@@ -3266,6 +3209,27 @@ function isQuizAnswerCorrect(
   return areAnswerSetsEqual(question.correctIndexes, submittedAnswer);
 }
 
+function buildMistakeFlashcardFromQuestion(
+  question: AccountQuizQuestion,
+): StudyFlashcardCard {
+  const correctAnswers = question.correctIndexes
+    .map((answerIndex) => question.answers[answerIndex])
+    .filter(Boolean);
+
+  return {
+    topic: question.concept,
+    question: question.question,
+    answer: [
+      `Răspuns corect: ${correctAnswers.join("; ") || "vezi explicația"}.`,
+      question.explanation,
+    ]
+      .filter(Boolean)
+      .join(" "),
+    tone: "danger",
+    sourceQuestionId: question.sourceQuestionId ?? question.id,
+  };
+}
+
 function getQuizComplexityClass(complexity: QuizComplexity) {
   if (complexity === "Mică") {
     return "border-success-border bg-success-soft text-success";
@@ -3278,21 +3242,32 @@ function getQuizComplexityClass(complexity: QuizComplexity) {
   return "border-warning-border bg-warning-soft text-warning";
 }
 
-function QuizPanel() {
+function QuizPanel({
+  project,
+  onQuizMistake,
+}: {
+  project: StudyProject;
+  onQuizMistake: (
+    projectId: string,
+    questionId: string | null,
+    fallbackFlashcard: StudyFlashcardCard,
+  ) => void;
+}) {
   const [activeQuizId, setActiveQuizId] = useState<string | null>(null);
   const [activeQuestionIndex, setActiveQuestionIndex] = useState(0);
   const [draftAnswers, setDraftAnswers] = useState<Record<string, number[]>>({});
   const [submittedAnswers, setSubmittedAnswers] = useState<
     Record<string, number[]>
   >({});
+  const quizData = useMemo(() => buildProjectQuizData(project), [project]);
   const activeQuiz = activeQuizId
-    ? accountQuizCatalog.find((quiz) => quiz.id === activeQuizId) ?? null
+    ? quizData.catalog.find((quiz) => quiz.id === activeQuizId) ?? null
     : null;
 
   if (!activeQuiz) {
     return (
       <QuizLibrary
-        quizzes={accountQuizCatalog}
+        quizzes={quizData.catalog}
         onStartQuiz={(quizId) => {
           setActiveQuizId(quizId);
           setActiveQuestionIndex(0);
@@ -3303,7 +3278,7 @@ function QuizPanel() {
     );
   }
 
-  const quizQuestions = getQuizQuestions(activeQuiz);
+  const quizQuestions = getQuizQuestions(activeQuiz, quizData.questionBank);
   const activeQuestion = quizQuestions[activeQuestionIndex];
   const submittedAnswer = submittedAnswers[activeQuestion.id];
   const draftAnswer = draftAnswers[activeQuestion.id] ?? [];
@@ -3336,10 +3311,18 @@ function QuizPanel() {
     }
 
     if (activeQuestion.mode === "single") {
+      const submittedAnswerIndexes = [answerIndex];
       setSubmittedAnswers((currentAnswers) => ({
         ...currentAnswers,
-        [activeQuestion.id]: [answerIndex],
+        [activeQuestion.id]: submittedAnswerIndexes,
       }));
+      if (!isQuizAnswerCorrect(activeQuestion, submittedAnswerIndexes)) {
+        onQuizMistake(
+          project.id,
+          activeQuestion.sourceQuestionId ?? null,
+          buildMistakeFlashcardFromQuestion(activeQuestion),
+        );
+      }
       return;
     }
 
@@ -3360,6 +3343,9 @@ function QuizPanel() {
     if (activeQuestion.mode !== "multiple" || draftAnswer.length === 0) {
       return;
     }
+    if (submittedAnswers[activeQuestion.id] !== undefined) {
+      return;
+    }
 
     setSubmittedAnswers((currentAnswers) => {
       if (currentAnswers[activeQuestion.id] !== undefined) {
@@ -3371,6 +3357,13 @@ function QuizPanel() {
         [activeQuestion.id]: draftAnswer,
       };
     });
+    if (!isQuizAnswerCorrect(activeQuestion, draftAnswer)) {
+      onQuizMistake(
+        project.id,
+        activeQuestion.sourceQuestionId ?? null,
+        buildMistakeFlashcardFromQuestion(activeQuestion),
+      );
+    }
   }
 
   function goToQuestion(questionIndex: number) {
@@ -3649,6 +3642,23 @@ function QuizLibrary({
     (count, quiz) => count + quiz.questionIds.length,
     0,
   );
+
+  if (!quizzes.length) {
+    return (
+      <section className="rounded-[2rem] border border-subtle bg-surface p-6 text-center sm:p-8">
+        <p className="text-xs font-bold uppercase tracking-[0.18em] text-muted">
+          Quiz-uri
+        </p>
+        <h2 className="mx-auto mt-3 max-w-2xl font-serif text-3xl font-semibold leading-tight">
+          Quizurile nu sunt generate încă.
+        </h2>
+        <p className="mx-auto mt-3 max-w-xl text-sm leading-7 text-muted">
+          După importul JSON-ului, aici vor apărea quizurile reale ale
+          proiectului: recapitulare, aplicare și pregătire de examen.
+        </p>
+      </section>
+    );
+  }
 
   return (
     <section className="space-y-5">
@@ -4257,41 +4267,59 @@ function ProgressBarRow({ label, value }: { label: string; value: number }) {
 
 function NewProjectView({
   projectName,
+  subjectName,
+  institutionName,
   files,
   canGenerate,
   hasMaterialRights,
   generationState,
   generationProgress,
   completedSteps,
+  preparedProject,
+  generationError,
+  isImportingJson,
+  jsonImportMessage,
   isDragging,
   fileInputRef,
   onBack,
   onProjectNameChange,
+  onSubjectNameChange,
+  onInstitutionNameChange,
   onMaterialRightsChange,
   onAddFiles,
   onRemoveFile,
   onDrop,
   onDragStateChange,
   onStartGeneration,
+  onImportJson,
   onOpenGeneratedProject,
 }: {
   projectName: string;
+  subjectName: string;
+  institutionName: string;
   files: UploadedFile[];
   canGenerate: boolean;
   hasMaterialRights: boolean;
   generationState: GenerationState;
   generationProgress: number;
   completedSteps: string[];
+  preparedProject: StudyProjectPrepareResponse | null;
+  generationError: string | null;
+  isImportingJson: boolean;
+  jsonImportMessage: string | null;
   isDragging: boolean;
   fileInputRef: React.RefObject<HTMLInputElement | null>;
   onBack: () => void;
   onProjectNameChange: (value: string) => void;
+  onSubjectNameChange: (value: string) => void;
+  onInstitutionNameChange: (value: string) => void;
   onMaterialRightsChange: (value: boolean) => void;
   onAddFiles: (files: FileList | null) => void;
   onRemoveFile: (index: number) => void;
   onDrop: (event: DragEvent<HTMLButtonElement>) => void;
   onDragStateChange: (isDragging: boolean) => void;
-  onStartGeneration: () => void;
+  onStartGeneration: () => void | Promise<void>;
+  onImportJson: (file: File) => void | Promise<void>;
   onOpenGeneratedProject: () => void;
 }) {
   return (
@@ -4314,16 +4342,53 @@ function NewProjectView({
             Încarcă materialele, iar Revizzio pregătește pachetul de studiu.
           </p>
 
+          {generationError ? (
+            <div className="mt-5 rounded-2xl border border-danger-border bg-danger-soft px-4 py-3 text-sm font-semibold text-danger">
+              {generationError}
+            </div>
+          ) : null}
+
           <label className="mt-5 block text-xs font-bold">
             Numele proiectului
             <input
               value={projectName}
               onChange={(event) => onProjectNameChange(event.target.value)}
               type="text"
-              placeholder="Ex: Biologie celulară"
+              placeholder="Ex: Curs semestrul 2"
               className="mt-2 h-12 w-full rounded-2xl border border-subtle bg-surface px-4 text-[15px] outline-none transition focus:border-success"
             />
           </label>
+
+          <div className="mt-4 grid gap-4 sm:grid-cols-2">
+            <label className="block text-xs font-bold">
+              Nume materie
+              <input
+                value={subjectName}
+                onChange={(event) => onSubjectNameChange(event.target.value)}
+                type="text"
+                placeholder="Ex: Materia cursului"
+                className="mt-2 h-12 w-full rounded-2xl border border-subtle bg-surface px-4 text-[15px] outline-none transition focus:border-success"
+              />
+            </label>
+
+            <label className="block text-xs font-bold">
+              Facultatea / Școala
+              <input
+                value={institutionName}
+                onChange={(event) =>
+                  onInstitutionNameChange(event.target.value)
+                }
+                type="text"
+                placeholder="Ex: UTCN, UMF, liceu"
+                className="mt-2 h-12 w-full rounded-2xl border border-subtle bg-surface px-4 text-[15px] outline-none transition focus:border-success"
+              />
+            </label>
+          </div>
+
+          <p className="mt-2 text-xs leading-5 text-muted">
+            Aceste date ajută AI-ul să calibreze nivelul explicațiilor,
+            exemplele și dificultatea quiz-urilor.
+          </p>
 
           <label className="mt-5 block text-xs font-bold">
             Materiale de curs
@@ -4364,14 +4429,14 @@ function NewProjectView({
                 Trage fișierele aici sau atinge pentru a alege
               </span>
               <span className="mt-1 text-xs font-normal text-muted">
-                PDF, PPT, DOCX · max 50MB / fișier
+                PDF, PPTX, DOCX, XLSX, TXT · max 50MB / fișier
               </span>
             </button>
             <input
               ref={fileInputRef}
               type="file"
               multiple
-              accept=".pdf,.ppt,.pptx,.doc,.docx"
+              accept=".pdf,.pptx,.docx,.txt,.md,.html,.csv,.xls,.xlsx"
               className="hidden"
               onChange={(event) => onAddFiles(event.target.files)}
             />
@@ -4458,13 +4523,18 @@ function NewProjectView({
           </div>
         </>
       ) : (
-        <GenerationView
-          projectName={projectName}
-          state={generationState}
-          progress={generationProgress}
-          completedSteps={completedSteps}
-          onOpenGeneratedProject={onOpenGeneratedProject}
-        />
+          <GenerationView
+            projectName={projectName}
+            state={generationState}
+            progress={generationProgress}
+            completedSteps={completedSteps}
+            preparedProject={preparedProject}
+            generationError={generationError}
+            isImportingJson={isImportingJson}
+            jsonImportMessage={jsonImportMessage}
+            onImportJson={onImportJson}
+            onOpenGeneratedProject={onOpenGeneratedProject}
+          />
       )}
     </section>
   );
@@ -4496,25 +4566,41 @@ function GenerationView({
   state,
   progress,
   completedSteps,
+  preparedProject,
+  generationError,
+  isImportingJson,
+  jsonImportMessage,
+  onImportJson,
   onOpenGeneratedProject,
 }: {
   projectName: string;
   state: GenerationState;
   progress: number;
   completedSteps: string[];
+  preparedProject: StudyProjectPrepareResponse | null;
+  generationError: string | null;
+  isImportingJson: boolean;
+  jsonImportMessage: string | null;
+  onImportJson: (file: File) => void | Promise<void>;
   onOpenGeneratedProject: () => void;
 }) {
   return (
     <div>
       <h1 className="font-serif text-2xl font-semibold">
-        {state === "done" ? "Proiectul tău e gata" : "Se generează"}
+        {state === "done" ? "Materialul este pregătit" : "Se convertește"}
         <span className="text-muted"> - {projectName}</span>
       </h1>
       <p className="mt-1 text-sm text-muted">
         {state === "done"
-          ? "Pachetul este pregătit pentru studiu."
-          : "Durează de obicei sub un minut."}
+          ? "Descarcă markdown-ul și promptul, apoi încarcă JSON-ul primit de la ChatGPT."
+          : "Documentele sunt convertite în markdown cu MarkItDown."}
       </p>
+
+      {generationError ? (
+        <div className="mt-5 rounded-2xl border border-danger-border bg-danger-soft px-4 py-3 text-sm font-semibold text-danger">
+          {generationError}
+        </div>
+      ) : null}
 
       <div className="mt-6 h-2 overflow-hidden rounded-full bg-surface">
         <div
@@ -4562,28 +4648,63 @@ function GenerationView({
               <path d="M20 6 9 17l-5-5" />
             </Icon>
           </span>
-          <p className="mt-4 text-sm text-muted">
-            Proiectul{" "}
-            <span className="font-semibold text-content">{projectName}</span>{" "}
-            e gata de studiat.
+          <p className="mt-4 text-sm leading-6 text-muted">
+            Markdown-ul și promptul au fost create. Următorul pas este manual:
+            le încarci în ChatGPT, iar JSON-ul primit îl aduci aici.
           </p>
-          <div className="my-5 grid grid-cols-4 gap-3 text-center">
-            {[
-              ["6 min", "Rezumat"],
-              ["24", "Flashcard-uri"],
-              ["3", "Quiz-uri"],
-              ["18", "Concepte"],
-            ].map(([value, label]) => (
-              <div key={label}>
-                <p className="font-serif text-xl font-semibold">{value}</p>
-                <p className="text-[11px] text-muted">{label}</p>
-              </div>
-            ))}
-          </div>
+
+          {preparedProject ? (
+            <div className="mt-5 grid gap-3 sm:grid-cols-2">
+              <a
+                href={preparedProject.markdown_download_url}
+                className="rounded-2xl border border-subtle bg-surface px-4 py-3 text-sm font-black transition hover:bg-surface-hover"
+              >
+                Descarcă Markdown
+              </a>
+              <a
+                href={preparedProject.prompt_download_url}
+                className="rounded-2xl border border-subtle bg-surface px-4 py-3 text-sm font-black transition hover:bg-surface-hover"
+              >
+                Descarcă promptul
+              </a>
+            </div>
+          ) : null}
+
+          <label className="mt-5 flex cursor-pointer flex-col items-center rounded-2xl border border-dashed border-subtle bg-surface p-5 transition hover:bg-surface-hover">
+            <span className="text-sm font-black">
+              Încarcă JSON-ul generat de ChatGPT
+            </span>
+            <span className="mt-1 text-xs leading-5 text-muted">
+              Format acceptat: .json, conform promptului generat.
+            </span>
+            <input
+              type="file"
+              accept="application/json,.json"
+              className="hidden"
+              disabled={!preparedProject || isImportingJson}
+              onChange={(event) => {
+                const file = event.target.files?.[0];
+                if (file) void onImportJson(file);
+                event.currentTarget.value = "";
+              }}
+            />
+          </label>
+
+          {isImportingJson ? (
+            <p className="mt-3 text-xs font-semibold text-muted">
+              Importăm JSON-ul și creăm pachetul proiectului...
+            </p>
+          ) : null}
+          {jsonImportMessage ? (
+            <div className="mt-3 rounded-2xl border border-success-border bg-success-soft px-4 py-3 text-sm font-semibold text-success">
+              {jsonImportMessage}
+            </div>
+          ) : null}
+
           <button
             type="button"
             onClick={onOpenGeneratedProject}
-            className="inline-flex items-center justify-center gap-2 rounded-full bg-content px-5 py-3 text-sm font-semibold text-app"
+            className="mt-5 inline-flex items-center justify-center gap-2 rounded-full bg-content px-5 py-3 text-sm font-semibold text-app"
           >
             Deschide proiectul
             <Icon>

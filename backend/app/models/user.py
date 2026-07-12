@@ -9,6 +9,7 @@ from app.db.base import Base
 
 if TYPE_CHECKING:
     from app.models.auth_session import AuthSession
+    from app.models.study_project import StudyProject
     from app.models.subscription import SubscriptionPlan, UserSubscription
 
 
@@ -90,10 +91,15 @@ class User(Base):
         cascade="all, delete-orphan",
         passive_deletes=True,
     )
-    current_plan: Mapped["SubscriptionPlan | None"] = relationship(
+    current_plan: Mapped[SubscriptionPlan | None] = relationship(
         foreign_keys=[current_plan_id],
     )
-    subscriptions: Mapped[list["UserSubscription"]] = relationship(
+    subscriptions: Mapped[list[UserSubscription]] = relationship(
+        back_populates="user",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+    )
+    study_projects: Mapped[list[StudyProject]] = relationship(
         back_populates="user",
         cascade="all, delete-orphan",
         passive_deletes=True,

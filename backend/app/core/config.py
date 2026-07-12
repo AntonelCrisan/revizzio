@@ -47,6 +47,9 @@ class Settings(BaseSettings):
     )
     stripe_checkout_cancel_path: str = "/upgrade?checkout=cancelled"
 
+    project_storage_dir: Path = BACKEND_DIR / "storage" / "projects"
+    project_upload_max_mb: int = Field(default=50, ge=1, le=250)
+
     cors_origins: str = "http://localhost:3000,http://127.0.0.1:3000"
 
     @field_validator("database_url")
@@ -98,6 +101,14 @@ class Settings(BaseSettings):
     @classmethod
     def empty_email_logo_url_is_none(cls, value: object) -> object:
         return None if value == "" else value
+
+    @field_validator("project_storage_dir", mode="before")
+    @classmethod
+    def normalize_project_storage_dir(cls, value: object) -> Path:
+        if value is None or value == "":
+            return BACKEND_DIR / "storage" / "projects"
+        path = Path(str(value))
+        return path if path.is_absolute() else BACKEND_DIR / path
 
     @model_validator(mode="after")
     def validate_session_cookie_security(self) -> Settings:
