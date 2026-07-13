@@ -6,6 +6,7 @@ from fastapi.responses import FileResponse
 
 from app.api.dependencies import AppSettings, CurrentUser, DbSession
 from app.schemas.projects import (
+    StudyProjectFlashcardReviewUpdate,
     StudyProjectImportResponse,
     StudyProjectPrepareResponse,
     StudyProjectQuizCompletionCreate,
@@ -14,6 +15,8 @@ from app.schemas.projects import (
     StudyProjectResponse,
     StudyProjectSummaryHighlightColorUpdate,
     StudyProjectSummaryHighlightCreate,
+    StudyProjectSummaryNoteCreate,
+    StudyProjectSummaryNoteUpdate,
 )
 from app.services.projects import (
     ProjectConversionError,
@@ -389,6 +392,36 @@ async def download_flashcard_front_image(
     )
 
 
+@router.patch(
+    "/{project_id}/flashcards/{flashcard_id}/review",
+    response_model=StudyProjectResponse,
+)
+async def update_flashcard_review(
+    project_id: uuid.UUID,
+    flashcard_id: uuid.UUID,
+    payload: StudyProjectFlashcardReviewUpdate,
+    current_user: CurrentUser,
+    session: DbSession,
+    settings: AppSettings,
+) -> StudyProjectResponse:
+    service = _service(session, settings)
+    try:
+        project = await service.set_flashcard_review(
+            user=current_user,
+            project_id=project_id,
+            flashcard_id=flashcard_id,
+            review=payload.review,
+        )
+    except ProjectNotFoundError as exc:
+        await session.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Flashcardul nu a fost gasit.",
+        ) from exc
+
+    return service.to_response(project)
+
+
 @router.post(
     "/{project_id}/summary-highlights",
     response_model=StudyProjectResponse,
@@ -478,6 +511,106 @@ async def delete_summary_highlight(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Highlight-ul nu a fost gasit.",
+        ) from exc
+
+    return service.to_response(project)
+
+
+@router.post(
+    "/{project_id}/summary-notes",
+    response_model=StudyProjectResponse,
+)
+async def create_summary_note(
+    project_id: uuid.UUID,
+    payload: StudyProjectSummaryNoteCreate,
+    current_user: CurrentUser,
+    session: DbSession,
+    settings: AppSettings,
+) -> StudyProjectResponse:
+    service = _service(session, settings)
+    try:
+        project = await service.add_summary_note(
+            user=current_user,
+            project_id=project_id,
+            paragraph_index=payload.paragraph_index,
+            text=payload.text,
+            note=payload.note,
+        )
+    except ProjectNotFoundError as exc:
+        await session.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Proiectul nu a fost gasit.",
+        ) from exc
+    except ProjectValidationError as exc:
+        await session.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(exc),
+        ) from exc
+
+    return service.to_response(project)
+
+
+@router.patch(
+    "/{project_id}/summary-notes/{note_id}",
+    response_model=StudyProjectResponse,
+)
+async def update_summary_note(
+    project_id: uuid.UUID,
+    note_id: uuid.UUID,
+    payload: StudyProjectSummaryNoteUpdate,
+    current_user: CurrentUser,
+    session: DbSession,
+    settings: AppSettings,
+) -> StudyProjectResponse:
+    service = _service(session, settings)
+    try:
+        project = await service.update_summary_note(
+            user=current_user,
+            project_id=project_id,
+            note_id=note_id,
+            note=payload.note,
+        )
+    except ProjectNotFoundError as exc:
+        await session.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Notita nu a fost gasita.",
+        ) from exc
+    except ProjectValidationError as exc:
+        await session.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(exc),
+        ) from exc
+
+    return service.to_response(project)
+
+
+@router.delete(
+    "/{project_id}/summary-notes/{note_id}",
+    response_model=StudyProjectResponse,
+)
+async def delete_summary_note(
+    project_id: uuid.UUID,
+    note_id: uuid.UUID,
+    current_user: CurrentUser,
+    session: DbSession,
+    settings: AppSettings,
+) -> StudyProjectResponse:
+    service = _service(session, settings)
+    try:
+        project = await service.delete_summary_note(
+            user=current_user,
+            project_id=project_id,
+            note_id=note_id,
+        )
+    except ProjectNotFoundError as exc:
+        await session.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Notita nu a fost gasita.",
         ) from exc
 
     return service.to_response(project)

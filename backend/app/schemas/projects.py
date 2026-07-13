@@ -50,6 +50,11 @@ class StudyProjectFlashcardResponse(BaseModel):
     source_type: str
     source_quiz_question_id: uuid.UUID | None
     sort_order: int
+    review: bool
+
+
+class StudyProjectFlashcardReviewUpdate(BaseModel):
+    review: bool
 
 
 class StudyProjectSummaryHighlightResponse(BaseModel):
@@ -69,6 +74,27 @@ class StudyProjectSummaryHighlightCreate(BaseModel):
 
 class StudyProjectSummaryHighlightColorUpdate(BaseModel):
     color: SummaryHighlightColor
+
+
+class StudyProjectSummaryNoteResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    paragraph_index: int
+    text: str
+    note: str
+    created_at: datetime
+    updated_at: datetime
+
+
+class StudyProjectSummaryNoteCreate(BaseModel):
+    paragraph_index: int = Field(ge=0)
+    text: str = Field(min_length=1, max_length=2000)
+    note: str = Field(min_length=1, max_length=4000)
+
+
+class StudyProjectSummaryNoteUpdate(BaseModel):
+    note: str = Field(min_length=1, max_length=4000)
 
 
 class StudyProjectQuizOptionResponse(BaseModel):
@@ -163,6 +189,9 @@ class StudyProjectResponse(BaseModel):
     quizzes: list[StudyProjectQuizResponse] = Field(default_factory=list)
     strategies: list[StudyProjectStrategyResponse] = Field(default_factory=list)
     summary_highlights: list[StudyProjectSummaryHighlightResponse] = Field(
+        default_factory=list
+    )
+    summary_notes: list[StudyProjectSummaryNoteResponse] = Field(
         default_factory=list
     )
 

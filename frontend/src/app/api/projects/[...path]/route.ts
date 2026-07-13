@@ -16,6 +16,10 @@ const allowedRoutes = [
       /^[0-9a-fA-F-]{36}\/flashcards\/[0-9a-fA-F-]{36}\/front-image$/,
   },
   {
+    method: "PATCH",
+    pattern: /^[0-9a-fA-F-]{36}\/flashcards\/[0-9a-fA-F-]{36}\/review$/,
+  },
+  {
     method: "POST",
     pattern: /^[0-9a-fA-F-]{36}\/quiz-mistake-flashcards$/,
   },
@@ -27,6 +31,15 @@ const allowedRoutes = [
   {
     method: "DELETE",
     pattern: /^[0-9a-fA-F-]{36}\/summary-highlights\/[0-9a-fA-F-]{36}$/,
+  },
+  { method: "POST", pattern: /^[0-9a-fA-F-]{36}\/summary-notes$/ },
+  {
+    method: "PATCH",
+    pattern: /^[0-9a-fA-F-]{36}\/summary-notes\/[0-9a-fA-F-]{36}$/,
+  },
+  {
+    method: "DELETE",
+    pattern: /^[0-9a-fA-F-]{36}\/summary-notes\/[0-9a-fA-F-]{36}$/,
   },
   {
     method: "POST",

@@ -33,6 +33,7 @@ export type StudyProjectFlashcard = {
   source_type: string;
   source_quiz_question_id: string | null;
   sort_order: number;
+  review: boolean;
 };
 
 export type StudyProjectQuizOption = {
@@ -95,6 +96,15 @@ export type StudyProjectSummaryHighlight = {
   color: SummaryHighlightColor;
 };
 
+export type StudyProjectSummaryNote = {
+  id: string;
+  paragraph_index: number;
+  text: string;
+  note: string;
+  created_at: string;
+  updated_at: string;
+};
+
 export type StudyProject = {
   id: string;
   name: string;
@@ -124,6 +134,7 @@ export type StudyProject = {
   quizzes: StudyProjectQuiz[];
   strategies: StudyProjectStrategy[];
   summary_highlights: StudyProjectSummaryHighlight[];
+  summary_notes: StudyProjectSummaryNote[];
 };
 
 export type StudyProjectPrepareResponse = {
@@ -403,6 +414,66 @@ export async function deleteSummaryHighlight(payload: {
   return parseProjectResponse<StudyProject>(response);
 }
 
+export async function createSummaryNote(payload: {
+  projectId: string;
+  paragraphIndex: number;
+  text: string;
+  note: string;
+}): Promise<StudyProject> {
+  const response = await fetch(
+    `/api/projects/${payload.projectId}/summary-notes`,
+    {
+      method: "POST",
+      credentials: "same-origin",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        paragraph_index: payload.paragraphIndex,
+        text: payload.text,
+        note: payload.note,
+      }),
+      cache: "no-store",
+    },
+  );
+  return parseProjectResponse<StudyProject>(response);
+}
+
+export async function updateSummaryNote(payload: {
+  projectId: string;
+  noteId: string;
+  note: string;
+}): Promise<StudyProject> {
+  const response = await fetch(
+    `/api/projects/${payload.projectId}/summary-notes/${payload.noteId}`,
+    {
+      method: "PATCH",
+      credentials: "same-origin",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ note: payload.note }),
+      cache: "no-store",
+    },
+  );
+  return parseProjectResponse<StudyProject>(response);
+}
+
+export async function deleteSummaryNote(payload: {
+  projectId: string;
+  noteId: string;
+}): Promise<StudyProject> {
+  const response = await fetch(
+    `/api/projects/${payload.projectId}/summary-notes/${payload.noteId}`,
+    {
+      method: "DELETE",
+      credentials: "same-origin",
+      cache: "no-store",
+    },
+  );
+  return parseProjectResponse<StudyProject>(response);
+}
+
 export async function completeQuiz(payload: {
   projectId: string;
   quizId: string;
@@ -421,6 +492,26 @@ export async function completeQuiz(payload: {
         correct_count: payload.correctCount,
         answered_count: payload.answeredCount,
       }),
+      cache: "no-store",
+    },
+  );
+  return parseProjectResponse<StudyProject>(response);
+}
+
+export async function setFlashcardReview(payload: {
+  projectId: string;
+  flashcardId: string;
+  review: boolean;
+}): Promise<StudyProject> {
+  const response = await fetch(
+    `/api/projects/${payload.projectId}/flashcards/${payload.flashcardId}/review`,
+    {
+      method: "PATCH",
+      credentials: "same-origin",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ review: payload.review }),
       cache: "no-store",
     },
   );

@@ -20,13 +20,17 @@ import {
   createManualStudyProjectFlashcard,
   createQuizMistakeFlashcard,
   createSummaryHighlight,
+  createSummaryNote,
   deleteStudyProject,
   deleteSummaryHighlight,
+  deleteSummaryNote,
   importStudyProjectJson,
   listStudyProjects,
   prepareStudyProject,
   renameStudyProject,
+  setFlashcardReview,
   updateSummaryHighlightColor,
+  updateSummaryNote,
   type StudyProject as ApiStudyProject,
   type StudyProjectPrepareResponse,
   type SummaryHighlightColor as ApiSummaryHighlightColor,
@@ -47,6 +51,7 @@ type StudyFlashcardTone = "success" | "warning" | "info" | "danger";
 
 type StudyFlashcardCard = {
   id: string;
+  flashcardId: string;
   topic: string;
   question: string;
   answer: string;
@@ -55,6 +60,7 @@ type StudyFlashcardCard = {
   questionImage?: string;
   category?: string;
   difficulty?: string;
+  review: boolean;
 };
 
 type StudyProject = {
@@ -75,6 +81,7 @@ type StudyProject = {
   quizMistakeFlashcards: StudyFlashcardCard[];
   manualFlashcards: StudyFlashcardCard[];
   summaryHighlights: UserSummaryHighlight[];
+  summaryNotes: UserSummaryNote[];
   strategies: Array<{
     title: string;
     description: string;
@@ -201,6 +208,7 @@ function mapQuizMistakeFlashcards(
     .filter((flashcard) => flashcard.source_type === "quiz_mistake")
     .map((flashcard, index) => ({
       id: `quiz-${flashcard.id || flashcard.source_quiz_question_id || index}`,
+      flashcardId: flashcard.id,
       topic: flashcard.category || "Quiz",
       question: flashcard.front,
       answer: flashcard.back,
@@ -208,6 +216,7 @@ function mapQuizMistakeFlashcards(
       sourceQuestionId: flashcard.source_quiz_question_id ?? undefined,
       category: flashcard.category ?? undefined,
       difficulty: flashcard.difficulty ?? undefined,
+      review: flashcard.review,
     }));
 }
 
@@ -223,6 +232,7 @@ function mapManualFlashcards(
     .filter((flashcard) => flashcard.source_type === "manually")
     .map((flashcard, index) => ({
       id: `manual-${flashcard.id || index}`,
+      flashcardId: flashcard.id,
       topic: flashcard.category || "Creat de tine",
       question: flashcard.front,
       answer: flashcard.back,
@@ -232,6 +242,7 @@ function mapManualFlashcards(
       questionImage: flashcard.front_image
         ? `/api/projects/${projectId}/flashcards/${flashcard.id}/front-image`
         : undefined,
+      review: flashcard.review,
     }));
 }
 
@@ -243,6 +254,17 @@ function mapSummaryHighlights(
     text: highlight.text,
     paragraphIndex: highlight.paragraph_index,
     color: highlight.color,
+  }));
+}
+
+function mapSummaryNotes(
+  notes: ApiStudyProject["summary_notes"],
+): UserSummaryNote[] {
+  return notes.map((note) => ({
+    id: note.id,
+    text: note.text,
+    paragraphIndex: note.paragraph_index,
+    note: note.note,
   }));
 }
 
@@ -281,6 +303,7 @@ function mapApiProject(project: ApiStudyProject): StudyProject {
     quizMistakeFlashcards: mapQuizMistakeFlashcards(project.flashcards),
     manualFlashcards: mapManualFlashcards(project.id, project.flashcards),
     summaryHighlights: mapSummaryHighlights(project.summary_highlights),
+    summaryNotes: mapSummaryNotes(project.summary_notes),
     strategies: project.strategies.length
       ? project.strategies.map((strategy) => ({
           title: strategy.title,
@@ -649,6 +672,48 @@ export function AccountDashboard({
     );
   }
 
+  async function addSummaryNote(
+    projectId: string,
+    note: { paragraphIndex: number; text: string; note: string },
+  ) {
+    const apiProject = await createSummaryNote({
+      projectId,
+      paragraphIndex: note.paragraphIndex,
+      text: note.text,
+      note: note.note,
+    });
+    const mappedProject = mapApiProject(apiProject);
+    setProjects((currentProjects) =>
+      currentProjects.map((project) =>
+        project.id === mappedProject.id ? mappedProject : project,
+      ),
+    );
+  }
+
+  async function changeSummaryNote(
+    projectId: string,
+    noteId: string,
+    note: string,
+  ) {
+    const apiProject = await updateSummaryNote({ projectId, noteId, note });
+    const mappedProject = mapApiProject(apiProject);
+    setProjects((currentProjects) =>
+      currentProjects.map((project) =>
+        project.id === mappedProject.id ? mappedProject : project,
+      ),
+    );
+  }
+
+  async function removeSummaryNote(projectId: string, noteId: string) {
+    const apiProject = await deleteSummaryNote({ projectId, noteId });
+    const mappedProject = mapApiProject(apiProject);
+    setProjects((currentProjects) =>
+      currentProjects.map((project) =>
+        project.id === mappedProject.id ? mappedProject : project,
+      ),
+    );
+  }
+
   async function completeQuizAttempt(
     projectId: string,
     quizId: string,
@@ -659,6 +724,24 @@ export function AccountDashboard({
       quizId,
       correctCount: result.correctCount,
       answeredCount: result.answeredCount,
+    });
+    const mappedProject = mapApiProject(apiProject);
+    setProjects((currentProjects) =>
+      currentProjects.map((project) =>
+        project.id === mappedProject.id ? mappedProject : project,
+      ),
+    );
+  }
+
+  async function toggleFlashcardReview(
+    projectId: string,
+    flashcardId: string,
+    review: boolean,
+  ) {
+    const apiProject = await setFlashcardReview({
+      projectId,
+      flashcardId,
+      review,
     });
     const mappedProject = mapApiProject(apiProject);
     setProjects((currentProjects) =>
@@ -840,6 +923,7 @@ export function AccountDashboard({
       quizMistakeFlashcards: [],
       manualFlashcards: [],
       summaryHighlights: [],
+      summaryNotes: [],
       strategies: [
         {
           title: "Citește mai întâi rezumatul",
@@ -1231,9 +1315,13 @@ export function AccountDashboard({
               onQuizMistake={saveQuizMistakeFlashcard}
               onQuizComplete={completeQuizAttempt}
               onManualFlashcardCreate={addManualFlashcard}
+              onToggleFlashcardReview={toggleFlashcardReview}
               onHighlightCreate={addSummaryHighlight}
               onHighlightColorChange={changeSummaryHighlightColor}
               onHighlightRemove={removeSummaryHighlight}
+              onNoteCreate={addSummaryNote}
+              onNoteUpdate={changeSummaryNote}
+              onNoteRemove={removeSummaryNote}
             />
           ) : null}
 
@@ -1671,9 +1759,13 @@ function ProjectView({
   onQuizMistake,
   onQuizComplete,
   onManualFlashcardCreate,
+  onToggleFlashcardReview,
   onHighlightCreate,
   onHighlightColorChange,
   onHighlightRemove,
+  onNoteCreate,
+  onNoteUpdate,
+  onNoteRemove,
 }: {
   project: StudyProject;
   activeTab: TabId;
@@ -1695,6 +1787,11 @@ function ProjectView({
     projectId: string,
     flashcard: ManualFlashcardPayload,
   ) => Promise<void>;
+  onToggleFlashcardReview: (
+    projectId: string,
+    flashcardId: string,
+    review: boolean,
+  ) => Promise<void>;
   onHighlightCreate: (
     projectId: string,
     highlight: {
@@ -1709,6 +1806,16 @@ function ProjectView({
     color: ApiSummaryHighlightColor,
   ) => Promise<void>;
   onHighlightRemove: (projectId: string, highlightId: string) => Promise<void>;
+  onNoteCreate: (
+    projectId: string,
+    note: { paragraphIndex: number; text: string; note: string },
+  ) => Promise<void>;
+  onNoteUpdate: (
+    projectId: string,
+    noteId: string,
+    note: string,
+  ) => Promise<void>;
+  onNoteRemove: (projectId: string, noteId: string) => Promise<void>;
 }) {
   const chatBackLabel =
     tabs.find((tab) => tab.id === chatBackTab)?.label ?? "Rezumat";
@@ -1773,6 +1880,9 @@ function ProjectView({
             onHighlightCreate={onHighlightCreate}
             onHighlightColorChange={onHighlightColorChange}
             onHighlightRemove={onHighlightRemove}
+            onNoteCreate={onNoteCreate}
+            onNoteUpdate={onNoteUpdate}
+            onNoteRemove={onNoteRemove}
           />
         ) : null}
         {activeTab === "flashcards" ? (
@@ -1780,6 +1890,7 @@ function ProjectView({
             project={project}
             mode={flashcardMode}
             onManualFlashcardCreate={onManualFlashcardCreate}
+            onToggleFlashcardReview={onToggleFlashcardReview}
           />
         ) : null}
         {activeTab === "quiz" ? (
@@ -2064,10 +2175,23 @@ type UserSummaryHighlight = {
   color: SummaryHighlightColorId;
 };
 
+type UserSummaryNote = {
+  id: string;
+  text: string;
+  paragraphIndex: number;
+  note: string;
+};
+
 type PendingSummarySelection = {
   text: string;
   paragraphIndex: number;
 };
+
+type SummaryToolMode = "highlight" | "erase" | "ai" | "note";
+
+type SummaryNotePanelState =
+  | { mode: "create"; selection: PendingSummarySelection; draft: string }
+  | { mode: "view"; note: UserSummaryNote; draft: string };
 
 type LearningAiResponse = {
   title: string;
@@ -2085,9 +2209,10 @@ type SummaryAiDialog = {
 type SummaryRange = {
   start: number;
   end: number;
-  kind: "keyword" | "user";
+  kind: "keyword" | "user" | "note";
   keyword?: SummaryKeyword;
   highlight?: UserSummaryHighlight;
+  note?: UserSummaryNote;
 };
 
 type SummaryHighlightColorId = "yellow" | "green" | "blue" | "pink" | "purple";
@@ -2261,10 +2386,13 @@ function renderSummaryText(
   paragraphIndex: number,
   keywords: SummaryKeyword[],
   userHighlights: UserSummaryHighlight[],
+  userNotes: UserSummaryNote[],
   keywordClass: string,
   userHighlightClass: string,
   activeKeywordId: string | null,
+  isEraseModeActive: boolean,
   onUserHighlightClick: (highlight: UserSummaryHighlight) => void,
+  onNoteBadgeClick: (note: UserSummaryNote) => void,
 ) {
   const keywordRanges = keywords
     .filter((keyword) => keyword.paragraphIndex === paragraphIndex)
@@ -2284,7 +2412,16 @@ function renderSummaryText(
       }),
     );
 
-  const ranges = [...keywordRanges, ...userRanges];
+  const noteRanges = userNotes
+    .filter((note) => note.paragraphIndex === paragraphIndex)
+    .flatMap((note) =>
+      findSummaryRanges(paragraph, note.text, {
+        kind: "note",
+        note,
+      }),
+    );
+
+  const ranges = [...keywordRanges, ...userRanges, ...noteRanges];
   const breakpoints = new Set([0, paragraph.length]);
 
   ranges.forEach((range) => {
@@ -2308,16 +2445,19 @@ function renderSummaryText(
     const userRange = userRanges.find(
       (range) => start >= range.start && end <= range.end,
     );
+    const noteRange = noteRanges.find(
+      (range) => start >= range.start && end <= range.end,
+    );
     const userHighlight = userRange?.highlight;
+    const note = noteRange?.note;
+    const isHighlightClickable = Boolean(userHighlight) && isEraseModeActive;
     const isActiveKeyword =
       keywordRange?.keyword?.id !== undefined &&
       keywordRange.keyword.id === activeKeywordId;
 
-    if (!keywordRange && !userRange) {
-      return text;
-    }
-
-    return (
+    const segment = !keywordRange && !userRange && !note ? (
+      text
+    ) : (
       <mark
         key={`${paragraphIndex}-${start}-${end}`}
         id={
@@ -2325,11 +2465,11 @@ function renderSummaryText(
             ? keywordRange.keyword.id
             : undefined
         }
-        role={userHighlight ? "button" : undefined}
-        tabIndex={userHighlight ? 0 : undefined}
-        title={userHighlight ? "Apasă pentru opțiuni" : undefined}
+        role={isHighlightClickable ? "button" : undefined}
+        tabIndex={isHighlightClickable ? 0 : undefined}
+        title={isHighlightClickable ? "Apasă pentru a șterge highlight-ul" : undefined}
         onClick={
-          userHighlight
+          isHighlightClickable && userHighlight
             ? (event) => {
                 event.stopPropagation();
                 onUserHighlightClick(userHighlight);
@@ -2337,7 +2477,7 @@ function renderSummaryText(
             : undefined
         }
         onKeyDown={
-          userHighlight
+          isHighlightClickable && userHighlight
             ? (event) => {
                 if (event.key === "Enter" || event.key === " ") {
                   event.preventDefault();
@@ -2349,6 +2489,8 @@ function renderSummaryText(
         className={[
           keywordRange ? keywordClass : "",
           userRange ? userHighlightClass : "",
+          isHighlightClickable ? "cursor-pointer" : "",
+          note ? "underline decoration-dotted decoration-2 underline-offset-4" : "",
           isActiveKeyword
             ? "animate-pulse ring-2 ring-warning ring-offset-2 ring-offset-surface"
             : "",
@@ -2362,6 +2504,28 @@ function renderSummaryText(
         {text}
       </mark>
     );
+
+    if (note && start === noteRange?.start) {
+      return [
+        <button
+          key={`${paragraphIndex}-${start}-note-badge`}
+          type="button"
+          onClick={(event) => {
+            event.stopPropagation();
+            onNoteBadgeClick(note);
+          }}
+          title="Vezi notița"
+          className="mr-1 inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full border border-info-border bg-info-soft align-middle text-info transition hover:-translate-y-0.5"
+        >
+          <Icon className="h-3 w-3">
+            <path d="M12 20h9M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" />
+          </Icon>
+        </button>,
+        segment,
+      ];
+    }
+
+    return segment;
   });
 }
 
@@ -2412,11 +2576,42 @@ function SummaryHighlightColorPicker({
   );
 }
 
+function SummaryToolButton({
+  label,
+  active,
+  onClick,
+  children,
+}: {
+  label: string;
+  active: boolean;
+  onClick: () => void;
+  children: ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={active}
+      className={`flex w-full items-center gap-3 rounded-2xl border px-4 py-3 text-sm font-bold transition ${
+        active
+          ? "border-action bg-action text-on-action"
+          : "border-subtle bg-surface text-content hover:bg-surface-hover"
+      }`}
+    >
+      <Icon className="h-4 w-4 shrink-0">{children}</Icon>
+      {label}
+    </button>
+  );
+}
+
 function SummaryPanel({
   project,
   onHighlightCreate,
   onHighlightColorChange,
   onHighlightRemove,
+  onNoteCreate,
+  onNoteUpdate,
+  onNoteRemove,
 }: {
   project: StudyProject;
   onHighlightCreate: (
@@ -2433,20 +2628,32 @@ function SummaryPanel({
     color: ApiSummaryHighlightColor,
   ) => Promise<void>;
   onHighlightRemove: (projectId: string, highlightId: string) => Promise<void>;
+  onNoteCreate: (
+    projectId: string,
+    note: { paragraphIndex: number; text: string; note: string },
+  ) => Promise<void>;
+  onNoteUpdate: (
+    projectId: string,
+    noteId: string,
+    note: string,
+  ) => Promise<void>;
+  onNoteRemove: (projectId: string, noteId: string) => Promise<void>;
 }) {
   const summaryRef = useRef<HTMLDivElement | null>(null);
   const keywordFocusTimer = useRef<number | null>(null);
   const aiResponseTimer = useRef<number | null>(null);
   const selectionChangeTimer = useRef<number | null>(null);
-  const [pendingSelection, setPendingSelection] =
-    useState<PendingSummarySelection | null>(null);
-  const [selectedHighlight, setSelectedHighlight] =
-    useState<UserSummaryHighlight | null>(null);
+  const readCurrentSelectionRef = useRef<() => void>(() => {});
+  const [activeTool, setActiveTool] = useState<SummaryToolMode | null>(null);
   const [activeKeywordId, setActiveKeywordId] = useState<string | null>(null);
   const [aiDialog, setAiDialog] = useState<SummaryAiDialog | null>(null);
   const [pendingHighlightColor, setPendingHighlightColor] =
     useState<SummaryHighlightColorId>(defaultSummaryHighlightColor);
+  const [notePanel, setNotePanel] = useState<SummaryNotePanelState | null>(
+    null,
+  );
   const userHighlights = project.summaryHighlights;
+  const userNotes = project.summaryNotes;
   const summaryContent = project.summary?.content ?? "";
   const displayParagraphs = useMemo(() => {
     if (!summaryContent) {
@@ -2468,7 +2675,7 @@ function SummaryPanel({
   const keywordHighlightClass =
     "scroll-mt-28 rounded-md border border-warning-border bg-warning-soft px-1.5 py-0.5 font-semibold text-warning";
   const userHighlightClass =
-    "box-decoration-clone cursor-pointer rounded-md border px-1.5 py-0.5 font-semibold transition hover:ring-2 hover:ring-info/35 focus:outline-none focus:ring-2 focus:ring-info/60";
+    "box-decoration-clone rounded-md border px-1.5 py-0.5 font-semibold";
 
   useEffect(() => {
     return () => {
@@ -2490,15 +2697,14 @@ function SummaryPanel({
         window.clearTimeout(selectionChangeTimer.current);
       }
       selectionChangeTimer.current = window.setTimeout(() => {
-        readCurrentSelection();
+        readCurrentSelectionRef.current();
         selectionChangeTimer.current = null;
       }, 300);
     }
 
     function handleTouchStart() {
       // The user is actively touching (initial press or handle-drag
-      // adjustment) — cancel any pending check so the popover doesn't
-      // interrupt the gesture.
+      // adjustment) — cancel any pending check so nothing fires mid-gesture.
       if (selectionChangeTimer.current) {
         window.clearTimeout(selectionChangeTimer.current);
         selectionChangeTimer.current = null;
@@ -2521,6 +2727,10 @@ function SummaryPanel({
     };
   }, []);
 
+  useEffect(() => {
+    readCurrentSelectionRef.current = readCurrentSelection;
+  });
+
   if (!project.summary?.content) {
     return (
       <article className="rounded-[2rem] border border-subtle bg-surface p-6 text-center sm:p-8">
@@ -2536,6 +2746,91 @@ function SummaryPanel({
         </p>
       </article>
     );
+  }
+
+  async function handleApplyHighlight(selection: PendingSummarySelection) {
+    const existingHighlight = userHighlights.find(
+      (highlight) =>
+        highlight.paragraphIndex === selection.paragraphIndex &&
+        highlight.text === selection.text,
+    );
+
+    try {
+      if (existingHighlight) {
+        await onHighlightColorChange(
+          project.id,
+          existingHighlight.id,
+          pendingHighlightColor,
+        );
+      } else {
+        await onHighlightCreate(project.id, {
+          paragraphIndex: selection.paragraphIndex,
+          text: selection.text,
+          color: pendingHighlightColor,
+        });
+      }
+    } catch {
+      // Selection stays available so the user can try highlighting again.
+    }
+
+    window.getSelection()?.removeAllRanges();
+  }
+
+  async function handleRemoveHighlight(highlightId: string) {
+    try {
+      await onHighlightRemove(project.id, highlightId);
+    } catch {
+      // If deletion failed, the highlight remains in project.summaryHighlights.
+    }
+  }
+
+  function handleAskAi(selection: PendingSummarySelection) {
+    if (aiResponseTimer.current) {
+      window.clearTimeout(aiResponseTimer.current);
+    }
+
+    setAiDialog({
+      ...selection,
+      status: "loading",
+    });
+
+    aiResponseTimer.current = window.setTimeout(() => {
+      setAiDialog({
+        ...selection,
+        status: "done",
+        response: buildSummaryAiResponse(
+          selection,
+          displayParagraphs,
+          displayKeywords,
+        ),
+      });
+      aiResponseTimer.current = null;
+    }, 950);
+
+    window.getSelection()?.removeAllRanges();
+  }
+
+  function handleCloseAiDialog() {
+    if (aiResponseTimer.current) {
+      window.clearTimeout(aiResponseTimer.current);
+      aiResponseTimer.current = null;
+    }
+
+    setAiDialog(null);
+  }
+
+  function handleKeywordClick(keywordId: string) {
+    if (keywordFocusTimer.current) {
+      window.clearTimeout(keywordFocusTimer.current);
+    }
+
+    setActiveKeywordId(keywordId);
+    keywordFocusTimer.current = window.setTimeout(() => {
+      setActiveKeywordId((currentKeywordId) =>
+        currentKeywordId === keywordId ? null : currentKeywordId,
+      );
+      keywordFocusTimer.current = null;
+    }, 1800);
   }
 
   function readCurrentSelection() {
@@ -2571,135 +2866,110 @@ function SummaryPanel({
       return;
     }
 
-    setPendingSelection({
+    const selectionPayload: PendingSummarySelection = {
       text: selectedText,
       paragraphIndex: anchorParagraphIndex,
-    });
-    setSelectedHighlight(null);
-  }
-
-  async function handleAddHighlight() {
-    if (!pendingSelection) {
-      return;
-    }
-
-    const existingHighlight = userHighlights.find(
-      (highlight) =>
-        highlight.paragraphIndex === pendingSelection.paragraphIndex &&
-        highlight.text === pendingSelection.text,
-    );
-
-    try {
-      if (existingHighlight) {
-        await onHighlightColorChange(
-          project.id,
-          existingHighlight.id,
-          pendingHighlightColor,
-        );
-      } else {
-        await onHighlightCreate(project.id, {
-          paragraphIndex: pendingSelection.paragraphIndex,
-          text: pendingSelection.text,
-          color: pendingHighlightColor,
-        });
-      }
-    } catch {
-      // Selection stays available so the user can try highlighting again.
-    }
-
-    setPendingSelection(null);
-    setSelectedHighlight(null);
-    window.getSelection()?.removeAllRanges();
-  }
-
-  async function handleRemoveHighlight(highlightId: string) {
-    setSelectedHighlight((currentHighlight) =>
-      currentHighlight?.id === highlightId ? null : currentHighlight,
-    );
-
-    try {
-      await onHighlightRemove(project.id, highlightId);
-    } catch {
-      // If deletion failed, the highlight remains in project.summaryHighlights.
-    }
-  }
-
-  function handleOpenHighlightOptions(highlight: UserSummaryHighlight) {
-    setSelectedHighlight(highlight);
-    setPendingHighlightColor(highlight.color);
-    setPendingSelection(null);
-    window.getSelection()?.removeAllRanges();
-  }
-
-  function handleHighlightColorChange(color: SummaryHighlightColorId) {
-    setPendingHighlightColor(color);
-
-    if (!selectedHighlight) {
-      return;
-    }
-
-    setSelectedHighlight((highlight) =>
-      highlight ? { ...highlight, color } : highlight,
-    );
-    onHighlightColorChange(project.id, selectedHighlight.id, color).catch(() => {
-      // Optimistic color stays visible; backend sync can be retried later.
-    });
-  }
-
-  function handleAskAi(selection: PendingSummarySelection | UserSummaryHighlight) {
-    if (aiResponseTimer.current) {
-      window.clearTimeout(aiResponseTimer.current);
-    }
-
-    const aiSelection = {
-      text: selection.text,
-      paragraphIndex: selection.paragraphIndex,
     };
 
-    setAiDialog({
-      ...aiSelection,
-      status: "loading",
-    });
-
-    aiResponseTimer.current = window.setTimeout(() => {
-      setAiDialog({
-        ...aiSelection,
-        status: "done",
-        response: buildSummaryAiResponse(
-          aiSelection,
-          displayParagraphs,
-          displayKeywords,
-        ),
-      });
-      aiResponseTimer.current = null;
-    }, 950);
-  }
-
-  function handleCloseAiDialog() {
-    if (aiResponseTimer.current) {
-      window.clearTimeout(aiResponseTimer.current);
-      aiResponseTimer.current = null;
+    if (activeTool === "note") {
+      setNotePanel({ mode: "create", selection: selectionPayload, draft: "" });
+      return;
     }
 
-    setAiDialog(null);
-  }
-
-  function handleKeywordClick(keywordId: string) {
-    if (keywordFocusTimer.current) {
-      window.clearTimeout(keywordFocusTimer.current);
+    if (activeTool === "ai") {
+      handleAskAi(selectionPayload);
+      return;
     }
 
-    setActiveKeywordId(keywordId);
-    keywordFocusTimer.current = window.setTimeout(() => {
-      setActiveKeywordId((currentKeywordId) =>
-        currentKeywordId === keywordId ? null : currentKeywordId,
-      );
-      keywordFocusTimer.current = null;
-    }, 1800);
+    if (activeTool === "highlight") {
+      handleApplyHighlight(selectionPayload);
+    }
   }
 
-  const aiSelectionTarget = pendingSelection ?? selectedHighlight;
-  const activeHighlightColor = selectedHighlight?.color ?? pendingHighlightColor;
+  function handleHighlightSpanClick(highlight: UserSummaryHighlight) {
+    if (activeTool !== "erase") {
+      return;
+    }
+    handleRemoveHighlight(highlight.id);
+  }
+
+  function handleToggleTool(tool: SummaryToolMode) {
+    setActiveTool((current) => (current === tool ? null : tool));
+    setNotePanel(null);
+    window.getSelection()?.removeAllRanges();
+  }
+
+  function handleOpenNoteViewer(note: UserSummaryNote) {
+    setNotePanel({ mode: "view", note, draft: note.note });
+  }
+
+  async function handleSaveNote() {
+    if (!notePanel || !notePanel.draft.trim()) {
+      return;
+    }
+
+    try {
+      if (notePanel.mode === "create") {
+        await onNoteCreate(project.id, {
+          paragraphIndex: notePanel.selection.paragraphIndex,
+          text: notePanel.selection.text,
+          note: notePanel.draft.trim(),
+        });
+      } else {
+        await onNoteUpdate(
+          project.id,
+          notePanel.note.id,
+          notePanel.draft.trim(),
+        );
+      }
+    } catch {
+      return;
+    }
+
+    setNotePanel(null);
+    window.getSelection()?.removeAllRanges();
+  }
+
+  async function handleDeleteNote() {
+    if (!notePanel || notePanel.mode !== "view") {
+      return;
+    }
+
+    try {
+      await onNoteRemove(project.id, notePanel.note.id);
+    } catch {
+      return;
+    }
+
+    setNotePanel(null);
+  }
+
+  function handleCloseNotePanel() {
+    setNotePanel(null);
+    window.getSelection()?.removeAllRanges();
+  }
+
+  const toolCursorClass =
+    activeTool === "highlight"
+      ? "cursor-crosshair"
+      : activeTool === "erase"
+        ? "cursor-pointer"
+        : activeTool === "ai"
+          ? "cursor-help"
+          : activeTool === "note"
+            ? "cursor-text"
+            : "";
+
+  const toolHintText =
+    activeTool === "highlight"
+      ? "Selectează un fragment ca să-l evidențiezi cu culoarea aleasă."
+      : activeTool === "erase"
+        ? "Apasă pe un text evidențiat ca să-l ștergi."
+        : activeTool === "ai"
+          ? "Selectează un fragment ca să întrebi AI despre el."
+          : activeTool === "note"
+            ? "Selectează un fragment ca să adaugi o notiță."
+            : null;
 
   return (
     <article className="rounded-[2rem] border border-subtle bg-surface p-5 sm:p-7 lg:p-8">
@@ -2713,15 +2983,69 @@ function SummaryPanel({
           </h2>
 
           <div className="mt-5 rounded-2xl border border-dashed border-subtle bg-app px-4 py-3 text-sm leading-6 text-muted">
-            Selectează o propoziție sau un fragment din rezumat, apoi apasă
-            butonul de highlight.
+            Alege un instrument din dreapta, apoi selectează un fragment din
+            rezumat.
           </div>
+
+          {notePanel ? (
+            <div className="sticky top-16 z-20 mt-4 rounded-2xl border border-info-border bg-info-soft/95 p-4 text-info shadow-2xl shadow-black/10 backdrop-blur-xl">
+              <p className="text-[11px] font-bold uppercase tracking-[0.16em]">
+                {notePanel.mode === "create" ? "Notiță nouă" : "Notiță"}
+              </p>
+              <p className="mt-2 text-sm leading-6">
+                “
+                {notePanel.mode === "create"
+                  ? notePanel.selection.text
+                  : notePanel.note.text}
+                ”
+              </p>
+              <textarea
+                value={notePanel.draft}
+                onChange={(event) =>
+                  setNotePanel((current) =>
+                    current
+                      ? { ...current, draft: event.target.value }
+                      : current,
+                  )
+                }
+                placeholder="Scrie o notiță pentru acest fragment..."
+                rows={4}
+                className="mt-3 w-full rounded-2xl border border-info-border bg-surface p-3 text-sm text-content outline-none focus:ring-2 focus:ring-info/40"
+              />
+              <div className="mt-3 flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={handleSaveNote}
+                  disabled={!notePanel.draft.trim()}
+                  className="rounded-full bg-action px-4 py-2 text-xs font-bold text-on-action transition hover:bg-action-hover disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  Salvează
+                </button>
+                {notePanel.mode === "view" ? (
+                  <button
+                    type="button"
+                    onClick={handleDeleteNote}
+                    className="rounded-full border border-danger-border bg-surface px-4 py-2 text-xs font-bold text-danger transition hover:bg-danger-soft"
+                  >
+                    Șterge notița
+                  </button>
+                ) : null}
+                <button
+                  type="button"
+                  onClick={handleCloseNotePanel}
+                  className="rounded-full border border-info-border px-4 py-2 text-xs font-bold transition hover:bg-info-soft/70"
+                >
+                  Anulează
+                </button>
+              </div>
+            </div>
+          ) : null}
 
           <div
             ref={summaryRef}
             onKeyUp={readCurrentSelection}
             onMouseUp={readCurrentSelection}
-            className="mt-6 space-y-5 text-sm leading-7 text-content/85 sm:text-base sm:leading-8"
+            className={`mt-6 space-y-5 text-sm leading-7 text-content/85 sm:text-base sm:leading-8 ${toolCursorClass}`}
           >
             {displayParagraphs.map((paragraph, paragraphIndex) => (
               <p
@@ -2734,10 +3058,13 @@ function SummaryPanel({
                   paragraphIndex,
                   displayKeywords,
                   userHighlights,
+                  userNotes,
                   keywordHighlightClass,
                   userHighlightClass,
                   activeKeywordId,
-                  handleOpenHighlightOptions,
+                  activeTool === "erase",
+                  handleHighlightSpanClick,
+                  handleOpenNoteViewer,
                 )}
               </p>
             ))}
@@ -2762,73 +3089,59 @@ function SummaryPanel({
           </div>
         </div>
 
-        <aside className="h-fit rounded-3xl border border-subtle bg-app p-5 xl:sticky xl:top-20">
+        <aside className="h-fit space-y-2 rounded-3xl border border-subtle bg-app p-5 xl:sticky xl:top-20">
           <p className="text-xs font-bold uppercase tracking-[0.18em] text-muted">
-            Highlight
+            Instrumente
           </p>
 
-          {pendingSelection || selectedHighlight ? (
-            <>
-              <p className="mt-2 text-[11px] font-bold uppercase tracking-[0.16em] text-info">
-                {pendingSelection ? "Text selectat" : "Highlight selectat"}
-              </p>
-              <p className="mt-2 font-serif text-lg font-semibold leading-snug">
-                “{pendingSelection?.text ?? selectedHighlight?.text}”
-              </p>
-            </>
-          ) : (
-            <p className="mt-3 text-sm leading-6 text-muted">
-              Selectează o propoziție sau un fragment din rezumat ca să-l
-              evidențiezi.
-            </p>
-          )}
+          <div className="space-y-2 pt-1">
+            <SummaryToolButton
+              label="Evidențiază"
+              active={activeTool === "highlight"}
+              onClick={() => handleToggleTool("highlight")}
+            >
+              <path d="m9 11-6 6v3h9l3-3" />
+              <path d="m22 12-4.6 4.6a2 2 0 0 1-2.8 0l-5.2-5.2a2 2 0 0 1 0-2.8L14 4l8 8Z" />
+            </SummaryToolButton>
+            {activeTool === "highlight" ? (
+              <SummaryHighlightColorPicker
+                value={pendingHighlightColor}
+                onChange={setPendingHighlightColor}
+              />
+            ) : null}
 
-          <SummaryHighlightColorPicker
-            value={activeHighlightColor}
-            onChange={handleHighlightColorChange}
-          />
+            <SummaryToolButton
+              label="Șterge"
+              active={activeTool === "erase"}
+              onClick={() => handleToggleTool("erase")}
+            >
+              <path d="m7 21-4.3-4.3c-1-1-1-2.5 0-3.4l9.6-9.6c1-1 2.5-1 3.4 0l5.6 5.6c1 1 1 2.5 0 3.4L13 21" />
+              <path d="M22 21H7" />
+              <path d="m5 11 9 9" />
+            </SummaryToolButton>
 
-          <div className="mt-4 flex flex-wrap gap-2">
-            {pendingSelection ? (
-              <button
-                type="button"
-                onClick={handleAddHighlight}
-                className="rounded-full bg-action px-4 py-2 text-xs font-bold text-on-action transition hover:bg-action-hover"
-              >
-                Evidențiază
-              </button>
-            ) : null}
-            {selectedHighlight ? (
-              <button
-                type="button"
-                onClick={() => handleRemoveHighlight(selectedHighlight.id)}
-                className="rounded-full bg-action px-4 py-2 text-xs font-bold text-on-action transition hover:bg-action-hover"
-              >
-                Șterge highlight
-              </button>
-            ) : null}
-            {aiSelectionTarget ? (
-              <button
-                type="button"
-                onClick={() => handleAskAi(aiSelectionTarget)}
-                className="rounded-full border border-info-border bg-surface px-4 py-2 text-xs font-bold text-info transition hover:-translate-y-0.5 hover:bg-info-soft"
-              >
-                Întreabă AI
-              </button>
-            ) : null}
-            {pendingSelection || selectedHighlight ? (
-              <button
-                type="button"
-                onClick={() => {
-                  setPendingSelection(null);
-                  setSelectedHighlight(null);
-                }}
-                className="rounded-full border border-subtle px-4 py-2 text-xs font-bold text-content transition hover:bg-surface-hover"
-              >
-                {pendingSelection ? "Anulează" : "Renunță"}
-              </button>
-            ) : null}
+            <SummaryToolButton
+              label="AI"
+              active={activeTool === "ai"}
+              onClick={() => handleToggleTool("ai")}
+            >
+              <path d="M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .962 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.963 0z" />
+            </SummaryToolButton>
+
+            <SummaryToolButton
+              label="Notiță"
+              active={activeTool === "note"}
+              onClick={() => handleToggleTool("note")}
+            >
+              <path d="M12 20h9M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" />
+            </SummaryToolButton>
           </div>
+
+          {toolHintText ? (
+            <p className="mt-1 rounded-2xl border border-dashed border-subtle bg-surface/60 p-3 text-xs leading-5 text-muted">
+              {toolHintText}
+            </p>
+          ) : null}
         </aside>
       </div>
 
@@ -3016,10 +3329,12 @@ function buildProjectFlashcardDecks(
   ];
   const cards = generatedFlashcards.map((card, index) => ({
     id: `initial-${card.id || index}-${index}`,
+    flashcardId: card.id,
     topic: card.category || project.subjectName,
     question: card.front,
     answer: card.back,
     tone: tones[index % tones.length],
+    review: card.review,
   }));
   const quizMistakeCards = project.quizMistakeFlashcards;
   const manualCards = project.manualFlashcards;
@@ -3209,10 +3524,12 @@ function AccountFlashcardFaceContent({
   card,
   side,
   onFlip,
+  onToggleReview,
 }: {
   card: AccountFlashcard;
   side: "question" | "answer";
   onFlip?: () => void;
+  onToggleReview?: () => void;
 }) {
   const isAnswer = side === "answer";
   const text = isAnswer ? card.answer : card.question;
@@ -3222,6 +3539,31 @@ function AccountFlashcardFaceContent({
 
   return (
     <div className="flashcard-card-content h-full">
+      {onToggleReview ? (
+        <button
+          type="button"
+          onClick={(event) => {
+            event.stopPropagation();
+            onToggleReview();
+          }}
+          className={`absolute right-4 top-4 z-10 flex h-9 w-9 items-center justify-center rounded-full border transition ${
+            card.review
+              ? "border-action bg-action text-on-action"
+              : "border-subtle bg-app text-muted hover:bg-surface-hover hover:text-content"
+          }`}
+          aria-pressed={card.review}
+          aria-label={
+            card.review
+              ? "Scoate flashcardul din recapitulare"
+              : "Marchează flashcardul pentru recapitulare"
+          }
+        >
+          <Icon className="h-4 w-4">
+            <path d="M9.5 2a2.5 2.5 0 0 0-2.5 2.5v.5a3 3 0 0 0-2 2.83V8a3 3 0 0 0-1 5.83V15a3 3 0 0 0 3 3 2.5 2.5 0 0 0 2.5 2.5h.5a2.5 2.5 0 0 0 2.5-2.5V4.5A2.5 2.5 0 0 0 9.5 2Z" />
+            <path d="M14.5 2a2.5 2.5 0 0 1 2.5 2.5v.5a3 3 0 0 1 2 2.83V8a3 3 0 0 1 1 5.83V15a3 3 0 0 1-3 3 2.5 2.5 0 0 1-2.5 2.5h-.5a2.5 2.5 0 0 1-2.5-2.5V4.5A2.5 2.5 0 0 1 14.5 2Z" />
+          </Icon>
+        </button>
+      ) : null}
       <div className="flashcard-card-main flex min-h-0 flex-1 flex-col justify-center gap-4 overflow-hidden">
         {image ? (
           <div className="flex min-h-0 flex-1 items-center justify-center overflow-hidden rounded-2xl border border-subtle bg-app/60 p-2">
@@ -3268,10 +3610,12 @@ function AccountFlashcardContent({
   card,
   flipped = false,
   onFlip,
+  onToggleReview,
 }: {
   card: AccountFlashcard;
   flipped?: boolean;
   onFlip?: () => void;
+  onToggleReview?: () => void;
 }) {
   return (
     <div
@@ -3284,6 +3628,7 @@ function AccountFlashcardContent({
             card={card}
             side="question"
             onFlip={onFlip}
+            onToggleReview={onToggleReview}
           />
         </div>
         <div className="flashcard-face-side flashcard-face-side-back theme-shadow-card rounded-[1.75rem] border border-subtle bg-surface p-6 text-content sm:p-8">
@@ -3291,6 +3636,7 @@ function AccountFlashcardContent({
             card={card}
             side="answer"
             onFlip={onFlip}
+            onToggleReview={onToggleReview}
           />
         </div>
       </div>
@@ -3301,15 +3647,19 @@ function AccountFlashcardContent({
 function FlashcardDeckPage({
   deck,
   onBack,
+  onToggleReview,
 }: {
   deck: AccountFlashcardDeck;
   onBack: () => void;
+  onToggleReview: (flashcardId: string, review: boolean) => Promise<void>;
 }) {
   const flashcardTextRef = useRef<HTMLDivElement | null>(null);
   const shuffleIdRef = useRef(0);
   const shuffleTimerRef = useRef<number | null>(null);
   const aiResponseTimerRef = useRef<number | null>(null);
+  const fullCardsRef = useRef<AccountFlashcard[]>(deck.cards);
   const [cards, setCards] = useState<AccountFlashcard[]>(deck.cards);
+  const [showReviewOnly, setShowReviewOnly] = useState(false);
   const [activeIndex, setActiveIndex] = useState(0);
   const [shuffle, setShuffle] = useState<FlashcardShuffleState | null>(null);
   const [showAnswer, setShowAnswer] = useState(false);
@@ -3381,10 +3731,54 @@ function FlashcardDeckPage({
 
     shuffleTimerRef.current = window.setTimeout(() => {
       setCards(shuffledCards);
+      if (!showReviewOnly) {
+        fullCardsRef.current = shuffledCards;
+      }
       setActiveIndex(0);
       setShuffle(null);
       shuffleTimerRef.current = null;
     }, 920);
+  }
+
+  function toggleReviewOnlyFilter() {
+    setShowReviewOnly((current) => {
+      const next = !current;
+      setCards(
+        next
+          ? fullCardsRef.current.filter((card) => card.review)
+          : fullCardsRef.current,
+      );
+      setActiveIndex(0);
+      return next;
+    });
+  }
+
+  function handleToggleReview(card: AccountFlashcard) {
+    const nextReview = !card.review;
+    const applyReview = (list: AccountFlashcard[]) =>
+      list.map((item) =>
+        item.id === card.id ? { ...item, review: nextReview } : item,
+      );
+
+    fullCardsRef.current = applyReview(fullCardsRef.current);
+    setCards((currentCards) => {
+      const updated = applyReview(currentCards);
+      return showReviewOnly ? updated.filter((item) => item.review) : updated;
+    });
+
+    onToggleReview(card.flashcardId, nextReview).catch(() => {
+      const revertReview = (list: AccountFlashcard[]) =>
+        list.map((item) =>
+          item.id === card.id ? { ...item, review: card.review } : item,
+        );
+      fullCardsRef.current = revertReview(fullCardsRef.current);
+      setCards((currentCards) => {
+        const reverted = revertReview(currentCards);
+        return showReviewOnly
+          ? reverted.filter((item) => item.review)
+          : reverted;
+      });
+    });
   }
 
   function toggleFlashcardSide() {
@@ -3569,6 +3963,9 @@ function FlashcardDeckPage({
                       card={card}
                       flipped={showAnswer && isActive}
                       onFlip={isActive ? toggleFlashcardSide : undefined}
+                      onToggleReview={
+                        isActive ? () => handleToggleReview(card) : undefined
+                      }
                     />
                   </div>
                 );
@@ -3631,13 +4028,27 @@ function FlashcardDeckPage({
           ) : (
             <div className="grid min-h-[22rem] place-items-center rounded-[2rem] border border-dashed border-subtle bg-app p-6 text-center">
               <div>
-                <p className="font-serif text-3xl font-semibold">
-                  Încă nu ai flashcarduri din quizuri.
-                </p>
-                <p className="mx-auto mt-3 max-w-md text-sm leading-7 text-muted">
-                  Intră într-un quiz și răspunde. Când greșești, întrebarea și
-                  răspunsul corect vor fi salvate automat aici.
-                </p>
+                {showReviewOnly ? (
+                  <>
+                    <p className="font-serif text-3xl font-semibold">
+                      Nu ai flashcarduri marcate pentru recapitulare.
+                    </p>
+                    <p className="mx-auto mt-3 max-w-md text-sm leading-7 text-muted">
+                      Apasă pe iconița cu creierul de pe un flashcard ca să-l
+                      adaugi aici.
+                    </p>
+                  </>
+                ) : (
+                  <>
+                    <p className="font-serif text-3xl font-semibold">
+                      Încă nu ai flashcarduri din quizuri.
+                    </p>
+                    <p className="mx-auto mt-3 max-w-md text-sm leading-7 text-muted">
+                      Intră într-un quiz și răspunde. Când greșești, întrebarea
+                      și răspunsul corect vor fi salvate automat aici.
+                    </p>
+                  </>
+                )}
               </div>
             </div>
           )}
@@ -3680,6 +4091,27 @@ function FlashcardDeckPage({
               <span className="text-xs font-bold text-muted">
                 {activeIndex + 1}/{cards.length}
               </span>
+            </div>
+          ) : null}
+
+          {deck.cards.length > 0 ? (
+            <div className="mt-3 flex justify-center">
+              <button
+                type="button"
+                onClick={toggleReviewOnlyFilter}
+                className={`inline-flex h-10 items-center gap-2 rounded-full border px-4 text-xs font-bold transition ${
+                  showReviewOnly
+                    ? "border-action bg-action text-on-action"
+                    : "border-subtle bg-app text-content hover:bg-surface-hover"
+                }`}
+                aria-pressed={showReviewOnly}
+              >
+                <Icon className="h-4 w-4">
+                  <path d="M9.5 2a2.5 2.5 0 0 0-2.5 2.5v.5a3 3 0 0 0-2 2.83V8a3 3 0 0 0-1 5.83V15a3 3 0 0 0 3 3 2.5 2.5 0 0 0 2.5 2.5h.5a2.5 2.5 0 0 0 2.5-2.5V4.5A2.5 2.5 0 0 0 9.5 2Z" />
+                  <path d="M14.5 2a2.5 2.5 0 0 1 2.5 2.5v.5a3 3 0 0 1 2 2.83V8a3 3 0 0 1 1 5.83V15a3 3 0 0 1-3 3 2.5 2.5 0 0 1-2.5 2.5h-.5a2.5 2.5 0 0 1-2.5-2.5V4.5A2.5 2.5 0 0 1 14.5 2Z" />
+                </Icon>
+                Doar marcate pentru recapitulare
+              </button>
             </div>
           ) : null}
         </div>
@@ -4033,12 +4465,18 @@ function FlashcardsPanel({
   project,
   mode,
   onManualFlashcardCreate,
+  onToggleFlashcardReview,
 }: {
   project: StudyProject;
   mode: FlashcardPanelMode;
   onManualFlashcardCreate: (
     projectId: string,
     flashcard: ManualFlashcardPayload,
+  ) => Promise<void>;
+  onToggleFlashcardReview: (
+    projectId: string,
+    flashcardId: string,
+    review: boolean,
   ) => Promise<void>;
 }) {
   const router = useRouter();
@@ -4101,6 +4539,9 @@ function FlashcardsPanel({
       <FlashcardDeckPage
         deck={decks[activeDeckId]}
         onBack={() => setActiveDeckId(null)}
+        onToggleReview={(flashcardId, review) =>
+          onToggleFlashcardReview(project.id, flashcardId, review)
+        }
       />
     );
   }
@@ -4342,6 +4783,8 @@ function buildMistakeFlashcardFromQuestion(
 
   return {
     id: `quiz-${question.sourceQuestionId ?? question.id}`,
+    flashcardId: question.sourceQuestionId ?? question.id,
+    review: false,
     topic: question.concept,
     question: question.question,
     answer: [

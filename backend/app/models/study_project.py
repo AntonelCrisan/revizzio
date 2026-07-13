@@ -118,6 +118,12 @@ class StudyProject(Base):
         passive_deletes=True,
         order_by="StudyProjectSummaryHighlight.created_at",
     )
+    summary_notes: Mapped[list[StudyProjectSummaryNote]] = relationship(
+        back_populates="project",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+        order_by="StudyProjectSummaryNote.created_at",
+    )
     archive: Mapped[StudyProjectArchive | None] = relationship(
         back_populates="project",
         cascade="all, delete-orphan",
@@ -283,6 +289,12 @@ class StudyProjectFlashcard(Base):
         index=True,
     )
     sort_order: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    review: Mapped[bool] = mapped_column(
+        Boolean,
+        nullable=False,
+        default=False,
+        server_default="false",
+    )
 
     project: Mapped[StudyProject] = relationship(back_populates="flashcards")
 
@@ -405,6 +417,33 @@ class StudyProjectSummaryHighlight(Base):
     )
 
     project: Mapped[StudyProject] = relationship(back_populates="summary_highlights")
+
+
+class StudyProjectSummaryNote(Base):
+    __tablename__ = "study_project_summary_notes"
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    project_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("study_projects.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    paragraph_index: Mapped[int] = mapped_column(Integer, nullable=False)
+    text: Mapped[str] = mapped_column(Text, nullable=False)
+    note: Mapped[str] = mapped_column(Text, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+        onupdate=func.now(),
+    )
+
+    project: Mapped[StudyProject] = relationship(back_populates="summary_notes")
 
 
 class StudyProjectStrategy(Base):

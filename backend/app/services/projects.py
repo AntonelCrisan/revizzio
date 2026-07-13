@@ -37,6 +37,7 @@ from app.models import (
     StudyProjectStrategy,
     StudyProjectSummary,
     StudyProjectSummaryHighlight,
+    StudyProjectSummaryNote,
     User,
 )
 from app.schemas.projects import StudyProjectResponse
@@ -585,6 +586,26 @@ class StudyProjectService:
         media_type = mimetypes.guess_type(image_path.name)[0] or "image/jpeg"
         return long_image_path, media_type
 
+    async def set_flashcard_review(
+        self,
+        *,
+        user: User,
+        project_id: uuid.UUID,
+        flashcard_id: uuid.UUID,
+        review: bool,
+    ) -> StudyProject:
+        project = await self.get_project(user, project_id)
+        flashcard = next(
+            (item for item in project.flashcards if item.id == flashcard_id),
+            None,
+        )
+        if flashcard is None:
+            raise ProjectNotFoundError("Flashcardul nu a fost gasit.")
+
+        flashcard.review = review
+        await self.session.commit()
+        return await self.get_project(user, project.id)
+
     async def add_summary_highlight(
         self,
         *,
@@ -664,6 +685,92 @@ class StudyProjectService:
         await self.session.commit()
         return await self.get_project(user, project.id)
 
+    async def add_summary_note(
+        self,
+        *,
+        user: User,
+        project_id: uuid.UUID,
+        paragraph_index: int,
+        text: str,
+        note: str,
+    ) -> StudyProject:
+        project = await self.get_project(user, project_id)
+        clean_text = _clean_text(text)
+        clean_note = _clean_text(note)
+        if not clean_text:
+            raise ProjectValidationError(
+                "Selecteaza un fragment de text pentru notita."
+            )
+        if not clean_note:
+            raise ProjectValidationError("Scrie continutul notitei.")
+
+        existing = next(
+            (
+                item
+                for item in project.summary_notes
+                if item.paragraph_index == paragraph_index
+                and item.text == clean_text
+            ),
+            None,
+        )
+        if existing is not None:
+            existing.note = clean_note
+        else:
+            project.summary_notes.append(
+                StudyProjectSummaryNote(
+                    project_id=project.id,
+                    paragraph_index=paragraph_index,
+                    text=clean_text,
+                    note=clean_note,
+                )
+            )
+        await self.session.commit()
+        return await self.get_project(user, project.id)
+
+    async def update_summary_note(
+        self,
+        *,
+        user: User,
+        project_id: uuid.UUID,
+        note_id: uuid.UUID,
+        note: str,
+    ) -> StudyProject:
+        project = await self.get_project(user, project_id)
+        summary_note = next(
+            (item for item in project.summary_notes if item.id == note_id),
+            None,
+        )
+        if summary_note is None:
+            raise ProjectNotFoundError("Notita nu a fost gasita.")
+
+        clean_note = _clean_text(note)
+        if not clean_note:
+            raise ProjectValidationError("Scrie continutul notitei.")
+
+        summary_note.note = clean_note
+        await self.session.commit()
+        return await self.get_project(user, project.id)
+
+    async def delete_summary_note(
+        self,
+        *,
+        user: User,
+        project_id: uuid.UUID,
+        note_id: uuid.UUID,
+    ) -> StudyProject:
+        project = await self.get_project(user, project_id)
+        summary_note = next(
+            (item for item in project.summary_notes if item.id == note_id),
+            None,
+        )
+        if summary_note is None:
+            raise ProjectNotFoundError("Notita nu a fost gasita.")
+
+        await self.session.delete(summary_note)
+        project.summary_notes.remove(summary_note)
+        await self.session.commit()
+        return await self.get_project(user, project.id)
+
     async def complete_quiz(
         self,
         *,
@@ -737,6 +844,7 @@ class StudyProjectService:
             quizzes=project.quizzes,
             strategies=project.strategies,
             summary_highlights=project.summary_highlights,
+            summary_notes=project.summary_notes,
         )
 
     def download_path(self, project: StudyProject, kind: str) -> Path:
@@ -769,6 +877,7 @@ class StudyProjectService:
             selectinload(StudyProject.quizzes).selectinload(StudyProjectQuiz.attempts),
             selectinload(StudyProject.strategies),
             selectinload(StudyProject.summary_highlights),
+            selectinload(StudyProject.summary_notes),
             selectinload(StudyProject.archive),
         )
 
