@@ -51,6 +51,14 @@ export type StudyProjectQuizQuestion = {
   options: StudyProjectQuizOption[];
 };
 
+export type StudyProjectQuizAttempt = {
+  id: string;
+  score_percent: number;
+  correct_count: number;
+  answered_count: number;
+  completed_at: string;
+};
+
 export type StudyProjectQuiz = {
   id: string;
   title: string;
@@ -58,6 +66,11 @@ export type StudyProjectQuiz = {
   complexity: string | null;
   question_type: string | null;
   sort_order: number;
+  completed_at: string | null;
+  score_percent: number | null;
+  correct_count: number | null;
+  answered_count: number | null;
+  attempts: StudyProjectQuizAttempt[];
   questions: StudyProjectQuizQuestion[];
 };
 
@@ -384,6 +397,30 @@ export async function deleteSummaryHighlight(payload: {
     {
       method: "DELETE",
       credentials: "same-origin",
+      cache: "no-store",
+    },
+  );
+  return parseProjectResponse<StudyProject>(response);
+}
+
+export async function completeQuiz(payload: {
+  projectId: string;
+  quizId: string;
+  correctCount: number;
+  answeredCount: number;
+}): Promise<StudyProject> {
+  const response = await fetch(
+    `/api/projects/${payload.projectId}/quizzes/${payload.quizId}/complete`,
+    {
+      method: "POST",
+      credentials: "same-origin",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        correct_count: payload.correctCount,
+        answered_count: payload.answeredCount,
+      }),
       cache: "no-store",
     },
   );

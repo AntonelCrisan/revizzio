@@ -31,6 +31,7 @@ from app.models import (
     StudyProjectImport,
     StudyProjectKeyword,
     StudyProjectQuiz,
+    StudyProjectQuizAttempt,
     StudyProjectQuizOption,
     StudyProjectQuizQuestion,
     StudyProjectStrategy,
@@ -663,6 +664,43 @@ class StudyProjectService:
         await self.session.commit()
         return await self.get_project(user, project.id)
 
+    async def complete_quiz(
+        self,
+        *,
+        user: User,
+        project_id: uuid.UUID,
+        quiz_id: uuid.UUID,
+        correct_count: int,
+        answered_count: int,
+    ) -> StudyProject:
+        project = await self.get_project(user, project_id)
+        quiz = next((item for item in project.quizzes if item.id == quiz_id), None)
+        if quiz is None:
+            raise ProjectNotFoundError("Quiz-ul nu a fost gasit.")
+
+        clean_answered = max(answered_count, 0)
+        clean_correct = max(min(correct_count, clean_answered), 0)
+        score_percent = (
+            round((clean_correct / clean_answered) * 100) if clean_answered else 0
+        )
+
+        completed_at = datetime.now(UTC)
+        quiz.completed_at = completed_at
+        quiz.score_percent = score_percent
+        quiz.correct_count = clean_correct
+        quiz.answered_count = clean_answered
+        quiz.attempts.append(
+            StudyProjectQuizAttempt(
+                quiz_id=quiz.id,
+                score_percent=score_percent,
+                correct_count=clean_correct,
+                answered_count=clean_answered,
+                completed_at=completed_at,
+            )
+        )
+        await self.session.commit()
+        return await self.get_project(user, project.id)
+
     def to_response(self, project: StudyProject) -> StudyProjectResponse:
         return StudyProjectResponse(
             id=project.id,
@@ -728,6 +766,7 @@ class StudyProjectService:
             selectinload(StudyProject.quizzes)
             .selectinload(StudyProjectQuiz.questions)
             .selectinload(StudyProjectQuizQuestion.options),
+            selectinload(StudyProject.quizzes).selectinload(StudyProjectQuiz.attempts),
             selectinload(StudyProject.strategies),
             selectinload(StudyProject.summary_highlights),
             selectinload(StudyProject.archive),

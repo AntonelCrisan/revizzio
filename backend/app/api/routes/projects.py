@@ -8,6 +8,7 @@ from app.api.dependencies import AppSettings, CurrentUser, DbSession
 from app.schemas.projects import (
     StudyProjectImportResponse,
     StudyProjectPrepareResponse,
+    StudyProjectQuizCompletionCreate,
     StudyProjectQuizMistakeFlashcardCreate,
     StudyProjectRenameRequest,
     StudyProjectResponse,
@@ -279,6 +280,43 @@ async def create_quiz_mistake_flashcard(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Intrebarea nu a fost gasita.",
+        ) from exc
+
+    return service.to_response(project)
+
+
+@router.post(
+    "/{project_id}/quizzes/{quiz_id}/complete",
+    response_model=StudyProjectResponse,
+)
+async def complete_quiz(
+    project_id: uuid.UUID,
+    quiz_id: uuid.UUID,
+    payload: StudyProjectQuizCompletionCreate,
+    current_user: CurrentUser,
+    session: DbSession,
+    settings: AppSettings,
+) -> StudyProjectResponse:
+    service = _service(session, settings)
+    try:
+        project = await service.complete_quiz(
+            user=current_user,
+            project_id=project_id,
+            quiz_id=quiz_id,
+            correct_count=payload.correct_count,
+            answered_count=payload.answered_count,
+        )
+    except ProjectNotFoundError as exc:
+        await session.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Quiz-ul nu a fost gasit.",
+        ) from exc
+    except ProjectValidationError as exc:
+        await session.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(exc),
         ) from exc
 
     return service.to_response(project)

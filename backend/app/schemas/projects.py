@@ -91,6 +91,16 @@ class StudyProjectQuizQuestionResponse(BaseModel):
     options: list[StudyProjectQuizOptionResponse] = Field(default_factory=list)
 
 
+class StudyProjectQuizAttemptResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    score_percent: int
+    correct_count: int
+    answered_count: int
+    completed_at: datetime
+
+
 class StudyProjectQuizResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -100,7 +110,17 @@ class StudyProjectQuizResponse(BaseModel):
     complexity: str | None
     question_type: str | None
     sort_order: int
+    completed_at: datetime | None
+    score_percent: int | None
+    correct_count: int | None
+    answered_count: int | None
     questions: list[StudyProjectQuizQuestionResponse] = Field(default_factory=list)
+    attempts: list[StudyProjectQuizAttemptResponse] = Field(default_factory=list)
+
+
+class StudyProjectQuizCompletionCreate(BaseModel):
+    correct_count: int = Field(ge=0)
+    answered_count: int = Field(ge=0)
 
 
 class StudyProjectStrategyResponse(BaseModel):

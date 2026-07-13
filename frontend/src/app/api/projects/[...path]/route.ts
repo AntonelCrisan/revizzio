@@ -28,6 +28,10 @@ const allowedRoutes = [
     method: "DELETE",
     pattern: /^[0-9a-fA-F-]{36}\/summary-highlights\/[0-9a-fA-F-]{36}$/,
   },
+  {
+    method: "POST",
+    pattern: /^[0-9a-fA-F-]{36}\/quizzes\/[0-9a-fA-F-]{36}\/complete$/,
+  },
   { method: "DELETE", pattern: /^[0-9a-fA-F-]{36}$/ },
 ];
 

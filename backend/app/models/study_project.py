@@ -301,6 +301,10 @@ class StudyProjectQuiz(Base):
     complexity: Mapped[str | None] = mapped_column(String(60))
     question_type: Mapped[str | None] = mapped_column(String(60))
     sort_order: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    score_percent: Mapped[int | None] = mapped_column(Integer)
+    correct_count: Mapped[int | None] = mapped_column(Integer)
+    answered_count: Mapped[int | None] = mapped_column(Integer)
 
     project: Mapped[StudyProject] = relationship(back_populates="quizzes")
     questions: Mapped[list[StudyProjectQuizQuestion]] = relationship(
@@ -309,6 +313,33 @@ class StudyProjectQuiz(Base):
         passive_deletes=True,
         order_by="StudyProjectQuizQuestion.sort_order",
     )
+    attempts: Mapped[list[StudyProjectQuizAttempt]] = relationship(
+        back_populates="quiz",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+        order_by="StudyProjectQuizAttempt.completed_at.desc()",
+    )
+
+
+class StudyProjectQuizAttempt(Base):
+    __tablename__ = "study_project_quiz_attempts"
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    quiz_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("study_project_quizzes.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    score_percent: Mapped[int] = mapped_column(Integer, nullable=False)
+    correct_count: Mapped[int] = mapped_column(Integer, nullable=False)
+    answered_count: Mapped[int] = mapped_column(Integer, nullable=False)
+    completed_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+    )
+
+    quiz: Mapped[StudyProjectQuiz] = relationship(back_populates="attempts")
 
 
 class StudyProjectQuizQuestion(Base):

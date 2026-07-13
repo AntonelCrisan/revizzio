@@ -16,6 +16,7 @@ import { BrandLogo } from "@/components/brand-logo";
 import { GeneratedContentDisclaimer } from "@/components/legal/generated-content-disclaimer";
 import {
   archiveStudyProject,
+  completeQuiz,
   createManualStudyProjectFlashcard,
   createQuizMistakeFlashcard,
   createSummaryHighlight,
@@ -87,6 +88,7 @@ type UploadedFile = {
 };
 
 const initialProjects: StudyProject[] = [];
+const SIDEBAR_COLLAPSED_STORAGE_KEY = "revizzio-sidebar-collapsed";
 
 const tabs: Array<{ id: TabId; label: string }> = [
   { id: "rezumat", label: "Rezumat" },
@@ -244,6 +246,18 @@ function mapSummaryHighlights(
   }));
 }
 
+function computeProjectQuizProgress(project: ApiStudyProject): number {
+  const totalQuizzes = project.quizzes.length;
+  if (!totalQuizzes) {
+    return project.status === "ready" ? 100 : 15;
+  }
+
+  const completedQuizzes = project.quizzes.filter(
+    (quiz) => quiz.completed_at,
+  ).length;
+  return Math.round((completedQuizzes / totalQuizzes) * 100);
+}
+
 function mapApiProject(project: ApiStudyProject): StudyProject {
   const generatedFlashcardCount = getGeneratedFlashcards(
     project.flashcards,
@@ -259,7 +273,7 @@ function mapApiProject(project: ApiStudyProject): StudyProject {
     meta: `${project.subject_name} · ${project.file_count} materiale · ${apiProjectStatusLabel(project.status)}`,
     flashcardsDue: generatedFlashcardCount,
     flashcardsTotal: generatedFlashcardCount,
-    progress: project.status === "ready" ? 100 : 15,
+    progress: computeProjectQuizProgress(project),
     summary: project.summary,
     keywords: project.keywords,
     flashcards: project.flashcards,
@@ -344,6 +358,11 @@ export function AccountDashboard({
         : "rezumat",
   );
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(
+    () =>
+      typeof window !== "undefined" &&
+      window.localStorage.getItem(SIDEBAR_COLLAPSED_STORAGE_KEY) === "true",
+  );
   const [openSidebarGroup, setOpenSidebarGroup] =
     useState<SidebarGroupId | null>(null);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
@@ -424,6 +443,17 @@ export function AccountDashboard({
       generationTimers.current.forEach((timer) => window.clearTimeout(timer));
     };
   }, []);
+
+  function toggleSidebarCollapsed() {
+    setIsSidebarCollapsed((current) => {
+      const next = !current;
+      window.localStorage.setItem(
+        SIDEBAR_COLLAPSED_STORAGE_KEY,
+        String(next),
+      );
+      return next;
+    });
+  }
 
   useEffect(() => {
     function handleKeyDown(event: KeyboardEvent) {
@@ -611,6 +641,25 @@ export function AccountDashboard({
 
   async function removeSummaryHighlight(projectId: string, highlightId: string) {
     const apiProject = await deleteSummaryHighlight({ projectId, highlightId });
+    const mappedProject = mapApiProject(apiProject);
+    setProjects((currentProjects) =>
+      currentProjects.map((project) =>
+        project.id === mappedProject.id ? mappedProject : project,
+      ),
+    );
+  }
+
+  async function completeQuizAttempt(
+    projectId: string,
+    quizId: string,
+    result: { correctCount: number; answeredCount: number },
+  ) {
+    const apiProject = await completeQuiz({
+      projectId,
+      quizId,
+      correctCount: result.correctCount,
+      answeredCount: result.answeredCount,
+    });
     const mappedProject = mapApiProject(apiProject);
     setProjects((currentProjects) =>
       currentProjects.map((project) =>
@@ -872,9 +921,14 @@ export function AccountDashboard({
       ) : null}
 
       <aside
-        className={`fixed inset-y-0 left-0 z-50 flex w-[min(84vw,300px)] flex-col border-r border-subtle bg-surface transition-transform duration-300 lg:sticky lg:top-0 lg:h-svh lg:translate-x-0 ${
+        className={`fixed inset-y-0 left-0 z-50 flex w-[min(84vw,300px)] flex-col overflow-hidden border-r border-subtle bg-surface transition-all duration-300 lg:sticky lg:top-0 lg:h-svh ${
           sidebarOpen ? "translate-x-0" : "-translate-x-full"
+        } ${
+          isSidebarCollapsed
+            ? "lg:w-0 lg:translate-x-0 lg:border-r-0 lg:pointer-events-none lg:opacity-0"
+            : "lg:w-[min(84vw,300px)] lg:translate-x-0 lg:opacity-100"
         }`}
+        aria-hidden={isSidebarCollapsed}
         aria-label="Meniu principal"
       >
         <div className="flex items-center justify-between px-4 py-4">
@@ -887,6 +941,16 @@ export function AccountDashboard({
           >
             <Icon className="h-5 w-5">
               <path d="M18 6 6 18M6 6l12 12" />
+            </Icon>
+          </button>
+          <button
+            type="button"
+            onClick={toggleSidebarCollapsed}
+            className="hidden h-10 w-10 items-center justify-center rounded-xl text-content transition hover:bg-surface-hover lg:flex"
+            aria-label="Ascunde meniul"
+          >
+            <Icon className="h-5 w-5">
+              <path d="M11 19l-7-7 7-7M4 12h16" />
             </Icon>
           </button>
         </div>
@@ -1041,7 +1105,7 @@ export function AccountDashboard({
                         {project.name}
                       </span>
                       <span className="block truncate text-xs text-muted">
-                        {project.meta}
+                        {project.subjectName}
                       </span>
                     </span>
                     <Icon
@@ -1130,6 +1194,19 @@ export function AccountDashboard({
           </Icon>
         </button>
 
+        {isSidebarCollapsed ? (
+          <button
+            type="button"
+            onClick={toggleSidebarCollapsed}
+            className="fixed left-4 top-4 z-30 hidden h-11 w-11 items-center justify-center rounded-2xl border border-subtle bg-surface/95 text-content shadow-lg shadow-black/10 backdrop-blur-xl transition hover:bg-surface-hover lg:flex"
+            aria-label="Afișează meniul"
+          >
+            <Icon className="h-5 w-5">
+              <path d="M13 5l7 7-7 7M20 12H4" />
+            </Icon>
+          </button>
+        ) : null}
+
         <main className="mx-auto w-full max-w-7xl px-4 pb-6 pt-16 sm:px-6 lg:px-8 lg:py-6">
           {view === "home" ? (
             <HomeView
@@ -1152,6 +1229,7 @@ export function AccountDashboard({
               onBack={showHome}
               onTabChange={changeProjectTab}
               onQuizMistake={saveQuizMistakeFlashcard}
+              onQuizComplete={completeQuizAttempt}
               onManualFlashcardCreate={addManualFlashcard}
               onHighlightCreate={addSummaryHighlight}
               onHighlightColorChange={changeSummaryHighlightColor}
@@ -1591,6 +1669,7 @@ function ProjectView({
   onBack,
   onTabChange,
   onQuizMistake,
+  onQuizComplete,
   onManualFlashcardCreate,
   onHighlightCreate,
   onHighlightColorChange,
@@ -1607,6 +1686,11 @@ function ProjectView({
     questionId: string | null,
     fallbackFlashcard: StudyFlashcardCard,
   ) => void;
+  onQuizComplete: (
+    projectId: string,
+    quizId: string,
+    result: { correctCount: number; answeredCount: number },
+  ) => Promise<void>;
   onManualFlashcardCreate: (
     projectId: string,
     flashcard: ManualFlashcardPayload,
@@ -1661,13 +1745,9 @@ function ProjectView({
         Proiectele tale
       </button>
 
-      <div className="rounded-[2rem] border border-subtle bg-surface p-5 sm:p-7">
-        <p className="text-xs font-bold uppercase tracking-[0.18em] text-muted">
-          Proiect activ
-        </p>
-        <h1 className="font-serif text-2xl font-semibold">{project.name}</h1>
-        <p className="mt-1 text-sm text-muted">{project.meta}</p>
-      </div>
+      <p className="text-sm font-semibold text-content">
+        {project.name} - {project.subjectName}
+      </p>
 
       <div className="mt-5 flex gap-2 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         {tabs.map((tab) => (
@@ -1703,7 +1783,11 @@ function ProjectView({
           />
         ) : null}
         {activeTab === "quiz" ? (
-          <QuizPanel project={project} onQuizMistake={onQuizMistake} />
+          <QuizPanel
+            project={project}
+            onQuizMistake={onQuizMistake}
+            onQuizComplete={onQuizComplete}
+          />
         ) : null}
         {activeTab === "strategii" ? (
           <StrategiesPanel strategies={project.strategies} />
@@ -2086,17 +2170,6 @@ function buildProjectSummaryKeywords(
   });
 }
 
-function getSummaryCentralIdea(project: StudyProject, paragraphs: string[]) {
-  if (!project.summary?.content) {
-    return `Conținutul pentru ${project.name} nu este generat încă.`;
-  }
-
-  return (
-    paragraphs[0]?.split(/(?<=[.!?])\s+/)[0] ??
-    `Materialul pentru ${project.subjectName} este pregătit pentru studiu.`
-  );
-}
-
 function normalizeSummarySelection(value: string) {
   return value.replace(/\s+/g, " ").trim();
 }
@@ -2391,10 +2464,6 @@ function SummaryPanel({
     return buildProjectSummaryKeywords(project.keywords, displayParagraphs);
   }, [displayParagraphs, project.keywords]);
   const summaryTitle = `Rezumat pentru ${project.name}`;
-  const centralIdea = getSummaryCentralIdea(project, displayParagraphs);
-  const estimatedMinutes =
-    project.summary?.estimated_reading_minutes ?? Math.max(1, Math.ceil(displayParagraphs.length * 0.75));
-  const keywordCount = displayKeywords.length;
 
   const keywordHighlightClass =
     "scroll-mt-28 rounded-md border border-warning-border bg-warning-soft px-1.5 py-0.5 font-semibold text-warning";
@@ -2648,60 +2717,6 @@ function SummaryPanel({
             butonul de highlight.
           </div>
 
-          {pendingSelection || selectedHighlight ? (
-            <div className="sticky top-16 z-20 mt-4 rounded-2xl border border-info-border bg-info-soft/95 p-4 text-info shadow-2xl shadow-black/10 backdrop-blur-xl">
-              <p className="text-[11px] font-bold uppercase tracking-[0.16em]">
-                {pendingSelection ? "Text selectat" : "Highlight selectat"}
-              </p>
-              <p className="mt-2 text-sm leading-6">
-                “{pendingSelection?.text ?? selectedHighlight?.text}”
-              </p>
-              <SummaryHighlightColorPicker
-                value={activeHighlightColor}
-                onChange={handleHighlightColorChange}
-              />
-              <div className="mt-3 flex flex-wrap gap-2">
-                {pendingSelection ? (
-                  <button
-                    type="button"
-                    onClick={handleAddHighlight}
-                    className="rounded-full bg-action px-4 py-2 text-xs font-bold text-on-action transition hover:bg-action-hover"
-                  >
-                    Evidențiază
-                  </button>
-                ) : null}
-                {selectedHighlight ? (
-                  <button
-                    type="button"
-                    onClick={() => handleRemoveHighlight(selectedHighlight.id)}
-                    className="rounded-full bg-action px-4 py-2 text-xs font-bold text-on-action transition hover:bg-action-hover"
-                  >
-                    Șterge highlight
-                  </button>
-                ) : null}
-                {aiSelectionTarget ? (
-                  <button
-                    type="button"
-                    onClick={() => handleAskAi(aiSelectionTarget)}
-                    className="rounded-full border border-info-border bg-surface px-4 py-2 text-xs font-bold text-info transition hover:-translate-y-0.5 hover:bg-info-soft"
-                  >
-                    Întreabă AI
-                  </button>
-                ) : null}
-                <button
-                  type="button"
-                  onClick={() => {
-                    setPendingSelection(null);
-                    setSelectedHighlight(null);
-                  }}
-                  className="rounded-full border border-info-border px-4 py-2 text-xs font-bold transition hover:bg-info-soft/70"
-                >
-                  {pendingSelection ? "Anulează" : "Renunță"}
-                </button>
-              </div>
-            </div>
-          ) : null}
-
           <div
             ref={summaryRef}
             onKeyUp={readCurrentSelection}
@@ -2749,24 +2764,70 @@ function SummaryPanel({
 
         <aside className="h-fit rounded-3xl border border-subtle bg-app p-5 xl:sticky xl:top-20">
           <p className="text-xs font-bold uppercase tracking-[0.18em] text-muted">
-            Ideea centrală
+            Highlight
           </p>
-          <p className="mt-3 font-serif text-2xl font-semibold leading-tight">
-            {centralIdea}
-          </p>
-          <div className="mt-5 grid grid-cols-2 gap-3 text-sm">
-            <div className="rounded-2xl border border-subtle bg-surface p-4">
-              <p className="font-serif text-2xl font-semibold">
-                {estimatedMinutes} min
+
+          {pendingSelection || selectedHighlight ? (
+            <>
+              <p className="mt-2 text-[11px] font-bold uppercase tracking-[0.16em] text-info">
+                {pendingSelection ? "Text selectat" : "Highlight selectat"}
               </p>
-              <p className="mt-1 text-xs text-muted">timp estimat</p>
-            </div>
-            <div className="rounded-2xl border border-subtle bg-surface p-4">
-              <p className="font-serif text-2xl font-semibold">
-                {keywordCount}
+              <p className="mt-2 font-serif text-lg font-semibold leading-snug">
+                “{pendingSelection?.text ?? selectedHighlight?.text}”
               </p>
-              <p className="mt-1 text-xs text-muted">concepte cheie</p>
-            </div>
+            </>
+          ) : (
+            <p className="mt-3 text-sm leading-6 text-muted">
+              Selectează o propoziție sau un fragment din rezumat ca să-l
+              evidențiezi.
+            </p>
+          )}
+
+          <SummaryHighlightColorPicker
+            value={activeHighlightColor}
+            onChange={handleHighlightColorChange}
+          />
+
+          <div className="mt-4 flex flex-wrap gap-2">
+            {pendingSelection ? (
+              <button
+                type="button"
+                onClick={handleAddHighlight}
+                className="rounded-full bg-action px-4 py-2 text-xs font-bold text-on-action transition hover:bg-action-hover"
+              >
+                Evidențiază
+              </button>
+            ) : null}
+            {selectedHighlight ? (
+              <button
+                type="button"
+                onClick={() => handleRemoveHighlight(selectedHighlight.id)}
+                className="rounded-full bg-action px-4 py-2 text-xs font-bold text-on-action transition hover:bg-action-hover"
+              >
+                Șterge highlight
+              </button>
+            ) : null}
+            {aiSelectionTarget ? (
+              <button
+                type="button"
+                onClick={() => handleAskAi(aiSelectionTarget)}
+                className="rounded-full border border-info-border bg-surface px-4 py-2 text-xs font-bold text-info transition hover:-translate-y-0.5 hover:bg-info-soft"
+              >
+                Întreabă AI
+              </button>
+            ) : null}
+            {pendingSelection || selectedHighlight ? (
+              <button
+                type="button"
+                onClick={() => {
+                  setPendingSelection(null);
+                  setSelectedHighlight(null);
+                }}
+                className="rounded-full border border-subtle px-4 py-2 text-xs font-bold text-content transition hover:bg-surface-hover"
+              >
+                {pendingSelection ? "Anulează" : "Renunță"}
+              </button>
+            ) : null}
           </div>
         </aside>
       </div>
@@ -4092,6 +4153,14 @@ type AccountQuizQuestion = {
   source: string;
 };
 
+type AccountQuizAttempt = {
+  id: string;
+  scorePercent: number;
+  correctCount: number;
+  answeredCount: number;
+  completedAt: string;
+};
+
 type AccountQuiz = {
   id: string;
   title: string;
@@ -4102,6 +4171,11 @@ type AccountQuiz = {
   focus: string;
   recommended?: boolean;
   questionIds: string[];
+  completedAt: string | null;
+  scorePercent: number | null;
+  correctCount: number | null;
+  answeredCount: number | null;
+  attempts: AccountQuizAttempt[];
 };
 
 function getQuizQuestions(
@@ -4219,6 +4293,17 @@ function buildProjectQuizData(project: StudyProject) {
         focus: project.subjectName,
         recommended: quizIndex === 0,
         questionIds,
+        completedAt: quiz.completed_at,
+        scorePercent: quiz.score_percent,
+        correctCount: quiz.correct_count,
+        answeredCount: quiz.answered_count,
+        attempts: quiz.attempts.map((attempt) => ({
+          id: attempt.id,
+          scorePercent: attempt.score_percent,
+          correctCount: attempt.correct_count,
+          answeredCount: attempt.answered_count,
+          completedAt: attempt.completed_at,
+        })),
       };
     })
     .filter((quiz): quiz is AccountQuiz => quiz !== null);
@@ -4282,9 +4367,19 @@ function getQuizComplexityClass(complexity: QuizComplexity) {
   return "border-warning-border bg-warning-soft text-warning";
 }
 
+function formatQuizAttemptTimestamp(value: string) {
+  return new Date(value).toLocaleString("ro-RO", {
+    day: "2-digit",
+    month: "short",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
 function QuizPanel({
   project,
   onQuizMistake,
+  onQuizComplete,
 }: {
   project: StudyProject;
   onQuizMistake: (
@@ -4292,6 +4387,11 @@ function QuizPanel({
     questionId: string | null,
     fallbackFlashcard: StudyFlashcardCard,
   ) => void;
+  onQuizComplete: (
+    projectId: string,
+    quizId: string,
+    result: { correctCount: number; answeredCount: number },
+  ) => Promise<void>;
 }) {
   const [activeQuizId, setActiveQuizId] = useState<string | null>(null);
   const [activeQuestionIndex, setActiveQuestionIndex] = useState(0);
@@ -4299,10 +4399,69 @@ function QuizPanel({
   const [submittedAnswers, setSubmittedAnswers] = useState<
     Record<string, number[]>
   >({});
+  const [showQuizSummary, setShowQuizSummary] = useState(false);
+  const [attemptId, setAttemptId] = useState(0);
+  const isPersistingCompletionRef = useRef(false);
+  const persistedAttemptRef = useRef<number | null>(null);
+
   const quizData = useMemo(() => buildProjectQuizData(project), [project]);
   const activeQuiz = activeQuizId
     ? quizData.catalog.find((quiz) => quiz.id === activeQuizId) ?? null
     : null;
+  const quizQuestions = activeQuiz
+    ? getQuizQuestions(activeQuiz, quizData.questionBank)
+    : [];
+  const answeredCount = Object.keys(submittedAnswers).length;
+  const correctCount = quizQuestions.reduce((count, question) => {
+    return isQuizAnswerCorrect(question, submittedAnswers[question.id])
+      ? count + 1
+      : count;
+  }, 0);
+  const isComplete =
+    quizQuestions.length > 0 && answeredCount === quizQuestions.length;
+
+  useEffect(() => {
+    if (
+      !activeQuiz ||
+      !isComplete ||
+      persistedAttemptRef.current === attemptId ||
+      isPersistingCompletionRef.current
+    ) {
+      return;
+    }
+
+    isPersistingCompletionRef.current = true;
+    onQuizComplete(project.id, activeQuiz.id, {
+      correctCount,
+      answeredCount,
+    })
+      .then(() => {
+        persistedAttemptRef.current = attemptId;
+      })
+      .finally(() => {
+        isPersistingCompletionRef.current = false;
+      });
+  }, [
+    activeQuiz,
+    isComplete,
+    attemptId,
+    correctCount,
+    answeredCount,
+    onQuizComplete,
+    project.id,
+  ]);
+
+  function resetQuiz() {
+    setDraftAnswers({});
+    setSubmittedAnswers({});
+    setActiveQuestionIndex(0);
+    setShowQuizSummary(false);
+    setAttemptId((currentId) => currentId + 1);
+  }
+
+  function handleBackToQuizList() {
+    setActiveQuizId(null);
+  }
 
   if (!activeQuiz) {
     return (
@@ -4313,21 +4472,16 @@ function QuizPanel({
           setActiveQuestionIndex(0);
           setDraftAnswers({});
           setSubmittedAnswers({});
+          setShowQuizSummary(false);
+          setAttemptId((currentId) => currentId + 1);
         }}
       />
     );
   }
 
-  const quizQuestions = getQuizQuestions(activeQuiz, quizData.questionBank);
   const activeQuestion = quizQuestions[activeQuestionIndex];
   const submittedAnswer = submittedAnswers[activeQuestion.id];
   const draftAnswer = draftAnswers[activeQuestion.id] ?? [];
-  const answeredCount = Object.keys(submittedAnswers).length;
-  const correctCount = quizQuestions.reduce((count, question) => {
-    return isQuizAnswerCorrect(question, submittedAnswers[question.id])
-      ? count + 1
-      : count;
-  }, 0);
   const scorePercent =
     answeredCount > 0
       ? Math.round((correctCount / answeredCount) * 100)
@@ -4336,7 +4490,6 @@ function QuizPanel({
     (answeredCount / quizQuestions.length) * 100,
   );
   const isAnswered = submittedAnswer !== undefined;
-  const isComplete = answeredCount === quizQuestions.length;
   const weakConcepts = quizQuestions
     .filter(
       (question) =>
@@ -4416,44 +4569,11 @@ function QuizPanel({
     );
   }
 
-  function resetQuiz() {
-    setDraftAnswers({});
-    setSubmittedAnswers({});
-    setActiveQuestionIndex(0);
-  }
-
   return (
     <section className="space-y-5">
-      <div className="relative overflow-hidden rounded-[2rem] border border-subtle bg-content p-6 text-app sm:p-8">
-        <div className="pointer-events-none absolute -right-24 -top-24 h-72 w-72 rounded-full bg-on-action/10 blur-3xl" />
-        <div className="relative grid gap-6 lg:grid-cols-[1fr_0.9fr] lg:items-end">
-          <div>
-            <p className="text-xs font-bold uppercase tracking-[0.2em] text-app/60">
-              {activeQuiz.title}
-            </p>
-            <h2 className="mt-3 max-w-2xl font-serif text-4xl font-semibold leading-tight sm:text-5xl">
-              Test rapid cu feedback AI pe loc.
-            </h2>
-            <p className="mt-4 max-w-xl text-sm leading-7 text-app/70">
-              Răspunzi, primești explicația, iar Revizzio marchează automat
-              conceptele care trebuie revizuite.
-            </p>
-          </div>
-
-          <div className="grid grid-cols-3 gap-3">
-            <QuizHeroMetric label="Scor live" value={`${scorePercent}%`} />
-            <QuizHeroMetric
-              label="Întrebări"
-              value={`${answeredCount}/${quizQuestions.length}`}
-            />
-            <QuizHeroMetric label="Timp estimat" value={activeQuiz.duration} />
-          </div>
-        </div>
-      </div>
-
       <button
         type="button"
-        onClick={() => setActiveQuizId(null)}
+        onClick={handleBackToQuizList}
         className="inline-flex items-center gap-2 text-sm font-semibold text-muted transition hover:text-content"
       >
         <Icon>
@@ -4630,42 +4750,129 @@ function QuizPanel({
                 : "Răspunde la primele întrebări ca AI-ul să identifice zonele slabe."}
             </p>
           </div>
+
+          {activeQuiz.attempts.length ? (
+            <div className="rounded-[2rem] border border-subtle bg-surface p-5">
+              <p className="text-xs font-bold uppercase tracking-[0.18em] text-muted">
+                Istoric încercări
+              </p>
+              <div className="mt-4 space-y-2">
+                {activeQuiz.attempts.map((attempt, attemptIndex) => (
+                  <div
+                    key={attempt.id}
+                    className="flex items-center justify-between rounded-2xl border border-subtle bg-app px-3 py-2 text-xs"
+                  >
+                    <span className="font-bold text-muted">
+                      #{activeQuiz.attempts.length - attemptIndex} ·{" "}
+                      {formatQuizAttemptTimestamp(attempt.completedAt)}
+                    </span>
+                    <span className="font-bold text-content">
+                      {attempt.scorePercent}% ({attempt.correctCount}/
+                      {attempt.answeredCount})
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : null}
         </aside>
       </div>
 
       {isComplete ? (
-        <section className="rounded-[2rem] border border-success-border bg-success-soft p-5 text-success sm:p-7">
-          <div className="grid gap-5 lg:grid-cols-[1fr_0.9fr] lg:items-center">
-            <div>
-              <p className="text-xs font-bold uppercase tracking-[0.18em]">
-                Sumar final
-              </p>
-              <h3 className="mt-3 font-serif text-3xl font-semibold text-content">
-                Ai obținut {correctCount}/{quizQuestions.length} răspunsuri corecte.
-              </h3>
-              <p className="mt-3 text-sm leading-7">
-                Pregătirea estimată crește cu {correctCount >= 3 ? "6" : "3"}%.
-                Revizzio ar transforma automat greșelile în flashcard-uri de
-                recapitulare.
-              </p>
+        <section className="flex flex-col items-start justify-between gap-4 rounded-[2rem] border border-success-border bg-success-soft p-5 text-success sm:flex-row sm:items-center sm:p-7">
+          <div>
+            <p className="text-xs font-bold uppercase tracking-[0.18em]">
+              Quiz finalizat
+            </p>
+            <h3 className="mt-2 font-serif text-2xl font-semibold text-content">
+              Ai obținut {correctCount}/{quizQuestions.length} răspunsuri corecte.
+            </h3>
+          </div>
+          <div className="flex flex-wrap gap-3">
+            <button
+              type="button"
+              onClick={() => setShowQuizSummary(true)}
+              className="rounded-full bg-content px-5 py-3 text-sm font-bold text-app transition hover:opacity-90"
+            >
+              Vezi sumarul
+            </button>
+            <button
+              type="button"
+              onClick={handleBackToQuizList}
+              className="rounded-full border border-success-border px-5 py-3 text-sm font-bold text-success transition hover:bg-success-soft/70"
+            >
+              Înapoi la quiz-uri
+            </button>
+          </div>
+        </section>
+      ) : null}
+
+      {showQuizSummary ? (
+        <div
+          className="fixed inset-0 z-[70] flex items-center justify-center bg-black/45 p-4 backdrop-blur-sm"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="quiz-summary-title"
+        >
+          <div className="w-full max-w-lg rounded-[2rem] border border-subtle bg-surface p-6 shadow-2xl shadow-black/25">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <p className="text-xs font-bold uppercase tracking-[0.18em] text-muted">
+                  Sumar final
+                </p>
+                <h3
+                  id="quiz-summary-title"
+                  className="mt-2 font-serif text-2xl font-semibold leading-tight"
+                >
+                  Ai obținut {correctCount}/{quizQuestions.length} răspunsuri
+                  corecte.
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowQuizSummary(false)}
+                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-subtle text-muted transition hover:bg-surface-hover hover:text-content"
+                aria-label="Închide sumarul"
+              >
+                <Icon className="h-4 w-4">
+                  <path d="M18 6 6 18M6 6l12 12" />
+                </Icon>
+              </button>
             </div>
-            <div className="grid gap-3 sm:grid-cols-2">
+
+            <p className="mt-3 text-sm leading-7 text-muted">
+              Pregătirea estimată crește cu {correctCount >= 3 ? "6" : "3"}%.
+              Revizzio ar transforma automat greșelile în flashcard-uri de
+              recapitulare.
+            </p>
+
+            <div className="mt-5 grid gap-3 sm:grid-cols-3">
               <QuizResultCard label="Scor quiz" value={`${scorePercent}%`} />
               <QuizResultCard
                 label="Flashcard-uri sugerate"
                 value={String(Math.max(1, weakConcepts.length))}
               />
               <QuizResultCard label="Timp recomandat" value="9 min" />
+            </div>
+
+            <div className="mt-6 flex flex-wrap justify-end gap-3">
               <button
                 type="button"
                 onClick={resetQuiz}
-                className="rounded-2xl bg-content px-4 py-4 text-sm font-bold text-app transition hover:opacity-90"
+                className="rounded-full border border-subtle px-5 py-3 text-sm font-bold text-content transition hover:bg-surface-hover"
               >
                 Reia quiz-ul
               </button>
+              <button
+                type="button"
+                onClick={handleBackToQuizList}
+                className="rounded-full bg-content px-5 py-3 text-sm font-bold text-app transition hover:opacity-90"
+              >
+                Înapoi la quiz-uri
+              </button>
             </div>
           </div>
-        </section>
+        </div>
       ) : null}
     </section>
   );
@@ -4678,11 +4885,6 @@ function QuizLibrary({
   quizzes: AccountQuiz[];
   onStartQuiz: (quizId: string) => void;
 }) {
-  const totalQuestions = quizzes.reduce(
-    (count, quiz) => count + quiz.questionIds.length,
-    0,
-  );
-
   if (!quizzes.length) {
     return (
       <section className="rounded-[2rem] border border-subtle bg-surface p-6 text-center sm:p-8">
@@ -4700,33 +4902,14 @@ function QuizLibrary({
     );
   }
 
+  const completedCount = quizzes.filter((quiz) => quiz.completedAt).length;
+
   return (
     <section className="space-y-5">
-      <div className="relative overflow-hidden rounded-[2rem] border border-subtle bg-content p-6 text-app sm:p-8">
-        <div className="pointer-events-none absolute -right-24 -top-24 h-72 w-72 rounded-full bg-on-action/10 blur-3xl" />
-        <div className="relative grid gap-6 lg:grid-cols-[1fr_0.9fr] lg:items-end">
-          <div>
-            <p className="text-xs font-bold uppercase tracking-[0.2em] text-app/60">
-              Biblioteca de quiz-uri
-            </p>
-            <h2 className="mt-3 max-w-2xl font-serif text-4xl font-semibold leading-tight sm:text-5xl">
-              Alege nivelul potrivit înainte să intri în test.
-            </h2>
-            <p className="mt-4 max-w-xl text-sm leading-7 text-app/70">
-              Ai quiz-uri scurte, quiz-uri avansate, single choice și multiple
-              choice. Începi cu ce ai nevoie azi.
-            </p>
-          </div>
-
-          <div className="grid grid-cols-3 gap-3">
-            <QuizHeroMetric label="Quiz-uri" value={String(quizzes.length)} />
-            <QuizHeroMetric label="Întrebări" value={String(totalQuestions)} />
-            <QuizHeroMetric label="Moduri" value="3" />
-          </div>
-        </div>
-      </div>
-
-      <div className="grid gap-4 lg:grid-cols-2 xl:grid-cols-3">
+      <p className="text-sm font-bold text-muted">
+        {completedCount}/{quizzes.length} quiz-uri completate
+      </p>
+      <div className="grid items-stretch gap-4 lg:grid-cols-2 xl:grid-cols-3">
         {quizzes.map((quiz) => (
           <QuizCatalogCard key={quiz.id} quiz={quiz} onStartQuiz={onStartQuiz} />
         ))}
@@ -4742,9 +4925,11 @@ function QuizCatalogCard({
   quiz: AccountQuiz;
   onStartQuiz: (quizId: string) => void;
 }) {
+  const isCompleted = Boolean(quiz.completedAt);
+
   return (
     <article
-      className={`relative overflow-hidden rounded-[2rem] border bg-surface p-5 transition hover:-translate-y-1 hover:shadow-2xl hover:shadow-black/10 ${
+      className={`relative flex h-full flex-col overflow-hidden rounded-[2rem] border bg-surface p-5 transition hover:-translate-y-1 hover:shadow-2xl hover:shadow-black/10 ${
         quiz.recommended ? "border-action" : "border-subtle"
       }`}
     >
@@ -4755,7 +4940,7 @@ function QuizCatalogCard({
       ) : null}
 
       <span
-        className={`inline-flex rounded-full border px-3 py-1.5 text-[11px] font-bold ${getQuizComplexityClass(
+        className={`inline-flex w-fit rounded-full border px-3 py-1.5 text-[11px] font-bold ${getQuizComplexityClass(
           quiz.complexity,
         )}`}
       >
@@ -4765,13 +4950,16 @@ function QuizCatalogCard({
       <h3 className="mt-5 font-serif text-2xl font-semibold leading-tight">
         {quiz.title}
       </h3>
-      <p className="mt-3 text-sm leading-7 text-muted">{quiz.description}</p>
+      <p className="mt-3 flex-1 text-sm leading-7 text-muted">
+        {quiz.description}
+      </p>
 
       <div className="mt-5 grid grid-cols-2 gap-3">
         <QuizCardStat label="Întrebări" value={String(quiz.questionIds.length)} />
-        <QuizCardStat label="Durată" value={quiz.duration} />
-        <QuizCardStat label="Tip" value={quiz.mode} />
-        <QuizCardStat label="Focus" value={quiz.focus} />
+        <QuizCardStat
+          label="Rezultat"
+          value={isCompleted ? `${quiz.scorePercent}%` : "Neîncercat"}
+        />
       </div>
 
       <button
@@ -4779,7 +4967,7 @@ function QuizCatalogCard({
         onClick={() => onStartQuiz(quiz.id)}
         className="mt-5 flex w-full items-center justify-center gap-2 rounded-full bg-content px-5 py-3 text-sm font-bold text-app transition hover:opacity-90"
       >
-        Intră în quiz
+        {isCompleted ? "Reintră în quiz" : "Intră în quiz"}
         <Icon>
           <path d="M5 12h14M13 5l7 7-7 7" />
         </Icon>
@@ -4793,15 +4981,6 @@ function QuizCardStat({ label, value }: { label: string; value: string }) {
     <div className="rounded-2xl border border-subtle bg-app p-3">
       <p className="text-xs font-bold text-muted">{label}</p>
       <p className="mt-1 text-sm font-bold text-content">{value}</p>
-    </div>
-  );
-}
-
-function QuizHeroMetric({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-2xl border border-app/10 bg-app/10 p-4">
-      <p className="font-serif text-2xl font-semibold">{value}</p>
-      <p className="mt-1 text-xs leading-5 text-app/65">{label}</p>
     </div>
   );
 }
@@ -4991,41 +5170,72 @@ function StrategyAccordionItem({
   );
 }
 
+function buildProjectProgressData(project: StudyProject) {
+  const quizzes = project.quizzes;
+  const totalQuizzes = quizzes.length;
+  const completedQuizzes = quizzes.filter((quiz) => quiz.completed_at);
+  const completedCount = completedQuizzes.length;
+  const averageScore = completedCount
+    ? Math.round(
+        completedQuizzes.reduce(
+          (sum, quiz) => sum + (quiz.score_percent ?? 0),
+          0,
+        ) / completedCount,
+      )
+    : null;
+
+  const allAttempts = quizzes
+    .flatMap((quiz) =>
+      quiz.attempts.map((attempt) => ({
+        quizTitle: quiz.title,
+        scorePercent: attempt.score_percent,
+        completedAt: attempt.completed_at,
+      })),
+    )
+    .sort(
+      (a, b) =>
+        new Date(a.completedAt).getTime() - new Date(b.completedAt).getTime(),
+    );
+
+  const weakConceptCounts = new Map<string, number>();
+  for (const mistake of project.quizMistakeFlashcards) {
+    const key = mistake.topic || "General";
+    weakConceptCounts.set(key, (weakConceptCounts.get(key) ?? 0) + 1);
+  }
+  const weakConcepts = Array.from(weakConceptCounts.entries()).sort(
+    (a, b) => b[1] - a[1],
+  );
+
+  const quizScores = quizzes
+    .map((quiz) => ({
+      title: quiz.title,
+      scorePercent: quiz.score_percent,
+      completed: Boolean(quiz.completed_at),
+    }))
+    .sort((a, b) => Number(b.completed) - Number(a.completed));
+
+  return {
+    totalQuizzes,
+    completedCount,
+    averageScore,
+    totalAttempts: allAttempts.length,
+    recentAttempts: allAttempts.slice(-8),
+    weakConcepts,
+    quizScores,
+    totalFlashcards: project.flashcards.length,
+    generatedFlashcardsCount: getGeneratedFlashcards(project.flashcards).length,
+    manualFlashcardsCount: project.manualFlashcards.length,
+    quizMistakeFlashcardsCount: project.quizMistakeFlashcards.length,
+    keywordsCount: project.keywords.length,
+    highlightsCount: project.summaryHighlights.length,
+  };
+}
+
 function ProgressPanel({ project }: { project: StudyProject }) {
-  const readinessScore = Math.min(94, Math.max(48, project.progress + 8));
-  const passChance = Math.min(96, readinessScore + 9);
-  const gradeOverEightChance = Math.max(38, readinessScore - 21);
-  const gradeOverNineChance = Math.max(16, readinessScore - 50);
-  const examEstimate = Math.min(96, readinessScore + 20);
-  const currentPaceEstimate = Math.max(58, readinessScore - 1);
-
-  const chapterMastery = [
-    ["Celula", 92],
-    ["Membrană celulară", 84],
-    ["ADN", 58],
-    ["Respirație celulară", 43],
-  ] as const;
-
-  const gamifiedStats = [
-    ["1.247", "întrebări rezolvate"],
-    ["83%", "răspunsuri corecte"],
-    ["18", "zile consecutive"],
-    ["47", "flashcard-uri stăpânite"],
-    ["12", "concepte în risc"],
-  ] as const;
-
-  const weeklyProgress = [
-    ["S1", 42],
-    ["S2", 57],
-    ["S3", 68],
-    ["S4", 79],
-  ] as const;
-
-  const retentionScores = [
-    ["Memorare inițială", 91],
-    ["Retenție după 7 zile", 73],
-    ["Retenție după 30 zile", 61],
-  ] as const;
+  const data = useMemo(() => buildProjectProgressData(project), [project]);
+  const completionPercent = data.totalQuizzes
+    ? Math.round((data.completedCount / data.totalQuizzes) * 100)
+    : 0;
 
   return (
     <div className="space-y-5">
@@ -5034,220 +5244,290 @@ function ProgressPanel({ project }: { project: StudyProject }) {
         <div className="relative grid gap-6 lg:grid-cols-[1.05fr_0.95fr] lg:items-end">
           <div>
             <p className="text-xs font-bold uppercase tracking-[0.2em] text-app/60">
-              Pregătirea ta actuală
+              Progresul tău
             </p>
-            <h2 className="mt-3 font-serif text-4xl font-semibold leading-tight sm:text-5xl">
-              Șanse de promovare: {passChance}%
+            <h2 className="mt-3 max-w-2xl font-serif text-4xl font-semibold leading-tight sm:text-5xl">
+              {data.totalQuizzes
+                ? `${data.completedCount}/${data.totalQuizzes} quiz-uri completate`
+                : "Încă nu ai date de progres."}
             </h2>
             <p className="mt-4 max-w-xl text-sm leading-7 text-app/70">
-              Revizzio combină quiz-urile, flashcard-urile stăpânite, timpul de
-              studiu și consistența pentru a estima cât de pregătit ești.
+              {data.totalQuizzes
+                ? "Calculat pe baza rezultatelor tale reale la quiz-uri, nu pe estimări."
+                : "Rezolvă cel puțin un quiz ca să vezi aici scorul, zonele slabe și evoluția ta."}
             </p>
           </div>
 
           <div className="grid grid-cols-2 gap-3">
-            <ProgressHeroMetric label="Pregătire generală" value={`${readinessScore}%`} />
-            <ProgressHeroMetric label="Concepte cu risc" value="3" />
-            <ProgressHeroMetric label="Timp recomandat azi" value="17 min" />
-            <ProgressHeroMetric label="Flashcard-uri stăpânite" value="47" />
+            <ProgressHeroMetric
+              label="Scor mediu"
+              value={data.averageScore !== null ? `${data.averageScore}%` : "—"}
+            />
+            <ProgressHeroMetric
+              label="Încercări totale"
+              value={String(data.totalAttempts)}
+            />
+            <ProgressHeroMetric
+              label="Flashcard-uri"
+              value={String(data.totalFlashcards)}
+            />
+            <ProgressHeroMetric
+              label="Concepte cheie"
+              value={String(data.keywordsCount)}
+            />
           </div>
         </div>
       </section>
 
       <div className="grid gap-5 xl:grid-cols-[0.95fr_1.05fr]">
         <section className="rounded-[2rem] border border-subtle bg-surface p-5 sm:p-6">
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-            <div>
-              <p className="text-xs font-bold uppercase tracking-[0.18em] text-muted">
-                Scor de pregătire
-              </p>
-              <h3 className="mt-2 font-serif text-3xl font-semibold">
-                Examen: {readinessScore}%
-              </h3>
-            </div>
-            <span className="w-fit rounded-full border border-success-border bg-success-soft px-3 py-1.5 text-xs font-bold text-success">
-              +3% / zi
-            </span>
-          </div>
+          <p className="text-xs font-bold uppercase tracking-[0.18em] text-muted">
+            Rata de completare
+          </p>
+          <h3 className="mt-2 font-serif text-3xl font-semibold">
+            {completionPercent}%
+          </h3>
 
           <div className="mt-5 h-3 overflow-hidden rounded-full bg-app">
             <div
               className="h-full rounded-full bg-success"
-              style={{ width: `${readinessScore}%` }}
+              style={{ width: `${completionPercent}%` }}
             />
           </div>
 
-          <div className="mt-5 grid gap-3 sm:grid-cols-3">
-            <ProgressProbabilityCard
-              label="Promovare"
-              value={passChance}
-              tone="success"
-            />
-            <ProgressProbabilityCard
-              label="Notă peste 8"
-              value={gradeOverEightChance}
-              tone="info"
-            />
-            <ProgressProbabilityCard
-              label="Notă peste 9"
-              value={gradeOverNineChance}
-              tone="warning"
-            />
-          </div>
+          <p className="mt-4 text-sm leading-6 text-muted">
+            {data.totalQuizzes
+              ? `Ai completat ${data.completedCount} din ${data.totalQuizzes} quiz-uri din acest proiect.`
+              : "Nu există quiz-uri generate încă pentru acest proiect."}
+          </p>
         </section>
 
         <section className="rounded-[2rem] border border-warning-border bg-warning-soft p-5 text-warning sm:p-6">
           <p className="text-xs font-bold uppercase tracking-[0.18em]">
             Zone care necesită atenție
           </p>
-          <h3 className="mt-3 font-serif text-3xl font-semibold text-content">
-            AI-ul a găsit 3 blocaje recurente.
-          </h3>
-          <p className="mt-3 text-sm leading-7">
-            Din ultimele 3 quiz-uri observăm că greșești frecvent întrebările
-            despre:
-          </p>
-          <div className="mt-4 flex flex-wrap gap-2">
-            {["Mitocondrie", "Transport celular", "ADN vs ARN"].map((concept) => (
-              <span
-                key={concept}
-                className="rounded-full border border-warning-border bg-surface px-3 py-1.5 text-xs font-bold"
-              >
-                {concept}
-              </span>
-            ))}
-          </div>
-          <button
-            type="button"
-            className="mt-5 inline-flex items-center gap-2 rounded-full bg-content px-5 py-3 text-sm font-bold text-app transition hover:opacity-90"
-          >
-            Revizuiește acum
-            <span className="rounded-full bg-app/15 px-2 py-0.5 text-[11px]">
-              5 min
-            </span>
-          </button>
+          {data.weakConcepts.length ? (
+            <>
+              <h3 className="mt-3 font-serif text-2xl font-semibold text-content">
+                Greșești frecvent la:
+              </h3>
+              <div className="mt-4 flex flex-wrap gap-2">
+                {data.weakConcepts.map(([concept, count]) => (
+                  <span
+                    key={concept}
+                    className="rounded-full border border-warning-border bg-surface px-3 py-1.5 text-xs font-bold"
+                  >
+                    {concept} ({count})
+                  </span>
+                ))}
+              </div>
+            </>
+          ) : (
+            <p className="mt-3 text-sm leading-7">
+              Nu ai încă greșeli înregistrate la quiz-uri — răspunde la câteva
+              întrebări ca să apară zonele de recapitulat aici.
+            </p>
+          )}
         </section>
       </div>
 
-      <div className="grid gap-5 xl:grid-cols-[1.05fr_0.95fr]">
-        <section className="rounded-[2rem] border border-subtle bg-surface p-5 sm:p-6">
-          <p className="text-xs font-bold uppercase tracking-[0.18em] text-muted">
-            Heatmap pe capitole
-          </p>
+      <section className="rounded-[2rem] border border-subtle bg-surface p-5 sm:p-6">
+        <p className="text-xs font-bold uppercase tracking-[0.18em] text-muted">
+          Scor pe quiz
+        </p>
+        {data.quizScores.length ? (
           <div className="mt-5 space-y-4">
-            {chapterMastery.map(([chapter, value]) => (
-              <ProgressBarRow key={chapter} label={chapter} value={value} />
-            ))}
-          </div>
-        </section>
-
-        <section className="relative overflow-hidden rounded-[2rem] border border-info-border bg-info-soft p-5 text-info sm:p-6">
-          <div className="pointer-events-none absolute -right-20 -top-20 h-52 w-52 rounded-full bg-info/10 blur-3xl" />
-          <div className="relative">
-            <p className="text-xs font-bold uppercase tracking-[0.18em]">
-              Recomandarea AI pentru azi
-            </p>
-            <h3 className="mt-3 font-serif text-3xl font-semibold text-content">
-              Revizuiește Respirație celulară.
-            </h3>
-            <p className="mt-4 text-sm leading-7">
-              Șansele de retenție sunt maxime dacă revizuiești acum capitolul.
-              Ultima interacțiune a fost acum 4 zile, iar rata de răspuns corect
-              este doar 48%.
-            </p>
-            <div className="mt-5 grid grid-cols-2 gap-3">
-              <ProgressMiniStat label="Corectitudine" value="48%" />
-              <ProgressMiniStat label="Ultima sesiune" value="4 zile" />
-            </div>
-          </div>
-        </section>
-      </div>
-
-      <section className="rounded-[2rem] border border-subtle bg-surface p-5 sm:p-6">
-        <div className="flex flex-col justify-between gap-5 lg:flex-row lg:items-start">
-          <div>
-            <p className="text-xs font-bold uppercase tracking-[0.18em] text-muted">
-              Predicție până la examen
-            </p>
-            <h3 className="mt-3 font-serif text-3xl font-semibold">
-              Examen peste 12 zile
-            </h3>
-            <p className="mt-3 max-w-2xl text-sm leading-7 text-muted">
-              La ritmul actual vei ajunge la {currentPaceEstimate}% pregătire.
-              Recomandăm încă 18 minute pe zi pentru o pregătire estimată de{" "}
-              {examEstimate}%.
-            </p>
-          </div>
-
-          <div className="grid gap-3 sm:grid-cols-3 lg:min-w-[28rem]">
-            <ProgressMiniStat label="Material parcurs" value={`${project.progress}%`} />
-            <ProgressMiniStat label="Ritm actual" value="+3% / zi" />
-            <ProgressMiniStat label="Estimare examen" value={`${examEstimate}%`} />
-          </div>
-        </div>
-      </section>
-
-      <div className="grid gap-5 xl:grid-cols-[0.85fr_1.15fr]">
-        <section className="rounded-[2rem] border border-subtle bg-surface p-5 sm:p-6">
-          <p className="text-xs font-bold uppercase tracking-[0.18em] text-muted">
-            Statistici gamificate
-          </p>
-          <div className="mt-5 grid grid-cols-2 gap-3">
-            {gamifiedStats.map(([value, label]) => (
-              <div
-                key={label}
-                className="rounded-2xl border border-subtle bg-app p-4"
-              >
-                <p className="font-serif text-2xl font-semibold">{value}</p>
-                <p className="mt-1 text-xs leading-5 text-muted">{label}</p>
-              </div>
-            ))}
-          </div>
-        </section>
-
-        <section className="rounded-[2rem] border border-subtle bg-surface p-5 sm:p-6">
-          <p className="text-xs font-bold uppercase tracking-[0.18em] text-muted">
-            Evoluție în timp
-          </p>
-          <div className="mt-5 flex h-56 items-end gap-4 rounded-3xl border border-subtle bg-app p-4">
-            {weeklyProgress.map(([week, value]) => (
-              <div key={week} className="flex h-full flex-1 flex-col justify-end">
-                <div
-                  className="rounded-t-2xl bg-content transition"
-                  style={{ height: `${value}%` }}
+            {data.quizScores.map((quiz) =>
+              quiz.completed ? (
+                <ProgressBarRow
+                  key={quiz.title}
+                  label={quiz.title}
+                  value={quiz.scorePercent ?? 0}
                 />
-                <div className="mt-3 text-center">
-                  <p className="text-xs font-bold">{week}</p>
-                  <p className="text-[11px] text-muted">{value}%</p>
+              ) : (
+                <div
+                  key={quiz.title}
+                  className="flex items-center justify-between gap-3"
+                >
+                  <p className="text-sm font-bold">{quiz.title}</p>
+                  <span className="rounded-full bg-app px-2.5 py-1 text-[11px] font-bold text-muted">
+                    Neîncercat
+                  </span>
                 </div>
-              </div>
-            ))}
+              ),
+            )}
           </div>
-        </section>
-      </div>
+        ) : (
+          <p className="mt-4 text-sm leading-6 text-muted">
+            Quiz-urile nu sunt generate încă pentru acest proiect.
+          </p>
+        )}
+      </section>
 
       <section className="rounded-[2rem] border border-subtle bg-surface p-5 sm:p-6">
-        <div className="grid gap-5 lg:grid-cols-[0.8fr_1.2fr] lg:items-center">
-          <div>
-            <p className="text-xs font-bold uppercase tracking-[0.18em] text-muted">
-              Retention Score
-            </p>
-            <h3 className="mt-3 font-serif text-3xl font-semibold">
-              5 concepte riscă să fie uitate în 48h.
-            </h3>
-            <p className="mt-3 text-sm leading-7 text-muted">
-              Retenția scade natural după prima sesiune. Revizzio prioritizează
-              automat conceptele care merită revizuite înainte să dispară din
-              memorie.
-            </p>
-          </div>
-          <div className="space-y-4">
-            {retentionScores.map(([label, value]) => (
-              <ProgressBarRow key={label} label={label} value={value} />
-            ))}
-          </div>
+        <p className="text-xs font-bold uppercase tracking-[0.18em] text-muted">
+          Evoluția scorurilor în timp
+        </p>
+        {data.recentAttempts.length ? (
+          <ProgressScoreTrendChart attempts={data.recentAttempts} />
+        ) : (
+          <p className="mt-4 text-sm leading-6 text-muted">
+            Rezolvă un quiz ca să vezi aici evoluția scorurilor tale în timp.
+          </p>
+        )}
+      </section>
+
+      <section className="rounded-[2rem] border border-subtle bg-surface p-5 sm:p-6">
+        <p className="text-xs font-bold uppercase tracking-[0.18em] text-muted">
+          Alte date din proiect
+        </p>
+        <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-3">
+          <ProgressMiniStat
+            label="Flashcard-uri generate"
+            value={String(data.generatedFlashcardsCount)}
+          />
+          <ProgressMiniStat
+            label="Flashcard-uri manuale"
+            value={String(data.manualFlashcardsCount)}
+          />
+          <ProgressMiniStat
+            label="Flashcard-uri din greșeli"
+            value={String(data.quizMistakeFlashcardsCount)}
+          />
+          <ProgressMiniStat
+            label="Concepte cheie"
+            value={String(data.keywordsCount)}
+          />
+          <ProgressMiniStat
+            label="Highlight-uri în rezumat"
+            value={String(data.highlightsCount)}
+          />
+          <ProgressMiniStat
+            label="Încercări la quiz-uri"
+            value={String(data.totalAttempts)}
+          />
         </div>
       </section>
+    </div>
+  );
+}
+
+function buildSmoothLinePath(points: Array<{ x: number; y: number }>) {
+  if (!points.length) {
+    return "";
+  }
+  if (points.length === 1) {
+    return `M ${points[0].x} ${points[0].y}`;
+  }
+
+  let path = `M ${points[0].x} ${points[0].y}`;
+  for (let index = 0; index < points.length - 1; index += 1) {
+    const current = points[index];
+    const next = points[index + 1];
+    const midX = (current.x + next.x) / 2;
+    path += ` C ${midX} ${current.y}, ${midX} ${next.y}, ${next.x} ${next.y}`;
+  }
+  return path;
+}
+
+function ProgressScoreTrendChart({
+  attempts,
+}: {
+  attempts: Array<{
+    quizTitle: string;
+    scorePercent: number;
+    completedAt: string;
+  }>;
+}) {
+  const width = 640;
+  const height = 220;
+  const paddingX = 16;
+  const paddingTop = 16;
+  const paddingBottom = 8;
+  const plotWidth = width - paddingX * 2;
+  const plotHeight = height - paddingTop - paddingBottom;
+
+  const points = attempts.map((attempt, index) => ({
+    x:
+      attempts.length > 1
+        ? paddingX + (plotWidth * index) / (attempts.length - 1)
+        : paddingX + plotWidth / 2,
+    y: paddingTop + plotHeight * (1 - attempt.scorePercent / 100),
+    attempt,
+  }));
+
+  const linePath = buildSmoothLinePath(points);
+  const floorY = paddingTop + plotHeight;
+  const areaPath = `${linePath} L ${points[points.length - 1].x} ${floorY} L ${points[0].x} ${floorY} Z`;
+
+  return (
+    <div className="mt-5 rounded-3xl border border-subtle bg-app p-4">
+      <svg
+        viewBox={`0 0 ${width} ${height}`}
+        preserveAspectRatio="none"
+        className="h-56 w-full"
+        role="img"
+        aria-label="Evoluția scorurilor la quiz-uri în timp"
+      >
+        <defs>
+          <linearGradient id="progress-trend-fill" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="var(--theme-content)" stopOpacity="0.32" />
+            <stop offset="100%" stopColor="var(--theme-content)" stopOpacity="0" />
+          </linearGradient>
+        </defs>
+
+        {[0, 25, 50, 75, 100].map((line) => {
+          const y = paddingTop + plotHeight * (1 - line / 100);
+          return (
+            <line
+              key={line}
+              x1={paddingX}
+              x2={width - paddingX}
+              y1={y}
+              y2={y}
+              stroke="var(--theme-border)"
+              strokeDasharray="4 5"
+              strokeWidth={1}
+            />
+          );
+        })}
+
+        <path d={areaPath} fill="url(#progress-trend-fill)" stroke="none" />
+        <path
+          d={linePath}
+          fill="none"
+          stroke="var(--theme-content)"
+          strokeWidth={3}
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+
+        {points.map(({ x, y, attempt }, index) => (
+          <circle
+            key={`${attempt.completedAt}-${index}`}
+            cx={x}
+            cy={y}
+            r={index === points.length - 1 ? 6 : 4}
+            fill="var(--theme-app)"
+            stroke="var(--theme-content)"
+            strokeWidth={2.5}
+          >
+            <title>
+              {attempt.quizTitle} · {attempt.scorePercent}% ·{" "}
+              {formatQuizAttemptTimestamp(attempt.completedAt)}
+            </title>
+          </circle>
+        ))}
+      </svg>
+
+      <div className="mt-2 flex items-center justify-between text-[10px] font-bold text-muted">
+        <span>{formatQuizAttemptTimestamp(attempts[0].completedAt)}</span>
+        <span>
+          {formatQuizAttemptTimestamp(
+            attempts[attempts.length - 1].completedAt,
+          )}
+        </span>
+      </div>
     </div>
   );
 }
@@ -5263,30 +5543,6 @@ function ProgressHeroMetric({
     <div className="rounded-2xl border border-app/10 bg-app/10 p-4">
       <p className="font-serif text-2xl font-semibold">{value}</p>
       <p className="mt-1 text-xs leading-5 text-app/65">{label}</p>
-    </div>
-  );
-}
-
-function ProgressProbabilityCard({
-  label,
-  value,
-  tone,
-}: {
-  label: string;
-  value: number;
-  tone: "success" | "info" | "warning";
-}) {
-  const toneClass =
-    tone === "success"
-      ? "border-success-border bg-success-soft text-success"
-      : tone === "info"
-        ? "border-info-border bg-info-soft text-info"
-        : "border-warning-border bg-warning-soft text-warning";
-
-  return (
-    <div className={`rounded-2xl border p-4 ${toneClass}`}>
-      <p className="font-serif text-3xl font-semibold">{value}%</p>
-      <p className="mt-1 text-xs font-bold">{label}</p>
     </div>
   );
 }
