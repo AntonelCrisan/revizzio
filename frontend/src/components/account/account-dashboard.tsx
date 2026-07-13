@@ -2161,6 +2161,16 @@ function ProjectChatPanel({ project }: { project: StudyProject }) {
   );
 }
 
+type SummaryDisplayBlock =
+  | { kind: "paragraph"; text: string }
+  | { kind: "heading"; level: number; text: string }
+  | { kind: "list-item"; text: string };
+
+type SummaryRenderGroup =
+  | { kind: "heading"; paragraphIndex: number; level: number; text: string }
+  | { kind: "paragraph"; paragraphIndex: number; text: string }
+  | { kind: "list"; items: { paragraphIndex: number; text: string }[] };
+
 type SummaryKeyword = {
   id: string;
   label: string;
@@ -2263,17 +2273,95 @@ const summaryHighlightColors: Array<{
   },
 ];
 
-function splitSummaryParagraphs(content: string) {
-  return content
-    .split(/\n{2,}/)
-    .map((paragraph) => normalizeSummarySelection(paragraph))
+function splitParagraphEnumeration(text: string): SummaryDisplayBlock[] {
+  const colonIndex = text.indexOf(":");
+  if (colonIndex === -1) {
+    return [{ kind: "paragraph", text }];
+  }
+
+  const intro = text.slice(0, colonIndex + 1).trim();
+  const rest = text.slice(colonIndex + 1).trim();
+  const rawItems = rest
+    .split(";")
+    .map((item) => item.trim())
     .filter(Boolean);
+
+  if (rawItems.length < 2) {
+    return [{ kind: "paragraph", text }];
+  }
+
+  const items = rawItems.map((item, index) =>
+    index === rawItems.length - 1 ? item.replace(/\.\s*$/, "") : item,
+  );
+
+  const blocks: SummaryDisplayBlock[] = [{ kind: "paragraph", text: intro }];
+  items.forEach((item) => {
+    if (item) {
+      blocks.push({ kind: "list-item", text: item });
+    }
+  });
+
+  return blocks;
 }
 
-function findParagraphIndexForKeyword(paragraphs: string[], anchorText: string) {
+function splitSummaryParagraphs(content: string): SummaryDisplayBlock[] {
+  const blocks: SummaryDisplayBlock[] = [];
+  let paragraphLines: string[] = [];
+
+  function flushParagraph() {
+    if (!paragraphLines.length) {
+      return;
+    }
+
+    const text = normalizeSummarySelection(paragraphLines.join(" "));
+    if (text) {
+      blocks.push(...splitParagraphEnumeration(text));
+    }
+    paragraphLines = [];
+  }
+
+  for (const rawLine of content.split("\n")) {
+    const line = rawLine.trim();
+
+    if (!line) {
+      flushParagraph();
+      continue;
+    }
+
+    const headingMatch = line.match(/^(#{1,6})\s+(.*)$/);
+    if (headingMatch) {
+      flushParagraph();
+      const text = normalizeSummarySelection(headingMatch[2]);
+      if (text) {
+        blocks.push({ kind: "heading", level: headingMatch[1].length, text });
+      }
+      continue;
+    }
+
+    const listMatch = line.match(/^[-*•]\s+(.*)$/);
+    if (listMatch) {
+      flushParagraph();
+      const text = normalizeSummarySelection(listMatch[1]);
+      if (text) {
+        blocks.push({ kind: "list-item", text });
+      }
+      continue;
+    }
+
+    paragraphLines.push(line);
+  }
+
+  flushParagraph();
+  return blocks;
+}
+
+function findParagraphIndexForKeyword(
+  paragraphs: SummaryDisplayBlock[],
+  anchorText: string,
+) {
   const normalizedAnchor = anchorText.toLocaleLowerCase("ro-RO");
   const index = paragraphs.findIndex((paragraph) =>
-    paragraph.toLocaleLowerCase("ro-RO").includes(normalizedAnchor),
+    paragraph.text.toLocaleLowerCase("ro-RO").includes(normalizedAnchor),
   );
 
   return index === -1 ? 0 : index;
@@ -2281,7 +2369,7 @@ function findParagraphIndexForKeyword(paragraphs: string[], anchorText: string) 
 
 function buildProjectSummaryKeywords(
   keywords: StudyProject["keywords"],
-  paragraphs: string[],
+  paragraphs: SummaryDisplayBlock[],
 ): SummaryKeyword[] {
   return keywords.map((keyword) => {
     const anchorText = keyword.anchor_text || keyword.term;
@@ -2320,7 +2408,7 @@ function getSummaryHighlightStyle(
 
 function buildSummaryAiResponse(
   selection: PendingSummarySelection,
-  paragraphs: string[],
+  paragraphs: SummaryDisplayBlock[],
   keywords: SummaryKeyword[],
 ): LearningAiResponse {
   const normalizedText = selection.text.toLocaleLowerCase("ro-RO");
@@ -2330,7 +2418,8 @@ function buildSummaryAiResponse(
       normalizedText.includes(keyword.label.toLocaleLowerCase("ro-RO")),
   );
   const concept = matchedKeyword?.label ?? "fragmentul selectat";
-  const sourceParagraph = paragraphs[selection.paragraphIndex] ?? selection.text;
+  const sourceParagraph =
+    paragraphs[selection.paragraphIndex]?.text ?? selection.text;
 
   return {
     title: `Explicație rapidă pentru ${concept}`,
@@ -2655,13 +2744,15 @@ function SummaryPanel({
   const userHighlights = project.summaryHighlights;
   const userNotes = project.summaryNotes;
   const summaryContent = project.summary?.content ?? "";
-  const displayParagraphs = useMemo(() => {
+  const displayParagraphs = useMemo<SummaryDisplayBlock[]>(() => {
     if (!summaryContent) {
       return [];
     }
 
     const paragraphs = splitSummaryParagraphs(summaryContent);
-    return paragraphs.length ? paragraphs : [summaryContent];
+    return paragraphs.length
+      ? paragraphs
+      : [{ kind: "paragraph", text: normalizeSummarySelection(summaryContent) }];
   }, [summaryContent]);
   const displayKeywords = useMemo(() => {
     if (!project.keywords.length) {
@@ -2670,6 +2761,38 @@ function SummaryPanel({
 
     return buildProjectSummaryKeywords(project.keywords, displayParagraphs);
   }, [displayParagraphs, project.keywords]);
+  const summaryRenderGroups = useMemo<SummaryRenderGroup[]>(() => {
+    const groups: SummaryRenderGroup[] = [];
+
+    displayParagraphs.forEach((block, paragraphIndex) => {
+      if (block.kind === "list-item") {
+        const lastGroup = groups[groups.length - 1];
+        if (lastGroup?.kind === "list") {
+          lastGroup.items.push({ paragraphIndex, text: block.text });
+          return;
+        }
+        groups.push({
+          kind: "list",
+          items: [{ paragraphIndex, text: block.text }],
+        });
+        return;
+      }
+
+      if (block.kind === "heading") {
+        groups.push({
+          kind: "heading",
+          paragraphIndex,
+          level: block.level,
+          text: block.text,
+        });
+        return;
+      }
+
+      groups.push({ kind: "paragraph", paragraphIndex, text: block.text });
+    });
+
+    return groups;
+  }, [displayParagraphs]);
   const summaryTitle = `Rezumat pentru ${project.name}`;
 
   const keywordHighlightClass =
@@ -2988,17 +3111,37 @@ function SummaryPanel({
           </div>
 
           {notePanel ? (
-            <div className="sticky top-16 z-20 mt-4 rounded-2xl border border-info-border bg-info-soft/95 p-4 text-info shadow-2xl shadow-black/10 backdrop-blur-xl">
-              <p className="text-[11px] font-bold uppercase tracking-[0.16em]">
-                {notePanel.mode === "create" ? "Notiță nouă" : "Notiță"}
-              </p>
-              <p className="mt-2 text-sm leading-6">
-                “
-                {notePanel.mode === "create"
-                  ? notePanel.selection.text
-                  : notePanel.note.text}
-                ”
-              </p>
+            <div
+              className="sticky top-16 z-20 mt-4 w-full max-w-xs rounded-lg p-3 shadow-2xl shadow-black/20"
+              style={{ backgroundColor: "#fff3b0" }}
+            >
+              <div className="flex items-center justify-end gap-0.5">
+                {notePanel.mode === "view" ? (
+                  <button
+                    type="button"
+                    onClick={handleDeleteNote}
+                    aria-label="Șterge notița"
+                    title="Șterge notița"
+                    className="flex h-7 w-7 items-center justify-center rounded-md text-black/50 transition hover:bg-black/5 hover:text-black/80"
+                  >
+                    <Icon className="h-4 w-4">
+                      <path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6" />
+                      <path d="M10 11v6M14 11v6" />
+                    </Icon>
+                  </button>
+                ) : null}
+                <button
+                  type="button"
+                  onClick={handleCloseNotePanel}
+                  aria-label="Închide"
+                  className="flex h-7 w-7 items-center justify-center rounded-md text-black/50 transition hover:bg-black/5 hover:text-black/80"
+                >
+                  <Icon className="h-4 w-4">
+                    <path d="M18 6 6 18M6 6l12 12" />
+                  </Icon>
+                </button>
+              </div>
+
               <textarea
                 value={notePanel.draft}
                 onChange={(event) =>
@@ -3008,34 +3151,23 @@ function SummaryPanel({
                       : current,
                   )
                 }
-                placeholder="Scrie o notiță pentru acest fragment..."
-                rows={4}
-                className="mt-3 w-full rounded-2xl border border-info-border bg-surface p-3 text-sm text-content outline-none focus:ring-2 focus:ring-info/40"
+                placeholder="Scrie o notiță aici..."
+                rows={5}
+                autoFocus
+                className="w-full resize-none bg-transparent p-1 text-sm leading-6 text-black/80 outline-none placeholder:text-black/40"
               />
-              <div className="mt-3 flex flex-wrap gap-2">
+
+              <div className="flex justify-end">
                 <button
                   type="button"
                   onClick={handleSaveNote}
                   disabled={!notePanel.draft.trim()}
-                  className="rounded-full bg-action px-4 py-2 text-xs font-bold text-on-action transition hover:bg-action-hover disabled:cursor-not-allowed disabled:opacity-50"
+                  aria-label="Salvează"
+                  className="flex h-7 w-7 items-center justify-center rounded-md text-black/50 transition hover:bg-black/5 hover:text-black/80 disabled:cursor-not-allowed disabled:opacity-30"
                 >
-                  Salvează
-                </button>
-                {notePanel.mode === "view" ? (
-                  <button
-                    type="button"
-                    onClick={handleDeleteNote}
-                    className="rounded-full border border-danger-border bg-surface px-4 py-2 text-xs font-bold text-danger transition hover:bg-danger-soft"
-                  >
-                    Șterge notița
-                  </button>
-                ) : null}
-                <button
-                  type="button"
-                  onClick={handleCloseNotePanel}
-                  className="rounded-full border border-info-border px-4 py-2 text-xs font-bold transition hover:bg-info-soft/70"
-                >
-                  Anulează
+                  <Icon className="h-4 w-4">
+                    <path d="M20 6 9 17l-5-5" />
+                  </Icon>
                 </button>
               </div>
             </div>
@@ -3047,27 +3179,85 @@ function SummaryPanel({
             onMouseUp={readCurrentSelection}
             className={`mt-6 space-y-5 text-sm leading-7 text-content/85 sm:text-base sm:leading-8 ${toolCursorClass}`}
           >
-            {displayParagraphs.map((paragraph, paragraphIndex) => (
-              <p
-                key={`${paragraphIndex}-${paragraph.slice(0, 24)}`}
-                data-summary-paragraph={paragraphIndex}
-                className="select-text"
-              >
-                {renderSummaryText(
-                  paragraph,
-                  paragraphIndex,
-                  displayKeywords,
-                  userHighlights,
-                  userNotes,
-                  keywordHighlightClass,
-                  userHighlightClass,
-                  activeKeywordId,
-                  activeTool === "erase",
-                  handleHighlightSpanClick,
-                  handleOpenNoteViewer,
-                )}
-              </p>
-            ))}
+            {summaryRenderGroups.map((group) => {
+              if (group.kind === "heading") {
+                const HeadingTag: "h3" | "h4" = group.level <= 3 ? "h3" : "h4";
+                return (
+                  <HeadingTag
+                    key={`heading-${group.paragraphIndex}`}
+                    data-summary-paragraph={group.paragraphIndex}
+                    className="select-text font-serif text-xl font-semibold leading-snug text-content sm:text-2xl"
+                  >
+                    {renderSummaryText(
+                      group.text,
+                      group.paragraphIndex,
+                      displayKeywords,
+                      userHighlights,
+                      userNotes,
+                      keywordHighlightClass,
+                      userHighlightClass,
+                      activeKeywordId,
+                      activeTool === "erase",
+                      handleHighlightSpanClick,
+                      handleOpenNoteViewer,
+                    )}
+                  </HeadingTag>
+                );
+              }
+
+              if (group.kind === "list") {
+                return (
+                  <ul
+                    key={`list-${group.items[0].paragraphIndex}`}
+                    className="list-disc space-y-2 pl-5 marker:text-muted"
+                  >
+                    {group.items.map((item) => (
+                      <li
+                        key={item.paragraphIndex}
+                        data-summary-paragraph={item.paragraphIndex}
+                        className="select-text pl-1"
+                      >
+                        {renderSummaryText(
+                          item.text,
+                          item.paragraphIndex,
+                          displayKeywords,
+                          userHighlights,
+                          userNotes,
+                          keywordHighlightClass,
+                          userHighlightClass,
+                          activeKeywordId,
+                          activeTool === "erase",
+                          handleHighlightSpanClick,
+                          handleOpenNoteViewer,
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                );
+              }
+
+              return (
+                <p
+                  key={`paragraph-${group.paragraphIndex}`}
+                  data-summary-paragraph={group.paragraphIndex}
+                  className="select-text"
+                >
+                  {renderSummaryText(
+                    group.text,
+                    group.paragraphIndex,
+                    displayKeywords,
+                    userHighlights,
+                    userNotes,
+                    keywordHighlightClass,
+                    userHighlightClass,
+                    activeKeywordId,
+                    activeTool === "erase",
+                    handleHighlightSpanClick,
+                    handleOpenNoteViewer,
+                  )}
+                </p>
+              );
+            })}
           </div>
 
           <div className="mt-8 border-t border-subtle pt-5">

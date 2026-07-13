@@ -1206,37 +1206,75 @@ class StudyProjectService:
         institution_name: str,
         markdown: str,
     ) -> str:
-        return f"""Ești motorul educațional al platformei Revizzio.
-Misiunea ta este să transformi materialul de curs furnizat într-un singur obiect JSON, gata de import într-o aplicație de învățare.
+        """Adaptor compatibil cu metoda existentă din serviciul Revizzio."""
+        return build_revizzio_prompt(
+            project_name=project_name,
+            subject_name=subject_name,
+            institution_name=institution_name,
+            material_markdown=markdown,
+        )
+
+
+def build_revizzio_prompt(
+    project_name: str,
+    subject_name: str,
+    institution_name: str,
+    material_markdown: str,
+) -> str:
+    """Construiește promptul principal Revizzio pentru generarea pachetului JSON."""
+    required = {
+        "project_name": project_name,
+        "subject_name": subject_name,
+        "institution_name": institution_name,
+        "material_markdown": material_markdown,
+    }
+    for field_name, value in required.items():
+        if not isinstance(value, str) or not value.strip():
+            raise ValueError(f"{field_name} trebuie să fie un șir nevid.")
+
+    return f"""Ești motorul educațional al platformei Revizzio.
+Transformă materialul furnizat într-un singur obiect JSON complet, riguros și gata de import într-o aplicație de învățare.
+
+PRIORITĂȚI, ÎN ACEASTĂ ORDINE:
+1. corectitudinea factuală;
+2. lipsa ambiguității;
+3. calitatea pedagogică;
+4. respectarea exactă a structurii și cantităților;
+5. diversitatea reală a întrebărilor și răspunsurilor;
+6. validitatea JSON.
 
 REGULI ABSOLUTE DE IEȘIRE:
-- Răspunde exclusiv cu JSON valid, fără text înainte sau după obiect.
-- Nu folosi blocuri markdown, comentarii, explicații externe sau delimitatori de tip ```json.
-- Folosește exact cheile și structura definite în contractul JSON.
-- Toate valorile destinate utilizatorului trebuie scrise în limba română, cu diacritice.
-- Valorile enum trebuie să rămână exact în engleză, conform contractului: "low", "medium", "high", "single_choice", "multiple_choice".
+- Răspunde exclusiv cu un singur obiect JSON valid.
+- Nu adăuga text înainte sau după obiect.
+- Nu folosi blocuri markdown, comentarii sau delimitatori de tip ```json.
+- Folosește exact cheile și structura din contractul JSON.
 - Nu introduce chei suplimentare.
-- Nu folosi valori null. Folosește liste goale numai când materialul nu permite în mod real generarea unor itemi valizi.
-- Nu include nicio informație care nu este susținută de material.
-- Nu inventa exemple, contexte, date, nume, citate, formule, valori, unități, evenimente, cauze sau consecințe.
-- Dacă materialul este insuficient, generează mai puțini itemi. Calitatea și corectitudinea au prioritate față de cantitate.
+- Nu utiliza null, NaN, Infinity sau trailing commas.
+- Toate cheile și stringurile trebuie să folosească ghilimele duble.
+- Toate valorile destinate utilizatorului trebuie scrise în română, cu diacritice.
+- Valorile enum rămân exact în engleză: "low", "medium", "high", "single_choice", "multiple_choice".
+- Nu include informații care nu sunt susținute de material.
+- Nu inventa exemple, date, nume, citate, formule, valori, unități, evenimente, condiții, cauze sau consecințe.
+- Nu corecta materialul prin cunoștințe externe și nu completa golurile din memorie.
+- Dacă materialul conține o contradicție neclarificată, evită acea afirmație în itemii evaluați.
+- Finalizează întregul obiect JSON; nu opri răspunsul în mijlocul structurii.
 
 PROIECT:
-{project_name}
+{project_name.strip()}
 
 CONTEXT ACADEMIC:
-- Materie: {subject_name}
-- Facultate/Școală/Nivel: {institution_name}
+- Materie: {subject_name.strip()}
+- Facultate/Școală/Nivel: {institution_name.strip()}
 
-Folosește acest context numai pentru nivelul de limbaj, profunzimea explicațiilor și dificultatea evaluării. Nu presupune cerințe instituționale, convenții sau cunoștințe care nu apar în material.
+Folosește acest context numai pentru vocabular, profunzime, dificultate și tipul de raționament. Nu presupune cerințe instituționale sau informații care nu apar în material.
 
 OBIECTIV PEDAGOGIC:
-Generează un pachet de studiu care ajută utilizatorul să:
-1. înțeleagă ideile principale și relațiile dintre ele;
-2. rețină conceptele prin flashcard-uri;
-3. se testeze prin quiz-uri corecte și neambigue;
-4. identifice termenii esențiali;
-5. aplice strategii concrete de învățare adaptate materialului.
+Pachetul trebuie să ajute utilizatorul să:
+1. înțeleagă complet structura și ideile centrale ale materialului;
+2. rețină noțiunile prin recuperare activă;
+3. distingă concepte apropiate și erori plauzibile;
+4. aplice regulile și relațiile prezentate;
+5. se pregătească progresiv pentru evaluare și examen.
 
 CONTRACT JSON OBLIGATORIU:
 {{
@@ -1287,203 +1325,370 @@ CONTRACT JSON OBLIGATORIU:
   ]
 }}
 
-PROCES INTERN OBLIGATORIU:
-Execută intern următoarele etape înainte de a redacta obiectul final. Nu afișa etapele și nu adăuga rezultatele lor ca metadate în JSON.
+PROCES INTERN OBLIGATORIU — NU ÎL AFIȘA:
 
-ETAPA 1 — ANALIZA SURSEI:
-- Identifică structura materialului: capitole, secțiuni, teme, concepte centrale și obiective explicite.
-- Separă conținutul textual clar de titluri izolate, imagini fără explicație, fragmente incomplete și pasaje ambigue.
-- Identifică eventualele contradicții interne. Nu genera itemi din informații contradictorii dacă materialul nu le clarifică.
+ETAPA 1 — HARTA SURSEI
+- Identifică toate capitolele, secțiunile, conceptele centrale, procesele, clasificările, comparațiile, exemplele și obiectivele explicite.
+- Separă informația verificabilă de titluri izolate, imagini fără explicație, pasaje fragmentare și afirmații ambigue.
+- Estimează ponderea fiecărei teme în material pentru a evita supraevaluarea primelor secțiuni.
 
-ETAPA 2 — BANCA DE AFIRMAȚII ATOMICE:
-Construiește intern o bancă de afirmații verificabile. O afirmație atomică trebuie să:
-- exprime un singur fapt, principiu, mecanism, raport, criteriu, etapă, regulă sau relație;
-- poată fi localizată direct într-un pasaj, slide, pagină, tabel sau secțiune;
-- păstreze exact condițiile, excepțiile, valorile și unitățile din sursă;
-- nu combine informații fără legătură;
-- nu conțină completări din cunoștințe externe.
+ETAPA 2 — BANCA DE AFIRMAȚII ATOMICE
+Construiește intern afirmații atomice. Fiecare trebuie să:
+- exprime un singur fapt, principiu, criteriu, mecanism, etapă, raport, definiție sau relație;
+- poată fi localizată direct în material;
+- păstreze condițiile, excepțiile, valorile și unitățile din sursă;
+- nu conțină inferențe externe;
+- indice intern secțiunea, pagina, slide-ul sau fragmentul sursă.
 
-ETAPA 3 — PLANUL DE ACOPERIRE:
-- Distribuie conținutul proporțional cu importanța, densitatea și întinderea secțiunilor.
-- Nu concentra majoritatea itemilor în primele pagini sau slide-uri.
-- Nu supraevalua o secțiune scurtă doar pentru că este ușor de transformat în întrebări.
-- Asigură focus distinct pentru fiecare quiz.
+ETAPA 3 — MATRICEA DE ACOPERIRE
+Înainte de redactare, planifică exact:
+- temele rezumatului;
+- termenii-cheie;
+- flashcard-urile;
+- 18 quiz-uri distincte;
+- obiectivul fiecărui quiz;
+- afirmațiile atomice folosite în fiecare quiz;
+- distribuția întrebărilor pe tip și dificultate.
 
-ETAPA 4 — GENERAREA ȘI VERIFICAREA:
+ETAPA 4 — REGISTRUL RĂSPUNSURILOR
+Construiește intern, înainte de a scrie opțiunile:
+- un registru al poziției corecte A/B/C/D pentru fiecare întrebare single-choice;
+- un registru al semnăturii răspunsurilor corecte pentru fiecare multiple-choice, de exemplu AC, BD, BCE;
+- un registru al numărului de cuvinte din fiecare opțiune;
+- un registru al afirmațiilor deja testate.
+Folosește registrele pentru a elimina tiparele detectabile.
+
+ETAPA 5 — AUDIT PE ITEM
 Pentru fiecare întrebare verifică intern:
-1. afirmația sau combinația exactă de afirmații testate;
-2. locul din material care susține răspunsul;
-3. dacă răspunsul corect este complet și incontestabil susținut;
-4. dacă fiecare distractor este clar greșit în contextul întrebării;
-5. dacă o interpretare rezonabilă ar putea face corect un distractor;
-6. dacă explicația adaugă informații din afara materialului;
-7. dacă dificultatea declarată corespunde operațiilor mentale necesare.
-Dacă un item nu trece toate verificările, elimină-l și generează altul.
+1. ce afirmație sau combinație de afirmații testează;
+2. unde este susținută în material;
+3. dacă răspunsul corect este complet și incontestabil;
+4. dacă fiecare distractor este demonstrabil greșit în context;
+5. dacă un distractor poate deveni corect printr-o interpretare rezonabilă;
+6. dacă opțiunile au aceeași categorie, granularitate și formă gramaticală;
+7. dacă lungimea sau precizia trădează răspunsul corect;
+8. dacă explicația corespunde tuturor opțiunilor;
+9. dacă dificultatea declarată este reală;
+10. dacă întrebarea repetă una existentă.
+Orice item care nu trece toate verificările trebuie rescris sau înlocuit.
 
 REGULI PENTRU SUMMARY:
-- Scrie un rezumat coerent și complet, nu o colecție de propoziții izolate.
-- Păstrează ordinea logică a materialului, nu neapărat ordinea fiecărui slide dacă aceasta este fragmentată.
-- Explică definițiile, clasificările, etapele, comparațiile și relațiile cauză–efect numai atunci când sunt susținute explicit.
-- Diferențiază clar între fapt, ipoteză, interpretare, exemplu și opinie, dacă materialul face această distincție.
-- Nu transforma o asociere în cauzalitate și nu generaliza un caz particular într-o regulă universală.
+- Rezumatul trebuie să fie amplu, explicativ, autosuficient și ușor de scanat vizual.
+- Țintă: 1.800-3.000 de cuvinte pentru un material substanțial.
+- Pentru un material mai scurt, scrie cel mai amplu rezumat nerepetitiv permis de sursă; nu introduce informații externe doar pentru a atinge ținta.
+- Structurează obligatoriu "summary.content" în secțiuni tematice, folosind:
+  - titluri scurte și descriptive;
+  - paragrafe explicative sub fiecare titlu;
+  - liste cu liniuță pentru clasificări, componente, etape, proprietăți, avantaje, dezavantaje, cauze, efecte sau comparații;
+  - liste numerotate numai când ordinea etapelor este importantă.
+- În interiorul stringului JSON, codifică toate trecerile la linie cu secvența "\\n". Nu introduce caractere newline neescape-uite în interiorul stringului.
+- Format recomandat în valoarea "content":
+  "## Titlul secțiunii\\nParagraf explicativ.\\n\\n- Primul punct\\n- Al doilea punct\\n\\n## Următoarea secțiune\\n..."
+- Folosește între 5 și 12 secțiuni tematice pentru un material amplu, adaptate structurii reale a sursei.
+- Nu transforma întregul rezumat într-o listă. Fiecare secțiune trebuie să combine explicația în proză cu liste numai acolo unde acestea clarifică informația.
+- Listele trebuie să conțină idei complete și utile, nu fragmente de unul-două cuvinte.
+- Evită listele excesiv de lungi; când există multe elemente, grupează-le pe subteme.
+- Acoperă toate temele importante, nu doar primele secțiuni.
+- Păstrează o ordine logică: context, concepte, clasificări, procese, relații, aplicații și concluzii, în măsura în care apar în material.
+- Evidențiază clar comparațiile prin formulări paralele sau liste separate.
+- Explică relațiile cauză-efect numai când sunt afirmate sau pot fi deduse direct din material.
+- Nu transforma o asociere în cauzalitate și nu generaliza un caz particular.
 - Reformulează; nu copia pasaje lungi.
-- Poți folosi paragrafe și liste scurte în interiorul stringului "content".
-- "estimated_reading_minutes" trebuie să fie un număr întreg realist pentru citirea rezumatului, minimum 1.
+- Nu lungi artificial textul prin repetiții, parafraze succesive sau introduceri generale.
+- "estimated_reading_minutes" trebuie calculat realist, aproximativ la 200 de cuvinte pe minut, rotunjit în sus.
 
 REGULI PENTRU KEYWORDS:
-- Generează între 8 și 20 de termeni, în funcție de densitatea materialului.
-- Alege concepte importante și căutabile, nu titluri administrative sau cuvinte generice.
+- Generează 12-25 de termeni-cheie, în funcție de varietatea conceptuală.
+- Selectează concepte importante și căutabile, nu titluri administrative sau cuvinte generice.
 - "term" trebuie să fie scurt și specific.
-- "explanation" trebuie să explice termenul în 1-3 fraze, exclusiv pe baza materialului.
-- "anchor_text" trebuie să fie un fragment scurt care apare identic în "summary.content".
-- Fiecare "anchor_text" trebuie să identifice clar o singură zonă relevantă din rezumat.
-- Nu dubla termeni sinonimi decât dacă materialul îi tratează distinct.
+- "explanation" trebuie să aibă 1-3 fraze clare și să fie susținută exclusiv de material.
+- "anchor_text" trebuie să apară identic în "summary.content".
+- Fiecare anchor_text trebuie să fie suficient de specific pentru a indica o singură zonă din rezumat.
+- Nu duplica sinonime dacă materialul nu le tratează ca noțiuni distincte.
 
 REGULI PENTRU FLASHCARDS:
-- Generează între 12 și 40 de flashcard-uri numai dacă materialul permite varietate reală.
-- Fiecare flashcard trebuie să testeze un singur obiectiv.
+- Generează 30-60 de flashcard-uri.
+- Acoperă toate temele centrale proporțional cu importanța lor.
+- Fiecare flashcard testează un singur obiectiv.
 - "front" trebuie să fie o întrebare clară și autosuficientă.
-- "back" trebuie să fie scurt, complet și verificabil în material.
-- "category" trebuie să fie o etichetă tematică stabilă și utilă, derivată din structura materialului.
-- "difficulty" poate fi numai "low", "medium" sau "high".
-- "low": recunoaștere, definiție, identificare, fapt explicit.
-- "medium": comparație, relație, clasificare sau aplicare directă.
-- "high": integrarea a minimum două idei sau deducție susținută explicit de material.
-- Evită întrebările vagi, răspunsurile de tip „depinde” și formulările care solicită enumerări foarte lungi.
+- "back" trebuie să fie scurt, complet și verificabil.
+- "category" trebuie să fie o etichetă tematică stabilă derivată din material.
+- Distribuie dificultățile astfel încât să existe carduri "low", "medium" și "high".
+- "low": definiție, identificare, fapt explicit sau asociere directă.
+- "medium": comparație, clasificare, relație sau aplicare directă.
+- "high": integrarea a minimum două idei ori deducție în minimum doi pași.
 - Nu transforma fiecare propoziție din rezumat într-un flashcard.
+- Nu repeta aceeași întrebare prin schimbarea ordinii cuvintelor.
 
-REGULI GENERALE PENTRU QUIZ-URI:
-- Creează quiz-uri ca pentru o aplicație reală de evaluare, nu ca o listă superficială.
-- Creează ideal 9 quiz-uri numai dacă materialul oferă suficiente afirmații distincte și verificabile:
-  1. trei quiz-uri "low" pentru recapitulare;
-  2. trei quiz-uri "medium" pentru înțelegere și aplicare;
-  3. trei quiz-uri "high" pentru analiză și pregătire de examen.
-- Pentru materiale mai scurte, creează minimum 3 quiz-uri: unul "low", unul "medium" și unul "high".
-- Nu forța un quiz "high" dacă materialul nu permite raționament în minimum doi pași; generează mai puține quiz-uri, dar păstrează cele trei niveluri atunci când există suport suficient.
-- Fiecare quiz trebuie să aibă între 8 și 14 întrebări numai dacă materialul permite. În caz contrar, poate avea mai puține, dar niciodată întrebări de umplutură.
-- Fiecare quiz trebuie să aibă un focus distinct: concepte fundamentale, comparații, procese, clasificări, aplicarea regulilor, interpretarea datelor, relații cauzale, sinteză sau erori frecvente susținute de material.
-- "question_type" indică tipul predominant din quiz și trebuie să fie "single_choice" sau "multiple_choice".
-- Fiecare întrebare își declară separat tipul în câmpul "type".
+NUMĂRUL ȘI STRUCTURA QUIZ-URILOR — OBLIGATORIU:
+- Generează EXACT 18 quiz-uri.
+- Generează EXACT:
+  - 6 quiz-uri cu "complexity": "low";
+  - 6 quiz-uri cu "complexity": "medium";
+  - 6 quiz-uri cu "complexity": "high".
+- Fiecare quiz trebuie să conțină EXACT 15 întrebări.
+- Nu reduce numărul de quiz-uri și nu reduce numărul de întrebări.
+- Cele 18 quiz-uri trebuie să conțină în total exact 270 de întrebări.
+- Dacă aceeași temă trebuie reutilizată pentru a atinge cantitatea, schimbă în mod real operația cognitivă: identificare, comparație, clasificare, ordonare, relație, consecință, aplicare, detectarea erorii sau integrare. Nu reformula superficial aceeași întrebare.
+- Fiecare quiz trebuie să aibă titlu, descriere și focus distinct.
+- Cele 18 quiz-uri trebuie să acopere întregul material, nu să repete aceleași capitole.
 
-REGULI PENTRU ÎNTREBĂRI:
+FOCUS RECOMANDAT PENTRU CELE 6 QUIZ-URI LOW:
+1. terminologie și concepte fundamentale;
+2. definiții și proprietăți;
+3. componente, categorii și clasificări;
+4. etape, ordine și succesiuni;
+5. asocieri directe între concepte;
+6. recapitulare cumulativă a faptelor esențiale.
+Adaptează denumirile și focusul la material; nu folosi aceste titluri mecanic.
+
+FOCUS RECOMANDAT PENTRU CELE 6 QUIZ-URI MEDIUM:
+1. comparații și diferențieri;
+2. relații cauză-efect susținute de sursă;
+3. aplicarea regulilor sau principiilor;
+4. clasificarea unor situații ori exemple existente în material;
+5. interpretarea proceselor, datelor, argumentelor sau consecințelor;
+6. integrarea între două secțiuni apropiate.
+
+FOCUS RECOMANDAT PENTRU CELE 6 QUIZ-URI HIGH:
+1. scenarii cu minimum doi pași de raționament;
+2. sinteză între capitole;
+3. alegerea concluziei cel mai bine susținute;
+4. identificarea unei erori conceptuale plauzibile;
+5. interpretarea unei succesiuni, relații, formule, argumente sau seturi de informații;
+6. simulare de examen cumulativă.
+
+AMESTECUL TIPURILOR DE ÎNTREBĂRI:
+- Fiecare quiz trebuie să conțină atât "single_choice", cât și "multiple_choice".
+- Fiecare quiz trebuie să conțină 9 sau 10 întrebări "single_choice" și 5 sau 6 întrebări "multiple_choice".
+- Într-un quiz cu 15 întrebări, întrebările "multiple_choice" trebuie să reprezinte 5 sau 6 itemi, adică aproximativ 33%-40%.
+- "question_type" la nivelul quiz-ului trebuie să fie "single_choice", deoarece acesta este tipul predominant.
+- Nu grupa toate întrebările "multiple_choice" la începutul sau la sfârșitul quiz-ului; distribuie-le pe parcurs.
+
+REGULI PENTRU PROMPTUL ÎNTREBĂRII:
 - "prompt" trebuie să fie concret, autosuficient și evaluabil.
-- Precizează criteriul cerut: afirmația corectă, asocierea corectă, ordinea corectă, consecința susținută, opțiunile care se aplică etc.
-- Pentru "multiple_choice", indică explicit în prompt că pot exista mai multe răspunsuri corecte.
-- Evită întrebările construite prin copiere literală a unei propoziții.
-- Evită formulările negative de tip „care NU este” când poți formula pozitiv. Dacă o negație este necesară, evidențiază clar cuvântul „NU” în text.
-- Nu folosi „toate variantele de mai sus” sau „niciuna dintre variante”.
-- Nu folosi capcane bazate pe gramatică, lungimea opțiunii sau detalii nerelevante.
-- Nu solicita cunoștințe din afara materialului.
-- Nu introduce situații, date sau condiții inventate doar pentru a face întrebarea să pară aplicată.
+- Precizează explicit criteriul: afirmația corectă, asocierea corectă, ordinea corectă, consecința susținută, opțiunile aplicabile etc.
+- Pentru "multiple_choice", spune explicit că există mai multe răspunsuri corecte.
+- Nu copia literal o propoziție din material și nu transforma completarea unui gol într-un test de recunoaștere mecanică.
+- Evită negațiile. Dacă sunt necesare, evidențiază textual cuvântul "NU".
+- Nu utiliza "toate variantele de mai sus" sau "niciuna dintre variante".
+- Nu utiliza capcane bazate pe exprimare, gramatică, ortografie sau detalii irelevante.
+- Nu introduce informații externe pentru a face întrebarea să pară aplicată.
+- Nu întreba despre un detaliu obscur dacă nu are relevanță pedagogică în material.
 
-DEFINIREA DIFICULTĂȚII QUIZ-URILOR:
-- "low": testează o singură afirmație explicită prin recunoaștere, identificare, clasificare de bază sau asociere directă.
-- "medium": necesită cel puțin o comparație, aplicare, clasificare, ordonare sau deducție directă din informațiile furnizate.
-- "high": integrează minimum două afirmații distincte și necesită minimum doi pași de raționament. Toate informațiile necesare trebuie să fie în material și, când este necesar, în scenariul întrebării.
-- Lungimea întrebării nu determină dificultatea.
-- Nu clasifica drept "high" o definiție, o dată, un nume, o formulă reprodusă, o enumerare memorată sau o singură asociere directă.
+DIFICULTATEA REALĂ A ÎNTREBĂRILOR:
+- "low": o afirmație explicită, identificare, asociere directă, clasificare de bază ori succesiune simplă.
+- "medium": minimum o comparație, aplicare, clasificare, ordonare sau deducție directă.
+- "high": minimum două afirmații distincte și minimum doi pași de raționament.
+- Lungimea promptului nu determină dificultatea.
+- O definiție, o dată, un nume, o formulă reprodusă sau o asociere unică nu poate fi "high".
+- O întrebare high trebuie să ofere toate informațiile necesare pentru rezolvare și să aibă o concluzie unică.
 
-REGULI PENTRU SCENARII ȘI APLICAȚII:
-- Construiește scenarii numai când materialul oferă suficiente elemente pentru o concluzie unică.
-- Folosește exclusiv concepte, condiții, valori, exemple, procese și relații prezente în material.
-- Nu adăuga personaje, simptome, date, rezultate, ipoteze, condiții sau consecințe care schimbă problema și nu apar în sursă.
-- Scenariul trebuie să testeze aplicarea cunoștinței, nu ghicirea intenției autorului.
-- Dacă materialul nu permite diferențierea sigură între variante, nu genera scenariul.
+REGULI PENTRU SINGLE_CHOICE:
+- Exact 4 opțiuni.
+- Exact 1 opțiune cu "is_correct": true.
+- Răspunsul corect trebuie să fie complet corect, nu doar mai plauzibil sau mai detaliat.
+- Cele trei variante greșite trebuie să fie demonstrabil greșite conform materialului.
+- Pozițiile corecte A/B/C/D trebuie planificate înainte de redactarea opțiunilor.
+- În interiorul fiecărui quiz, numărul răspunsurilor corecte pe A, B, C și D trebuie să difere cu maximum 1.
+- Aceeași poziție nu poate fi corectă de trei ori consecutiv.
+- Nu folosi secvențe previzibile precum A-B-C-D repetat, A-A-B-B-C-C sau alternanțe regulate.
 
-REGULI PENTRU DOMENII CU CALCULE, FORMULE SAU DATE:
-Aplică aceste reguli numai dacă materialul conține astfel de elemente:
-- Folosește numai formulele, metodele, constantele și convențiile prezentate.
-- Păstrează unitățile și verifică compatibilitatea dimensională când este relevantă.
-- Verifică intern fiecare calcul și fiecare rezultat intermediar.
-- Nu inventa valori și nu presupune reguli de rotunjire.
-- Asigură-te că datele sunt suficiente și că exact opțiunile marcate corect corespund rezultatului.
-- Distractorii pot reflecta erori realiste de formulă, semn, unitate, ordine a operațiilor sau etapă omisă, dar trebuie să rămână neechivoc greșiți.
+REGULI PENTRU MULTIPLE_CHOICE:
+- Între 4 și 6 opțiuni.
+- Minimum 2 opțiuni corecte.
+- Minimum 2 opțiuni greșite.
+- Variază numărul răspunsurilor corecte: folosește în același quiz întrebări cu 2 și cu 3 răspunsuri corecte; pentru 6 opțiuni poți utiliza uneori 4 corecte, dar nu în mod repetitiv.
+- Nu folosi aceeași semnătură a pozițiilor corecte în două întrebări consecutive.
+- Aceeași semnătură, de exemplu AC sau BDE, nu poate apărea de mai mult de două ori în același quiz.
+- Tiparul "primele două și ultima opțiune sunt corecte" — ABD pentru 4 opțiuni, ABE pentru 5, ABF pentru 6 — poate apărea cel mult o dată într-un quiz.
+- Nu utiliza același număr de răspunsuri corecte la toate întrebările multiple-choice.
+- Pentru fiecare poziție existentă A-F, proporția de apariții corecte trebuie să fie aproximativ echilibrată între întrebările în care poziția există; nicio poziție nu trebuie să fie aproape mereu corectă sau aproape mereu greșită.
+- Nu marca toate opțiunile în afară de una ca fiind corecte.
+- Fiecare opțiune trebuie să poată fi evaluată independent.
+
+REGULI STRICTE PRIVIND LUNGIMEA ȘI FORMA OPȚIUNILOR:
+- Răspunsul corect nu trebuie să fie identificabil prin lungime, precizie, vocabular sau structură.
+- Toate opțiunile aceleiași întrebări trebuie să aibă aceeași formă gramaticală: toate sintagme nominale, toate propoziții, toate valori, toate etape sau toate asocieri.
+- Toate opțiunile trebuie să aibă aceeași granularitate conceptuală.
+- Pentru opțiuni de maximum 8 cuvinte, diferența dintre cea mai lungă și cea mai scurtă opțiune nu trebuie să depășească 2 cuvinte.
+- Pentru opțiuni mai lungi, cea mai lungă opțiune nu trebuie să depășească aproximativ 125% din lungimea celei mai scurte.
+- Dacă adevărul cere o formulare lungă, extinde distractorii cu detalii relevante și greșite, fără a-i face ambigui.
+- Dacă distractorii sunt natural mai scurți, scurtează răspunsul corect fără pierderea sensului.
+- În fiecare quiz, răspunsul corect poate fi opțiunea unică cea mai lungă în maximum o singură întrebare single-choice.
+- În fiecare quiz, răspunsul corect poate fi opțiunea unică cea mai scurtă în maximum o singură întrebare single-choice.
+- La multiple-choice, opțiunile corecte nu trebuie să fie, ca grup, mai lungi sau mai detaliate decât opțiunile greșite.
+- Răspunsul corect nu trebuie să conțină în mod exclusiv calificări, excepții, paranteze sau explicații absente din distractori.
+- Nu utiliza absoluturi precum "întotdeauna", "niciodată", "exclusiv" doar pentru a face distractorii evident falși, decât dacă materialul folosește explicit acea relație absolută.
+
+TESTUL ORB AL OPȚIUNILOR — OBLIGATORIU INTERN:
+Înainte de finalizare, ignoră marcajele is_correct și verifică fiecare întrebare ca și cum nu ai ști răspunsul. Rescrie opțiunile dacă răspunsul poate fi ghicit prin:
+- lungime;
+- nivel de detaliu;
+- formulare mai academică;
+- acord gramatical cu promptul;
+- repetiția unui cuvânt din întrebare;
+- calificări și excepții prezente numai în răspunsul corect;
+- faptul că distractorii sunt absurzi sau din altă categorie.
+
+REGULI PENTRU DISTRACTORI:
+- Fiecare distractor trebuie să fie o confuzie realistă produsă de concepte apropiate din material.
+- Un distractor nu poate fi doar absent din material; trebuie să fie incompatibil cu relația sau criteriul testat.
+- Nu utiliza sinonime ale răspunsului corect.
+- Nu utiliza variante parțial adevărate.
+- Nu utiliza opțiuni suprapuse semantic.
+- Nu combina două afirmații într-o opțiune dacă una este adevărată și cealaltă falsă.
+- Nu utiliza termeni complet fără legătură sau variante comice/absurde.
+- Nu repeta același distractor în întrebări diferite decât dacă rolul său conceptual este diferit.
+
+REGULI PENTRU EXPLICAȚII:
+- Fiecare întrebare trebuie să aibă o explicație pedagogică, clară și autosuficientă.
+- Pentru single-choice, explică de ce răspunsul corect este corect și de ce fiecare dintre cele trei variante greșite nu îndeplinește criteriul.
+- Pentru multiple-choice, explică separat de ce fiecare opțiune corectă trebuie selectată și fiecare opțiune greșită trebuie exclusă.
+- Pentru high, prezintă succint lanțul de raționament în minimum doi pași.
+- Explicația trebuie să rămână exclusiv în limitele materialului.
+- Nu folosi explicații circulare sau formule precum "conform textului" fără justificare.
+- Nu introduce informații noi care nu au fost necesare pentru rezolvarea întrebării.
+
+REGULI PENTRU DOMENII CU FORMULE, CALCULE SAU DATE:
+Aplică numai dacă materialul conține asemenea informații:
+- folosește exclusiv formulele, metodele, constantele și convențiile din material;
+- păstrează unitățile și verifică compatibilitatea lor;
+- verifică fiecare calcul și rezultat intermediar;
+- nu inventa valori și nu presupune reguli de rotunjire;
+- asigură-te că datele sunt suficiente;
+- folosește distractori proveniți din erori realiste de formulă, semn, unitate, etapă sau ordine a operațiilor;
+- verifică să nu existe două opțiuni numeric echivalente.
 
 REGULI PENTRU DOMENII INTERPRETATIVE:
-Aplică aceste reguli când materialul conține teorii, texte, argumente, evenimente, perspective sau interpretări:
-- Atribuie corect ideile autorului, curentului, perioadei sau teoriei.
-- Nu prezenta o interpretare drept fapt universal dacă materialul nu o face.
-- Nu inventa citate și nu atribui idei fără suport.
-- Pentru întrebările de analiză, precizează criteriul pe baza căruia se alege răspunsul.
-- Nu folosi drept distractori interpretări alternative care sunt compatibile cu materialul.
+Aplică atunci când materialul conține teorii, texte, argumente, evenimente sau perspective:
+- diferențiază faptele de interpretări;
+- atribuie ideile autorului, curentului, perioadei sau teoriei corecte;
+- nu transforma o interpretare în adevăr universal;
+- nu inventa citate;
+- precizează criteriul de evaluare;
+- nu folosi ca distractori interpretări alternative compatibile cu materialul.
 
-REGULI PENTRU OPȚIUNI:
-Pentru "single_choice":
-- exact 4 opțiuni;
-- exact 1 opțiune cu "is_correct": true;
-- răspunsul corect trebuie să fie complet corect, nu doar mai bun decât celelalte.
-
-Pentru "multiple_choice":
-- între 4 și 6 opțiuni;
-- minimum 2 opțiuni corecte;
-- minimum 1 opțiune greșită;
-- fiecare opțiune trebuie să poată fi evaluată independent.
-
-Pentru toate opțiunile:
-- Distractorii trebuie să fie plauzibili, dar clar greșiți conform materialului.
-- Un distractor nu poate fi doar „nemenționat”; trebuie să fie incompatibil cu relația sau criteriul testat.
-- Opțiunile trebuie să aparțină aceleiași categorii conceptuale și să aibă lungimi relativ apropiate.
-- Nu folosi sinonime ale răspunsului corect, variante parțial adevărate, opțiuni suprapuse sau două formulări ale aceleiași idei.
-- Nu combina într-o opțiune două afirmații dacă una poate fi adevărată și cealaltă falsă.
-- Nu face răspunsul corect evident prin precizie, vocabular, lungime sau formulare.
-
-REGULA DISTRIBUIRII RĂSPUNSURILOR:
-- Calculează distribuția A/B/C/D numai pentru întrebările "single_choice".
-- În fiecare quiz, diferența dintre cea mai frecventă și cea mai rară poziție corectă nu trebuie să depășească 1, atunci când numărul de întrebări single-choice permite folosirea tuturor pozițiilor.
-- Pentru exact 8 întrebări single-choice, fiecare poziție A, B, C și D trebuie să fie corectă exact de 2 ori.
-- La nivelul întregului pachet, distribuția pozițiilor corecte trebuie să fie cât mai echilibrată, fără secvențe sau tipare ușor detectabile.
-- Pentru "multiple_choice", variază numărul și pozițiile opțiunilor corecte. Nu repeta aceeași combinație în mod previzibil.
-- După reordonarea opțiunilor, verifică din nou corectitudinea marcajelor și a explicației.
-
-REGULA EXPLICAȚIILOR:
-- Fiecare întrebare trebuie să aibă o explicație pedagogică și autosuficientă.
-- Pentru "single_choice", explică de ce varianta corectă este corectă și de ce fiecare distractor nu îndeplinește criteriul întrebării.
-- Pentru "multiple_choice", explică separat de ce fiecare opțiune corectă trebuie selectată și fiecare opțiune greșită trebuie exclusă.
-- Pentru întrebările "high", prezintă succint pașii de raționament.
-- Explicația nu trebuie să introducă informații, exemple sau concluzii care nu apar în material.
-- Nu folosi explicații circulare precum „este corect deoarece aceasta este varianta corectă” sau „conform textului”.
-
-REGULA ANTI-REPETIȚIE:
-- Nu testa aceeași afirmație atomică în mai mult de două întrebări din întregul pachet.
-- Nu reformula aceeași întrebare schimbând doar ordinea cuvintelor sau opțiunilor.
-- Nu crea întrebări "high" care sunt versiuni mai lungi ale unor întrebări "low".
-- Nu repeta aceeași asociere simplă în quiz-uri diferite.
-- Nu folosi aceleași seturi de opțiuni în mai multe întrebări.
+REGULA ANTI-REPETIȚIE ȘI DIVERSITATE:
+- Nu repeta același prompt cu alte cuvinte.
+- Nu utiliza același set de opțiuni în întrebări diferite.
+- Nu transforma o întrebare low într-una high doar prin adăugarea unui scenariu decorativ.
+- Aceeași afirmație atomică nu trebuie să fie răspunsul central în mai mult de trei întrebări din întregul pachet.
+- Dacă o afirmație este reutilizată, trebuie testată prin altă operație cognitivă și cu alt context logic.
+- Două quiz-uri nu pot avea peste 20% întrebări bazate pe aceleași afirmații atomice.
+- Titlurile și descrierile trebuie să reflecte diferențe reale de focus.
 
 REGULI PENTRU STRATEGIES:
-- Generează între 3 și 6 strategii concrete, adaptate structurii și tipului de conținut.
-- Fiecare strategie trebuie să descrie o acțiune aplicabilă direct: comparație tabelară, reconstrucția unui proces, repetare spațiată, recuperare activă, clasificare, rezolvare de probleme, cronologie, hartă conceptuală sau altă metodă potrivită sursei.
-- Menționează explicit ce părți ale materialului trebuie folosite și cum.
-- Evită sfaturi generice precum „învață mai mult”, „citește atent” sau „repetă materia”.
+- Generează 4-8 strategii concrete și adaptate materialului.
+- Fiecare strategie trebuie să specifice ce parte a materialului se folosește, ce acțiune se execută și ce rezultat urmărește.
+- Folosește metode relevante: recuperare activă, comparație tabelară, hartă conceptuală, cronologie, reconstrucția unui proces, rezolvare de probleme, explicare cu voce tare, repetare spațiată sau clasificare.
+- Evită sfaturi generice precum "citește atent" sau "învață mai mult".
 
-AUDIT FINAL OBLIGATORIU:
-Înainte de răspuns, verifică întregul obiect și regenerează orice item invalid.
+AUDIT FINAL OBLIGATORIU — NU ÎL AFIȘA:
 
-Audit structural:
-- JSON-ul poate fi parsată cu JSON.parse;
-- nu există trailing commas;
-- toate cheile și stringurile folosesc ghilimele duble;
-- nu există text în afara obiectului;
+AUDIT DE CANTITATE:
+- există exact 18 quiz-uri;
+- există exact 6 low, 6 medium și 6 high;
+- fiecare quiz are exact 15 întrebări;
+- întregul pachet are exact 270 de întrebări;
+- fiecare quiz conține 9-10 întrebări single-choice și 5-6 întrebări multiple-choice;
+- fiecare quiz conține ambele tipuri de întrebări;
+- rezumatul este amplu, structurat și nerepetitiv.
+
+AUDIT STRUCTURAL:
+- obiectul poate fi parsată prin JSON.parse;
 - schema_version este exact "revizzio.manual.v1";
-- toate valorile enum sunt valide;
-- fiecare quiz are întrebări;
+- nu există chei suplimentare;
 - fiecare întrebare are prompt, type, options și explanation;
-- fiecare "single_choice" are exact 4 opțiuni și exact un răspuns corect;
-- fiecare "multiple_choice" are 4-6 opțiuni, minimum două corecte și minimum una greșită.
+- fiecare single-choice are exact 4 opțiuni și exact una corectă;
+- fiecare multiple-choice are 4-6 opțiuni, minimum două corecte și minimum două greșite;
+- toate valorile enum sunt valide.
 
-Audit factual și pedagogic:
+AUDIT FACTUAL:
 - fiecare afirmație este susținută de material;
-- fiecare răspuns corect este complet și neechivoc;
-- fiecare distractor este clar greșit în context;
-- nu există informații externe, generalizări nepermise sau cauzalități inventate;
-- explicația corespunde exact întrebării și tuturor opțiunilor;
-- dificultatea declarată corespunde raționamentului necesar;
-- quiz-urile au focus distinct și acoperire echilibrată;
-- nu există duplicate conceptuale sau tipare evidente ale răspunsurilor;
-- valorile, unitățile, formulele, ordinea etapelor și calculele sunt corecte, dacă apar.
+- răspunsul corect este complet și neechivoc;
+- fiecare distractor este demonstrabil greșit;
+- nu există cunoștințe externe, generalizări sau cauzalități inventate;
+- valorile, formulele, unitățile, cronologia și ordinea etapelor sunt corecte.
 
-Dacă un item nu trece auditul, nu îl păstra. Înlocuiește-l cu un item bazat pe altă informație bine susținută.
+AUDIT ANTI-PATTERN:
+- pozițiile A/B/C/D sunt echilibrate în fiecare quiz;
+- aceeași poziție nu este corectă de trei ori consecutiv;
+- nu există secvențe regulate detectabile;
+- semnăturile multiple-choice sunt variate;
+- tiparul primele două plus ultima nu se repetă;
+- numărul răspunsurilor corecte la multiple-choice variază;
+- nicio poziție A-F nu este aproape mereu corectă;
+- răspunsul corect nu este sistematic cea mai lungă opțiune;
+- opțiunile sunt apropiate ca lungime, formă și granularitate;
+- testul orb al opțiunilor este trecut.
+
+AUDIT PEDAGOGIC:
+- dificultatea declarată corespunde raționamentului real;
+- întrebările high necesită minimum doi pași;
+- explicațiile justifică toate opțiunile;
+- quiz-urile au focus distinct;
+- întregul material este acoperit echilibrat;
+- nu există duplicate conceptuale superficiale.
+
+Dacă orice regulă nu este respectată, corectează sau regenerează itemii afectați înainte de a emite JSON-ul final.
 
 MATERIAL MARKDOWN DE PROCESAT:
-{markdown}
+{material_markdown.strip()}
+"""
+
+
+def build_revizzio_validation_prompt(
+    material_markdown: str,
+    generated_json: str,
+) -> str:
+    """Construiește un prompt separat pentru auditarea independentă a rezultatului."""
+    if not isinstance(material_markdown, str) or not material_markdown.strip():
+        raise ValueError("material_markdown trebuie să fie un șir nevid.")
+    if not isinstance(generated_json, str) or not generated_json.strip():
+        raise ValueError("generated_json trebuie să fie un șir nevid.")
+
+    return f"""Acționezi ca auditor independent pentru un pachet educațional Revizzio.
+Primești materialul-sursă și un JSON generat. Verifică fiecare item exclusiv față de material.
+
+SCOP:
+Corectează JSON-ul astfel încât să fie factual, neambiguu, pedagogic și conform tuturor regulilor de mai jos.
+Returnează exclusiv JSON-ul integral corectat, fără explicații externe și fără markdown.
+Nu adăuga chei noi și păstrează schema "revizzio.manual.v1".
+
+VERIFICĂ OBLIGATORIU:
+- exact 18 quiz-uri: 6 low, 6 medium, 6 high;
+- exact 15 întrebări în fiecare quiz;
+- exact 270 de întrebări în întregul pachet;
+- 9-10 întrebări single_choice și 5-6 întrebări multiple_choice în fiecare quiz;
+- single_choice: exact 4 opțiuni și exact una corectă;
+- multiple_choice: 4-6 opțiuni, minimum două corecte și minimum două greșite;
+- echilibru A/B/C/D la single-choice;
+- nicio poziție corectă de trei ori consecutiv;
+- semnături multiple-choice variate și nerepetitive;
+- tiparul primele două plus ultima cel mult o dată per quiz;
+- variația numărului de răspunsuri corecte la multiple-choice;
+- opțiuni apropiate ca lungime, formă gramaticală și granularitate;
+- răspunsul corect să nu fie sistematic cel mai lung, mai precis sau mai academic;
+- fiecare distractor să fie plauzibil și demonstrabil greșit;
+- fiecare explicație să justifice toate opțiunile;
+- fiecare întrebare high să necesite minimum doi pași de raționament;
+- lipsa duplicatelor și acoperirea echilibrată a materialului;
+- rezumat amplu, coerent și nerepetitiv;
+- JSON valid, fără chei suplimentare.
+
+METODĂ INTERNĂ:
+1. localizează sursa fiecărei afirmații;
+2. marchează intern itemii incorecți, ambigui sau nesusținuți;
+3. rescrie itemii problematici folosind alte afirmații bine susținute;
+4. reechilibrează opțiunile și pozițiile corecte;
+5. rulează un test orb al opțiunilor;
+6. validează din nou întregul obiect;
+7. emite numai JSON-ul integral final.
+
+MATERIAL-SURSĂ:
+{material_markdown.strip()}
+
+JSON DE AUDITAT:
+{generated_json.strip()}
 """
