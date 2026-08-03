@@ -117,7 +117,7 @@ export function AdminCompanyPage({ initialCompanyData }: AdminCompanyPageProps) 
             ))}
           </div>
 
-          <div className="mt-6 rounded-[1.5rem] border border-subtle bg-app p-5">
+          <div className="mt-6 border-t border-subtle pt-5">
             <p className="text-sm font-black">Preview footer</p>
             <p className="mt-3 text-sm leading-6 text-muted">
               {formData.name} | {formData.cui} | {formData.register_number}
@@ -130,14 +130,14 @@ export function AdminCompanyPage({ initialCompanyData }: AdminCompanyPageProps) 
             </p>
           </div>
 
-          <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:justify-end">
+          <div className="mt-6 flex flex-col gap-3 border-t border-subtle pt-5 sm:flex-row sm:justify-end">
             <button
               type="button"
               onClick={() => {
                 setFormData(toCompanyUpdate(initialCompanyData));
                 setStatusMessage(null);
               }}
-              className="rounded-2xl border border-subtle bg-app px-5 py-3 text-sm font-bold transition hover:bg-surface-hover"
+              className="rounded-full border border-subtle px-5 py-3 text-sm font-bold transition hover:bg-surface-hover"
             >
               Reseteaza
             </button>
@@ -145,7 +145,7 @@ export function AdminCompanyPage({ initialCompanyData }: AdminCompanyPageProps) 
               type="button"
               onClick={saveCompanyData}
               disabled={isSaving}
-              className="rounded-2xl bg-action px-5 py-3 text-sm font-black text-on-action transition hover:bg-action-hover disabled:cursor-wait disabled:opacity-60"
+              className="rounded-full bg-action px-5 py-3 text-sm font-black text-on-action transition hover:bg-action-hover disabled:cursor-wait disabled:opacity-60"
             >
               {isSaving ? "Se salvează..." : "Salvează datele firmei"}
             </button>

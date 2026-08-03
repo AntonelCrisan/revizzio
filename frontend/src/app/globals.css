@@ -5,16 +5,17 @@
 :root {
   color-scheme: light;
 
-  --theme-app: #faf7f2;
-  --theme-surface: #fcfaf7;
-  --theme-border: #e6dfd3;
-  --theme-content: #2c2621;
-  --theme-muted: #6b6259;
-  --theme-hover: #f5efe4;
-  --theme-action: #3e352f;
-  --theme-action-hover: #29221e;
-  --theme-action-soft: #f3ece0;
-  --theme-on-action: #faf7f2;
+  --theme-app: #fbf9f5;
+  --theme-sidebar: #f7f4ee;
+  --theme-surface: #ffffff;
+  --theme-border: #e8e3d9;
+  --theme-content: #1c1a17;
+  --theme-muted: #6e6b65;
+  --theme-hover: #f3efe6;
+  --theme-action: #1c1a17;
+  --theme-action-hover: #312d28;
+  --theme-action-soft: #f3efe6;
+  --theme-on-action: #fbf9f5;
 
   --theme-success-bg: #f1f4ee;
   --theme-success-text: #3b4d36;
@@ -39,6 +40,7 @@
   color-scheme: dark;
 
   --theme-app: #14110f;
+  --theme-sidebar: #181411;
   --theme-surface: #1c1815;
   --theme-border: #302823;
   --theme-content: #f3ece0;
@@ -71,6 +73,7 @@
 @theme inline {
   /* Semantic tokens for all future pages and components. */
   --color-app: var(--theme-app);
+  --color-sidebar: var(--theme-sidebar);
   --color-surface: var(--theme-surface);
   --color-subtle: var(--theme-border);
   --color-content: var(--theme-content);

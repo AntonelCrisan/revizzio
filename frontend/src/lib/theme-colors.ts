@@ -1,5 +1,6 @@
 export type ThemeColorKey =
   | "app"
+  | "sidebar"
   | "surface"
   | "border"
   | "content"
@@ -53,6 +54,12 @@ export const themeColorVariables: ThemeColorVariable[] = [
     label: "Fundal aplicație",
     description: "Zona mare din spatele paginilor.",
     cssVar: "--theme-app",
+  },
+  {
+    key: "sidebar",
+    label: "Meniu lateral",
+    description: "Fundalul meniului din zona de cont.",
+    cssVar: "--theme-sidebar",
   },
   {
     key: "surface",
@@ -111,16 +118,17 @@ export const themeColorVariables: ThemeColorVariable[] = [
 ];
 
 const classicLight: ThemeColorMap = {
-  app: "#faf7f2",
-  surface: "#fcfaf7",
-  border: "#e6dfd3",
-  content: "#2c2621",
-  muted: "#6b6259",
-  hover: "#f5efe4",
-  action: "#3e352f",
-  actionHover: "#29221e",
-  actionSoft: "#f3ece0",
-  onAction: "#faf7f2",
+  app: "#fbf9f5",
+  sidebar: "#f7f4ee",
+  surface: "#ffffff",
+  border: "#e8e3d9",
+  content: "#1c1a17",
+  muted: "#6e6b65",
+  hover: "#f3efe6",
+  action: "#1c1a17",
+  actionHover: "#312d28",
+  actionSoft: "#f3efe6",
+  onAction: "#fbf9f5",
   successBg: "#f1f4ee",
   successText: "#3b4d36",
   successBorder: "#d2ddd0",
@@ -139,6 +147,7 @@ const classicLight: ThemeColorMap = {
 
 const classicDark: ThemeColorMap = {
   app: "#14110f",
+  sidebar: "#181411",
   surface: "#1c1815",
   border: "#302823",
   content: "#f3ece0",
@@ -169,7 +178,7 @@ export const colorThemePresets: ColorThemePreset[] = [
     id: "classic",
     name: "Revizzio Classic",
     description: "Paleta caldă actuală, potrivită pentru studiu lung.",
-    preview: ["#faf7f2", "#fcfaf7", "#3e352f", "#3b4d36"],
+    preview: ["#fbf9f5", "#ffffff", "#1c1a17", "#3b4d36"],
     colors: {
       light: classicLight,
       dark: classicDark,
@@ -184,6 +193,7 @@ export const colorThemePresets: ColorThemePreset[] = [
       light: {
         ...classicLight,
         app: "#f4f6ef",
+        sidebar: "#eef3e7",
         surface: "#fbfcf7",
         border: "#dce5d4",
         content: "#243126",
@@ -205,6 +215,7 @@ export const colorThemePresets: ColorThemePreset[] = [
       dark: {
         ...classicDark,
         app: "#10150f",
+        sidebar: "#131b12",
         surface: "#171f16",
         border: "#2a3828",
         content: "#edf4e6",
@@ -234,6 +245,7 @@ export const colorThemePresets: ColorThemePreset[] = [
       light: {
         ...classicLight,
         app: "#f3f7fb",
+        sidebar: "#eef5fa",
         surface: "#fbfdff",
         border: "#d6e2ea",
         content: "#1f2b33",
@@ -255,6 +267,7 @@ export const colorThemePresets: ColorThemePreset[] = [
       dark: {
         ...classicDark,
         app: "#0d1217",
+        sidebar: "#101820",
         surface: "#141c23",
         border: "#263744",
         content: "#e8f1f8",
@@ -281,6 +294,7 @@ export const colorThemePresets: ColorThemePreset[] = [
       light: {
         ...classicLight,
         app: "#fbf4f2",
+        sidebar: "#f7ece9",
         surface: "#fffafa",
         border: "#ead8d3",
         content: "#332426",
@@ -305,6 +319,7 @@ export const colorThemePresets: ColorThemePreset[] = [
       dark: {
         ...classicDark,
         app: "#160f11",
+        sidebar: "#1b1214",
         surface: "#211719",
         border: "#3a282c",
         content: "#f5e9e5",
@@ -337,6 +352,7 @@ export const colorThemePresets: ColorThemePreset[] = [
       light: {
         ...classicLight,
         app: "#f5f5f4",
+        sidebar: "#eeeeea",
         surface: "#ffffff",
         border: "#deded8",
         content: "#222222",
@@ -358,6 +374,7 @@ export const colorThemePresets: ColorThemePreset[] = [
       dark: {
         ...classicDark,
         app: "#101010",
+        sidebar: "#141414",
         surface: "#181818",
         border: "#303030",
         content: "#eeeeee",

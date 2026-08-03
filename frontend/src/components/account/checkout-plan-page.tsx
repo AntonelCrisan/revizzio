@@ -189,7 +189,7 @@ export function CheckoutPlanPage({ plan }: CheckoutPlanPageProps) {
             </div>
           </dl>
 
-          <div className="rounded-2xl bg-app p-4 text-xs leading-6 text-muted">
+          <div className="mt-6 border-t border-subtle pt-5 text-xs leading-6 text-muted">
             <p className="font-black text-content">Ce urmează?</p>
             <p className="mt-2">
               După plată, planul devine activ imediat. Îl poți schimba sau

@@ -1005,7 +1005,7 @@ export function AccountDashboard({
       ) : null}
 
       <aside
-        className={`fixed inset-y-0 left-0 z-50 flex w-[min(84vw,300px)] flex-col overflow-hidden border-r border-subtle bg-surface transition-all duration-300 lg:sticky lg:top-0 lg:h-svh ${
+        className={`fixed inset-y-0 left-0 z-50 flex w-[min(84vw,300px)] flex-col overflow-hidden border-r border-subtle bg-sidebar transition-all duration-300 lg:sticky lg:top-0 lg:h-svh ${
           sidebarOpen ? "translate-x-0" : "-translate-x-full"
         } ${
           isSidebarCollapsed
@@ -1054,11 +1054,11 @@ export function AccountDashboard({
           <nav className="space-y-1 px-2">
             <button
               type="button"
-              onClick={showHome}
-              className={`flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-semibold transition ${
-                view === "home"
-                  ? "bg-success-soft text-success"
-                  : "text-content hover:bg-surface-hover"
+            onClick={showHome}
+            className={`flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-semibold transition ${
+              view === "home"
+                  ? "bg-action-soft text-content"
+                  : "text-content hover:bg-action-soft"
               }`}
             >
               <Icon className="h-[18px] w-[18px]">
@@ -1075,7 +1075,7 @@ export function AccountDashboard({
                     currentGroup === "settings" ? null : "settings",
                   )
                 }
-                className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-semibold text-content transition hover:bg-surface-hover"
+                className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-semibold text-content transition hover:bg-action-soft"
                 aria-expanded={openSidebarGroup === "settings"}
               >
                 <Icon className="h-[18px] w-[18px]">
@@ -1101,7 +1101,7 @@ export function AccountDashboard({
                     <Link
                       key={item.href}
                       href={item.href}
-                      className="flex items-center rounded-xl px-3 py-2 text-sm font-semibold text-muted transition hover:bg-surface-hover hover:text-content"
+                      className="flex items-center rounded-xl px-3 py-2 text-sm font-semibold text-muted transition hover:bg-action-soft hover:text-content"
                     >
                       {item.label}
                     </Link>
@@ -1112,7 +1112,7 @@ export function AccountDashboard({
             {user.role === "admin" ? (
               <Link
                 href="/admin/settings"
-                className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold text-content transition hover:bg-surface-hover"
+                className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold text-content transition hover:bg-action-soft"
               >
                 <Icon className="h-[18px] w-[18px]">
                   <path d="M12 3 20 6v6c0 5-3.4 8.5-8 9-4.6-.5-8-4-8-9V6l8-3z" />
@@ -1129,7 +1129,7 @@ export function AccountDashboard({
                     currentGroup === "billing" ? null : "billing",
                   )
                 }
-                className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-semibold text-content transition hover:bg-surface-hover"
+                className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-semibold text-content transition hover:bg-action-soft"
                 aria-expanded={openSidebarGroup === "billing"}
               >
                 <Icon className="h-[18px] w-[18px]">
@@ -1154,7 +1154,7 @@ export function AccountDashboard({
                     <Link
                       key={item.href}
                       href={item.href}
-                      className="flex items-center rounded-xl px-3 py-2 text-sm font-semibold text-muted transition hover:bg-surface-hover hover:text-content"
+                      className="flex items-center rounded-xl px-3 py-2 text-sm font-semibold text-muted transition hover:bg-action-soft hover:text-content"
                     >
                       {item.label}
                     </Link>
@@ -1181,7 +1181,7 @@ export function AccountDashboard({
                         currentId === project.id ? null : project.id,
                       )
                     }
-                    className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left transition hover:bg-surface-hover"
+                    className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left transition hover:bg-action-soft"
                   >
                     <span className="h-2 w-2 rounded-full bg-success" />
                     <span className="min-w-0 flex-1">
@@ -1211,11 +1211,11 @@ export function AccountDashboard({
                         key={tab.id}
                         type="button"
                         onClick={() => openProject(project.id, tab.id)}
-                        className={`ml-5 flex w-[calc(100%-1.25rem)] items-center gap-2 rounded-xl px-3 py-2 text-left text-[13px] transition hover:bg-surface-hover ${
+                        className={`ml-5 flex w-[calc(100%-1.25rem)] items-center gap-2 rounded-xl px-3 py-2 text-left text-[13px] transition hover:bg-action-soft ${
                           activeProjectId === project.id &&
                           view === "project" &&
                           activeTab === tab.id
-                            ? "font-semibold text-success"
+                            ? "bg-action-soft font-semibold text-content"
                             : "text-muted"
                         }`}
                       >
@@ -1368,9 +1368,31 @@ export function AccountDashboard({
 
 function SectionLabel({ children }: { children: ReactNode }) {
   return (
-    <p className="mt-6 px-0.5 text-[11px] font-bold uppercase tracking-[0.12em] text-muted">
+    <p className="px-0.5 text-[11px] font-bold uppercase tracking-[0.14em] text-muted">
       {children}
     </p>
+  );
+}
+
+function AccountMetric({
+  label,
+  value,
+  detail,
+}: {
+  label: string;
+  value: string;
+  detail: string;
+}) {
+  return (
+    <article className="rounded-xl border border-subtle bg-surface p-5">
+      <p className="text-[10px] font-black uppercase tracking-[0.16em] text-muted">
+        {label}
+      </p>
+      <p className="mt-4 font-serif text-4xl font-semibold leading-none text-content">
+        {value}
+      </p>
+      <p className="mt-2 text-sm text-muted">{detail}</p>
+    </article>
   );
 }
 
@@ -1403,6 +1425,11 @@ function HomeView({
   const [deleteCandidateProject, setDeleteCandidateProject] =
     useState<StudyProject | null>(null);
   const deletingProjectIdsRef = useRef(new Set<string>());
+  const readyProjects = projects.filter((project) => project.progress >= 100).length;
+  const activeFlashcards = projects.reduce(
+    (total, project) => total + project.flashcardsTotal,
+    0,
+  );
   const projectCountLabel =
     projects.length === 0
       ? "Nu ai încă proiecte. Încarcă primul curs și începem."
@@ -1480,18 +1507,23 @@ function HomeView({
   }
 
   return (
-    <section>
-      <div className="flex flex-col gap-5 sm:flex-row sm:items-start sm:justify-between">
+    <section className="space-y-6">
+      <div className="flex flex-col gap-6 border-b border-subtle pb-8 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <h1 className="font-serif text-2xl font-semibold">
+          <span className="inline-flex rounded-full border border-subtle bg-action-soft px-3 py-1 text-[10px] font-black uppercase tracking-[0.18em] text-muted">
+            Acasă
+          </span>
+          <h1 className="mt-4 max-w-3xl font-serif text-4xl font-semibold leading-[0.95] text-content sm:text-5xl">
             Bună, <em className="text-success">{firstName}</em>
           </h1>
-          <p className="mt-1 text-sm text-muted">{projectCountLabel}</p>
+          <p className="mt-4 max-w-2xl text-base leading-7 text-muted">
+            {projectCountLabel}
+          </p>
         </div>
         <button
           type="button"
           onClick={onOpenNewProject}
-          className="inline-flex items-center justify-center gap-2 rounded-full bg-content px-5 py-3 text-sm font-bold text-app shadow-sm transition hover:opacity-90"
+          className="inline-flex w-fit items-center justify-center gap-2 rounded-full bg-action px-5 py-3 text-sm font-bold text-on-action shadow-sm transition hover:-translate-y-0.5 hover:bg-action-hover"
         >
           <Icon>
             <path d="M12 5v14M5 12h14" />
@@ -1500,20 +1532,45 @@ function HomeView({
         </button>
       </div>
 
-      <SectionLabel>Proiectele tale</SectionLabel>
+      <div className="grid gap-5 md:grid-cols-3">
+        <AccountMetric
+          label="Proiecte active"
+          value={projects.length.toString()}
+          detail="în spațiul tău de studiu"
+        />
+        <AccountMetric
+          label="Gata de studiu"
+          value={readyProjects.toString()}
+          detail="cu pachet importat"
+        />
+        <AccountMetric
+          label="Flashcard-uri"
+          value={activeFlashcards.toString()}
+          detail="în pachetele generate"
+        />
+      </div>
+
+      <div className="flex items-center justify-between gap-4">
+        <SectionLabel>Proiectele tale</SectionLabel>
+        <span className="hidden text-sm text-muted sm:inline">
+          {projects.length
+            ? "Click pe card pentru deschidere"
+            : "Primul curs începe aici"}
+        </span>
+      </div>
       {projectError ? (
-        <div className="mt-3 rounded-2xl border border-danger-border bg-danger-soft px-4 py-3 text-sm font-semibold text-danger">
+        <div className="rounded-xl border border-danger-border bg-danger-soft px-4 py-3 text-sm font-semibold text-danger">
           {projectError}
         </div>
       ) : null}
 
-      <div className="mt-3">
+      <div>
         {projects.length ? (
-          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+          <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
             {projects.map((project) => (
               <article
                 key={project.id}
-                className="group relative min-h-[210px] rounded-[2rem] border border-subtle bg-surface p-5 shadow-[0_18px_45px_rgba(0,0,0,0.04)] transition hover:-translate-y-0.5 hover:border-content/25 hover:shadow-[0_24px_60px_rgba(0,0,0,0.07)]"
+                className="theme-shadow-card group relative min-h-[230px] rounded-xl border border-subtle bg-surface p-6 transition hover:-translate-y-0.5 hover:border-content/25"
               >
                 <button
                   type="button"
@@ -1522,7 +1579,7 @@ function HomeView({
                       currentProjectId === project.id ? null : project.id,
                     )
                   }
-                  className="absolute right-4 top-4 z-20 flex h-10 w-10 items-center justify-center rounded-full border border-subtle bg-surface/90 text-content backdrop-blur transition hover:bg-surface-hover"
+                  className="absolute right-4 top-4 z-20 flex h-9 w-9 items-center justify-center rounded-full border border-subtle bg-surface text-content transition hover:bg-surface-hover"
                   aria-label={`Deschide meniul pentru ${project.name}`}
                 >
                   <svg
@@ -1538,11 +1595,11 @@ function HomeView({
                 </button>
 
                 {openMenuProjectId === project.id ? (
-                  <div className="absolute right-4 top-16 z-30 w-52 rounded-2xl border border-subtle bg-surface p-2 shadow-2xl shadow-black/10">
+                  <div className="absolute right-4 top-14 z-30 w-52 rounded-xl border border-subtle bg-surface p-1.5 shadow-xl shadow-black/10">
                     <button
                       type="button"
                       onClick={() => startRename(project)}
-                      className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm font-semibold transition hover:bg-surface-hover"
+                      className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm font-semibold transition hover:bg-surface-hover"
                     >
                       <Icon>
                         <path d="M12 20h9" />
@@ -1554,7 +1611,7 @@ function HomeView({
                       type="button"
                       disabled={busyProjectId === project.id}
                       onClick={() => void archiveProject(project.id)}
-                      className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm font-semibold transition hover:bg-surface-hover disabled:cursor-wait disabled:opacity-60"
+                      className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm font-semibold transition hover:bg-surface-hover disabled:cursor-wait disabled:opacity-60"
                     >
                       <Icon>
                         <path d="M21 8v13H3V8" />
@@ -1570,7 +1627,7 @@ function HomeView({
                         setOpenMenuProjectId(null);
                         setDeleteCandidateProject(project);
                       }}
-                      className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm font-semibold text-danger transition hover:bg-danger-soft disabled:cursor-wait disabled:opacity-60"
+                      className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm font-semibold text-danger transition hover:bg-danger-soft disabled:cursor-wait disabled:opacity-60"
                     >
                       <Icon>
                         <path d="M3 6h18" />
@@ -1599,13 +1656,13 @@ function HomeView({
                     </span>
                   </span>
 
-                  <span className="mt-8 block pr-10 font-serif text-2xl font-semibold leading-tight">
+                  <span className="mt-7 block pr-10 font-serif text-2xl font-semibold leading-tight text-content">
                     {project.name}
                   </span>
                   <span className="mt-3 block text-sm leading-6 text-muted">
                     {project.meta}
                   </span>
-                  <span className="mt-auto inline-flex items-center gap-2 pt-6 text-xs font-black uppercase tracking-[0.12em] text-muted transition group-hover:text-content">
+                  <span className="mt-auto inline-flex items-center gap-2 border-t border-subtle pt-5 text-xs font-black uppercase tracking-[0.12em] text-muted transition group-hover:text-content">
                     Deschide proiectul
                     <Icon className="h-3.5 w-3.5">
                       <path d="M5 12h14M13 5l7 7-7 7" />
@@ -1614,7 +1671,7 @@ function HomeView({
                 </button>
 
                 {renamingProjectId === project.id ? (
-                  <div className="absolute inset-x-4 bottom-4 z-20 rounded-2xl border border-subtle bg-app/95 p-3 shadow-xl shadow-black/10 backdrop-blur">
+                  <div className="absolute inset-x-6 bottom-6 z-20 border-t border-subtle bg-surface pt-4">
                     <label className="block text-[11px] font-black uppercase tracking-[0.12em] text-muted">
                       Nume proiect
                       <input
@@ -1629,7 +1686,7 @@ function HomeView({
                             setRenamingProjectId(null);
                           }
                         }}
-                        className="mt-2 h-11 w-full rounded-xl border border-subtle bg-surface px-3 text-sm font-semibold text-content outline-none transition focus:border-success"
+                        className="mt-2 h-11 w-full rounded-lg border border-subtle bg-app px-3 text-sm font-semibold text-content outline-none transition focus:border-action"
                         autoFocus
                       />
                     </label>
@@ -1637,7 +1694,7 @@ function HomeView({
                       <button
                         type="button"
                         onClick={() => setRenamingProjectId(null)}
-                        className="rounded-full border border-subtle px-3 py-2 text-xs font-bold"
+                        className="rounded-full border border-subtle px-3 py-2 text-xs font-bold transition hover:bg-surface-hover"
                       >
                         Renunță
                       </button>
@@ -1645,7 +1702,7 @@ function HomeView({
                         type="button"
                         disabled={busyProjectId === project.id}
                         onClick={() => void submitRename(project.id)}
-                        className="rounded-full bg-content px-3 py-2 text-xs font-bold text-app disabled:cursor-wait disabled:opacity-60"
+                        className="rounded-full bg-action px-3 py-2 text-xs font-bold text-on-action disabled:cursor-wait disabled:opacity-60"
                       >
                         Salvează
                       </button>
@@ -1656,7 +1713,7 @@ function HomeView({
             ))}
           </div>
         ) : (
-          <div className="rounded-2xl border border-dashed border-subtle bg-surface p-6 text-center">
+          <div className="rounded-xl border border-dashed border-subtle bg-surface p-8 text-center">
             <p className="font-serif text-xl font-semibold">
               Niciun proiect încă.
             </p>
@@ -1698,9 +1755,9 @@ function ProjectDeleteModal({
       aria-modal="true"
       aria-labelledby="delete-project-title"
     >
-      <div className="w-full max-w-lg rounded-[2rem] border border-subtle bg-surface p-6 shadow-2xl shadow-black/20">
+      <div className="w-full max-w-lg rounded-xl border border-subtle bg-surface p-6 shadow-2xl shadow-black/20">
         <div className="flex items-start gap-4">
-          <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-danger-border bg-danger-soft text-danger">
+          <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg border border-danger-border bg-danger-soft text-danger">
             <Icon className="h-5 w-5">
               <path d="M3 6h18" />
               <path d="M8 6V4h8v2" />
@@ -1840,7 +1897,7 @@ function ProjectView({
   }
 
   return (
-    <section>
+    <section className="space-y-8">
         <button
           type="button"
           onClick={onBack}
@@ -2684,7 +2741,7 @@ function SummaryToolButton({
       className={`flex w-full items-center gap-3 rounded-2xl border px-4 py-3 text-sm font-bold transition ${
         active
           ? "border-action bg-action text-on-action"
-          : "border-subtle bg-surface text-content hover:bg-surface-hover"
+          : "border-subtle bg-app text-content hover:bg-surface-hover"
       }`}
     >
       <Icon className="h-4 w-4 shrink-0">{children}</Icon>
@@ -3279,7 +3336,7 @@ function SummaryPanel({
           </div>
         </div>
 
-        <aside className="h-fit space-y-2 rounded-3xl border border-subtle bg-app p-5 xl:sticky xl:top-20">
+        <aside className="h-fit space-y-2 border-t border-subtle pt-6 xl:sticky xl:top-20 xl:border-t-0 xl:border-l xl:pl-8">
           <p className="text-xs font-bold uppercase tracking-[0.18em] text-muted">
             Instrumente
           </p>
@@ -3398,15 +3455,15 @@ function SummaryPanel({
                   <p className="text-base leading-8 text-content/85">
                     {aiDialog.response?.answer}
                   </p>
-                  <div className="rounded-3xl border border-subtle bg-app p-4">
+                  <div className="border-t border-subtle pt-4">
                     <p className="text-xs font-bold uppercase tracking-[0.18em] text-muted">
                       Cum să reții
                     </p>
-                    <div className="mt-3 space-y-3">
+                    <div className="mt-2 divide-y divide-subtle">
                       {aiDialog.response?.bullets.map((bullet) => (
                         <div
                           key={bullet}
-                          className="flex gap-3 rounded-2xl border border-subtle bg-surface p-3 text-sm leading-6 text-content/80"
+                          className="flex gap-3 py-3 text-sm leading-6 text-content/80"
                         >
                           <span className="mt-1 h-2 w-2 shrink-0 rounded-full bg-info" />
                           <p>{bullet}</p>
@@ -3683,11 +3740,7 @@ function FlashcardTicket({
           {card.description}
         </p>
       </div>
-      <div className="relative border-t border-dashed border-subtle">
-        <span className="absolute -left-3 top-1/2 h-6 w-6 -translate-y-1/2 rounded-full border border-subtle bg-app" />
-        <span className="absolute -right-3 top-1/2 h-6 w-6 -translate-y-1/2 rounded-full border border-subtle bg-app" />
-      </div>
-      <div className="flex items-center justify-between gap-4 p-5">
+      <div className="flex items-center justify-between gap-4 border-t border-subtle p-5">
         <span className="text-xs text-muted">
           durată est.
           <b className="block font-serif text-lg font-semibold text-content">
@@ -4375,15 +4428,15 @@ function FlashcardDeckPage({
                     <p className="text-base leading-8 text-content/85">
                       {flashcardAiDialog.response?.answer}
                     </p>
-                    <div className="rounded-3xl border border-subtle bg-app p-4">
+                    <div className="border-t border-subtle pt-4">
                       <p className="text-xs font-bold uppercase tracking-[0.18em] text-muted">
                         Cum să-l înveți
                       </p>
-                      <div className="mt-3 space-y-3">
+                      <div className="mt-2 divide-y divide-subtle">
                         {flashcardAiDialog.response?.bullets.map((bullet) => (
                           <div
                             key={bullet}
-                            className="flex gap-3 rounded-2xl border border-subtle bg-surface p-3 text-sm leading-6 text-content/80"
+                            className="flex gap-3 py-3 text-sm leading-6 text-content/80"
                           >
                             <span className="mt-1 h-2 w-2 shrink-0 rounded-full bg-info" />
                             <p>{bullet}</p>
@@ -5363,7 +5416,7 @@ function QuizPanel({
             <p className="text-xs font-bold uppercase tracking-[0.18em] text-muted">
               AI live
             </p>
-            <div className="mt-4 space-y-3">
+            <div className="mt-3 divide-y divide-subtle border-t border-subtle">
               <QuizSideStat label="Corecte" value={String(correctCount)} />
               <QuizSideStat label="Acuratețe" value={`${scorePercent}%`} />
               <QuizSideStat
@@ -5389,11 +5442,11 @@ function QuizPanel({
               <p className="text-xs font-bold uppercase tracking-[0.18em] text-muted">
                 Istoric încercări
               </p>
-              <div className="mt-4 space-y-2">
+              <div className="mt-3 divide-y divide-subtle border-t border-subtle">
                 {activeQuiz.attempts.map((attempt, attemptIndex) => (
                   <div
                     key={attempt.id}
-                    className="flex items-center justify-between rounded-2xl border border-subtle bg-app px-3 py-2 text-xs"
+                    className="flex items-center justify-between py-2.5 text-xs"
                   >
                     <span className="font-bold text-muted">
                       #{activeQuiz.attempts.length - attemptIndex} ·{" "}
@@ -5587,7 +5640,7 @@ function QuizCatalogCard({
         {quiz.description}
       </p>
 
-      <div className="mt-5 grid grid-cols-2 gap-3">
+      <div className="mt-5 grid grid-cols-2 divide-x divide-subtle border-y border-subtle">
         <QuizCardStat label="Întrebări" value={String(quiz.questionIds.length)} />
         <QuizCardStat
           label="Rezultat"
@@ -5611,7 +5664,7 @@ function QuizCatalogCard({
 
 function QuizCardStat({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-2xl border border-subtle bg-app p-3">
+    <div className="px-1 py-3">
       <p className="text-xs font-bold text-muted">{label}</p>
       <p className="mt-1 text-sm font-bold text-content">{value}</p>
     </div>
@@ -5676,7 +5729,7 @@ function QuizAnswerButton({
 
 function QuizSideStat({ label, value }: { label: string; value: string }) {
   return (
-    <div className="flex items-center justify-between rounded-2xl border border-subtle bg-app px-4 py-3">
+    <div className="flex items-center justify-between py-2.5">
       <span className="text-xs font-bold text-muted">{label}</span>
       <span className="font-serif text-xl font-semibold">{value}</span>
     </div>
@@ -6094,7 +6147,7 @@ function ProgressScoreTrendChart({
   const areaPath = `${linePath} L ${points[points.length - 1].x} ${floorY} L ${points[0].x} ${floorY} Z`;
 
   return (
-    <div className="mt-5 rounded-3xl border border-subtle bg-app p-4">
+    <div className="mt-5 border-t border-subtle pt-5">
       <svg
         viewBox={`0 0 ${width} ${height}`}
         preserveAspectRatio="none"
@@ -6182,7 +6235,7 @@ function ProgressHeroMetric({
 
 function ProgressMiniStat({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-2xl border border-subtle bg-app p-4">
+    <div>
       <p className="font-serif text-2xl font-semibold text-content">{value}</p>
       <p className="mt-1 text-xs leading-5 text-muted">{label}</p>
     </div>
@@ -6286,11 +6339,11 @@ function NewProjectView({
   ];
 
   return (
-    <section>
+    <section className="space-y-6">
       <button
         type="button"
         onClick={onBack}
-        className="mb-4 inline-flex cursor-pointer items-center gap-2 rounded-full border border-subtle bg-surface px-4 py-2 text-sm font-semibold text-muted transition hover:bg-surface-hover hover:text-content"
+        className="inline-flex h-11 cursor-pointer items-center gap-2 rounded-full border border-subtle bg-surface px-4 text-sm font-semibold text-muted transition hover:bg-surface-hover hover:text-content"
       >
         <Icon>
           <path d="M19 12H5M12 19l-7-7 7-7" />
@@ -6300,90 +6353,82 @@ function NewProjectView({
 
       {generationState === "form" ? (
         <>
-          <div className="flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
-            <div>
-              <p className="text-xs font-black uppercase tracking-[0.18em] text-warning">
+          <div className="flex flex-col gap-4 border-b border-subtle pb-5 lg:flex-row lg:items-center lg:justify-between">
+            <div className="min-w-0">
+              <p className="inline-flex rounded-full border border-subtle bg-action-soft px-3 py-1 text-[10px] font-black uppercase tracking-[0.18em] text-muted">
                 Proiect nou
               </p>
-              <h1 className="mt-2 font-serif text-4xl font-semibold leading-tight sm:text-5xl">
-                Încarcă un curs.
-              </h1>
-              <p className="mt-3 max-w-xl text-sm leading-6 text-muted">
-                Adaugi contextul, pui materialele și primești pachetul de
-                studiu pregătit pentru import.
-              </p>
+              <div className="mt-2 flex flex-wrap items-end gap-x-4 gap-y-1">
+                <h1 className="font-serif text-3xl font-semibold leading-none text-content sm:text-4xl">
+                  Încarcă materialele.
+                </h1>
+                <p className="pb-1 text-sm leading-6 text-muted">
+                  Context, fișiere și drepturi pentru import.
+                </p>
+              </div>
             </div>
 
-            <div className="flex flex-wrap gap-2">
-              {setupSteps.map((step) => (
-                <span
-                  key={step.label}
-                  className={`inline-flex items-center gap-2 rounded-full border px-3 py-2 text-xs font-black ${
-                    step.done
-                      ? "border-success-border bg-success-soft text-success"
-                      : "border-subtle bg-surface text-muted"
-                  }`}
-                >
-                  <span
-                    className={`h-2 w-2 rounded-full ${
-                      step.done ? "bg-success" : "bg-muted/30"
-                    }`}
-                  />
-                  {step.label}
-                </span>
-              ))}
-            </div>
+            <span className="inline-flex w-fit items-center gap-2 rounded-full border border-subtle bg-surface px-3 py-2 text-xs font-black text-muted">
+              <span className="h-2 w-2 rounded-full bg-success" />
+              {setupSteps.filter((step) => step.done).length}/3 pași completați
+            </span>
           </div>
 
           {generationError ? (
-            <div className="mt-5 rounded-2xl border border-danger-border bg-danger-soft px-4 py-3 text-sm font-semibold text-danger">
+            <div className="rounded-xl border border-danger-border bg-danger-soft px-4 py-3 text-sm font-semibold text-danger">
               {generationError}
             </div>
           ) : null}
 
-          <div className="mt-6 grid gap-5 xl:grid-cols-[minmax(0,1fr)_360px]">
-            <div className="overflow-hidden rounded-[2rem] border border-subtle bg-surface">
-              <div className="grid gap-0 divide-y divide-subtle lg:grid-cols-3 lg:divide-x lg:divide-y-0">
-                <label className="block p-5">
-                  <span className="text-xs font-black uppercase tracking-[0.14em] text-muted">
-                    Nume
-                  </span>
-                  <input
-                    value={projectName}
-                    onChange={(event) => onProjectNameChange(event.target.value)}
-                    type="text"
-                    placeholder="Ex: Farma sem. 2"
-                    className="mt-3 h-14 w-full rounded-2xl border border-subtle bg-app px-4 font-serif text-xl font-semibold outline-none transition placeholder:text-muted/45 focus:border-success focus:bg-surface focus:ring-4 focus:ring-success-soft"
-                  />
-                </label>
+          <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_320px]">
+            <div className="space-y-5">
+              <div className="overflow-hidden rounded-xl border border-subtle bg-surface">
+                <div className="grid divide-y divide-subtle lg:grid-cols-3 lg:divide-x lg:divide-y-0">
+                  <label className="block px-4 py-4 sm:px-5">
+                    <span className="text-[11px] font-black uppercase tracking-[0.14em] text-muted">
+                      Nume proiect
+                    </span>
+                    <input
+                      value={projectName}
+                      onChange={(event) =>
+                        onProjectNameChange(event.target.value)
+                      }
+                      type="text"
+                      placeholder="Ex: Farma sem. 2"
+                      className="mt-2 h-11 w-full rounded-lg border border-subtle bg-app px-3 text-sm font-semibold text-content outline-none transition placeholder:text-muted/45 focus:border-action focus:ring-4 focus:ring-action-soft"
+                    />
+                  </label>
 
-                <label className="block p-5">
-                  <span className="text-xs font-black uppercase tracking-[0.14em] text-muted">
-                    Materie
-                  </span>
-                  <input
-                    value={subjectName}
-                    onChange={(event) => onSubjectNameChange(event.target.value)}
-                    type="text"
-                    placeholder="Ex: Imunologie"
-                    className="mt-3 h-14 w-full rounded-2xl border border-subtle bg-app px-4 text-base font-semibold outline-none transition placeholder:text-muted/45 focus:border-success focus:bg-surface focus:ring-4 focus:ring-success-soft"
-                  />
-                </label>
+                  <label className="block px-4 py-4 sm:px-5">
+                    <span className="text-[11px] font-black uppercase tracking-[0.14em] text-muted">
+                      Materie
+                    </span>
+                    <input
+                      value={subjectName}
+                      onChange={(event) =>
+                        onSubjectNameChange(event.target.value)
+                      }
+                      type="text"
+                      placeholder="Ex: Imunologie"
+                      className="mt-2 h-11 w-full rounded-lg border border-subtle bg-app px-3 text-sm font-semibold text-content outline-none transition placeholder:text-muted/45 focus:border-action focus:ring-4 focus:ring-action-soft"
+                    />
+                  </label>
 
-                <label className="block p-5">
-                  <span className="text-xs font-black uppercase tracking-[0.14em] text-muted">
-                    Școală
-                  </span>
-                  <input
-                    value={institutionName}
-                    onChange={(event) =>
-                      onInstitutionNameChange(event.target.value)
-                    }
-                    type="text"
-                    placeholder="Ex: UMF / UTCN"
-                    className="mt-3 h-14 w-full rounded-2xl border border-subtle bg-app px-4 text-base font-semibold outline-none transition placeholder:text-muted/45 focus:border-success focus:bg-surface focus:ring-4 focus:ring-success-soft"
-                  />
-                </label>
+                  <label className="block px-4 py-4 sm:px-5">
+                    <span className="text-[11px] font-black uppercase tracking-[0.14em] text-muted">
+                      Școală
+                    </span>
+                    <input
+                      value={institutionName}
+                      onChange={(event) =>
+                        onInstitutionNameChange(event.target.value)
+                      }
+                      type="text"
+                      placeholder="Ex: UMF / UTCN"
+                      className="mt-2 h-11 w-full rounded-lg border border-subtle bg-app px-3 text-sm font-semibold text-content outline-none transition placeholder:text-muted/45 focus:border-action focus:ring-4 focus:ring-action-soft"
+                    />
+                  </label>
+                </div>
               </div>
 
               <button
@@ -6402,20 +6447,20 @@ function NewProjectView({
                   onDragStateChange(false);
                 }}
                 onDrop={onDrop}
-                className={`flex w-full items-center gap-4 border-t border-dashed p-6 text-left transition sm:p-8 ${
+                className={`flex w-full items-center gap-4 rounded-xl border bg-surface px-5 py-5 text-left transition ${
                   isDragging
                     ? "border-success bg-success-soft"
                     : "border-subtle hover:bg-surface-hover"
                 }`}
               >
-                <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-app text-content">
+                <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-app text-content">
                   <Icon className="h-6 w-6">
                     <path d="M12 16V4M7 9l5-5 5 5" />
                     <path d="M4 16v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3" />
                   </Icon>
                 </span>
                 <span className="min-w-0 flex-1">
-                  <span className="block font-serif text-2xl font-semibold leading-tight">
+                  <span className="block text-base font-black leading-tight text-content">
                     {files.length
                       ? `${files.length} materiale selectate`
                       : "Adaugă materialele"}
@@ -6426,7 +6471,7 @@ function NewProjectView({
                       : "PDF, PPTX, DOCX, XLSX, TXT sau Markdown"}
                   </span>
                 </span>
-                <span className="hidden rounded-full bg-content px-4 py-2 text-xs font-black text-app sm:inline-flex">
+                <span className="hidden rounded-full bg-action px-4 py-2 text-xs font-black text-on-action sm:inline-flex">
                   Alege fișiere
                 </span>
               </button>
@@ -6441,7 +6486,7 @@ function NewProjectView({
               />
 
               {files.length > 0 ? (
-                <div className="divide-y divide-subtle border-t border-subtle px-5">
+                <div className="divide-y divide-subtle rounded-xl border border-subtle bg-surface px-5">
                   {files.map((file, index) => (
                     <div
                       key={`${file.name}-${index}`}
@@ -6468,8 +6513,8 @@ function NewProjectView({
               ) : null}
             </div>
 
-            <aside className="h-fit rounded-[2rem] border border-subtle bg-surface p-5 xl:sticky xl:top-6">
-              <p className="text-xs font-black uppercase tracking-[0.16em] text-warning">
+            <aside className="h-fit rounded-xl border border-subtle bg-surface p-5 xl:sticky xl:top-6">
+              <p className="text-xs font-black uppercase tracking-[0.16em] text-muted">
                 Pregătire
               </p>
               <div className="mt-4 divide-y divide-subtle border-y border-subtle">
@@ -6492,7 +6537,7 @@ function NewProjectView({
                 ))}
               </div>
 
-              <label className="mt-5 flex cursor-pointer items-start gap-3 rounded-2xl border border-subtle bg-app p-4 text-sm font-semibold leading-6">
+              <label className="mt-4 flex cursor-pointer items-start gap-3 border-t border-subtle pt-4 text-sm font-semibold leading-6">
                 <input
                   type="checkbox"
                   checked={hasMaterialRights}
@@ -6508,7 +6553,7 @@ function NewProjectView({
                 type="button"
                 disabled={!canGenerate}
                 onClick={onStartGeneration}
-                className="mt-5 flex w-full items-center justify-center gap-2 rounded-full bg-content px-5 py-4 text-sm font-black text-app transition disabled:cursor-not-allowed disabled:bg-subtle disabled:text-muted"
+                className="mt-5 flex w-full items-center justify-center gap-2 rounded-full bg-action px-5 py-4 text-sm font-black text-on-action transition hover:bg-action-hover disabled:cursor-not-allowed disabled:bg-subtle disabled:text-muted"
               >
                 Pregătește proiectul
                 <Icon>
@@ -6535,17 +6580,6 @@ function NewProjectView({
             </aside>
           </div>
 
-          <button
-            type="button"
-            onClick={() => fileInputRef.current?.click()}
-            className="mt-4 flex w-full items-center justify-center gap-2 rounded-2xl border border-dashed border-subtle px-4 py-4 text-sm font-black text-muted transition hover:bg-surface-hover sm:hidden"
-          >
-            <Icon>
-              <path d="M12 16V4M7 9l5-5 5 5" />
-              <path d="M4 16v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3" />
-            </Icon>
-            Alege fișiere
-          </button>
         </>
       ) : (
           <GenerationView
@@ -6589,41 +6623,38 @@ function GenerationView({
   onOpenGeneratedProject: () => void;
 }) {
   return (
-    <div>
-      <h1 className="font-serif text-2xl font-semibold">
+    <div className="rounded-xl border border-subtle bg-surface p-6 sm:p-8">
+      <h1 className="font-serif text-3xl font-semibold leading-tight">
         {state === "done" ? "Materialul este pregătit" : "Se convertește"}
         <span className="text-muted"> - {projectName}</span>
       </h1>
-      <p className="mt-1 text-sm text-muted">
+      <p className="mt-3 max-w-2xl text-sm leading-6 text-muted">
         {state === "done"
           ? "Descarcă markdown-ul și promptul, apoi încarcă JSON-ul primit de la ChatGPT."
           : "Documentele sunt convertite în markdown cu MarkItDown."}
       </p>
 
       {generationError ? (
-        <div className="mt-5 rounded-2xl border border-danger-border bg-danger-soft px-4 py-3 text-sm font-semibold text-danger">
+        <div className="mt-5 rounded-xl border border-danger-border bg-danger-soft px-4 py-3 text-sm font-semibold text-danger">
           {generationError}
         </div>
       ) : null}
 
-      <div className="mt-6 h-2 overflow-hidden rounded-full bg-surface">
+      <div className="mt-6 h-2 overflow-hidden rounded-full bg-app">
         <div
           className="h-full rounded-full bg-success transition-[width] duration-500"
           style={{ width: `${progress}%` }}
         />
       </div>
 
-      <div className="mt-5 rounded-2xl border border-subtle bg-surface px-4">
+      <div className="mt-5 divide-y divide-subtle border-y border-subtle">
         {generationSteps.map((step) => {
           const isDone = completedSteps.includes(step);
           const isCurrent =
             !isDone && completedSteps.length === generationSteps.indexOf(step);
 
           return (
-            <div
-              key={step}
-              className="flex items-center gap-3 border-t border-subtle py-4 first:border-t-0"
-            >
+            <div key={step} className="flex items-center gap-3 py-4">
               <span className="flex-1 text-sm font-semibold">{step}</span>
               <span
                 className={`flex h-6 w-6 items-center justify-center rounded-full ${
@@ -6646,35 +6677,35 @@ function GenerationView({
       </div>
 
       {state === "done" ? (
-        <div className="mt-8 text-center">
+        <div className="mt-8 border-t border-subtle pt-8 text-center">
           <span className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-success-soft text-success">
             <Icon className="h-6 w-6">
               <path d="M20 6 9 17l-5-5" />
             </Icon>
           </span>
-          <p className="mt-4 text-sm leading-6 text-muted">
+          <p className="mx-auto mt-4 max-w-md text-sm leading-6 text-muted">
             Markdown-ul și promptul au fost create. Următorul pas este manual:
             le încarci în ChatGPT, iar JSON-ul primit îl aduci aici.
           </p>
 
           {preparedProject ? (
-            <div className="mt-5 grid gap-3 sm:grid-cols-2">
+            <div className="mx-auto mt-5 grid max-w-md gap-2 divide-y divide-subtle border-y border-subtle text-left sm:grid-cols-2 sm:gap-0 sm:divide-x sm:divide-y-0">
               <a
                 href={preparedProject.markdown_download_url}
-                className="rounded-2xl border border-subtle bg-surface px-4 py-3 text-sm font-black transition hover:bg-surface-hover"
+                className="flex items-center justify-center gap-2 py-3 text-sm font-black transition hover:bg-surface-hover sm:justify-start sm:pr-4"
               >
                 Descarcă Markdown
               </a>
               <a
                 href={preparedProject.prompt_download_url}
-                className="rounded-2xl border border-subtle bg-surface px-4 py-3 text-sm font-black transition hover:bg-surface-hover"
+                className="flex items-center justify-center gap-2 py-3 text-sm font-black transition hover:bg-surface-hover sm:justify-start sm:pl-4"
               >
                 Descarcă promptul
               </a>
             </div>
           ) : null}
 
-          <label className="mt-5 flex cursor-pointer flex-col items-center rounded-2xl border border-dashed border-subtle bg-surface p-5 transition hover:bg-surface-hover">
+          <label className="mx-auto mt-6 flex max-w-md cursor-pointer flex-col items-center rounded-xl border border-dashed border-subtle bg-app p-5 transition hover:bg-surface-hover">
             <span className="text-sm font-black">
               Încarcă JSON-ul generat de ChatGPT
             </span>
@@ -6700,7 +6731,7 @@ function GenerationView({
             </p>
           ) : null}
           {jsonImportMessage ? (
-            <div className="mt-3 rounded-2xl border border-success-border bg-success-soft px-4 py-3 text-sm font-semibold text-success">
+            <div className="mx-auto mt-3 max-w-md rounded-xl border border-success-border bg-success-soft px-4 py-3 text-sm font-semibold text-success">
               {jsonImportMessage}
             </div>
           ) : null}
@@ -6708,7 +6739,7 @@ function GenerationView({
           <button
             type="button"
             onClick={onOpenGeneratedProject}
-            className="mt-5 inline-flex items-center justify-center gap-2 rounded-full bg-content px-5 py-3 text-sm font-semibold text-app"
+            className="mt-6 inline-flex items-center justify-center gap-2 rounded-full bg-action px-5 py-3 text-sm font-semibold text-on-action transition hover:bg-action-hover"
           >
             Deschide proiectul
             <Icon>

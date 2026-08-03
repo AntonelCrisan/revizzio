@@ -90,7 +90,7 @@ export function SubscriptionCancellationPage() {
 
         <div className="grid gap-5 lg:grid-cols-[1fr_22rem]">
           <section className="rounded-[2rem] border border-subtle bg-surface p-5 sm:p-6">
-            <div className="grid gap-3 sm:grid-cols-2">
+            <div className="divide-y divide-subtle border-y border-subtle">
               <SubscriptionDetail label="Plan activ" value="Focus" />
               <SubscriptionDetail label="Preț" value="29 RON / lună" />
               <SubscriptionDetail
@@ -160,11 +160,13 @@ function SubscriptionDetail({
   value: string;
 }) {
   return (
-    <div className="rounded-2xl border border-subtle bg-app p-4">
+    <div className="grid gap-1 py-4 sm:grid-cols-[minmax(0,14rem)_1fr] sm:items-center sm:gap-4">
       <p className="text-xs font-bold uppercase tracking-[0.14em] text-muted">
         {label}
       </p>
-      <p className="mt-2 font-serif text-2xl font-semibold">{value}</p>
+      <p className="font-serif text-2xl font-semibold sm:text-right">
+        {value}
+      </p>
     </div>
   );
 }

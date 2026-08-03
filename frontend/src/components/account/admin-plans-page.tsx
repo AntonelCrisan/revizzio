@@ -560,7 +560,7 @@ export function AdminPlansPage({ initialPlans }: AdminPlansPageProps) {
               />
             </div>
 
-            <div className="mt-6 rounded-[1.5rem] border border-subtle bg-app p-4">
+            <div className="mt-6 border-t border-subtle pt-5">
               <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <div>
                   <p className="text-sm font-black">Optiuni incluse</p>
@@ -572,7 +572,7 @@ export function AdminPlansPage({ initialPlans }: AdminPlansPageProps) {
                 <button
                   type="button"
                   onClick={addOption}
-                  className="w-fit rounded-2xl border border-subtle bg-surface px-4 py-2 text-sm font-bold transition hover:bg-surface-hover"
+                  className="w-fit rounded-2xl border border-subtle bg-app px-4 py-2 text-sm font-bold transition hover:bg-surface-hover"
                 >
                   Adaugă opțiune
                 </button>
@@ -584,12 +584,12 @@ export function AdminPlansPage({ initialPlans }: AdminPlansPageProps) {
                     <input
                       value={option}
                       onChange={(event) => updateOption(index, event.target.value)}
-                      className="h-12 min-w-0 flex-1 rounded-2xl border border-subtle bg-surface px-4 text-sm text-content outline-none transition focus:border-action"
+                      className="h-12 min-w-0 flex-1 rounded-2xl border border-subtle bg-app px-4 text-sm text-content outline-none transition focus:border-action"
                     />
                     <button
                       type="button"
                       onClick={() => removeOption(index)}
-                      className="h-12 rounded-2xl border border-subtle bg-surface px-4 text-sm font-black text-muted transition hover:bg-surface-hover hover:text-content"
+                      className="h-12 rounded-2xl border border-subtle bg-app px-4 text-sm font-black text-muted transition hover:bg-surface-hover hover:text-content"
                       aria-label="Șterge opțiunea"
                     >
                       X

@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { AccountStaticShell } from "@/components/account/account-static-shell";
 import { useAuth } from "@/components/auth/auth-provider";
@@ -33,6 +34,20 @@ function statusLabel(status: string) {
   if (normalized === "void") return "Anulată";
   if (normalized === "uncollectible") return "Neîncasabilă";
   return status || "Necunoscut";
+}
+
+function statusClass(status: string) {
+  const normalized = status.toLowerCase();
+  if (normalized === "paid") {
+    return "border-success-border bg-success-soft text-success";
+  }
+  if (normalized === "open" || normalized === "draft") {
+    return "border-warning-border bg-warning-soft text-warning";
+  }
+  if (normalized === "void" || normalized === "uncollectible") {
+    return "border-danger-border bg-danger-soft text-danger";
+  }
+  return "border-subtle bg-surface-hover text-muted";
 }
 
 export function BillingInvoicesPage() {
@@ -82,27 +97,35 @@ export function BillingInvoicesPage() {
 
   return (
     <AccountStaticShell activePage="billing-invoices">
-      <section className="space-y-6">
-        <div className="flex flex-wrap items-end justify-between gap-4">
+      <section className="space-y-7">
+        <div className="flex flex-col gap-5 border-b border-subtle pb-7 lg:flex-row lg:items-end lg:justify-between">
           <div>
-            <p className="text-xs font-black uppercase tracking-[0.22em] text-warning">
+            <p className="inline-flex rounded-full border border-subtle bg-action-soft px-3 py-1 text-[10px] font-black uppercase tracking-[0.18em] text-muted">
               Facturi
             </p>
-            <h1 className="mt-2 font-serif text-4xl font-semibold leading-tight sm:text-5xl">
-              Plăți recente.
+            <h1 className="mt-3 max-w-3xl font-serif text-4xl font-semibold leading-[0.95] text-content sm:text-5xl">
+              Istoric plăți.
             </h1>
-            <p className="mt-3 max-w-xl text-sm leading-7 text-muted">
-              Istoricul plăților procesate prin Stripe, cu link direct către
-              factură și PDF.
+            <p className="mt-3 max-w-xl text-sm leading-6 text-muted">
+              Facturile Stripe pentru abonamentul tău.
             </p>
           </div>
-          <button
-            type="button"
-            onClick={refreshInvoices}
-            className="rounded-xl border border-subtle bg-surface px-5 py-3 text-sm font-black transition hover:bg-surface-hover"
-          >
-            Reîncarcă lista
-          </button>
+
+          <div className="flex flex-wrap gap-2">
+            <Link
+              href="/upgrade"
+              className="inline-flex items-center rounded-full border border-subtle bg-surface px-4 py-2 text-xs font-bold text-muted transition hover:bg-surface-hover hover:text-content"
+            >
+              Planuri
+            </Link>
+            <button
+              type="button"
+              onClick={refreshInvoices}
+              className="rounded-full border border-subtle bg-surface px-4 py-2 text-xs font-bold text-muted transition hover:bg-surface-hover hover:text-content"
+            >
+              Reîncarcă
+            </button>
+          </div>
         </div>
 
         <div className="overflow-hidden border-y border-subtle">
@@ -120,7 +143,7 @@ export function BillingInvoicesPage() {
             </div>
           ) : (
             <div className="divide-y divide-subtle">
-              <div className="hidden grid-cols-[1.2fr_0.7fr_0.7fr_auto] gap-4 py-3 text-[11px] font-black uppercase tracking-[0.16em] text-muted sm:grid">
+              <div className="hidden grid-cols-[1.25fr_0.65fr_0.65fr_auto] gap-4 py-3 text-[10px] font-black uppercase tracking-[0.18em] text-muted sm:grid">
                 <span>Factură</span>
                 <span>Valoare</span>
                 <span>Status</span>
@@ -130,7 +153,7 @@ export function BillingInvoicesPage() {
               {invoices.map((invoice) => (
                 <div
                   key={invoice.id}
-                  className="grid gap-4 py-5 text-sm sm:grid-cols-[1.2fr_0.7fr_0.7fr_auto] sm:items-center"
+                  className="grid gap-4 py-5 text-sm transition hover:bg-surface-hover/45 sm:grid-cols-[1.25fr_0.65fr_0.65fr_auto] sm:items-center"
                 >
                   <div>
                     <p className="text-base font-black tracking-tight">
@@ -143,7 +166,11 @@ export function BillingInvoicesPage() {
                   <p className="text-base font-black">
                     {formatInvoiceAmount(invoice)}
                   </p>
-                  <span className="w-fit rounded-full bg-success-soft px-3 py-1 text-xs font-black text-success">
+                  <span
+                    className={`w-fit rounded-full border px-3 py-1 text-xs font-black ${statusClass(
+                      invoice.status,
+                    )}`}
+                  >
                     {statusLabel(invoice.status)}
                   </span>
                   <div className="flex flex-wrap gap-2 sm:justify-end">
@@ -152,7 +179,7 @@ export function BillingInvoicesPage() {
                         href={invoice.hosted_invoice_url}
                         target="_blank"
                         rel="noreferrer"
-                        className="rounded-xl bg-content px-4 py-2 text-sm font-black text-app transition hover:opacity-90"
+                        className="rounded-full bg-action px-4 py-2 text-sm font-black text-on-action transition hover:bg-action-hover"
                       >
                         Vezi factura
                       </a>
@@ -162,7 +189,7 @@ export function BillingInvoicesPage() {
                         href={invoice.invoice_pdf_url}
                         target="_blank"
                         rel="noreferrer"
-                        className="rounded-xl border border-subtle bg-surface px-4 py-2 text-sm font-black transition hover:bg-surface-hover"
+                        className="rounded-full border border-subtle bg-surface px-4 py-2 text-sm font-black transition hover:bg-surface-hover"
                       >
                         PDF
                       </a>

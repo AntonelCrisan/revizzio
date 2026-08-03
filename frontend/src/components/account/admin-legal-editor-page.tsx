@@ -196,7 +196,7 @@ export function AdminLegalEditorPage({
                     </div>
                   ) : (
                     <div
-                      className="legal-document rounded-[1.5rem] bg-app px-5 py-6"
+                      className="legal-document"
                       dangerouslySetInnerHTML={{
                         __html: section.rendered_content,
                       }}
