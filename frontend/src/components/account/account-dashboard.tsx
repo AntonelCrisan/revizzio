@@ -2854,6 +2854,7 @@ function SummaryToolsPanel({
   toolHintText,
   onToggleTool,
   onResetTool,
+  onApplyCurrentHighlight,
   onHighlightColorChange,
 }: {
   activeTool: SummaryToolMode | null;
@@ -2861,6 +2862,7 @@ function SummaryToolsPanel({
   toolHintText: string | null;
   onToggleTool: (tool: SummaryToolMode) => void;
   onResetTool: () => void;
+  onApplyCurrentHighlight: () => void;
   onHighlightColorChange: (color: SummaryHighlightColorId) => void;
 }) {
   return (
@@ -2879,10 +2881,20 @@ function SummaryToolsPanel({
           <path d="m22 12-4.6 4.6a2 2 0 0 1-2.8 0l-5.2-5.2a2 2 0 0 1 0-2.8L14 4l8 8Z" />
         </SummaryToolButton>
         {activeTool === "highlight" ? (
-          <SummaryHighlightColorPicker
-            value={pendingHighlightColor}
-            onChange={onHighlightColorChange}
-          />
+          <div className="py-3">
+            <SummaryHighlightColorPicker
+              value={pendingHighlightColor}
+              onChange={onHighlightColorChange}
+            />
+            <button
+              type="button"
+              onMouseDown={(event) => event.preventDefault()}
+              onClick={onApplyCurrentHighlight}
+              className="mt-3 flex h-10 w-full cursor-pointer items-center justify-center rounded-full bg-action px-4 text-xs font-bold text-on-action transition hover:bg-action-hover"
+            >
+              Aplică pe selecție
+            </button>
+          </div>
         ) : null}
 
         <SummaryToolButton
@@ -2976,6 +2988,7 @@ function SummaryPanel({
   const keywordFocusTimer = useRef<number | null>(null);
   const aiResponseTimer = useRef<number | null>(null);
   const selectionChangeTimer = useRef<number | null>(null);
+  const selectionReadFrame = useRef<number | null>(null);
   const readCurrentSelectionRef = useRef<() => void>(() => {});
   const [activeTool, setActiveTool] = useState<SummaryToolMode | null>(null);
   const [isToolsDialogOpen, setIsToolsDialogOpen] = useState(false);
@@ -3043,6 +3056,152 @@ function SummaryPanel({
   const userHighlightClass =
     "box-decoration-clone rounded-md border px-1.5 py-0.5 font-semibold";
 
+  async function handleApplyHighlight(selection: PendingSummarySelection) {
+    const existingHighlight = userHighlights.find(
+      (highlight) =>
+        highlight.paragraphIndex === selection.paragraphIndex &&
+        highlight.text === selection.text,
+    );
+
+    try {
+      if (existingHighlight) {
+        await onHighlightColorChange(
+          project.id,
+          existingHighlight.id,
+          pendingHighlightColor,
+        );
+      } else {
+        await onHighlightCreate(project.id, {
+          paragraphIndex: selection.paragraphIndex,
+          text: selection.text,
+          color: pendingHighlightColor,
+        });
+      }
+    } catch {
+      // Selection stays available so the user can try highlighting again.
+    }
+
+    window.getSelection()?.removeAllRanges();
+  }
+
+  function handleAskAi(selection: PendingSummarySelection) {
+    if (aiResponseTimer.current) {
+      window.clearTimeout(aiResponseTimer.current);
+    }
+
+    setAiDialog({
+      ...selection,
+      status: "loading",
+    });
+
+    aiResponseTimer.current = window.setTimeout(() => {
+      setAiDialog({
+        ...selection,
+        status: "done",
+        response: buildSummaryAiResponse(
+          selection,
+          displayParagraphs,
+          displayKeywords,
+        ),
+      });
+      aiResponseTimer.current = null;
+    }, 950);
+
+    window.getSelection()?.removeAllRanges();
+  }
+
+  function getCurrentSummarySelectionPayload() {
+    const root = summaryRef.current;
+    const selection = window.getSelection();
+
+    if (!root || !selection || selection.isCollapsed || !selection.rangeCount) {
+      return null;
+    }
+
+    const anchorNode = selection.anchorNode;
+    const focusNode = selection.focusNode;
+
+    if (
+      !anchorNode ||
+      !focusNode ||
+      !root.contains(anchorNode) ||
+      !root.contains(focusNode)
+    ) {
+      return null;
+    }
+
+    const anchorParagraphIndex = getSummaryParagraphIndex(anchorNode);
+    const focusParagraphIndex = getSummaryParagraphIndex(focusNode);
+
+    if (
+      anchorParagraphIndex === null ||
+      focusParagraphIndex === null ||
+      anchorParagraphIndex !== focusParagraphIndex
+    ) {
+      return null;
+    }
+
+    const selectedText = normalizeSummarySelection(
+      selection.getRangeAt(0).toString(),
+    );
+
+    if (selectedText.length < 3) {
+      return null;
+    }
+
+    return {
+      text: selectedText,
+      paragraphIndex: anchorParagraphIndex,
+    };
+  }
+
+  function readCurrentSelection() {
+    if (!activeTool || activeTool === "erase" || activeTool === "highlight") {
+      return;
+    }
+
+    const selectionPayload = getCurrentSummarySelectionPayload();
+
+    if (!selectionPayload) {
+      return;
+    }
+
+    if (activeTool === "note") {
+      setNotePanel({ mode: "create", selection: selectionPayload, draft: "" });
+      return;
+    }
+
+    if (activeTool === "ai") {
+      handleAskAi(selectionPayload);
+      return;
+    }
+  }
+
+  function scheduleCurrentSelectionRead() {
+    if (activeTool === "highlight") {
+      return;
+    }
+
+    if (selectionReadFrame.current !== null) {
+      window.cancelAnimationFrame(selectionReadFrame.current);
+    }
+
+    selectionReadFrame.current = window.requestAnimationFrame(() => {
+      readCurrentSelectionRef.current();
+      selectionReadFrame.current = null;
+    });
+  }
+
+  function handleApplyCurrentHighlight() {
+    const selectionPayload = getCurrentSummarySelectionPayload();
+
+    if (!selectionPayload) {
+      return;
+    }
+
+    void handleApplyHighlight(selectionPayload);
+  }
+
   useEffect(() => {
     return () => {
       if (keywordFocusTimer.current) {
@@ -3054,6 +3213,9 @@ function SummaryPanel({
       if (selectionChangeTimer.current) {
         window.clearTimeout(selectionChangeTimer.current);
       }
+      if (selectionReadFrame.current !== null) {
+        window.cancelAnimationFrame(selectionReadFrame.current);
+      }
     };
   }, []);
 
@@ -3063,9 +3225,15 @@ function SummaryPanel({
         window.clearTimeout(selectionChangeTimer.current);
       }
       selectionChangeTimer.current = window.setTimeout(() => {
-        readCurrentSelectionRef.current();
+        if (selectionReadFrame.current !== null) {
+          window.cancelAnimationFrame(selectionReadFrame.current);
+        }
+        selectionReadFrame.current = window.requestAnimationFrame(() => {
+          readCurrentSelectionRef.current();
+          selectionReadFrame.current = null;
+        });
         selectionChangeTimer.current = null;
-      }, 300);
+      }, 220);
     }
 
     function handleTouchStart() {
@@ -3114,66 +3282,12 @@ function SummaryPanel({
     );
   }
 
-  async function handleApplyHighlight(selection: PendingSummarySelection) {
-    const existingHighlight = userHighlights.find(
-      (highlight) =>
-        highlight.paragraphIndex === selection.paragraphIndex &&
-        highlight.text === selection.text,
-    );
-
-    try {
-      if (existingHighlight) {
-        await onHighlightColorChange(
-          project.id,
-          existingHighlight.id,
-          pendingHighlightColor,
-        );
-      } else {
-        await onHighlightCreate(project.id, {
-          paragraphIndex: selection.paragraphIndex,
-          text: selection.text,
-          color: pendingHighlightColor,
-        });
-      }
-    } catch {
-      // Selection stays available so the user can try highlighting again.
-    }
-
-    window.getSelection()?.removeAllRanges();
-  }
-
   async function handleRemoveHighlight(highlightId: string) {
     try {
       await onHighlightRemove(project.id, highlightId);
     } catch {
       // If deletion failed, the highlight remains in project.summaryHighlights.
     }
-  }
-
-  function handleAskAi(selection: PendingSummarySelection) {
-    if (aiResponseTimer.current) {
-      window.clearTimeout(aiResponseTimer.current);
-    }
-
-    setAiDialog({
-      ...selection,
-      status: "loading",
-    });
-
-    aiResponseTimer.current = window.setTimeout(() => {
-      setAiDialog({
-        ...selection,
-        status: "done",
-        response: buildSummaryAiResponse(
-          selection,
-          displayParagraphs,
-          displayKeywords,
-        ),
-      });
-      aiResponseTimer.current = null;
-    }, 950);
-
-    window.getSelection()?.removeAllRanges();
   }
 
   function handleCloseAiDialog() {
@@ -3197,59 +3311,6 @@ function SummaryPanel({
       );
       keywordFocusTimer.current = null;
     }, 1800);
-  }
-
-  function readCurrentSelection() {
-    const root = summaryRef.current;
-    const selection = window.getSelection();
-
-    if (!root || !selection || selection.isCollapsed) {
-      return;
-    }
-
-    const anchorNode = selection.anchorNode;
-    const focusNode = selection.focusNode;
-
-    if (
-      !anchorNode ||
-      !focusNode ||
-      !root.contains(anchorNode) ||
-      !root.contains(focusNode)
-    ) {
-      return;
-    }
-
-    const anchorParagraphIndex = getSummaryParagraphIndex(anchorNode);
-    const focusParagraphIndex = getSummaryParagraphIndex(focusNode);
-    const selectedText = normalizeSummarySelection(selection.toString());
-
-    if (
-      anchorParagraphIndex === null ||
-      focusParagraphIndex === null ||
-      anchorParagraphIndex !== focusParagraphIndex ||
-      selectedText.length < 3
-    ) {
-      return;
-    }
-
-    const selectionPayload: PendingSummarySelection = {
-      text: selectedText,
-      paragraphIndex: anchorParagraphIndex,
-    };
-
-    if (activeTool === "note") {
-      setNotePanel({ mode: "create", selection: selectionPayload, draft: "" });
-      return;
-    }
-
-    if (activeTool === "ai") {
-      handleAskAi(selectionPayload);
-      return;
-    }
-
-    if (activeTool === "highlight") {
-      handleApplyHighlight(selectionPayload);
-    }
   }
 
   function handleHighlightSpanClick(highlight: UserSummaryHighlight) {
@@ -3334,7 +3395,7 @@ function SummaryPanel({
 
   const toolHintText =
     activeTool === "highlight"
-      ? "Selectează un fragment ca să-l evidențiezi cu culoarea aleasă."
+      ? "Selectează un fragment, apoi apasă Aplică pe selecție."
       : activeTool === "erase"
         ? "Apasă pe un text evidențiat ca să-l ștergi."
         : activeTool === "ai"
@@ -3358,6 +3419,7 @@ function SummaryPanel({
       <button
         type="button"
         onClick={() => setIsToolsDialogOpen((current) => !current)}
+        onMouseDown={(event) => event.preventDefault()}
         className="fixed bottom-5 right-5 z-40 inline-flex cursor-pointer items-center gap-2 rounded-full border border-subtle bg-action px-4 py-3 text-sm font-bold text-on-action shadow-xl shadow-black/15 transition hover:bg-action-hover xl:hidden"
         aria-expanded={isToolsDialogOpen}
       >
@@ -3437,8 +3499,8 @@ function SummaryPanel({
 
           <div
             ref={summaryRef}
-            onKeyUp={readCurrentSelection}
-            onMouseUp={readCurrentSelection}
+            onKeyUp={scheduleCurrentSelectionRead}
+            onMouseUp={scheduleCurrentSelectionRead}
             className={`mt-6 space-y-5 border-b border-subtle pb-7 text-sm leading-7 text-content/85 sm:text-base sm:leading-8 ${toolCursorClass}`}
           >
             {summaryRenderGroups.map((group) => {
@@ -3548,6 +3610,7 @@ function SummaryPanel({
             toolHintText={toolHintText}
             onToggleTool={handleToggleTool}
             onResetTool={handleResetTool}
+            onApplyCurrentHighlight={handleApplyCurrentHighlight}
             onHighlightColorChange={setPendingHighlightColor}
           />
         </aside>
@@ -3591,6 +3654,7 @@ function SummaryPanel({
                 toolHintText={toolHintText}
                 onToggleTool={handleToggleTool}
                 onResetTool={handleResetTool}
+                onApplyCurrentHighlight={handleApplyCurrentHighlight}
                 onHighlightColorChange={setPendingHighlightColor}
               />
             </div>
