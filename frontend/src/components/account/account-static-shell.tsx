@@ -467,7 +467,7 @@ export function AccountStaticShell({
           </Icon>
         </button>
 
-        <main className="mx-auto max-w-6xl px-4 pb-6 pt-16 sm:px-6 lg:px-8 lg:py-6">
+        <main className="mx-auto max-w-6xl px-4 pb-6 pt-24 sm:px-6 lg:px-8 lg:py-8">
           {children}
         </main>
       </div>

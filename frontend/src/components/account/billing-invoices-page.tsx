@@ -1,13 +1,16 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { AccountStaticShell } from "@/components/account/account-static-shell";
+import { TablePagination } from "@/components/account/table-pagination";
 import { useAuth } from "@/components/auth/auth-provider";
 import {
   listSubscriptionInvoices,
   type SubscriptionInvoice,
 } from "@/lib/payments-api";
+
+const INVOICES_PAGE_SIZE = 8;
 
 function formatInvoiceAmount(invoice: SubscriptionInvoice) {
   const amount = invoice.amount_paid || invoice.amount_due;
@@ -53,8 +56,18 @@ function statusClass(status: string) {
 export function BillingInvoicesPage() {
   const { user, isLoading: isAuthLoading } = useAuth();
   const [invoices, setInvoices] = useState<SubscriptionInvoice[]>([]);
+  const [currentPage, setCurrentPage] = useState(1);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const pageCount = Math.max(
+    1,
+    Math.ceil(invoices.length / INVOICES_PAGE_SIZE),
+  );
+  const safeCurrentPage = Math.min(currentPage, pageCount);
+  const paginatedInvoices = useMemo(() => {
+    const start = (safeCurrentPage - 1) * INVOICES_PAGE_SIZE;
+    return invoices.slice(start, start + INVOICES_PAGE_SIZE);
+  }, [invoices, safeCurrentPage]);
 
   const refreshInvoices = useCallback(() => {
     if (!user) return;
@@ -142,7 +155,7 @@ export function BillingInvoicesPage() {
               Nu există încă facturi pentru contul tău.
             </div>
           ) : (
-            <div className="divide-y divide-subtle">
+            <div className="data-table-scroll max-h-[34rem] overflow-auto divide-y divide-subtle">
               <div className="hidden grid-cols-[1.25fr_0.65fr_0.65fr_auto] gap-4 py-3 text-[10px] font-black uppercase tracking-[0.18em] text-muted sm:grid">
                 <span>Factură</span>
                 <span>Valoare</span>
@@ -150,7 +163,7 @@ export function BillingInvoicesPage() {
                 <span className="text-right">Acțiuni</span>
               </div>
 
-              {invoices.map((invoice) => (
+              {paginatedInvoices.map((invoice) => (
                 <div
                   key={invoice.id}
                   className="grid gap-4 py-5 text-sm transition hover:bg-surface-hover/45 sm:grid-cols-[1.25fr_0.65fr_0.65fr_auto] sm:items-center"
@@ -199,6 +212,16 @@ export function BillingInvoicesPage() {
               ))}
             </div>
           )}
+          {!isLoading && !errorMessage ? (
+            <TablePagination
+              currentPage={safeCurrentPage}
+              pageCount={pageCount}
+              pageSize={INVOICES_PAGE_SIZE}
+              totalItems={invoices.length}
+              itemLabel="facturi"
+              onPageChange={setCurrentPage}
+            />
+          ) : null}
         </div>
       </section>
     </AccountStaticShell>

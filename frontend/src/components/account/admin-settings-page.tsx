@@ -6,6 +6,7 @@ import { AccountStaticShell } from "@/components/account/account-static-shell";
 
 type SettingsCard = {
   title: string;
+  description: string;
   href: string;
   icon: "document" | "shield" | "building" | "card" | "users" | "logs";
 };
@@ -13,16 +14,19 @@ type SettingsCard = {
 const legalCards: SettingsCard[] = [
   {
     title: "Termeni și condiții",
+    description: "Editează documentul legal afișat public.",
     href: "/admin/settings/termeni-si-conditii",
     icon: "document",
   },
   {
     title: "Politica de confidențialitate",
+    description: "Actualizează documentul pentru date și confidențialitate.",
     href: "/admin/settings/politica-de-confidentialitate",
     icon: "shield",
   },
   {
     title: "Datele firmei",
+    description: "Gestionează informațiile afișate în footer și documente.",
     href: "/admin/settings/datele-firmei",
     icon: "building",
   },
@@ -31,6 +35,7 @@ const legalCards: SettingsCard[] = [
 const planCards: SettingsCard[] = [
   {
     title: "Planuri și abonamente",
+    description: "Prețuri, reduceri, beneficii și vizibilitate planuri.",
     href: "/admin/settings/planuri",
     icon: "card",
   },
@@ -39,6 +44,7 @@ const planCards: SettingsCard[] = [
 const userCards: SettingsCard[] = [
   {
     title: "Utilizatori",
+    description: "Listă utilizatori, roluri și detalii de cont.",
     href: "/admin/settings/utilizatori",
     icon: "users",
   },
@@ -47,8 +53,32 @@ const userCards: SettingsCard[] = [
 const monitoringCards: SettingsCard[] = [
   {
     title: "Jurnal activitate",
+    description: "Evenimente administrative și acțiuni importante.",
     href: "/admin/settings/loguri",
     icon: "logs",
+  },
+];
+
+const adminGroups = [
+  {
+    title: "Aplicație și firmă",
+    detail: "Conținut global și date juridice.",
+    cards: legalCards,
+  },
+  {
+    title: "Planuri",
+    detail: "Configurare comercială.",
+    cards: planCards,
+  },
+  {
+    title: "Utilizatori și acces",
+    detail: "Conturi și permisiuni.",
+    cards: userCards,
+  },
+  {
+    title: "Monitorizare",
+    detail: "Audit și diagnostic.",
+    cards: monitoringCards,
   },
 ];
 
@@ -75,7 +105,7 @@ function SvgIcon({
 
 function SettingsIcon({ icon }: { icon: SettingsCard["icon"] }) {
   return (
-    <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-surface text-content transition group-hover:bg-action group-hover:text-on-action">
+    <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-app text-content transition group-hover:bg-action group-hover:text-on-action">
       {icon === "document" ? (
         <SvgIcon>
           <path d="M7 3h7l4 4v14H7z" />
@@ -127,33 +157,45 @@ function ArrowIcon() {
 
 function SettingsGroup({
   title,
+  detail,
   cards,
 }: {
   title: string;
+  detail: string;
   cards: SettingsCard[];
 }) {
   return (
-    <section className="space-y-3">
-      <h2 className="text-xs font-black uppercase tracking-[0.18em] text-muted">
-        {title}
-      </h2>
+    <section className="rounded-xl border border-subtle bg-surface p-5">
+      <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+        <h2 className="text-xs font-black uppercase tracking-[0.18em] text-muted">
+          {title}
+        </h2>
+        <span className="text-xs font-bold text-muted">{detail}</span>
+      </div>
 
-      <div className="divide-y divide-subtle border-y border-subtle">
+      <div className="mt-4 divide-y divide-subtle border-y border-subtle">
         {cards.map((card) => (
           <Link
             key={card.href}
             href={card.href}
-            className="group flex items-center gap-4 py-4 transition hover:bg-surface-hover sm:px-2"
+            className="group -mx-3 grid gap-3 rounded-xl px-3 py-4 transition hover:bg-surface-hover sm:grid-cols-[auto_1fr_auto] sm:items-center"
           >
             <SettingsIcon icon={card.icon} />
-            <span className="min-w-0 flex-1 text-base font-black text-content sm:text-lg">
-              {card.title}
+            <span className="min-w-0">
+              <span className="block text-sm font-black text-content">
+                {card.title}
+              </span>
+              <span className="mt-1 block text-xs leading-5 text-muted">
+                {card.description}
+              </span>
             </span>
-            <span className="hidden rounded-full border border-subtle px-4 py-2 text-xs font-black text-muted transition group-hover:border-action/30 group-hover:bg-action group-hover:text-on-action sm:inline-flex">
-              Deschide
-            </span>
-            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-muted transition group-hover:text-content">
-              <ArrowIcon />
+            <span className="flex items-center gap-3 sm:justify-end">
+              <span className="hidden rounded-full bg-action px-4 py-2 text-xs font-black text-on-action transition group-hover:bg-action-hover sm:inline-flex">
+                Deschide
+              </span>
+              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-subtle text-muted transition group-hover:border-action group-hover:text-content">
+                <ArrowIcon />
+              </span>
             </span>
           </Link>
         ))}
@@ -165,25 +207,64 @@ function SettingsGroup({
 export function AdminSettingsPage() {
   return (
     <AccountStaticShell activePage="admin-settings">
-      <section className="space-y-8">
-        <div>
-          <p className="text-xs font-bold uppercase tracking-[0.2em] text-muted">
-            Administrare
-          </p>
-          <h1 className="mt-2 font-serif text-4xl font-semibold leading-tight sm:text-5xl">
-            Setări admin
-          </h1>
-          <p className="mt-3 max-w-2xl text-sm leading-7 text-muted">
-            Zonele principale de administrare pentru conținut legal, firmă,
-            planuri, utilizatori și monitorizare.
-          </p>
+      <section className="space-y-7">
+        <div className="flex flex-col gap-5 border-b border-subtle pb-7 lg:flex-row lg:items-end lg:justify-between">
+          <div>
+            <p className="inline-flex rounded-full border border-subtle bg-action-soft px-3 py-1 text-[10px] font-black uppercase tracking-[0.18em] text-muted">
+              Administrare
+            </p>
+            <h1 className="mt-3 max-w-3xl font-serif text-4xl font-semibold leading-[0.95] text-content sm:text-5xl">
+              Setări admin.
+            </h1>
+            <p className="mt-3 max-w-xl text-sm leading-6 text-muted">
+              Controlează conținutul global, planurile, utilizatorii și auditul.
+            </p>
+          </div>
+
+          <span className="inline-flex w-fit rounded-full border border-success-border bg-success-soft px-4 py-2 text-xs font-black text-success">
+            Acces admin
+          </span>
         </div>
 
-        <SettingsGroup title="Aplicație și firmă" cards={legalCards} />
-        <SettingsGroup title="Planuri" cards={planCards} />
-        <SettingsGroup title="Utilizatori și acces" cards={userCards} />
-        <SettingsGroup title="Monitorizare" cards={monitoringCards} />
+        <div className="grid gap-5 md:grid-cols-3">
+          <AdminMetric label="Zone globale" value="3" detail="Legal și firmă" />
+          <AdminMetric label="Planuri" value="1" detail="Catalog abonamente" />
+          <AdminMetric label="Audit" value="Activ" detail="Jurnal platformă" />
+        </div>
+
+        <div className="grid gap-5 xl:grid-cols-2">
+          {adminGroups.map((group) => (
+            <SettingsGroup
+              key={group.title}
+              title={group.title}
+              detail={group.detail}
+              cards={group.cards}
+            />
+          ))}
+        </div>
       </section>
     </AccountStaticShell>
+  );
+}
+
+function AdminMetric({
+  label,
+  value,
+  detail,
+}: {
+  label: string;
+  value: string;
+  detail: string;
+}) {
+  return (
+    <article className="rounded-xl border border-subtle bg-surface p-5">
+      <p className="text-[10px] font-black uppercase tracking-[0.16em] text-muted">
+        {label}
+      </p>
+      <p className="mt-4 font-serif text-2xl font-semibold leading-tight text-content">
+        {value}
+      </p>
+      <p className="mt-2 text-sm leading-6 text-muted">{detail}</p>
+    </article>
   );
 }

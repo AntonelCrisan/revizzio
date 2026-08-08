@@ -299,13 +299,6 @@ export function FlashcardStory() {
               direcții.
             </p>
 
-            <div className="flashcard-story-helper mt-7 inline-flex items-center gap-3 rounded-full border border-subtle bg-app/70 px-4 py-2 text-xs font-bold text-muted">
-              <span className="flex h-6 w-8 items-center justify-center rounded-full bg-action-soft text-content">
-                ↔
-              </span>
-              Derulează pentru a amesteca pachetul
-            </div>
-
             <div className="flashcard-story-active mt-6 hidden min-h-24 rounded-2xl border border-subtle bg-app/70 p-4 sm:block">
               <p className="text-sm font-semibold leading-6">
                 Apasă pe primul card pentru a-l întoarce și click din nou

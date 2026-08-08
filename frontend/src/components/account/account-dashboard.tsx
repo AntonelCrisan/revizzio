@@ -189,6 +189,13 @@ function initials(name: string) {
   return parts.map((part) => part[0]?.toUpperCase()).join("") || "EQ";
 }
 
+function preferredFirstName(fullName?: string | null) {
+  const parts = (fullName ?? "").trim().split(/\s+/).filter(Boolean);
+  if (!parts.length) return "student";
+
+  return parts.length > 1 ? parts[parts.length - 1] : parts[0];
+}
+
 function getProjectById(projects: StudyProject[], projectId?: string) {
   return projects.find((project) => project.id === projectId) ?? projects[0];
 }
@@ -408,7 +415,7 @@ export function AccountDashboard({
     [activeProjectId, projects],
   );
 
-  const firstName = user?.full_name.split(" ")[0] ?? "student";
+  const firstName = preferredFirstName(user?.full_name);
   const canGenerate =
     projectName.trim().length > 0 &&
     subjectName.trim().length > 0 &&
@@ -1267,22 +1274,24 @@ export function AccountDashboard({
       </aside>
 
       <div className="relative min-w-0 flex-1">
-        <button
-          type="button"
-          onClick={() => setSidebarOpen(true)}
-          className="fixed left-4 top-4 z-30 flex h-11 w-11 items-center justify-center rounded-2xl border border-subtle bg-surface/95 text-content shadow-lg shadow-black/10 backdrop-blur-xl transition hover:bg-surface-hover lg:hidden"
-          aria-label="Deschide meniul"
-        >
-          <Icon className="h-5 w-5">
-            <path d="M3 6h18M3 12h18M3 18h18" />
-          </Icon>
-        </button>
+        {!sidebarOpen ? (
+          <button
+            type="button"
+            onClick={() => setSidebarOpen(true)}
+            className="fixed left-4 top-4 z-50 flex h-11 w-11 items-center justify-center rounded-2xl border border-subtle bg-surface/95 text-content shadow-lg shadow-black/10 backdrop-blur-xl transition hover:bg-surface-hover lg:hidden"
+            aria-label="Deschide meniul"
+          >
+            <Icon className="h-5 w-5">
+              <path d="M3 6h18M3 12h18M3 18h18" />
+            </Icon>
+          </button>
+        ) : null}
 
         {isSidebarCollapsed ? (
           <button
             type="button"
             onClick={toggleSidebarCollapsed}
-            className="fixed left-4 top-4 z-30 hidden h-11 w-11 items-center justify-center rounded-2xl border border-subtle bg-surface/95 text-content shadow-lg shadow-black/10 backdrop-blur-xl transition hover:bg-surface-hover lg:flex"
+            className="fixed left-4 top-4 z-50 hidden h-11 w-11 items-center justify-center rounded-2xl border border-subtle bg-surface/95 text-content shadow-lg shadow-black/10 backdrop-blur-xl transition hover:bg-surface-hover lg:flex"
             aria-label="Afișează meniul"
           >
             <Icon className="h-5 w-5">
@@ -1291,7 +1300,7 @@ export function AccountDashboard({
           </button>
         ) : null}
 
-        <main className="mx-auto w-full max-w-7xl px-4 pb-6 pt-16 sm:px-6 lg:px-8 lg:py-6">
+        <main className="mx-auto w-full max-w-7xl px-4 pb-6 pt-24 sm:px-6 lg:px-8 lg:py-8">
           {view === "home" ? (
             <HomeView
               firstName={firstName}
@@ -1550,14 +1559,7 @@ function HomeView({
         />
       </div>
 
-      <div className="flex items-center justify-between gap-4">
-        <SectionLabel>Proiectele tale</SectionLabel>
-        <span className="hidden text-sm text-muted sm:inline">
-          {projects.length
-            ? "Click pe card pentru deschidere"
-            : "Primul curs începe aici"}
-        </span>
-      </div>
+      <SectionLabel>Proiectele tale</SectionLabel>
       {projectError ? (
         <div className="rounded-xl border border-danger-border bg-danger-soft px-4 py-3 text-sm font-semibold text-danger">
           {projectError}
@@ -1755,40 +1757,68 @@ function ProjectDeleteModal({
       aria-modal="true"
       aria-labelledby="delete-project-title"
     >
-      <div className="w-full max-w-lg rounded-xl border border-subtle bg-surface p-6 shadow-2xl shadow-black/20">
-        <div className="flex items-start gap-4">
-          <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg border border-danger-border bg-danger-soft text-danger">
-            <Icon className="h-5 w-5">
-              <path d="M3 6h18" />
-              <path d="M8 6V4h8v2" />
-              <path d="M19 6l-1 14H6L5 6" />
-              <path d="M10 11v6M14 11v6" />
-            </Icon>
-          </span>
-          <div className="min-w-0">
-            <p className="text-xs font-black uppercase tracking-[0.16em] text-danger">
+      <div className="w-full max-w-xl overflow-hidden rounded-xl border border-subtle bg-surface shadow-2xl shadow-black/20">
+        <div className="border-b border-subtle px-6 py-5">
+          <div className="flex items-center gap-3">
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-danger-border bg-danger-soft text-danger">
+              <Icon className="h-5 w-5">
+                <path d="M3 6h18" />
+                <path d="M8 6V4h8v2" />
+                <path d="M19 6l-1 14H6L5 6" />
+                <path d="M10 11v6M14 11v6" />
+              </Icon>
+            </span>
+            <p className="text-xs font-black uppercase tracking-[0.18em] text-danger">
               Ștergere definitivă
             </p>
-            <h2
-              id="delete-project-title"
-              className="mt-2 font-serif text-3xl font-semibold leading-tight"
-            >
-              Ștergi proiectul „{project.name}”?
-            </h2>
-            <p className="mt-3 text-sm leading-6 text-muted">
-              Proiectul, materialele convertite și conținutul generat vor fi
-              eliminate definitiv. Pentru păstrare fără afișare, folosește
-              arhivarea.
-            </p>
+          </div>
+
+          <h2
+            id="delete-project-title"
+            className="mt-4 font-serif text-3xl font-semibold leading-tight text-content sm:text-4xl"
+          >
+            Confirmă ștergerea proiectului.
+          </h2>
+          <p className="mt-3 max-w-lg text-sm leading-6 text-muted">
+            Această acțiune elimină proiectul, materialele convertite și
+            conținutul generat. Pentru păstrare fără afișare, folosește
+            arhivarea.
+          </p>
+        </div>
+
+        <div className="divide-y divide-subtle">
+          <div className="grid gap-1 px-6 py-4 sm:grid-cols-[140px_minmax(0,1fr)] sm:items-center">
+            <span className="text-xs font-black uppercase tracking-[0.16em] text-muted">
+              Proiect
+            </span>
+            <strong className="min-w-0 font-serif text-2xl font-semibold leading-tight text-content">
+              {project.name}
+            </strong>
+          </div>
+          <div className="grid gap-1 px-6 py-4 sm:grid-cols-[140px_minmax(0,1fr)] sm:items-center">
+            <span className="text-xs font-black uppercase tracking-[0.16em] text-muted">
+              Conținut
+            </span>
+            <span className="text-sm font-semibold text-content">
+              Materiale, rezumat, flashcard-uri, quiz-uri și progres.
+            </span>
+          </div>
+          <div className="grid gap-1 px-6 py-4 sm:grid-cols-[140px_minmax(0,1fr)] sm:items-center">
+            <span className="text-xs font-black uppercase tracking-[0.16em] text-muted">
+              Alternativă
+            </span>
+            <span className="text-sm text-muted">
+              Arhivează proiectul dacă vrei doar să îl ascunzi temporar.
+            </span>
           </div>
         </div>
 
-        <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+        <div className="flex flex-col-reverse gap-3 border-t border-subtle bg-app/50 px-6 py-5 sm:flex-row sm:justify-end">
           <button
             type="button"
             onClick={onCancel}
             disabled={isDeleting}
-            className="rounded-full border border-subtle px-5 py-3 text-sm font-bold transition hover:bg-surface-hover disabled:cursor-wait disabled:opacity-60"
+            className="rounded-full border border-subtle bg-surface px-5 py-3 text-sm font-bold transition hover:bg-surface-hover disabled:cursor-wait disabled:opacity-60"
           >
             Renunță
           </button>
@@ -1874,16 +1904,46 @@ function ProjectView({
   ) => Promise<void>;
   onNoteRemove: (projectId: string, noteId: string) => Promise<void>;
 }) {
+  const [areProjectTabsVisible, setAreProjectTabsVisible] = useState(true);
+  const lastProjectScrollYRef = useRef(0);
   const chatBackLabel =
     tabs.find((tab) => tab.id === chatBackTab)?.label ?? "Rezumat";
 
+  useEffect(() => {
+    if (activeTab === "chat") {
+      return;
+    }
+
+    lastProjectScrollYRef.current = window.scrollY;
+
+    const handleProjectTabsScroll = () => {
+      const currentScrollY = window.scrollY;
+      const distance = currentScrollY - lastProjectScrollYRef.current;
+
+      if (Math.abs(distance) < 8) {
+        return;
+      }
+
+      setAreProjectTabsVisible(distance < 0 || currentScrollY < 80);
+      lastProjectScrollYRef.current = currentScrollY;
+    };
+
+    window.addEventListener("scroll", handleProjectTabsScroll, {
+      passive: true,
+    });
+
+    return () => {
+      window.removeEventListener("scroll", handleProjectTabsScroll);
+    };
+  }, [activeTab, project.id]);
+
   if (activeTab === "chat") {
     return (
-      <section>
+      <section className="space-y-5">
         <button
           type="button"
           onClick={() => onTabChange(isChatBackTab(chatBackTab) ? chatBackTab : "rezumat")}
-          className="mb-4 inline-flex items-center gap-2 rounded-full border border-subtle bg-surface px-4 py-2 text-sm font-semibold text-muted transition hover:bg-surface-hover hover:text-content"
+          className="inline-flex h-11 cursor-pointer items-center gap-2 rounded-full border border-subtle bg-surface px-4 text-sm font-semibold text-muted transition hover:bg-surface-hover hover:text-content"
         >
           <Icon>
             <path d="M19 12H5M12 19l-7-7 7-7" />
@@ -1897,40 +1957,59 @@ function ProjectView({
   }
 
   return (
-    <section className="space-y-8">
-        <button
-          type="button"
-          onClick={onBack}
-          className="mb-4 inline-flex cursor-pointer items-center gap-2 rounded-full border border-subtle bg-surface px-4 py-2 text-sm font-semibold text-muted transition hover:bg-surface-hover hover:text-content"
-        >
-        <Icon>
-          <path d="M19 12H5M12 19l-7-7 7-7" />
-        </Icon>
-        Proiectele tale
-      </button>
-
-      <p className="text-sm font-semibold text-content">
-        {project.name} - {project.subjectName}
-      </p>
-
-      <div className="mt-5 flex gap-2 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-        {tabs.map((tab) => (
+    <section className="space-y-5">
+      <div className="border-b border-subtle pb-5">
+        <div className="min-w-0">
           <button
-            key={tab.id}
             type="button"
-            onClick={() => onTabChange(tab.id)}
-            className={`shrink-0 rounded-full border px-4 py-2 text-sm font-semibold transition ${
-              activeTab === tab.id
-                ? "border-content bg-content text-app"
-                : "border-subtle text-muted hover:bg-surface-hover"
-            }`}
+            onClick={onBack}
+            className="inline-flex cursor-pointer items-center gap-2 rounded-full border border-subtle bg-surface px-4 py-2 text-sm font-semibold text-muted transition hover:bg-surface-hover hover:text-content"
           >
-            {tab.label}
+            <Icon>
+              <path d="M19 12H5M12 19l-7-7 7-7" />
+            </Icon>
+            Proiectele tale
           </button>
-        ))}
+
+          <div className="mt-4 flex min-w-0 flex-wrap items-center gap-x-4 gap-y-2">
+            <span className="inline-flex rounded-full border border-subtle bg-action-soft px-3 py-1 text-[10px] font-black uppercase tracking-[0.18em] text-muted">
+              Proiect activ
+            </span>
+            <h1 className="min-w-0 font-serif text-3xl font-semibold leading-none text-content sm:text-4xl">
+              {project.name}
+            </h1>
+          </div>
+        </div>
       </div>
 
-      <div className="mt-6">
+      <div
+        className={`sticky top-4 z-30 -mx-2 border-b border-subtle bg-app/95 px-2 backdrop-blur-xl transition-all duration-300 lg:top-3 ${
+          areProjectTabsVisible
+            ? "translate-y-0 opacity-100"
+            : "pointer-events-none -translate-y-4 opacity-0"
+        }`}
+      >
+        <div className="ml-16 overflow-x-auto [scrollbar-width:none] md:ml-0 md:flex md:justify-center [&::-webkit-scrollbar]:hidden">
+          <div className="flex min-w-max items-center gap-6">
+          {tabs.map((tab) => (
+            <button
+              key={tab.id}
+              type="button"
+              onClick={() => onTabChange(tab.id)}
+              className={`relative cursor-pointer py-4 text-sm font-black transition after:absolute after:inset-x-0 after:bottom-0 after:h-[3px] after:rounded-full after:transition ${
+                activeTab === tab.id
+                  ? "text-content after:bg-action"
+                  : "text-muted after:bg-transparent hover:text-content"
+              }`}
+            >
+              {tab.label}
+            </button>
+          ))}
+          </div>
+        </div>
+      </div>
+
+      <div>
         {activeTab === "rezumat" ? (
           <SummaryPanel
             project={project}
@@ -1958,7 +2037,7 @@ function ProjectView({
           />
         ) : null}
         {activeTab === "strategii" ? (
-          <StrategiesPanel strategies={project.strategies} />
+          <StrategiesPanel project={project} />
         ) : null}
         {activeTab === "progres" ? <ProgressPanel project={project} /> : null}
       </div>
@@ -2133,24 +2212,30 @@ function ProjectChatPanel({ project }: { project: StudyProject }) {
   }
 
   return (
-    <section className="theme-shadow-card overflow-hidden rounded-[1.75rem] border border-subtle bg-surface">
-      <div className="flex h-[calc(100svh-10rem)] min-h-[30rem] max-h-[48rem] flex-col">
-        <div className="flex shrink-0 items-center justify-between gap-4 border-b border-subtle bg-app/70 px-4 py-3 sm:px-5">
+    <section className="theme-shadow-card overflow-hidden rounded-xl border border-subtle bg-surface">
+      <div className="flex h-[calc(100svh-8.75rem)] min-h-[34rem] max-h-[54rem] flex-col">
+        <header className="grid shrink-0 gap-4 border-b border-subtle p-4 sm:p-5 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end">
           <div className="min-w-0">
-            <h2 className="truncate font-serif text-xl font-semibold leading-tight sm:text-2xl">
+            <span className="inline-flex rounded-full border border-subtle bg-action-soft px-3 py-1 text-[10px] font-black uppercase tracking-[0.18em] text-muted">
               Chat AI
+            </span>
+            <h2 className="mt-3 truncate font-serif text-2xl font-semibold leading-tight text-content sm:text-3xl">
+              Întreabă despre {project.name}.
             </h2>
-            <p className="mt-0.5 truncate text-xs text-muted">
-              Conversație despre {project.name}
+            <p className="mt-1.5 max-w-2xl text-sm leading-6 text-muted">
+              Conversație contextuală pe rezumat, flashcard-uri, quiz-uri și
+              progresul acestui proiect.
             </p>
           </div>
-          <span className="hidden shrink-0 rounded-full border border-info-border bg-info-soft px-3 py-1 text-xs font-bold text-info sm:inline-flex">
-            proiect activ
-          </span>
-        </div>
+          <div className="grid grid-cols-3 divide-x divide-subtle rounded-xl border border-subtle bg-app">
+            <ChatHeaderStat label="Flashcard-uri" value={String(project.flashcardsTotal)} />
+            <ChatHeaderStat label="Quiz-uri" value={String(project.quizzes.length)} />
+            <ChatHeaderStat label="Progres" value={`${project.progress}%`} />
+          </div>
+        </header>
 
-        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain bg-app/35 px-3 py-4 sm:px-5">
-          <div className="mx-auto flex max-w-3xl flex-col gap-3">
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 py-5 sm:px-5">
+          <div className="mx-auto flex max-w-4xl flex-col gap-3">
             {messages.map((message) => (
               <div
                 key={message.id}
@@ -2159,10 +2244,10 @@ function ProjectChatPanel({ project }: { project: StudyProject }) {
                 }`}
               >
                 <article
-                  className={`max-w-[min(34rem,90%)] rounded-[1.35rem] border px-4 py-2.5 text-sm leading-6 shadow-sm ${
+                  className={`max-w-[min(42rem,92%)] border px-4 py-3 text-sm leading-6 ${
                     message.role === "user"
-                      ? "border-content bg-content text-app"
-                      : "border-subtle bg-surface text-content"
+                      ? "rounded-l-xl rounded-br-sm rounded-tr-xl border-action bg-action text-on-action"
+                      : "rounded-r-xl rounded-bl-sm rounded-tl-xl border-subtle bg-app text-content"
                   }`}
                 >
                   <p>
@@ -2184,7 +2269,7 @@ function ProjectChatPanel({ project }: { project: StudyProject }) {
               event.preventDefault();
               sendChatMessage();
             }}
-            className="mx-auto flex max-w-3xl items-end gap-2 rounded-[1.35rem] border border-subtle bg-app p-2"
+            className="mx-auto flex max-w-4xl items-end gap-2 rounded-xl border border-subtle bg-app p-2"
           >
             <label className="sr-only" htmlFor="project-chat-message">
               Mesaj pentru Chat AI
@@ -2207,7 +2292,7 @@ function ProjectChatPanel({ project }: { project: StudyProject }) {
             <button
               type="submit"
               disabled={!draftMessage.trim() || isGenerating}
-              className="inline-flex items-center justify-center rounded-full bg-action px-4 py-2.5 text-sm font-bold text-on-action transition hover:bg-action-hover disabled:cursor-not-allowed disabled:opacity-60 sm:px-5"
+              className="inline-flex h-11 cursor-pointer items-center justify-center rounded-full bg-action px-4 text-sm font-bold text-on-action transition hover:bg-action-hover disabled:cursor-not-allowed disabled:opacity-60 sm:px-5"
             >
               Trimite
             </button>
@@ -2215,6 +2300,19 @@ function ProjectChatPanel({ project }: { project: StudyProject }) {
         </div>
       </div>
     </section>
+  );
+}
+
+function ChatHeaderStat({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="min-w-24 px-4 py-3 text-center">
+      <p className="font-serif text-2xl font-semibold leading-none text-content">
+        {value}
+      </p>
+      <p className="mt-1 text-[10px] font-black uppercase tracking-[0.12em] text-muted">
+        {label}
+      </p>
+    </div>
   );
 }
 
@@ -2683,11 +2781,11 @@ function SummaryHighlightColorPicker({
   onChange: (color: SummaryHighlightColorId) => void;
 }) {
   return (
-    <div className="mt-3 rounded-2xl border border-info-border bg-surface/70 p-3">
-      <p className="text-[11px] font-bold uppercase tracking-[0.16em]">
+    <div className="mt-3 rounded-xl border border-subtle bg-app p-3">
+      <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-muted">
         Culoare highlight
       </p>
-      <div className="mt-2 flex flex-wrap gap-2">
+      <div className="mt-2 grid grid-cols-2 gap-2">
         {summaryHighlightColors.map((color) => {
           const isSelected = color.id === value;
 
@@ -2696,7 +2794,7 @@ function SummaryHighlightColorPicker({
               key={color.id}
               type="button"
               onClick={() => onChange(color.id)}
-              className={`flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-bold transition hover:-translate-y-0.5 ${
+              className={`flex items-center justify-center gap-2 rounded-full border px-3 py-2 text-xs font-bold transition hover:-translate-y-0.5 ${
                 isSelected ? "ring-2 ring-info/45" : ""
               }`}
               style={{
@@ -2738,15 +2836,104 @@ function SummaryToolButton({
       type="button"
       onClick={onClick}
       aria-pressed={active}
-      className={`flex w-full items-center gap-3 rounded-2xl border px-4 py-3 text-sm font-bold transition ${
+      className={`flex w-full cursor-pointer items-center gap-3 rounded-lg px-3 py-3 text-left text-sm font-bold transition ${
         active
-          ? "border-action bg-action text-on-action"
-          : "border-subtle bg-app text-content hover:bg-surface-hover"
+          ? "bg-action text-on-action"
+          : "text-content hover:bg-surface-hover"
       }`}
     >
       <Icon className="h-4 w-4 shrink-0">{children}</Icon>
       {label}
     </button>
+  );
+}
+
+function SummaryToolsPanel({
+  activeTool,
+  pendingHighlightColor,
+  toolHintText,
+  onToggleTool,
+  onResetTool,
+  onHighlightColorChange,
+}: {
+  activeTool: SummaryToolMode | null;
+  pendingHighlightColor: SummaryHighlightColorId;
+  toolHintText: string | null;
+  onToggleTool: (tool: SummaryToolMode) => void;
+  onResetTool: () => void;
+  onHighlightColorChange: (color: SummaryHighlightColorId) => void;
+}) {
+  return (
+    <>
+      <p className="text-xs font-bold uppercase tracking-[0.18em] text-muted">
+        Instrumente
+      </p>
+
+      <div className="mt-3 divide-y divide-subtle border-y border-subtle py-1">
+        <SummaryToolButton
+          label="Evidențiază"
+          active={activeTool === "highlight"}
+          onClick={() => onToggleTool("highlight")}
+        >
+          <path d="m9 11-6 6v3h9l3-3" />
+          <path d="m22 12-4.6 4.6a2 2 0 0 1-2.8 0l-5.2-5.2a2 2 0 0 1 0-2.8L14 4l8 8Z" />
+        </SummaryToolButton>
+        {activeTool === "highlight" ? (
+          <SummaryHighlightColorPicker
+            value={pendingHighlightColor}
+            onChange={onHighlightColorChange}
+          />
+        ) : null}
+
+        <SummaryToolButton
+          label="Șterge"
+          active={activeTool === "erase"}
+          onClick={() => onToggleTool("erase")}
+        >
+          <path d="m7 21-4.3-4.3c-1-1-1-2.5 0-3.4l9.6-9.6c1-1 2.5-1 3.4 0l5.6 5.6c1 1 1 2.5 0 3.4L13 21" />
+          <path d="M22 21H7" />
+          <path d="m5 11 9 9" />
+        </SummaryToolButton>
+
+        <SummaryToolButton
+          label="AI"
+          active={activeTool === "ai"}
+          onClick={() => onToggleTool("ai")}
+        >
+          <path d="M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .962 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.963 0z" />
+        </SummaryToolButton>
+
+        <SummaryToolButton
+          label="Notiță"
+          active={activeTool === "note"}
+          onClick={() => onToggleTool("note")}
+        >
+          <path d="M12 20h9M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" />
+        </SummaryToolButton>
+
+        <button
+          type="button"
+          onClick={onResetTool}
+          disabled={!activeTool}
+          className={`flex w-full items-center gap-3 rounded-lg px-3 py-3 text-left text-sm font-bold transition ${
+            activeTool
+              ? "cursor-pointer text-danger hover:bg-danger-soft"
+              : "cursor-not-allowed text-muted/45"
+          }`}
+        >
+          <Icon className="h-4 w-4 shrink-0">
+            <path d="M18 6 6 18M6 6l12 12" />
+          </Icon>
+          Șterge instrument
+        </button>
+      </div>
+
+      {toolHintText ? (
+        <p className="mt-4 border-t border-subtle pt-3 text-xs leading-5 text-muted">
+          {toolHintText}
+        </p>
+      ) : null}
+    </>
   );
 }
 
@@ -2791,6 +2978,7 @@ function SummaryPanel({
   const selectionChangeTimer = useRef<number | null>(null);
   const readCurrentSelectionRef = useRef<() => void>(() => {});
   const [activeTool, setActiveTool] = useState<SummaryToolMode | null>(null);
+  const [isToolsDialogOpen, setIsToolsDialogOpen] = useState(false);
   const [activeKeywordId, setActiveKeywordId] = useState<string | null>(null);
   const [aiDialog, setAiDialog] = useState<SummaryAiDialog | null>(null);
   const [pendingHighlightColor, setPendingHighlightColor] =
@@ -2850,8 +3038,6 @@ function SummaryPanel({
 
     return groups;
   }, [displayParagraphs]);
-  const summaryTitle = `Rezumat pentru ${project.name}`;
-
   const keywordHighlightClass =
     "scroll-mt-28 rounded-md border border-warning-border bg-warning-soft px-1.5 py-0.5 font-semibold text-warning";
   const userHighlightClass =
@@ -2913,8 +3099,8 @@ function SummaryPanel({
 
   if (!project.summary?.content) {
     return (
-      <article className="rounded-[2rem] border border-subtle bg-surface p-6 text-center sm:p-8">
-        <p className="text-xs font-bold uppercase tracking-[0.18em] text-muted">
+      <article className="rounded-xl border border-subtle bg-surface p-6 text-center sm:p-8">
+        <p className="mx-auto inline-flex rounded-full border border-subtle bg-action-soft px-3 py-1 text-[10px] font-black uppercase tracking-[0.18em] text-muted">
           Rezumat
         </p>
         <h2 className="mx-auto mt-3 max-w-2xl font-serif text-3xl font-semibold leading-tight">
@@ -3079,6 +3265,12 @@ function SummaryPanel({
     window.getSelection()?.removeAllRanges();
   }
 
+  function handleResetTool() {
+    setActiveTool(null);
+    setNotePanel(null);
+    window.getSelection()?.removeAllRanges();
+  }
+
   function handleOpenNoteViewer(note: UserSummaryNote) {
     setNotePanel({ mode: "view", note, draft: note.note });
   }
@@ -3147,31 +3339,44 @@ function SummaryPanel({
         ? "Apasă pe un text evidențiat ca să-l ștergi."
         : activeTool === "ai"
           ? "Selectează un fragment ca să întrebi AI despre el."
+      : activeTool === "note"
+        ? "Selectează un fragment ca să adaugi o notiță."
+        : null;
+  const activeToolLabel =
+    activeTool === "highlight"
+      ? "Evidențiere"
+      : activeTool === "erase"
+        ? "Ștergere"
+        : activeTool === "ai"
+          ? "AI"
           : activeTool === "note"
-            ? "Selectează un fragment ca să adaugi o notiță."
+            ? "Notiță"
             : null;
 
   return (
-    <article className="rounded-[2rem] border border-subtle bg-surface p-5 sm:p-7 lg:p-8">
-      <div className="grid gap-8 xl:grid-cols-[minmax(0,1fr)_19rem]">
+    <article className="rounded-xl border border-subtle bg-surface p-5 sm:p-7 lg:p-8">
+      <button
+        type="button"
+        onClick={() => setIsToolsDialogOpen((current) => !current)}
+        className="fixed bottom-5 right-5 z-40 inline-flex cursor-pointer items-center gap-2 rounded-full border border-subtle bg-action px-4 py-3 text-sm font-bold text-on-action shadow-xl shadow-black/15 transition hover:bg-action-hover xl:hidden"
+        aria-expanded={isToolsDialogOpen}
+      >
+        <Icon className="h-4 w-4">
+          <path d="M12 3v18M3 12h18" />
+          <path d="M18 6 6 18" />
+        </Icon>
+        Instrumente
+        {activeToolLabel ? (
+          <span className="rounded-full bg-on-action/15 px-2 py-0.5 text-[10px] uppercase tracking-[0.12em]">
+            {activeToolLabel}
+          </span>
+        ) : null}
+      </button>
+
+      <div className="grid gap-8 xl:grid-cols-[minmax(0,1fr)_18rem]">
         <div className="max-w-none">
-          <p className="text-xs font-bold uppercase tracking-[0.18em] text-muted">
-            Rezumat complet
-          </p>
-          <h2 className="mt-3 font-serif text-3xl font-semibold leading-tight">
-            {summaryTitle}
-          </h2>
-
-          <div className="mt-5 rounded-2xl border border-dashed border-subtle bg-app px-4 py-3 text-sm leading-6 text-muted">
-            Alege un instrument din dreapta, apoi selectează un fragment din
-            rezumat.
-          </div>
-
           {notePanel ? (
-            <div
-              className="sticky top-16 z-20 mt-4 w-full max-w-xs rounded-lg p-3 shadow-2xl shadow-black/20"
-              style={{ backgroundColor: "#fff3b0" }}
-            >
+            <div className="sticky top-16 z-20 mt-4 w-full max-w-sm rounded-xl border border-warning-border bg-warning-soft p-3 text-warning theme-shadow-card">
               <div className="flex items-center justify-end gap-0.5">
                 {notePanel.mode === "view" ? (
                   <button
@@ -3179,7 +3384,7 @@ function SummaryPanel({
                     onClick={handleDeleteNote}
                     aria-label="Șterge notița"
                     title="Șterge notița"
-                    className="flex h-7 w-7 items-center justify-center rounded-md text-black/50 transition hover:bg-black/5 hover:text-black/80"
+                    className="flex h-7 w-7 items-center justify-center rounded-md text-warning transition hover:bg-warning-border/25 hover:text-content"
                   >
                     <Icon className="h-4 w-4">
                       <path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6" />
@@ -3191,7 +3396,7 @@ function SummaryPanel({
                   type="button"
                   onClick={handleCloseNotePanel}
                   aria-label="Închide"
-                  className="flex h-7 w-7 items-center justify-center rounded-md text-black/50 transition hover:bg-black/5 hover:text-black/80"
+                  className="flex h-7 w-7 items-center justify-center rounded-md text-warning transition hover:bg-warning-border/25 hover:text-content"
                 >
                   <Icon className="h-4 w-4">
                     <path d="M18 6 6 18M6 6l12 12" />
@@ -3211,7 +3416,7 @@ function SummaryPanel({
                 placeholder="Scrie o notiță aici..."
                 rows={5}
                 autoFocus
-                className="w-full resize-none bg-transparent p-1 text-sm leading-6 text-black/80 outline-none placeholder:text-black/40"
+                className="w-full resize-none bg-transparent p-1 text-sm leading-6 text-content outline-none placeholder:text-muted"
               />
 
               <div className="flex justify-end">
@@ -3220,7 +3425,7 @@ function SummaryPanel({
                   onClick={handleSaveNote}
                   disabled={!notePanel.draft.trim()}
                   aria-label="Salvează"
-                  className="flex h-7 w-7 items-center justify-center rounded-md text-black/50 transition hover:bg-black/5 hover:text-black/80 disabled:cursor-not-allowed disabled:opacity-30"
+                  className="flex h-7 w-7 items-center justify-center rounded-md text-warning transition hover:bg-warning-border/25 hover:text-content disabled:cursor-not-allowed disabled:opacity-30"
                 >
                   <Icon className="h-4 w-4">
                     <path d="M20 6 9 17l-5-5" />
@@ -3234,7 +3439,7 @@ function SummaryPanel({
             ref={summaryRef}
             onKeyUp={readCurrentSelection}
             onMouseUp={readCurrentSelection}
-            className={`mt-6 space-y-5 text-sm leading-7 text-content/85 sm:text-base sm:leading-8 ${toolCursorClass}`}
+            className={`mt-6 space-y-5 border-b border-subtle pb-7 text-sm leading-7 text-content/85 sm:text-base sm:leading-8 ${toolCursorClass}`}
           >
             {summaryRenderGroups.map((group) => {
               if (group.kind === "heading") {
@@ -3317,7 +3522,7 @@ function SummaryPanel({
             })}
           </div>
 
-          <div className="mt-8 border-t border-subtle pt-5">
+          <div className="mt-6">
             <p className="text-xs font-bold uppercase tracking-[0.18em] text-muted">
               Cuvinte cheie din rezumat
             </p>
@@ -3327,7 +3532,7 @@ function SummaryPanel({
                   key={keyword.id}
                   href={`#${keyword.id}`}
                   onClick={() => handleKeywordClick(keyword.id)}
-                  className="rounded-full border border-warning-border bg-warning-soft px-3 py-1.5 text-xs font-bold text-warning transition hover:-translate-y-0.5 hover:bg-warning-soft/80"
+                  className="rounded-full border border-subtle bg-app px-3 py-1.5 text-xs font-bold text-content transition hover:-translate-y-0.5 hover:bg-surface-hover"
                 >
                   {keyword.label}
                 </a>
@@ -3336,61 +3541,77 @@ function SummaryPanel({
           </div>
         </div>
 
-        <aside className="h-fit space-y-2 border-t border-subtle pt-6 xl:sticky xl:top-20 xl:border-t-0 xl:border-l xl:pl-8">
-          <p className="text-xs font-bold uppercase tracking-[0.18em] text-muted">
-            Instrumente
-          </p>
-
-          <div className="space-y-2 pt-1">
-            <SummaryToolButton
-              label="Evidențiază"
-              active={activeTool === "highlight"}
-              onClick={() => handleToggleTool("highlight")}
-            >
-              <path d="m9 11-6 6v3h9l3-3" />
-              <path d="m22 12-4.6 4.6a2 2 0 0 1-2.8 0l-5.2-5.2a2 2 0 0 1 0-2.8L14 4l8 8Z" />
-            </SummaryToolButton>
-            {activeTool === "highlight" ? (
-              <SummaryHighlightColorPicker
-                value={pendingHighlightColor}
-                onChange={setPendingHighlightColor}
-              />
-            ) : null}
-
-            <SummaryToolButton
-              label="Șterge"
-              active={activeTool === "erase"}
-              onClick={() => handleToggleTool("erase")}
-            >
-              <path d="m7 21-4.3-4.3c-1-1-1-2.5 0-3.4l9.6-9.6c1-1 2.5-1 3.4 0l5.6 5.6c1 1 1 2.5 0 3.4L13 21" />
-              <path d="M22 21H7" />
-              <path d="m5 11 9 9" />
-            </SummaryToolButton>
-
-            <SummaryToolButton
-              label="AI"
-              active={activeTool === "ai"}
-              onClick={() => handleToggleTool("ai")}
-            >
-              <path d="M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .962 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.963 0z" />
-            </SummaryToolButton>
-
-            <SummaryToolButton
-              label="Notiță"
-              active={activeTool === "note"}
-              onClick={() => handleToggleTool("note")}
-            >
-              <path d="M12 20h9M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" />
-            </SummaryToolButton>
-          </div>
-
-          {toolHintText ? (
-            <p className="mt-1 rounded-2xl border border-dashed border-subtle bg-surface/60 p-3 text-xs leading-5 text-muted">
-              {toolHintText}
-            </p>
-          ) : null}
+        <aside className="hidden h-fit border-l border-subtle pl-6 xl:sticky xl:top-20 xl:block">
+          <SummaryToolsPanel
+            activeTool={activeTool}
+            pendingHighlightColor={pendingHighlightColor}
+            toolHintText={toolHintText}
+            onToggleTool={handleToggleTool}
+            onResetTool={handleResetTool}
+            onHighlightColorChange={setPendingHighlightColor}
+          />
         </aside>
       </div>
+
+      {isToolsDialogOpen ? (
+        <div
+          className="fixed bottom-[5.75rem] right-5 z-[70] w-[calc(100vw-2.5rem)] max-w-md xl:hidden"
+          role="dialog"
+          aria-labelledby="summary-tools-title"
+        >
+          <div className="relative rounded-xl border border-subtle bg-surface shadow-2xl shadow-black/20">
+            <div className="flex items-center justify-between gap-4 border-b border-subtle px-5 py-4">
+              <div>
+                <p className="text-xs font-black uppercase tracking-[0.18em] text-muted">
+                  Instrumente
+                </p>
+                <h3
+                  id="summary-tools-title"
+                  className="mt-1 font-serif text-2xl font-semibold leading-tight text-content"
+                >
+                  Alege modul de lucru.
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsToolsDialogOpen(false)}
+                className="flex h-10 w-10 cursor-pointer items-center justify-center rounded-full border border-subtle text-content transition hover:bg-surface-hover"
+                aria-label="Închide instrumentele"
+              >
+                <Icon className="h-4 w-4">
+                  <path d="M18 6 6 18M6 6l12 12" />
+                </Icon>
+              </button>
+            </div>
+
+            <div className="max-h-[70vh] overflow-y-auto px-5 py-4">
+              <SummaryToolsPanel
+                activeTool={activeTool}
+                pendingHighlightColor={pendingHighlightColor}
+                toolHintText={toolHintText}
+                onToggleTool={handleToggleTool}
+                onResetTool={handleResetTool}
+                onHighlightColorChange={setPendingHighlightColor}
+              />
+            </div>
+
+            <div className="border-t border-subtle bg-app/60 px-5 py-4">
+              <button
+                type="button"
+                onClick={() => setIsToolsDialogOpen(false)}
+                className="flex h-11 w-full cursor-pointer items-center justify-center rounded-full bg-action px-5 text-sm font-bold text-on-action transition hover:bg-action-hover"
+              >
+                Gata
+              </button>
+            </div>
+
+            <span
+              aria-hidden="true"
+              className="absolute -bottom-2 right-10 h-4 w-4 rotate-45 border-b border-r border-subtle bg-app/60"
+            />
+          </div>
+        </div>
+      ) : null}
 
       {aiDialog ? (
         <div
@@ -3399,8 +3620,8 @@ function SummaryPanel({
           aria-modal="true"
           aria-labelledby="summary-ai-title"
         >
-          <div className="flex max-h-[calc(100vh-2rem)] w-full max-w-2xl flex-col overflow-hidden rounded-[2rem] border border-subtle bg-surface shadow-2xl shadow-black/25">
-            <div className="shrink-0 flex items-start justify-between gap-4 border-b border-subtle bg-app/80 p-5 sm:p-6">
+          <div className="flex max-h-[calc(100vh-2rem)] w-full max-w-2xl flex-col overflow-hidden rounded-xl border border-subtle bg-surface theme-shadow-card">
+            <div className="shrink-0 flex items-start justify-between gap-4 border-b border-subtle bg-surface p-5 sm:p-6">
               <div>
                 <p className="text-xs font-bold uppercase tracking-[0.2em] text-info">
                   Revizzio AI
@@ -3417,7 +3638,7 @@ function SummaryPanel({
               <button
                 type="button"
                 onClick={handleCloseAiDialog}
-                className="rounded-full border border-subtle px-4 py-2 text-xs font-bold text-content transition hover:bg-surface"
+                className="rounded-full border border-subtle px-4 py-2 text-xs font-bold text-content transition hover:bg-surface-hover"
               >
                 Închide
               </button>
@@ -3425,7 +3646,7 @@ function SummaryPanel({
 
             <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-5 sm:p-6">
               <div className="space-y-5">
-              <div className="rounded-3xl border border-info-border bg-info-soft p-4 text-info">
+              <div className="rounded-xl border border-info-border bg-info-soft p-4 text-info">
                 <p className="text-[11px] font-bold uppercase tracking-[0.16em]">
                   Ai întrebat despre
                 </p>
@@ -3433,7 +3654,7 @@ function SummaryPanel({
               </div>
 
               {aiDialog.status === "loading" ? (
-                <div className="grid min-h-64 place-items-center rounded-3xl border border-dashed border-subtle bg-app p-6 text-center">
+                <div className="grid min-h-64 place-items-center rounded-xl border border-subtle bg-app p-6 text-center">
                   <div>
                     <div className="mx-auto h-14 w-14 animate-spin rounded-full border-2 border-info-border border-t-info" />
                     <p className="mt-5 font-serif text-2xl font-semibold text-content">
@@ -3728,22 +3949,22 @@ function FlashcardTicket({
   onOpenDeck: (deckId: FlashcardDeckId) => void;
 }) {
   return (
-    <article className="theme-shadow-card overflow-hidden rounded-[1.25rem] border border-subtle bg-surface">
-      <div className="p-5">
-        <span className="inline-flex rounded-full bg-success-soft px-3 py-1 text-[11px] font-bold text-success">
+    <article className="theme-shadow-card flex min-h-[15rem] flex-col rounded-xl border border-subtle bg-surface p-6 transition hover:-translate-y-0.5 hover:border-content/25">
+      <div>
+        <span className="inline-flex rounded-full border border-success-border bg-success-soft px-3 py-1 text-[10px] font-black uppercase tracking-[0.12em] text-success">
           {card.badge}
         </span>
-        <h2 className="mt-3 font-serif text-xl font-semibold">
+        <h2 className="mt-4 font-serif text-2xl font-semibold leading-tight text-content">
           {card.title}
         </h2>
-        <p className="mt-1 text-sm leading-6 text-muted">
+        <p className="mt-2 max-w-2xl text-sm leading-6 text-muted">
           {card.description}
         </p>
       </div>
-      <div className="flex items-center justify-between gap-4 border-t border-subtle p-5">
+      <div className="mt-auto flex items-center justify-between gap-4 border-t border-subtle pt-5">
         <span className="text-xs text-muted">
           durată est.
-          <b className="block font-serif text-lg font-semibold text-content">
+          <b className="block font-serif text-2xl font-semibold leading-none text-content">
             {card.duration}
           </b>
           <span className="mt-1 block">{card.metric}</span>
@@ -3751,7 +3972,7 @@ function FlashcardTicket({
         <button
           type="button"
           onClick={() => onOpenDeck(card.id)}
-          className="inline-flex shrink-0 items-center gap-2 rounded-full bg-content px-4 py-2.5 text-sm font-semibold text-app transition hover:opacity-90"
+          className="inline-flex shrink-0 items-center gap-2 rounded-full bg-action px-4 py-2.5 text-sm font-bold text-on-action transition hover:bg-action-hover"
         >
           Continuă
           <Icon>
@@ -3809,7 +4030,7 @@ function AccountFlashcardFaceContent({
       ) : null}
       <div className="flashcard-card-main flex min-h-0 flex-1 flex-col justify-center gap-4 overflow-hidden">
         {image ? (
-          <div className="flex min-h-0 flex-1 items-center justify-center overflow-hidden rounded-2xl border border-subtle bg-app/60 p-2">
+          <div className="flex min-h-0 flex-1 items-center justify-center overflow-hidden rounded-lg border border-subtle bg-app/60 p-2">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src={image}
@@ -3866,7 +4087,7 @@ function AccountFlashcardContent({
       data-flipped={flipped ? "true" : "false"}
     >
       <div className="flashcard-flip-inner">
-        <div className="flashcard-face-side theme-shadow-card rounded-[1.75rem] border border-subtle bg-surface p-6 text-content sm:p-8">
+        <div className="flashcard-face-side theme-shadow-card rounded-xl border border-subtle bg-surface p-6 text-content sm:p-8">
           <AccountFlashcardFaceContent
             card={card}
             side="question"
@@ -3874,7 +4095,7 @@ function AccountFlashcardContent({
             onToggleReview={onToggleReview}
           />
         </div>
-        <div className="flashcard-face-side flashcard-face-side-back theme-shadow-card rounded-[1.75rem] border border-subtle bg-surface p-6 text-content sm:p-8">
+        <div className="flashcard-face-side flashcard-face-side-back theme-shadow-card rounded-xl border border-subtle bg-surface p-6 text-content sm:p-8">
           <AccountFlashcardFaceContent
             card={card}
             side="answer"
@@ -3912,6 +4133,7 @@ function FlashcardDeckPage({
     useState<FlashcardAiDialog | null>(null);
   const hasCards = cards.length > 0;
   const isAnimating = Boolean(shuffle);
+  const reviewCardsCount = deck.cards.filter((card) => card.review).length;
 
   useEffect(() => {
     return () => {
@@ -4110,11 +4332,11 @@ function FlashcardDeckPage({
         : [];
 
   return (
-    <section className="overflow-hidden rounded-[2rem] border border-subtle bg-surface p-5 sm:p-7 lg:p-8">
+    <section className="space-y-6">
       <button
         type="button"
         onClick={onBack}
-        className="mb-6 inline-flex h-11 cursor-pointer items-center gap-2 rounded-full border border-subtle bg-app px-4 text-sm font-semibold text-content shadow-sm transition hover:-translate-y-0.5 hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-action"
+        className="inline-flex h-11 cursor-pointer items-center gap-2 rounded-full border border-subtle bg-surface px-4 text-sm font-semibold text-muted transition hover:bg-surface-hover hover:text-content focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-action"
       >
         <Icon>
           <path d="M19 12H5M12 19l-7-7 7-7" />
@@ -4122,16 +4344,30 @@ function FlashcardDeckPage({
         Înapoi la pachete
       </button>
 
-      <div className="grid gap-8 lg:grid-cols-[0.8fr_1.2fr] lg:items-start">
+      <div className="grid gap-8 border-t border-subtle pt-6 lg:grid-cols-[0.72fr_1.28fr] lg:items-start">
         <div>
-          <p className="text-xs font-bold uppercase tracking-[0.2em] text-muted">
+          <p className="inline-flex rounded-full border border-subtle bg-action-soft px-3 py-1 text-[10px] font-black uppercase tracking-[0.18em] text-muted">
             {deck.eyebrow}
           </p>
-          <h2 className="mt-3 max-w-xl font-serif text-3xl font-semibold leading-tight sm:text-5xl">
+          <h2 className="mt-4 max-w-xl font-serif text-4xl font-semibold leading-none text-content sm:text-5xl">
             {deck.title}
           </h2>
+          <div className="mt-5 divide-y divide-subtle border-y border-subtle text-sm">
+            <div className="flex items-center justify-between gap-4 py-3">
+              <span className="text-muted">Flashcard-uri</span>
+              <b className="text-content">{deck.cards.length}</b>
+            </div>
+            <div className="flex items-center justify-between gap-4 py-3">
+              <span className="text-muted">Marcate</span>
+              <b className="text-content">{reviewCardsCount}</b>
+            </div>
+            <div className="flex items-center justify-between gap-4 py-3">
+              <span className="text-muted">Interacțiune</span>
+              <b className="text-right text-content">Selectează text pentru AI</b>
+            </div>
+          </div>
           {pendingFlashcardSelection ? (
-            <div className="sticky top-16 z-20 mt-4 rounded-2xl border border-info-border bg-info-soft/95 p-4 text-info shadow-2xl shadow-black/10 backdrop-blur-xl">
+            <div className="sticky top-16 z-20 mt-4 rounded-xl border border-info-border bg-info-soft p-4 text-info theme-shadow-card">
               <p className="text-[11px] font-bold uppercase tracking-[0.16em]">
                 Text selectat din{" "}
                 {pendingFlashcardSelection.side === "question"
@@ -4169,7 +4405,7 @@ function FlashcardDeckPage({
               ref={flashcardTextRef}
               onKeyUp={readFlashcardSelection}
               onMouseUp={readFlashcardSelection}
-              className="flashcard-story-deck relative mx-auto w-full max-w-xl"
+              className="flashcard-story-deck account-flashcard-deck relative mx-auto w-full max-w-lg"
             >
               {cards.map((card, index) => {
                 const distance =
@@ -4192,7 +4428,7 @@ function FlashcardDeckPage({
                   <div
                     key={card.id}
                     aria-hidden={!isActive}
-                    className="flashcard-desk-card flashcard-face absolute inset-x-3 top-0 rounded-[1.75rem] text-left outline-none transition sm:inset-x-0"
+                    className="flashcard-desk-card flashcard-face absolute inset-x-3 top-0 rounded-xl text-left outline-none transition sm:inset-x-0"
                     style={{
                       zIndex: isShuffling ? 0 : visibleLayer,
                       transform: toAccountFlashcardTransform(
@@ -4269,7 +4505,7 @@ function FlashcardDeckPage({
                 : null}
             </div>
           ) : (
-            <div className="grid min-h-[22rem] place-items-center rounded-[2rem] border border-dashed border-subtle bg-app p-6 text-center">
+            <div className="grid min-h-[22rem] place-items-center rounded-xl border border-subtle bg-surface p-6 text-center">
               <div>
                 {showReviewOnly ? (
                   <>
@@ -4324,7 +4560,7 @@ function FlashcardDeckPage({
                 type="button"
                 onClick={() => moveCard(1)}
                 disabled={isAnimating || cards.length <= 1}
-                className="flex h-12 w-12 items-center justify-center rounded-full bg-content text-app transition hover:-translate-y-0.5 hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-55"
+                className="flex h-12 w-12 items-center justify-center rounded-full bg-action text-on-action transition hover:-translate-y-0.5 hover:bg-action-hover disabled:cursor-not-allowed disabled:opacity-55"
                 aria-label="Flashcard următor"
               >
                 <Icon>
@@ -4367,8 +4603,8 @@ function FlashcardDeckPage({
           aria-modal="true"
           aria-labelledby="flashcard-ai-title"
         >
-          <div className="flex max-h-[calc(100vh-2rem)] w-full max-w-2xl flex-col overflow-hidden rounded-[2rem] border border-subtle bg-surface shadow-2xl shadow-black/25">
-            <div className="flex shrink-0 items-start justify-between gap-4 border-b border-subtle bg-app/80 p-5 sm:p-6">
+          <div className="flex max-h-[calc(100vh-2rem)] w-full max-w-2xl flex-col overflow-hidden rounded-xl border border-subtle bg-surface theme-shadow-card">
+            <div className="flex shrink-0 items-start justify-between gap-4 border-b border-subtle bg-surface p-5 sm:p-6">
               <div>
                 <p className="text-xs font-bold uppercase tracking-[0.2em] text-info">
                   Flashcard AI
@@ -4385,7 +4621,7 @@ function FlashcardDeckPage({
               <button
                 type="button"
                 onClick={handleCloseFlashcardAiDialog}
-                className="rounded-full border border-subtle px-4 py-2 text-xs font-bold text-content transition hover:bg-surface"
+                className="rounded-full border border-subtle px-4 py-2 text-xs font-bold text-content transition hover:bg-surface-hover"
               >
                 Închide
               </button>
@@ -4393,7 +4629,7 @@ function FlashcardDeckPage({
 
             <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-5 sm:p-6">
               <div className="space-y-5">
-                <div className="rounded-3xl border border-info-border bg-info-soft p-4 text-info">
+                <div className="rounded-xl border border-info-border bg-info-soft p-4 text-info">
                   <p className="text-[11px] font-bold uppercase tracking-[0.16em]">
                     Ai întrebat despre{" "}
                     {flashcardAiDialog.side === "question"
@@ -4406,7 +4642,7 @@ function FlashcardDeckPage({
                 </div>
 
                 {flashcardAiDialog.status === "loading" ? (
-                  <div className="grid min-h-64 place-items-center rounded-3xl border border-dashed border-subtle bg-app p-6 text-center">
+                  <div className="grid min-h-64 place-items-center rounded-xl border border-subtle bg-app p-6 text-center">
                     <div>
                       <div className="mx-auto h-14 w-14 animate-spin rounded-full border-2 border-info-border border-t-info" />
                       <p className="mt-5 font-serif text-2xl font-semibold text-content">
@@ -4543,11 +4779,11 @@ function ManualFlashcardBuilderPage({
   }
 
   return (
-    <section className="rounded-[2rem] border border-subtle bg-surface p-5 sm:p-7 lg:p-8">
+    <section className="space-y-6">
       <button
         type="button"
         onClick={onBack}
-        className="mb-6 inline-flex h-11 cursor-pointer items-center gap-2 rounded-full border border-subtle bg-app px-4 text-sm font-semibold text-content shadow-sm transition hover:-translate-y-0.5 hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-action"
+        className="inline-flex h-11 cursor-pointer items-center gap-2 rounded-full border border-subtle bg-surface px-4 text-sm font-semibold text-muted transition hover:bg-surface-hover hover:text-content focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-action"
       >
         <Icon>
           <path d="M19 12H5M12 19l-7-7 7-7" />
@@ -4555,8 +4791,8 @@ function ManualFlashcardBuilderPage({
         Înapoi la pachete
       </button>
 
-      <div className="mb-5 grid gap-3 lg:grid-cols-[1fr_auto]">
-        <label className="block rounded-[1.5rem] border border-subtle bg-app px-4 py-3">
+      <div className="grid gap-3 border-t border-subtle pt-6 lg:grid-cols-[1fr_auto]">
+        <label className="block rounded-xl border border-subtle bg-surface px-4 py-3">
           <span className="text-[11px] font-black uppercase tracking-[0.16em] text-muted">
             Categorie
           </span>
@@ -4567,7 +4803,7 @@ function ManualFlashcardBuilderPage({
             className="mt-2 w-full bg-transparent text-base font-semibold text-content outline-none placeholder:text-muted/50"
           />
         </label>
-        <div className="flex flex-wrap items-center gap-2 rounded-[1.5rem] border border-subtle bg-app p-2">
+        <div className="flex flex-wrap items-center gap-2 rounded-xl border border-subtle bg-surface p-2">
           {manualFlashcardDifficulties.map((option) => {
             const isActive = difficulty === option.value;
 
@@ -4578,7 +4814,7 @@ function ManualFlashcardBuilderPage({
                 onClick={() => setDifficulty(option.value)}
                 className={`rounded-full px-3 py-1.5 text-xs font-bold transition sm:px-4 sm:py-2 sm:text-sm ${
                   isActive
-                    ? "bg-content text-app"
+                    ? "bg-action text-on-action"
                     : "text-muted hover:bg-surface-hover hover:text-content"
                 }`}
               >
@@ -4629,7 +4865,7 @@ function ManualFlashcardBuilderPage({
           type="button"
           onClick={handleSave}
           disabled={!canSave}
-          className="rounded-full bg-content px-6 py-3 text-sm font-bold text-app transition hover:opacity-90 disabled:cursor-not-allowed disabled:bg-subtle disabled:text-muted"
+          className="rounded-full bg-action px-6 py-3 text-sm font-bold text-on-action transition hover:bg-action-hover disabled:cursor-not-allowed disabled:bg-subtle disabled:text-muted"
         >
           {isSaving ? "Se salvează..." : "Salvare"}
         </button>
@@ -4658,13 +4894,13 @@ function ManualFlashcardEditorCard({
   allowImage?: boolean;
 }) {
   return (
-    <article className="min-h-[20rem] rounded-[2rem] border border-subtle bg-app p-4 shadow-xl shadow-black/5 sm:min-h-[26rem] sm:p-5">
+    <article className="min-h-[20rem] rounded-xl border border-subtle bg-surface p-5 sm:min-h-[26rem]">
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <span className="rounded-full bg-success-soft px-3 py-1 text-[11px] font-black uppercase tracking-[0.12em] text-success">
           {label}
         </span>
         {allowImage ? (
-          <label className="cursor-pointer rounded-full border border-subtle bg-surface px-3 py-2 text-xs font-bold text-content transition hover:bg-surface-hover">
+          <label className="cursor-pointer rounded-full border border-subtle bg-app px-3 py-2 text-xs font-bold text-content transition hover:bg-surface-hover">
             Imagine
             <input
               type="file"
@@ -4684,16 +4920,16 @@ function ManualFlashcardEditorCard({
           value={value}
           onChange={(event) => onChange(event.target.value)}
           placeholder={placeholder}
-          className="min-h-0 flex-1 resize-none rounded-3xl border border-subtle bg-surface p-4 font-serif text-lg font-semibold leading-tight text-content outline-none transition placeholder:text-muted/50 focus:border-success focus:ring-4 focus:ring-success-soft sm:p-5 sm:text-2xl"
+          className="min-h-0 flex-1 resize-none rounded-lg border border-subtle bg-app p-4 font-serif text-lg font-semibold leading-tight text-content outline-none transition placeholder:text-muted/50 focus:border-action focus:ring-4 focus:ring-action-soft sm:p-5 sm:text-2xl"
         />
         {allowImage && image ? (
-          <div className="relative h-28 overflow-hidden rounded-3xl border border-subtle bg-surface p-3 sm:h-40">
+          <div className="relative h-28 overflow-hidden rounded-lg border border-subtle bg-app p-3 sm:h-40">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src={image} alt="" className="h-full w-full object-contain" />
             <button
               type="button"
               onClick={onImageRemove}
-              className="absolute right-3 top-3 rounded-full bg-content px-3 py-1.5 text-xs font-bold text-app"
+              className="absolute right-3 top-3 rounded-full bg-action px-3 py-1.5 text-xs font-bold text-on-action"
             >
               Șterge
             </button>
@@ -4790,7 +5026,7 @@ function FlashcardsPanel({
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-5">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <GeneratedContentDisclaimer className="w-fit max-w-full" />
         <button
@@ -4798,7 +5034,7 @@ function FlashcardsPanel({
           onClick={() =>
             router.push(`/myaccount/flashcarduri/creeaza?project=${project.id}`)
           }
-          className="inline-flex h-11 w-fit shrink-0 items-center gap-2 rounded-full bg-content px-5 text-sm font-bold text-app transition hover:-translate-y-0.5 hover:opacity-90 sm:ml-auto"
+          className="inline-flex h-11 w-fit shrink-0 items-center gap-2 rounded-full bg-action px-5 text-sm font-bold text-on-action transition hover:-translate-y-0.5 hover:bg-action-hover sm:ml-auto"
         >
           <Icon>
             <path d="M12 5v14M5 12h14" />
@@ -4806,7 +5042,7 @@ function FlashcardsPanel({
           Creează flashcard
         </button>
       </div>
-      <div className="grid gap-4 lg:grid-cols-2">
+      <div className="grid gap-4 lg:grid-cols-2 xl:grid-cols-3">
         {flashcardCards.map((card) => (
           <FlashcardTicket
             key={card.title}
@@ -5255,135 +5491,192 @@ function QuizPanel({
     );
   }
 
+  const activeQuestionModeLabel =
+    activeQuestion.mode === "multiple"
+      ? "Alege toate răspunsurile corecte"
+      : "Alege un singur răspuns";
+  const activeQuestionResult = isAnswered
+    ? isQuizAnswerCorrect(activeQuestion, submittedAnswer)
+    : null;
+  const recommendationText = weakConcepts.length
+    ? `După quiz, revizuiește ${weakConcepts.slice(0, 2).join(" și ")}.`
+    : "Răspunde la primele întrebări ca AI-ul să identifice zonele slabe.";
+
   return (
-    <section className="space-y-5">
-      <button
-        type="button"
-        onClick={handleBackToQuizList}
-        className="inline-flex items-center gap-2 text-sm font-semibold text-muted transition hover:text-content"
-      >
-        <Icon>
-          <path d="M19 12H5M12 19l-7-7 7-7" />
-        </Icon>
-        Înapoi la quiz-uri
-      </button>
+    <section className="space-y-6">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <button
+          type="button"
+          onClick={handleBackToQuizList}
+          className="inline-flex h-11 w-fit cursor-pointer items-center gap-2 rounded-full border border-subtle bg-surface px-4 text-sm font-semibold text-muted transition hover:bg-surface-hover hover:text-content"
+        >
+          <Icon>
+            <path d="M19 12H5M12 19l-7-7 7-7" />
+          </Icon>
+          Înapoi la quiz-uri
+        </button>
 
-      <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_21rem]">
-        <article className="rounded-[2rem] border border-subtle bg-surface p-5 sm:p-7">
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-            <div>
-              <p className="text-xs font-bold uppercase tracking-[0.18em] text-muted">
-                Întrebarea {activeQuestionIndex + 1} din{" "}
-                {quizQuestions.length} ·{" "}
-                {activeQuestion.mode === "multiple"
-                  ? "alege toate răspunsurile corecte"
-                  : "alege un singur răspuns"}
-              </p>
-              <h3 className="mt-3 max-w-3xl font-serif text-3xl font-semibold leading-tight">
-                {activeQuestion.question}
-              </h3>
-            </div>
-            <span className="w-fit rounded-full border border-info-border bg-info-soft px-3 py-1.5 text-xs font-bold text-info">
-              {activeQuestion.difficulty}
+        <div className="flex flex-wrap gap-2">
+          <span className="rounded-full border border-subtle bg-surface px-3 py-1.5 text-xs font-bold text-content">
+            {activeQuiz.mode}
+          </span>
+          <span className="rounded-full border border-subtle bg-surface px-3 py-1.5 text-xs font-bold text-content">
+            {activeQuiz.duration}
+          </span>
+          <span
+            className={`rounded-full border px-3 py-1.5 text-xs font-bold ${getQuizComplexityClass(
+              activeQuiz.complexity,
+            )}`}
+          >
+            {activeQuiz.complexity}
+          </span>
+        </div>
+      </div>
+
+      <article className="theme-shadow-card overflow-hidden rounded-xl border border-subtle bg-surface">
+        <header className="grid gap-6 border-b border-subtle p-5 sm:p-7 xl:grid-cols-[minmax(0,1fr)_20rem] xl:items-end">
+          <div>
+            <span className="inline-flex rounded-full border border-subtle bg-action-soft px-3 py-1 text-[10px] font-black uppercase tracking-[0.18em] text-muted">
+              Quiz activ
             </span>
+            <h2 className="mt-4 max-w-4xl font-serif text-4xl font-semibold leading-none text-content sm:text-5xl">
+              {activeQuiz.title}
+            </h2>
+            <p className="mt-3 max-w-2xl text-sm leading-6 text-muted">
+              {activeQuiz.description}
+            </p>
           </div>
 
-          <div className="mt-5 h-2 overflow-hidden rounded-full bg-app">
-            <div
-              className="h-full rounded-full bg-content transition-all"
-              style={{ width: `${completionPercent}%` }}
-            />
-          </div>
-
-          <div className="mt-6 grid gap-3">
-            {activeQuestion.answers.map((answer, answerIndex) => (
-              <QuizAnswerButton
-                key={answer}
-                answer={answer}
-                answerIndex={answerIndex}
-                correctIndexes={activeQuestion.correctIndexes}
-                submittedAnswer={submittedAnswer}
-                draftAnswer={draftAnswer}
-                onSelect={() => toggleAnswer(answerIndex)}
+          <div className="space-y-4">
+            <div className="flex items-end justify-between gap-4">
+              <div>
+                <p className="text-[10px] font-black uppercase tracking-[0.18em] text-muted">
+                  Progres
+                </p>
+                <p className="mt-1 font-serif text-4xl font-semibold text-content">
+                  {completionPercent}%
+                </p>
+              </div>
+              <p className="text-right text-xs font-bold leading-5 text-muted">
+                {answeredCount}/{quizQuestions.length}
+                <span className="block">răspunse</span>
+              </p>
+            </div>
+            <div className="h-2 overflow-hidden rounded-full bg-app">
+              <div
+                className="h-full rounded-full bg-action transition-all"
+                style={{ width: `${completionPercent}%` }}
               />
-            ))}
+            </div>
           </div>
+        </header>
 
-          {activeQuestion.mode === "multiple" && !isAnswered ? (
-            <button
-              type="button"
-              onClick={submitMultipleAnswer}
-              disabled={draftAnswer.length === 0}
-              className="mt-5 inline-flex items-center justify-center rounded-full bg-content px-5 py-3 text-sm font-bold text-app transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
-            >
-              Verifică răspunsul
-            </button>
-          ) : null}
-
-          {isAnswered ? (
-            <div
-              className={`mt-6 rounded-3xl border p-5 ${
-                isQuizAnswerCorrect(activeQuestion, submittedAnswer)
-                  ? "border-success-border bg-success-soft text-success"
-                  : "border-danger-border bg-danger-soft text-danger"
-              }`}
-            >
-              <p className="text-xs font-bold uppercase tracking-[0.16em]">
-                {isQuizAnswerCorrect(activeQuestion, submittedAnswer)
-                  ? "Corect"
-                  : "De revizuit"}
-              </p>
-              <h4 className="mt-2 font-serif text-2xl font-semibold text-content">
-                {activeQuestion.explanation}
-              </h4>
-              <p className="mt-3 text-sm leading-7">
-                {activeQuestion.aiInsight}
-              </p>
-
-              <div className="mt-4 flex flex-wrap gap-2">
-                <span className="rounded-full border border-subtle bg-surface px-3 py-1.5 text-xs font-bold text-content">
-                  Sursă: {activeQuestion.source}
+        <div className="grid xl:grid-cols-[minmax(0,1fr)_20rem]">
+          <div className="p-5 sm:p-7">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex flex-wrap gap-2">
+                <span className="inline-flex rounded-full border border-subtle bg-action-soft px-3 py-1 text-[10px] font-black uppercase tracking-[0.16em] text-muted">
+                  Întrebarea {activeQuestionIndex + 1} din {quizQuestions.length}
                 </span>
-                <span className="rounded-full border border-subtle bg-surface px-3 py-1.5 text-xs font-bold text-content">
-                  Concept: {activeQuestion.concept}
+                <span className="inline-flex rounded-full border border-subtle bg-app px-3 py-1 text-[10px] font-black uppercase tracking-[0.16em] text-muted">
+                  {activeQuestionModeLabel}
                 </span>
               </div>
+              <span className="w-fit rounded-full border border-info-border bg-info-soft px-3 py-1.5 text-xs font-bold text-info">
+                {activeQuestion.difficulty}
+              </span>
             </div>
-          ) : null}
 
-          <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <button
-              type="button"
-              onClick={() => goToQuestion(Math.max(0, activeQuestionIndex - 1))}
-              disabled={activeQuestionIndex === 0}
-              className="inline-flex items-center justify-center gap-2 rounded-full border border-subtle px-5 py-3 text-sm font-bold text-content transition hover:bg-surface-hover disabled:cursor-not-allowed disabled:opacity-40"
-            >
-              <Icon>
-                <path d="M19 12H5M11 5l-7 7 7 7" />
-              </Icon>
-              Înapoi
-            </button>
+            <h3 className="mt-6 max-w-4xl font-serif text-3xl font-semibold leading-tight text-content sm:text-4xl">
+              {activeQuestion.question}
+            </h3>
 
-            <button
-              type="button"
-              onClick={goToNextQuestion}
-              disabled={!isAnswered || activeQuestionIndex === quizQuestions.length - 1}
-              className="inline-flex items-center justify-center gap-2 rounded-full bg-content px-5 py-3 text-sm font-bold text-app transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
-            >
-              Următoarea întrebare
-              <Icon>
-                <path d="M5 12h14M13 5l7 7-7 7" />
-              </Icon>
-            </button>
+            <div className="mt-8 grid gap-3">
+              {activeQuestion.answers.map((answer, answerIndex) => (
+                <QuizAnswerButton
+                  key={answer}
+                  answer={answer}
+                  answerIndex={answerIndex}
+                  correctIndexes={activeQuestion.correctIndexes}
+                  submittedAnswer={submittedAnswer}
+                  draftAnswer={draftAnswer}
+                  onSelect={() => toggleAnswer(answerIndex)}
+                />
+              ))}
+            </div>
+
+            {activeQuestion.mode === "multiple" && !isAnswered ? (
+              <button
+                type="button"
+                onClick={submitMultipleAnswer}
+                disabled={draftAnswer.length === 0}
+                className="mt-5 inline-flex items-center justify-center rounded-full bg-action px-5 py-3 text-sm font-bold text-on-action transition hover:bg-action-hover disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                Verifică răspunsul
+              </button>
+            ) : null}
+
+            {isAnswered ? (
+              <div
+                className={`mt-7 border-t pt-5 ${
+                  activeQuestionResult
+                    ? "border-success-border text-success"
+                    : "border-danger-border text-danger"
+                }`}
+              >
+                <p className="text-xs font-bold uppercase tracking-[0.16em]">
+                  {activeQuestionResult ? "Corect" : "De revizuit"}
+                </p>
+                <h4 className="mt-2 max-w-3xl font-serif text-2xl font-semibold leading-tight text-content">
+                  {activeQuestion.explanation}
+                </h4>
+                <p className="mt-3 max-w-3xl text-sm leading-7">
+                  {activeQuestion.aiInsight}
+                </p>
+
+                <div className="mt-4 flex flex-wrap gap-2">
+                  <span className="rounded-full border border-subtle bg-app px-3 py-1.5 text-xs font-bold text-content">
+                    Sursă: {activeQuestion.source}
+                  </span>
+                  <span className="rounded-full border border-subtle bg-app px-3 py-1.5 text-xs font-bold text-content">
+                    Concept: {activeQuestion.concept}
+                  </span>
+                </div>
+              </div>
+            ) : null}
+
+            <div className="mt-7 flex flex-col gap-3 border-t border-subtle pt-5 sm:flex-row sm:items-center sm:justify-between">
+              <button
+                type="button"
+                onClick={() => goToQuestion(Math.max(0, activeQuestionIndex - 1))}
+                disabled={activeQuestionIndex === 0}
+                className="inline-flex items-center justify-center gap-2 rounded-full border border-subtle px-5 py-3 text-sm font-bold text-content transition hover:bg-surface-hover disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                <Icon>
+                  <path d="M19 12H5M11 5l-7 7 7 7" />
+                </Icon>
+                Înapoi
+              </button>
+
+              <button
+                type="button"
+                onClick={goToNextQuestion}
+                disabled={!isAnswered || activeQuestionIndex === quizQuestions.length - 1}
+                className="inline-flex items-center justify-center gap-2 rounded-full bg-action px-5 py-3 text-sm font-bold text-on-action transition hover:bg-action-hover disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                Următoarea întrebare
+                <Icon>
+                  <path d="M5 12h14M13 5l7 7-7 7" />
+                </Icon>
+              </button>
+            </div>
           </div>
-        </article>
 
-        <aside className="space-y-4">
-          <div className="rounded-[2rem] border border-subtle bg-surface p-5">
+          <aside className="border-t border-subtle bg-app/45 p-5 sm:p-6 xl:border-l xl:border-t-0">
             <p className="text-xs font-bold uppercase tracking-[0.18em] text-muted">
-              Navigator quiz
+              Hartă quiz
             </p>
-            <div className="mt-4 grid grid-cols-4 gap-2">
+            <div className="mt-4 grid grid-cols-5 gap-2 xl:grid-cols-4">
               {quizQuestions.map((question, questionIndex) => {
                 const selected = submittedAnswers[question.id];
                 const isCorrect = isQuizAnswerCorrect(question, selected);
@@ -5395,14 +5688,14 @@ function QuizPanel({
                     key={question.id}
                     type="button"
                     onClick={() => goToQuestion(questionIndex)}
-                    className={`flex h-11 items-center justify-center rounded-2xl border text-sm font-bold transition ${
+                    className={`flex h-10 cursor-pointer items-center justify-center rounded-lg border text-sm font-bold transition ${
                       isCurrent
-                        ? "border-content bg-content text-app"
+                        ? "border-action bg-action text-on-action"
                         : isQuestionAnswered && isCorrect
                           ? "border-success-border bg-success-soft text-success"
                           : isQuestionAnswered
                             ? "border-danger-border bg-danger-soft text-danger"
-                            : "border-subtle bg-app text-muted hover:bg-surface-hover"
+                            : "border-subtle bg-surface text-muted hover:bg-surface-hover"
                     }`}
                   >
                     {questionIndex + 1}
@@ -5410,13 +5703,8 @@ function QuizPanel({
                 );
               })}
             </div>
-          </div>
 
-          <div className="rounded-[2rem] border border-subtle bg-surface p-5">
-            <p className="text-xs font-bold uppercase tracking-[0.18em] text-muted">
-              AI live
-            </p>
-            <div className="mt-3 divide-y divide-subtle border-t border-subtle">
+            <div className="mt-6 divide-y divide-subtle border-y border-subtle">
               <QuizSideStat label="Corecte" value={String(correctCount)} />
               <QuizSideStat label="Acuratețe" value={`${scorePercent}%`} />
               <QuizSideStat
@@ -5424,48 +5712,45 @@ function QuizPanel({
                 value={weakConcepts.length ? String(weakConcepts.length) : "0"}
               />
             </div>
-          </div>
 
-          <div className="rounded-[2rem] border border-info-border bg-info-soft p-5 text-info">
-            <p className="text-xs font-bold uppercase tracking-[0.18em]">
-              Recomandare
-            </p>
-            <p className="mt-3 text-sm font-semibold leading-6">
-              {weakConcepts.length
-                ? `După quiz, revizuiește ${weakConcepts.slice(0, 2).join(" și ")}.`
-                : "Răspunde la primele întrebări ca AI-ul să identifice zonele slabe."}
-            </p>
-          </div>
-
-          {activeQuiz.attempts.length ? (
-            <div className="rounded-[2rem] border border-subtle bg-surface p-5">
+            <div className="mt-6 border-t border-subtle pt-5">
               <p className="text-xs font-bold uppercase tracking-[0.18em] text-muted">
-                Istoric încercări
+                Recomandare AI
               </p>
-              <div className="mt-3 divide-y divide-subtle border-t border-subtle">
-                {activeQuiz.attempts.map((attempt, attemptIndex) => (
-                  <div
-                    key={attempt.id}
-                    className="flex items-center justify-between py-2.5 text-xs"
-                  >
-                    <span className="font-bold text-muted">
-                      #{activeQuiz.attempts.length - attemptIndex} ·{" "}
-                      {formatQuizAttemptTimestamp(attempt.completedAt)}
-                    </span>
-                    <span className="font-bold text-content">
-                      {attempt.scorePercent}% ({attempt.correctCount}/
-                      {attempt.answeredCount})
-                    </span>
-                  </div>
-                ))}
-              </div>
+              <p className="mt-3 text-sm font-semibold leading-6 text-content">
+                {recommendationText}
+              </p>
             </div>
-          ) : null}
-        </aside>
-      </div>
+
+            {activeQuiz.attempts.length ? (
+              <div className="mt-6 border-t border-subtle pt-5">
+                <p className="text-xs font-bold uppercase tracking-[0.18em] text-muted">
+                  Istoric
+                </p>
+                <div className="mt-3 divide-y divide-subtle border-y border-subtle">
+                  {activeQuiz.attempts.map((attempt, attemptIndex) => (
+                    <div
+                      key={attempt.id}
+                      className="flex items-center justify-between gap-3 py-2.5 text-xs"
+                    >
+                      <span className="font-bold text-muted">
+                        #{activeQuiz.attempts.length - attemptIndex} ·{" "}
+                        {formatQuizAttemptTimestamp(attempt.completedAt)}
+                      </span>
+                      <span className="shrink-0 font-bold text-content">
+                        {attempt.scorePercent}%
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : null}
+          </aside>
+        </div>
+      </article>
 
       {isComplete ? (
-        <section className="flex flex-col items-start justify-between gap-4 rounded-[2rem] border border-success-border bg-success-soft p-5 text-success sm:flex-row sm:items-center sm:p-7">
+        <section className="flex flex-col items-start justify-between gap-4 rounded-xl border border-success-border bg-success-soft p-5 text-success sm:flex-row sm:items-center sm:p-7">
           <div>
             <p className="text-xs font-bold uppercase tracking-[0.18em]">
               Quiz finalizat
@@ -5478,7 +5763,7 @@ function QuizPanel({
             <button
               type="button"
               onClick={() => setShowQuizSummary(true)}
-              className="rounded-full bg-content px-5 py-3 text-sm font-bold text-app transition hover:opacity-90"
+              className="rounded-full bg-action px-5 py-3 text-sm font-bold text-on-action transition hover:bg-action-hover"
             >
               Vezi sumarul
             </button>
@@ -5500,7 +5785,7 @@ function QuizPanel({
           aria-modal="true"
           aria-labelledby="quiz-summary-title"
         >
-          <div className="w-full max-w-lg rounded-[2rem] border border-subtle bg-surface p-6 shadow-2xl shadow-black/25">
+          <div className="w-full max-w-lg rounded-xl border border-subtle bg-surface p-6 theme-shadow-card">
             <div className="flex items-start justify-between gap-4">
               <div>
                 <p className="text-xs font-bold uppercase tracking-[0.18em] text-muted">
@@ -5552,7 +5837,7 @@ function QuizPanel({
               <button
                 type="button"
                 onClick={handleBackToQuizList}
-                className="rounded-full bg-content px-5 py-3 text-sm font-bold text-app transition hover:opacity-90"
+                className="rounded-full bg-action px-5 py-3 text-sm font-bold text-on-action transition hover:bg-action-hover"
               >
                 Înapoi la quiz-uri
               </button>
@@ -5573,8 +5858,8 @@ function QuizLibrary({
 }) {
   if (!quizzes.length) {
     return (
-      <section className="rounded-[2rem] border border-subtle bg-surface p-6 text-center sm:p-8">
-        <p className="text-xs font-bold uppercase tracking-[0.18em] text-muted">
+      <section className="rounded-xl border border-subtle bg-surface p-6 text-center sm:p-8">
+        <p className="mx-auto inline-flex rounded-full border border-subtle bg-action-soft px-3 py-1 text-[10px] font-black uppercase tracking-[0.18em] text-muted">
           Quiz-uri
         </p>
         <h2 className="mx-auto mt-3 max-w-2xl font-serif text-3xl font-semibold leading-tight">
@@ -5592,9 +5877,23 @@ function QuizLibrary({
 
   return (
     <section className="space-y-5">
-      <p className="text-sm font-bold text-muted">
-        {completedCount}/{quizzes.length} quiz-uri completate
-      </p>
+      <div className="flex flex-col gap-4 border-b border-subtle pb-5 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <span className="inline-flex rounded-full border border-subtle bg-action-soft px-3 py-1 text-[10px] font-black uppercase tracking-[0.18em] text-muted">
+            Quiz-uri
+          </span>
+          <h2 className="mt-4 font-serif text-3xl font-semibold leading-tight text-content sm:text-4xl">
+            Alege testul potrivit.
+          </h2>
+          <p className="mt-2 max-w-2xl text-sm leading-6 text-muted">
+            Recapitulare, aplicare și simulare de examen, separate ca să știi
+            exact ce exersezi.
+          </p>
+        </div>
+        <span className="inline-flex w-fit rounded-full border border-subtle bg-surface px-4 py-2 text-xs font-black text-content">
+          {completedCount}/{quizzes.length} completate
+        </span>
+      </div>
       <div className="grid items-stretch gap-4 lg:grid-cols-2 xl:grid-cols-3">
         {quizzes.map((quiz) => (
           <QuizCatalogCard key={quiz.id} quiz={quiz} onStartQuiz={onStartQuiz} />
@@ -5612,61 +5911,76 @@ function QuizCatalogCard({
   onStartQuiz: (quizId: string) => void;
 }) {
   const isCompleted = Boolean(quiz.completedAt);
+  const resultLabel =
+    isCompleted && quiz.scorePercent !== null
+      ? `${quiz.scorePercent}%`
+      : "Neîncercat";
+  const lastAttemptLabel = isCompleted
+    ? `Ultima rulare: ${formatQuizAttemptTimestamp(quiz.completedAt ?? "")}`
+    : quiz.focus;
 
   return (
     <article
-      className={`relative flex h-full flex-col overflow-hidden rounded-[2rem] border bg-surface p-5 transition hover:-translate-y-1 hover:shadow-2xl hover:shadow-black/10 ${
+      className={`theme-shadow-card flex h-full flex-col rounded-xl border bg-surface p-6 transition hover:-translate-y-0.5 hover:border-content/25 ${
         quiz.recommended ? "border-action" : "border-subtle"
       }`}
     >
-      {quiz.recommended ? (
-        <span className="absolute right-5 top-5 rounded-full bg-content px-3 py-1 text-[10px] font-bold uppercase tracking-[0.12em] text-app">
-          Recomandat
+      <div className="flex flex-wrap items-center gap-2">
+        <span
+          className={`inline-flex w-fit rounded-full border px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.12em] ${getQuizComplexityClass(
+            quiz.complexity,
+          )}`}
+        >
+          {quiz.complexity}
         </span>
-      ) : null}
+        {quiz.recommended ? (
+          <span className="inline-flex rounded-full border border-subtle bg-action-soft px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.12em] text-content">
+            Recomandat
+          </span>
+        ) : null}
+      </div>
 
-      <span
-        className={`inline-flex w-fit rounded-full border px-3 py-1.5 text-[11px] font-bold ${getQuizComplexityClass(
-          quiz.complexity,
-        )}`}
-      >
-        Complexitate {quiz.complexity.toLowerCase()}
-      </span>
-
-      <h3 className="mt-5 font-serif text-2xl font-semibold leading-tight">
+      <h3 className="mt-5 font-serif text-2xl font-semibold leading-tight text-content">
         {quiz.title}
       </h3>
       <p className="mt-3 flex-1 text-sm leading-7 text-muted">
         {quiz.description}
       </p>
 
-      <div className="mt-5 grid grid-cols-2 divide-x divide-subtle border-y border-subtle">
+      <div className="mt-5 divide-y divide-subtle border-y border-subtle">
         <QuizCardStat label="Întrebări" value={String(quiz.questionIds.length)} />
+        <QuizCardStat label="Tip" value={quiz.mode} />
+        <QuizCardStat label="Durată" value={quiz.duration} />
         <QuizCardStat
           label="Rezultat"
-          value={isCompleted ? `${quiz.scorePercent}%` : "Neîncercat"}
+          value={resultLabel}
         />
       </div>
 
-      <button
-        type="button"
-        onClick={() => onStartQuiz(quiz.id)}
-        className="mt-5 flex w-full items-center justify-center gap-2 rounded-full bg-content px-5 py-3 text-sm font-bold text-app transition hover:opacity-90"
-      >
-        {isCompleted ? "Reintră în quiz" : "Intră în quiz"}
-        <Icon>
-          <path d="M5 12h14M13 5l7 7-7 7" />
-        </Icon>
-      </button>
+      <div className="mt-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <p className="text-xs font-bold leading-5 text-muted">
+          {lastAttemptLabel}
+        </p>
+        <button
+          type="button"
+          onClick={() => onStartQuiz(quiz.id)}
+          className="inline-flex shrink-0 items-center justify-center gap-2 rounded-full bg-action px-5 py-3 text-sm font-bold text-on-action transition hover:bg-action-hover"
+        >
+          {isCompleted ? "Reintră" : "Începe"}
+          <Icon>
+            <path d="M5 12h14M13 5l7 7-7 7" />
+          </Icon>
+        </button>
+      </div>
     </article>
   );
 }
 
 function QuizCardStat({ label, value }: { label: string; value: string }) {
   return (
-    <div className="px-1 py-3">
+    <div className="flex items-center justify-between gap-4 py-3">
       <p className="text-xs font-bold text-muted">{label}</p>
-      <p className="mt-1 text-sm font-bold text-content">{value}</p>
+      <p className="text-right text-sm font-bold text-content">{value}</p>
     </div>
   );
 }
@@ -5692,34 +6006,34 @@ function QuizAnswerButton({
   const isDraftSelected = draftAnswer.includes(answerIndex);
   const stateClass = !isAnswered
     ? isDraftSelected
-      ? "border-content bg-action-soft text-content"
-      : "border-subtle bg-app text-content hover:-translate-y-0.5 hover:bg-surface-hover"
+      ? "border-action bg-action-soft text-content"
+      : "border-subtle bg-surface text-content hover:border-action/45 hover:bg-surface-hover"
     : isCorrect
       ? "border-success-border bg-success-soft text-success"
       : isSelected
         ? "border-danger-border bg-danger-soft text-danger"
-        : "border-subtle bg-surface text-muted opacity-65";
+        : "border-subtle bg-surface text-muted opacity-60";
 
   return (
     <button
       type="button"
       onClick={onSelect}
       disabled={isAnswered}
-      className={`flex items-center justify-between gap-4 rounded-2xl border px-4 py-4 text-left text-sm font-bold transition ${stateClass}`}
+      className={`group grid cursor-pointer grid-cols-[2.75rem_minmax(0,1fr)_1.5rem] items-center gap-4 rounded-xl border px-4 py-4 text-left text-sm font-bold transition disabled:cursor-default ${stateClass}`}
     >
-      <span className="flex items-center gap-3">
-        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-current/20 text-xs">
-          {String.fromCharCode(65 + answerIndex)}
-        </span>
+      <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-current/20 bg-app font-serif text-lg font-semibold">
+        {String.fromCharCode(65 + answerIndex)}
+      </span>
+      <span className="leading-6">
         {answer}
       </span>
       {isAnswered && isCorrect ? (
-        <Icon className="h-5 w-5 shrink-0">
+        <Icon className="h-5 w-5 justify-self-end">
           <path d="m5 12 4 4L19 6" />
         </Icon>
       ) : null}
       {isAnswered && isSelected && !isCorrect ? (
-        <Icon className="h-5 w-5 shrink-0">
+        <Icon className="h-5 w-5 justify-self-end">
           <path d="M18 6 6 18M6 6l12 12" />
         </Icon>
       ) : null}
@@ -5738,18 +6052,15 @@ function QuizSideStat({ label, value }: { label: string; value: string }) {
 
 function QuizResultCard({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-2xl border border-success-border bg-surface p-4">
+    <div className="rounded-xl border border-success-border bg-surface p-4">
       <p className="font-serif text-2xl font-semibold text-content">{value}</p>
       <p className="mt-1 text-xs font-bold">{label}</p>
     </div>
   );
 }
 
-function StrategiesPanel({
-  strategies,
-}: {
-  strategies: StudyProject["strategies"];
-}) {
+function StrategiesPanel({ project }: { project: StudyProject }) {
+  const strategies = project.strategies;
   const universalStrategies = [
     [
       "Întreabă materialul, nu doar îl citi",
@@ -5764,93 +6075,141 @@ function StrategiesPanel({
       "Dacă poți explica simplu, înseamnă că ai înțeles-o cu adevărat.",
     ],
   ];
+  const readyFlashcards = getGeneratedFlashcards(project.flashcards).length;
+  const stats = [
+    ["Strategii AI", String(strategies.length)],
+    ["Quiz-uri", String(project.quizzes.length)],
+    ["Flashcard-uri", String(readyFlashcards)],
+  ];
 
   return (
-    <div>
-      <div className="inline-flex items-center gap-2 rounded-full bg-success-soft px-3 py-1.5 text-xs font-bold text-success">
-        <Icon className="h-3.5 w-3.5">
-          <path d="M12 2 2 7l10 5 10-5-10-5z" />
-          <path d="M2 17l10 5 10-5M2 12l10 5 10-5" />
-        </Icon>
-        Generate de AI pentru acest proiect
+    <section className="space-y-5">
+      <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_18rem]">
+        <article className="theme-shadow-card rounded-xl border border-subtle bg-surface">
+          <div className="border-b border-subtle p-5 sm:p-6">
+            <span className="inline-flex rounded-full border border-subtle bg-action-soft px-3 py-1 text-[10px] font-black uppercase tracking-[0.18em] text-muted">
+              Strategii AI
+            </span>
+            <h2 className="mt-4 max-w-3xl font-serif text-3xl font-semibold leading-tight text-content sm:text-4xl">
+              Plan de studiu pentru {project.subjectName}.
+            </h2>
+            <p className="mt-3 max-w-2xl text-sm leading-6 text-muted">
+              Pașii sunt generați din materialul proiectului și sunt gândiți
+              pentru recapitulare activă, nu pentru citire pasivă.
+            </p>
+          </div>
+
+          <div className="divide-y divide-subtle">
+            {strategies.map((strategy, index) => (
+              <StrategyPlanRow
+                key={strategy.title}
+                index={index}
+                title={strategy.title}
+                description={strategy.description}
+              />
+            ))}
+          </div>
+        </article>
+
+        <aside className="rounded-xl border border-subtle bg-surface p-5 sm:p-6">
+          <p className="text-xs font-bold uppercase tracking-[0.18em] text-muted">
+            Context
+          </p>
+          <div className="mt-4 divide-y divide-subtle border-y border-subtle">
+            {stats.map(([label, value]) => (
+              <div
+                key={label}
+                className="flex items-center justify-between gap-4 py-3"
+              >
+                <span className="text-sm font-semibold text-muted">{label}</span>
+                <span className="font-serif text-2xl font-semibold text-content">
+                  {value}
+                </span>
+              </div>
+            ))}
+          </div>
+
+          <div className="mt-5 border-t border-subtle pt-4">
+            <p className="text-xs font-bold uppercase tracking-[0.18em] text-muted">
+              Ritm recomandat
+            </p>
+            <p className="mt-2 text-sm font-semibold leading-6 text-content">
+              20-30 min pe sesiune, apoi verificare rapidă în quiz-uri.
+            </p>
+          </div>
+        </aside>
       </div>
 
-      <div className="mt-3 space-y-3">
-        {strategies.map((strategy) => (
-          <StrategyAccordionItem
-            key={strategy.title}
-            badge={
-              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-success-soft text-success">
-                <Icon>
-                  <circle cx="12" cy="12" r="10" />
-                  <path d="m16.2 7.8-2 6.4-6.4 2 2-6.4z" />
-                </Icon>
-              </span>
-            }
-            title={strategy.title}
-            description={strategy.description}
-          />
-        ))}
-      </div>
-
-      <SectionLabel>Valabile pentru orice materie</SectionLabel>
-      <div className="mt-3 space-y-3">
-        {universalStrategies.map(([title, description], index) => (
-          <StrategyAccordionItem
-            key={title}
-            badge={
-              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-app text-xs font-bold">
-                {index + 1}
-              </span>
-            }
-            title={title}
-            description={description}
-          />
-        ))}
-      </div>
-    </div>
+      <section className="rounded-xl border border-subtle bg-surface">
+        <div className="grid lg:grid-cols-[18rem_minmax(0,1fr)]">
+          <div className="border-b border-subtle p-5 sm:p-6 lg:border-b-0 lg:border-r">
+            <span className="inline-flex rounded-full border border-subtle bg-app px-3 py-1 text-[10px] font-black uppercase tracking-[0.18em] text-muted">
+              Bază
+            </span>
+            <h3 className="mt-4 font-serif text-2xl font-semibold leading-tight text-content">
+              Valabile pentru orice materie.
+            </h3>
+          </div>
+          <div className="divide-y divide-subtle">
+            {universalStrategies.map(([title, description], index) => (
+              <StrategyPlanRow
+                key={title}
+                index={index}
+                title={title}
+                description={description}
+                muted
+              />
+            ))}
+          </div>
+        </div>
+      </section>
+    </section>
   );
 }
 
-function StrategyAccordionItem({
-  badge,
+function StrategyPlanRow({
+  index,
   title,
   description,
+  muted = false,
 }: {
-  badge: ReactNode;
+  index: number;
   title: string;
   description: string;
+  muted?: boolean;
 }) {
-  const [isOpen, setIsOpen] = useState(false);
-
   return (
-    <div className="overflow-hidden rounded-2xl border border-subtle bg-surface">
-      <button
-        type="button"
-        onClick={() => setIsOpen((open) => !open)}
-        aria-expanded={isOpen}
-        className="flex w-full items-center gap-3 p-4 text-left"
-      >
-        {badge}
-        <span className="flex-1 text-sm font-bold">{title}</span>
-        <Icon
-          className={`h-4 w-4 shrink-0 text-muted transition-transform duration-200 ${
-            isOpen ? "rotate-180" : ""
-          }`}
-        >
-          <path d="m6 9 6 6 6-6" />
-        </Icon>
-      </button>
-      <div
-        className={`grid transition-all duration-200 ease-out ${
-          isOpen ? "grid-rows-[1fr]" : "grid-rows-[0fr]"
+    <div className="grid gap-4 p-5 sm:grid-cols-[3rem_minmax(0,1fr)] sm:p-6">
+      <span
+        className={`flex h-11 w-11 items-center justify-center rounded-full border text-sm font-black ${
+          muted
+            ? "border-subtle bg-app text-muted"
+            : "border-success-border bg-success-soft text-success"
         }`}
       >
-        <div className="overflow-hidden">
-          <p className="px-4 pb-4 pl-12 text-xs leading-5 text-muted">
-            {description}
-          </p>
+        {muted ? (
+          index + 1
+        ) : (
+          <Icon className="h-4 w-4">
+            <circle cx="12" cy="12" r="10" />
+            <path d="m16.2 7.8-2 6.4-6.4 2 2-6.4z" />
+          </Icon>
+        )}
+      </span>
+      <div>
+        <div className="flex flex-wrap items-center gap-2">
+          <h3 className="font-serif text-2xl font-semibold leading-tight text-content">
+            {title}
+          </h3>
+          {!muted ? (
+            <span className="rounded-full border border-subtle bg-app px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.12em] text-muted">
+              pas {index + 1}
+            </span>
+          ) : null}
         </div>
+        <p className="mt-2 max-w-3xl text-sm leading-7 text-muted">
+          {description}
+        </p>
       </div>
     </div>
   );
@@ -5922,25 +6281,37 @@ function ProgressPanel({ project }: { project: StudyProject }) {
   const completionPercent = data.totalQuizzes
     ? Math.round((data.completedCount / data.totalQuizzes) * 100)
     : 0;
+  const readinessScore =
+    data.averageScore !== null
+      ? Math.round(data.averageScore * 0.72 + completionPercent * 0.28)
+      : completionPercent;
+  const latestAttempt = data.recentAttempts.length
+    ? data.recentAttempts[data.recentAttempts.length - 1]
+    : null;
+  const focusText = data.weakConcepts.length
+    ? data.weakConcepts
+        .slice(0, 2)
+        .map(([concept]) => concept)
+        .join(" și ")
+    : "nu există încă zone slabe clare";
 
   return (
     <div className="space-y-5">
-      <section className="relative overflow-hidden rounded-[2rem] border border-subtle bg-content p-6 text-app sm:p-8">
-        <div className="pointer-events-none absolute -right-24 -top-24 h-64 w-64 rounded-full bg-on-action/10 blur-3xl" />
-        <div className="relative grid gap-6 lg:grid-cols-[1.05fr_0.95fr] lg:items-end">
+      <section className="theme-shadow-card rounded-xl border border-subtle bg-surface">
+        <div className="grid gap-6 border-b border-subtle p-5 sm:p-6 xl:grid-cols-[minmax(0,1fr)_24rem] xl:items-end">
           <div>
-            <p className="text-xs font-bold uppercase tracking-[0.2em] text-app/60">
-              Progresul tău
-            </p>
-            <h2 className="mt-3 max-w-2xl font-serif text-4xl font-semibold leading-tight sm:text-5xl">
+            <span className="inline-flex rounded-full border border-subtle bg-action-soft px-3 py-1 text-[10px] font-black uppercase tracking-[0.18em] text-muted">
+              Progres
+            </span>
+            <h2 className="mt-4 max-w-3xl font-serif text-4xl font-semibold leading-none text-content sm:text-5xl">
               {data.totalQuizzes
-                ? `${data.completedCount}/${data.totalQuizzes} quiz-uri completate`
+                ? `Scor de pregătire ${readinessScore}%.`
                 : "Încă nu ai date de progres."}
             </h2>
-            <p className="mt-4 max-w-xl text-sm leading-7 text-app/70">
+            <p className="mt-3 max-w-2xl text-sm leading-6 text-muted">
               {data.totalQuizzes
-                ? "Calculat pe baza rezultatelor tale reale la quiz-uri, nu pe estimări."
-                : "Rezolvă cel puțin un quiz ca să vezi aici scorul, zonele slabe și evoluția ta."}
+                ? `Calculat din quiz-uri, încercări și ritmul curent. Focus: ${focusText}.`
+                : "Rezolvă cel puțin un quiz ca să vezi scorul, zonele slabe și evoluția."}
             </p>
           </div>
 
@@ -5950,33 +6321,55 @@ function ProgressPanel({ project }: { project: StudyProject }) {
               value={data.averageScore !== null ? `${data.averageScore}%` : "—"}
             />
             <ProgressHeroMetric
-              label="Încercări totale"
-              value={String(data.totalAttempts)}
+              label="Quiz-uri gata"
+              value={`${data.completedCount}/${data.totalQuizzes}`}
             />
             <ProgressHeroMetric
-              label="Flashcard-uri"
-              value={String(data.totalFlashcards)}
+              label="Ultimul scor"
+              value={latestAttempt ? `${latestAttempt.scorePercent}%` : "—"}
             />
             <ProgressHeroMetric
-              label="Concepte cheie"
-              value={String(data.keywordsCount)}
+              label="Greșeli salvate"
+              value={String(data.quizMistakeFlashcardsCount)}
             />
           </div>
+        </div>
+
+        <div className="grid gap-0 divide-y divide-subtle sm:grid-cols-3 sm:divide-x sm:divide-y-0">
+          <ProgressHeroStrip
+            label="Material activ"
+            value={project.subjectName}
+            detail={`${data.totalFlashcards} flashcard-uri în proiect`}
+          />
+          <ProgressHeroStrip
+            label="Atenție azi"
+            value={data.weakConcepts.length ? "Revizuire" : "Stabil"}
+            detail={
+              data.weakConcepts.length
+                ? `${data.weakConcepts.length} concepte cer recapitulare`
+                : "Nu ai greșeli recurente încă"
+            }
+          />
+          <ProgressHeroStrip
+            label="Următorul pas"
+            value={data.totalQuizzes ? "Quiz + flashcard" : "Generează quiz"}
+            detail="Recapitulare scurtă după fiecare răspuns greșit"
+          />
         </div>
       </section>
 
       <div className="grid gap-5 xl:grid-cols-[0.95fr_1.05fr]">
-        <section className="rounded-[2rem] border border-subtle bg-surface p-5 sm:p-6">
+        <section className="rounded-xl border border-subtle bg-surface p-5 sm:p-6">
           <p className="text-xs font-bold uppercase tracking-[0.18em] text-muted">
             Rata de completare
           </p>
-          <h3 className="mt-2 font-serif text-3xl font-semibold">
+          <h3 className="mt-3 font-serif text-4xl font-semibold leading-none text-content">
             {completionPercent}%
           </h3>
 
-          <div className="mt-5 h-3 overflow-hidden rounded-full bg-app">
+          <div className="mt-5 h-2 overflow-hidden rounded-full bg-app">
             <div
-              className="h-full rounded-full bg-success"
+              className="h-full rounded-full bg-action"
               style={{ width: `${completionPercent}%` }}
             />
           </div>
@@ -5988,8 +6381,8 @@ function ProgressPanel({ project }: { project: StudyProject }) {
           </p>
         </section>
 
-        <section className="rounded-[2rem] border border-warning-border bg-warning-soft p-5 text-warning sm:p-6">
-          <p className="text-xs font-bold uppercase tracking-[0.18em]">
+        <section className="rounded-xl border border-subtle bg-surface p-5 sm:p-6">
+          <p className="text-xs font-bold uppercase tracking-[0.18em] text-muted">
             Zone care necesită atenție
           </p>
           {data.weakConcepts.length ? (
@@ -5997,19 +6390,24 @@ function ProgressPanel({ project }: { project: StudyProject }) {
               <h3 className="mt-3 font-serif text-2xl font-semibold text-content">
                 Greșești frecvent la:
               </h3>
-              <div className="mt-4 flex flex-wrap gap-2">
+              <div className="mt-4 divide-y divide-subtle border-y border-subtle">
                 {data.weakConcepts.map(([concept, count]) => (
-                  <span
+                  <div
                     key={concept}
-                    className="rounded-full border border-warning-border bg-surface px-3 py-1.5 text-xs font-bold"
+                    className="flex items-center justify-between gap-4 py-3"
                   >
-                    {concept} ({count})
-                  </span>
+                    <span className="text-sm font-semibold text-content">
+                      {concept}
+                    </span>
+                    <span className="rounded-full border border-warning-border bg-warning-soft px-3 py-1 text-xs font-bold text-warning">
+                      {count} greșeli
+                    </span>
+                  </div>
                 ))}
               </div>
             </>
           ) : (
-            <p className="mt-3 text-sm leading-7">
+            <p className="mt-3 text-sm leading-7 text-muted">
               Nu ai încă greșeli înregistrate la quiz-uri — răspunde la câteva
               întrebări ca să apară zonele de recapitulat aici.
             </p>
@@ -6017,57 +6415,66 @@ function ProgressPanel({ project }: { project: StudyProject }) {
         </section>
       </div>
 
-      <section className="rounded-[2rem] border border-subtle bg-surface p-5 sm:p-6">
-        <p className="text-xs font-bold uppercase tracking-[0.18em] text-muted">
-          Scor pe quiz
-        </p>
-        {data.quizScores.length ? (
-          <div className="mt-5 space-y-4">
-            {data.quizScores.map((quiz) =>
-              quiz.completed ? (
-                <ProgressBarRow
-                  key={quiz.title}
-                  label={quiz.title}
-                  value={quiz.scorePercent ?? 0}
-                />
-              ) : (
-                <div
-                  key={quiz.title}
-                  className="flex items-center justify-between gap-3"
-                >
-                  <p className="text-sm font-bold">{quiz.title}</p>
-                  <span className="rounded-full bg-app px-2.5 py-1 text-[11px] font-bold text-muted">
-                    Neîncercat
-                  </span>
-                </div>
-              ),
-            )}
+      <div className="grid gap-5 xl:grid-cols-[minmax(0,1.15fr)_minmax(0,0.85fr)]">
+        <section className="rounded-xl border border-subtle bg-surface p-5 sm:p-6">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+            <div>
+              <p className="text-xs font-bold uppercase tracking-[0.18em] text-muted">
+                Evoluția scorurilor
+              </p>
+              <h3 className="mt-2 font-serif text-3xl font-semibold text-content">
+                Ultimele încercări
+              </h3>
+            </div>
+            <span className="w-fit rounded-full border border-subtle bg-app px-3 py-1.5 text-xs font-bold text-muted">
+              {data.recentAttempts.length} înregistrări
+            </span>
           </div>
-        ) : (
-          <p className="mt-4 text-sm leading-6 text-muted">
-            Quiz-urile nu sunt generate încă pentru acest proiect.
-          </p>
-        )}
-      </section>
+          {data.recentAttempts.length ? (
+            <ProgressScoreTrendChart attempts={data.recentAttempts} />
+          ) : (
+            <p className="mt-4 text-sm leading-6 text-muted">
+              Rezolvă un quiz ca să vezi aici evoluția scorurilor tale în timp.
+            </p>
+          )}
+        </section>
 
-      <section className="rounded-[2rem] border border-subtle bg-surface p-5 sm:p-6">
-        <p className="text-xs font-bold uppercase tracking-[0.18em] text-muted">
-          Evoluția scorurilor în timp
-        </p>
-        {data.recentAttempts.length ? (
-          <ProgressScoreTrendChart attempts={data.recentAttempts} />
-        ) : (
-          <p className="mt-4 text-sm leading-6 text-muted">
-            Rezolvă un quiz ca să vezi aici evoluția scorurilor tale în timp.
+        <section className="rounded-xl border border-subtle bg-surface p-5 sm:p-6">
+          <p className="text-xs font-bold uppercase tracking-[0.18em] text-muted">
+            Scor pe quiz
           </p>
-        )}
-      </section>
+          {data.quizScores.length ? (
+            <div className="mt-4 divide-y divide-subtle border-y border-subtle">
+              {data.quizScores.map((quiz) =>
+                quiz.completed ? (
+                  <ProgressBarRow
+                    key={quiz.title}
+                    label={quiz.title}
+                    value={quiz.scorePercent ?? 0}
+                  />
+                ) : (
+                  <div
+                    key={quiz.title}
+                    className="flex items-center justify-between gap-3 py-3"
+                  >
+                    <p className="text-sm font-bold text-content">{quiz.title}</p>
+                    <span className="rounded-full bg-app px-2.5 py-1 text-[11px] font-bold text-muted">
+                      Neîncercat
+                    </span>
+                  </div>
+                ),
+              )}
+            </div>
+          ) : (
+            <p className="mt-4 text-sm leading-6 text-muted">
+              Quiz-urile nu sunt generate încă pentru acest proiect.
+            </p>
+          )}
+        </section>
+      </div>
 
-      <section className="rounded-[2rem] border border-subtle bg-surface p-5 sm:p-6">
-        <p className="text-xs font-bold uppercase tracking-[0.18em] text-muted">
-          Alte date din proiect
-        </p>
-        <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-3">
+      <section className="rounded-xl border border-subtle bg-surface">
+        <div className="grid divide-y divide-subtle sm:grid-cols-3 sm:divide-x sm:divide-y-0">
           <ProgressMiniStat
             label="Flashcard-uri generate"
             value={String(data.generatedFlashcardsCount)}
@@ -6098,21 +6505,20 @@ function ProgressPanel({ project }: { project: StudyProject }) {
   );
 }
 
-function buildSmoothLinePath(points: Array<{ x: number; y: number }>) {
-  if (!points.length) {
-    return "";
-  }
-  if (points.length === 1) {
-    return `M ${points[0].x} ${points[0].y}`;
-  }
+function buildProgressTrendPath(points: Array<{ x: number; y: number }>) {
+  if (!points.length) return "";
+  if (points.length === 1) return `M ${points[0].x} ${points[0].y}`;
 
   let path = `M ${points[0].x} ${points[0].y}`;
   for (let index = 0; index < points.length - 1; index += 1) {
     const current = points[index];
     const next = points[index + 1];
-    const midX = (current.x + next.x) / 2;
-    path += ` C ${midX} ${current.y}, ${midX} ${next.y}, ${next.x} ${next.y}`;
+    const controlOffset = Math.max(18, (next.x - current.x) * 0.42);
+    path += ` C ${current.x + controlOffset} ${current.y}, ${
+      next.x - controlOffset
+    } ${next.y}, ${next.x} ${next.y}`;
   }
+
   return path;
 }
 
@@ -6125,94 +6531,200 @@ function ProgressScoreTrendChart({
     completedAt: string;
   }>;
 }) {
-  const width = 640;
-  const height = 220;
-  const paddingX = 16;
-  const paddingTop = 16;
-  const paddingBottom = 8;
-  const plotWidth = width - paddingX * 2;
+  const width = 760;
+  const height = 280;
+  const paddingLeft = 52;
+  const paddingRight = 28;
+  const paddingTop = 28;
+  const paddingBottom = 42;
+  const latestIndex = attempts.length - 1;
+  const plotWidth = width - paddingLeft - paddingRight;
   const plotHeight = height - paddingTop - paddingBottom;
-
   const points = attempts.map((attempt, index) => ({
     x:
       attempts.length > 1
-        ? paddingX + (plotWidth * index) / (attempts.length - 1)
-        : paddingX + plotWidth / 2,
+        ? paddingLeft + (plotWidth * index) / (attempts.length - 1)
+        : paddingLeft + plotWidth / 2,
     y: paddingTop + plotHeight * (1 - attempt.scorePercent / 100),
     attempt,
+    index,
   }));
-
-  const linePath = buildSmoothLinePath(points);
-  const floorY = paddingTop + plotHeight;
-  const areaPath = `${linePath} L ${points[points.length - 1].x} ${floorY} L ${points[0].x} ${floorY} Z`;
+  const linePath = buildProgressTrendPath(points);
+  const baselineY = paddingTop + plotHeight;
+  const areaPath =
+    points.length > 1
+      ? `${linePath} L ${points[points.length - 1].x} ${baselineY} L ${points[0].x} ${baselineY} Z`
+      : "";
+  const latestAttempt = attempts[latestIndex];
 
   return (
-    <div className="mt-5 border-t border-subtle pt-5">
-      <svg
-        viewBox={`0 0 ${width} ${height}`}
-        preserveAspectRatio="none"
-        className="h-56 w-full"
+    <div className="mt-5">
+      <div
+        className="overflow-x-auto border-y border-subtle py-5 [scrollbar-width:thin]"
         role="img"
         aria-label="Evoluția scorurilor la quiz-uri în timp"
       >
-        <defs>
-          <linearGradient id="progress-trend-fill" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="var(--theme-content)" stopOpacity="0.32" />
-            <stop offset="100%" stopColor="var(--theme-content)" stopOpacity="0" />
-          </linearGradient>
-        </defs>
+        <svg
+          viewBox={`0 0 ${width} ${height}`}
+          className="h-72 min-w-[44rem] w-full"
+          preserveAspectRatio="none"
+        >
+          <defs>
+            <linearGradient id="progress-line-fill" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="var(--theme-action)" stopOpacity="0.22" />
+              <stop offset="72%" stopColor="var(--theme-action)" stopOpacity="0.04" />
+              <stop offset="100%" stopColor="var(--theme-action)" stopOpacity="0" />
+            </linearGradient>
+            <filter id="progress-line-glow" x="-20%" y="-20%" width="140%" height="140%">
+              <feGaussianBlur stdDeviation="5" result="blur" />
+              <feColorMatrix
+                in="blur"
+                type="matrix"
+                values="0 0 0 0 0.20 0 0 0 0 0.28 0 0 0 0 0.20 0 0 0 0.35 0"
+              />
+              <feMerge>
+                <feMergeNode />
+                <feMergeNode in="SourceGraphic" />
+              </feMerge>
+            </filter>
+          </defs>
 
-        {[0, 25, 50, 75, 100].map((line) => {
-          const y = paddingTop + plotHeight * (1 - line / 100);
-          return (
-            <line
-              key={line}
-              x1={paddingX}
-              x2={width - paddingX}
-              y1={y}
-              y2={y}
-              stroke="var(--theme-border)"
-              strokeDasharray="4 5"
-              strokeWidth={1}
-            />
-          );
-        })}
+          {[0, 25, 50, 75, 100].map((line) => {
+            const y = paddingTop + plotHeight * (1 - line / 100);
+            return (
+              <g key={line}>
+                <line
+                  x1={paddingLeft}
+                  x2={width - paddingRight}
+                  y1={y}
+                  y2={y}
+                  stroke="var(--theme-border)"
+                  strokeDasharray={line === 0 ? "0" : "6 7"}
+                  strokeWidth={1}
+                />
+                <text
+                  x={paddingLeft - 14}
+                  y={y + 4}
+                  textAnchor="end"
+                  className="fill-muted text-[10px] font-bold"
+                >
+                  {line}%
+                </text>
+              </g>
+            );
+          })}
 
-        <path d={areaPath} fill="url(#progress-trend-fill)" stroke="none" />
-        <path
-          d={linePath}
-          fill="none"
-          stroke="var(--theme-content)"
-          strokeWidth={3}
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        />
+          {points.length > 1 ? (
+            <path d={areaPath} fill="url(#progress-line-fill)" />
+          ) : null}
+          <path
+            d={linePath}
+            fill="none"
+            stroke="var(--theme-action)"
+            strokeWidth={4}
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            filter="url(#progress-line-glow)"
+          />
 
-        {points.map(({ x, y, attempt }, index) => (
-          <circle
-            key={`${attempt.completedAt}-${index}`}
-            cx={x}
-            cy={y}
-            r={index === points.length - 1 ? 6 : 4}
-            fill="var(--theme-app)"
-            stroke="var(--theme-content)"
-            strokeWidth={2.5}
+          {points.map(({ x, y, attempt, index }) => {
+            const isLatest = index === latestIndex;
+
+            return (
+              <g key={`${attempt.completedAt}-${index}`}>
+                <line
+                  x1={x}
+                  x2={x}
+                  y1={paddingTop}
+                  y2={baselineY}
+                  stroke="var(--theme-border)"
+                  strokeOpacity={isLatest ? 0.9 : 0.45}
+                  strokeDasharray="3 7"
+                />
+                <circle
+                  cx={x}
+                  cy={y}
+                  r={isLatest ? 8 : 6}
+                  fill="var(--theme-surface)"
+                  stroke="var(--theme-action)"
+                  strokeWidth={isLatest ? 4 : 3}
+                >
+                  <title>
+                    {attempt.quizTitle} · {attempt.scorePercent}% ·{" "}
+                    {formatQuizAttemptTimestamp(attempt.completedAt)}
+                  </title>
+                </circle>
+                <text
+                  x={x}
+                  y={y - 14}
+                  textAnchor="middle"
+                  className="fill-content text-[11px] font-black"
+                >
+                  {attempt.scorePercent}%
+                </text>
+                <text
+                  x={x}
+                  y={height - 12}
+                  textAnchor="middle"
+                  className="fill-muted text-[10px] font-bold"
+                >
+                  #{index + 1}
+                </text>
+              </g>
+            );
+          })}
+
+          <line
+            x1={paddingLeft}
+            x2={width - paddingRight}
+            y1={baselineY}
+            y2={baselineY}
+            stroke="var(--theme-border)"
+            strokeWidth={1.5}
+          />
+        </svg>
+      </div>
+
+      <div className="mt-4 flex flex-col gap-2 rounded-xl border border-subtle bg-app p-4 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <p className="text-[10px] font-black uppercase tracking-[0.18em] text-muted">
+            Ultima încercare
+          </p>
+          <p className="mt-1 text-sm font-semibold text-content">
+            {latestAttempt.quizTitle}
+          </p>
+        </div>
+        <div className="flex items-center gap-3">
+          <span className="rounded-full border border-action bg-action px-3 py-1.5 text-xs font-black text-on-action">
+            {latestAttempt.scorePercent}%
+          </span>
+          <span className="text-xs font-bold text-muted">
+            {formatQuizAttemptTimestamp(latestAttempt.completedAt)}
+          </span>
+        </div>
+      </div>
+
+      <div className="mt-4 divide-y divide-subtle border-y border-subtle">
+        {attempts.map((attempt, index) => (
+          <div
+            key={`${attempt.quizTitle}-${attempt.completedAt}`}
+            className="grid gap-2 py-3 text-sm sm:grid-cols-[minmax(0,1fr)_auto_auto] sm:items-center"
           >
-            <title>
-              {attempt.quizTitle} · {attempt.scorePercent}% ·{" "}
+            <span className="font-semibold text-content">{attempt.quizTitle}</span>
+            <span className="text-xs font-bold text-muted">
               {formatQuizAttemptTimestamp(attempt.completedAt)}
-            </title>
-          </circle>
+            </span>
+            <span
+              className={`w-fit rounded-full border px-3 py-1 text-xs font-black ${
+                index === latestIndex
+                  ? "border-action bg-action text-on-action"
+                  : "border-subtle bg-app text-content"
+              }`}
+            >
+              {attempt.scorePercent}%
+            </span>
+          </div>
         ))}
-      </svg>
-
-      <div className="mt-2 flex items-center justify-between text-[10px] font-bold text-muted">
-        <span>{formatQuizAttemptTimestamp(attempts[0].completedAt)}</span>
-        <span>
-          {formatQuizAttemptTimestamp(
-            attempts[attempts.length - 1].completedAt,
-          )}
-        </span>
       </div>
     </div>
   );
@@ -6226,16 +6738,40 @@ function ProgressHeroMetric({
   value: string;
 }) {
   return (
-    <div className="rounded-2xl border border-app/10 bg-app/10 p-4">
-      <p className="font-serif text-2xl font-semibold">{value}</p>
-      <p className="mt-1 text-xs leading-5 text-app/65">{label}</p>
+    <div className="border-t border-subtle pt-3">
+      <p className="font-serif text-3xl font-semibold leading-none text-content">
+        {value}
+      </p>
+      <p className="mt-1 text-xs font-semibold leading-5 text-muted">{label}</p>
+    </div>
+  );
+}
+
+function ProgressHeroStrip({
+  label,
+  value,
+  detail,
+}: {
+  label: string;
+  value: string;
+  detail: string;
+}) {
+  return (
+    <div className="p-5 sm:p-6">
+      <p className="text-[10px] font-black uppercase tracking-[0.18em] text-muted">
+        {label}
+      </p>
+      <p className="mt-2 font-serif text-2xl font-semibold leading-tight text-content">
+        {value}
+      </p>
+      <p className="mt-1 text-sm leading-6 text-muted">{detail}</p>
     </div>
   );
 }
 
 function ProgressMiniStat({ label, value }: { label: string; value: string }) {
   return (
-    <div>
+    <div className="p-5 sm:p-6">
       <p className="font-serif text-2xl font-semibold text-content">{value}</p>
       <p className="mt-1 text-xs leading-5 text-muted">{label}</p>
     </div>
@@ -6253,9 +6789,9 @@ function ProgressBarRow({ label, value }: { label: string; value: number }) {
         : "bg-danger-soft text-danger";
 
   return (
-    <div>
+    <div className="py-3">
       <div className="mb-2 flex items-center justify-between gap-3">
-        <p className="text-sm font-bold">{label}</p>
+        <p className="text-sm font-bold text-content">{label}</p>
         <span className={`rounded-full px-2.5 py-1 text-[11px] font-bold ${badgeClass}`}>
           {value}%
         </span>

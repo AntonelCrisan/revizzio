@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { AccountStaticShell } from "@/components/account/account-static-shell";
 import {
   type SubscriptionPlan,
@@ -135,7 +135,7 @@ function TextField({ label, value, onChange, placeholder }: TextFieldProps) {
         value={value}
         placeholder={placeholder}
         onChange={(event) => onChange(event.target.value)}
-        className="mt-2 h-12 w-full rounded-2xl border border-subtle bg-app px-4 text-sm text-content outline-none transition placeholder:text-muted focus:border-action"
+        className="mt-2 h-12 w-full rounded-lg border border-subtle bg-app px-4 text-sm text-content outline-none transition placeholder:text-muted focus:border-action"
       />
     </label>
   );
@@ -143,10 +143,12 @@ function TextField({ label, value, onChange, placeholder }: TextFieldProps) {
 
 function Toggle({
   label,
+  detail,
   checked,
   onChange,
 }: {
   label: string;
+  detail: string;
   checked: boolean;
   onChange: (checked: boolean) => void;
 }) {
@@ -156,17 +158,20 @@ function Toggle({
       role="switch"
       aria-checked={checked}
       onClick={() => onChange(!checked)}
-      className="flex min-h-20 items-center justify-between gap-4 rounded-2xl border border-subtle bg-app px-4 py-3 text-left transition hover:bg-surface-hover focus:outline-none focus-visible:border-action focus-visible:ring-2 focus-visible:ring-action/20"
+      className="group -mx-3 grid w-[calc(100%+1.5rem)] gap-3 rounded-lg px-3 py-4 text-left transition hover:bg-surface-hover sm:grid-cols-[1fr_auto] sm:items-center"
     >
-      <span className="min-w-0 text-sm font-bold leading-5">{label}</span>
+      <span className="min-w-0">
+        <span className="block text-sm font-black text-content">{label}</span>
+        <span className="mt-1 block text-xs leading-5 text-muted">{detail}</span>
+      </span>
       <span
-        className={`relative h-8 w-14 shrink-0 rounded-full transition ${
-          checked ? "bg-action" : "bg-subtle"
+        className={`relative h-7 w-12 shrink-0 rounded-full transition ${
+          checked ? "bg-action" : "bg-surface-hover"
         }`}
       >
         <span
-          className={`absolute left-1 top-1 h-6 w-6 rounded-full bg-white shadow-sm transition-transform duration-200 ${
-            checked ? "translate-x-6" : "translate-x-0"
+          className={`absolute left-1 top-1 h-5 w-5 rounded-full bg-surface shadow-sm transition-transform duration-200 ${
+            checked ? "translate-x-5" : "translate-x-0"
           }`}
         />
       </span>
@@ -174,40 +179,88 @@ function Toggle({
   );
 }
 
+function PlanMetric({
+  label,
+  value,
+  detail,
+}: {
+  label: string;
+  value: string;
+  detail: string;
+}) {
+  return (
+    <article className="rounded-xl border border-subtle bg-surface p-5">
+      <p className="text-[10px] font-black uppercase tracking-[0.16em] text-muted">
+        {label}
+      </p>
+      <p className="mt-4 font-serif text-2xl font-semibold leading-tight text-content">
+        {value}
+      </p>
+      <p className="mt-2 text-sm leading-6 text-muted">{detail}</p>
+    </article>
+  );
+}
+
+function EditorSection({
+  title,
+  detail,
+  children,
+}: {
+  title: string;
+  detail: string;
+  children: ReactNode;
+}) {
+  return (
+    <section className="border-t border-subtle p-5 first:border-t-0">
+      <div className="mb-4 flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+        <h3 className="text-xs font-black uppercase tracking-[0.18em] text-muted">
+          {title}
+        </h3>
+        <span className="text-xs font-bold text-muted">{detail}</span>
+      </div>
+      {children}
+    </section>
+  );
+}
+
 function PlanPreview({ plan }: { plan: AdminPlanDraft }) {
   return (
     <article
-      className={`rounded-[1.75rem] border p-5 ${
+      className={`rounded-xl border p-5 ${
         plan.isFeatured
-          ? "border-action bg-action text-on-action shadow-2xl shadow-black/20"
-          : "border-subtle bg-app"
+          ? "border-action bg-action text-on-action"
+          : "border-subtle bg-surface text-content"
       }`}
     >
       <div className="flex items-start justify-between gap-4">
         <div>
           <p
-            className={`text-[11px] font-black uppercase tracking-[0.18em] ${
-              plan.isFeatured ? "text-on-action/60" : "text-muted"
+            className={`text-[10px] font-black uppercase tracking-[0.18em] ${
+              plan.isFeatured ? "text-on-action/65" : "text-muted"
             }`}
           >
-            {plan.badge || "plan"}
+            {plan.badge || "Plan"}
           </p>
-          <h3 className="mt-2 font-serif text-3xl font-semibold">{plan.name}</h3>
+          <h3 className="mt-2 font-serif text-3xl font-semibold leading-tight">
+            {plan.name || "Plan nou"}
+          </h3>
         </div>
         <span
-          className={`rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-[0.12em] ${
+          className={`rounded-full border px-3 py-1 text-[10px] font-black uppercase tracking-[0.12em] ${
             plan.isVisible
               ? plan.isFeatured
-                ? "bg-on-action text-action"
-                : "bg-success-soft text-success"
-              : "bg-subtle text-muted"
+                ? "border-on-action/30 bg-on-action text-action"
+                : "border-success-border bg-success-soft text-success"
+              : plan.isFeatured
+                ? "border-on-action/20 text-on-action/70"
+                : "border-subtle bg-app text-muted"
           }`}
         >
-          {plan.isVisible ? "activ" : "ascuns"}
+          {plan.isVisible ? "vizibil" : "ascuns"}
         </span>
       </div>
 
-      <p className="mt-7 flex items-end gap-2">
+      <p className="mt-7 flex flex-wrap items-end gap-2">
         {plan.oldPrice ? (
           <span
             className={`pb-2 text-sm font-bold line-through ${
@@ -231,10 +284,10 @@ function PlanPreview({ plan }: { plan: AdminPlanDraft }) {
 
       {plan.discount ? (
         <p
-          className={`mt-3 w-fit rounded-full px-3 py-1 text-xs font-black ${
+          className={`mt-3 w-fit rounded-full border px-3 py-1 text-xs font-black ${
             plan.isFeatured
-              ? "bg-on-action/15 text-on-action"
-              : "bg-success-soft text-success"
+              ? "border-on-action/20 bg-on-action/10 text-on-action"
+              : "border-success-border bg-success-soft text-success"
           }`}
         >
           {plan.discount}
@@ -243,31 +296,30 @@ function PlanPreview({ plan }: { plan: AdminPlanDraft }) {
 
       <p
         className={`mt-4 text-sm leading-6 ${
-          plan.isFeatured ? "text-on-action/70" : "text-muted"
+          plan.isFeatured ? "text-on-action/72" : "text-muted"
         }`}
       >
-        {plan.description}
+        {plan.description || "Descrierea planului apare aici."}
       </p>
 
-      <div
-        className={`my-5 h-px ${
-          plan.isFeatured ? "bg-on-action/15" : "bg-subtle"
-        }`}
-      />
-
-      <ul className="space-y-3 text-sm">
+      <ul
+        className={`mt-5 divide-y ${
+          plan.isFeatured ? "divide-on-action/15" : "divide-subtle"
+        } border-y ${plan.isFeatured ? "border-on-action/15" : "border-subtle"}`}
+      >
         {[plan.materialLimit, plan.aiLevel, plan.storage, ...plan.options]
           .filter(Boolean)
+          .slice(0, 7)
           .map((option) => (
-            <li key={option} className="flex gap-3">
+            <li key={option} className="flex gap-3 py-3 text-sm">
               <span
                 className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-xs ${
                   plan.isFeatured
-                    ? "bg-on-action/15 text-on-action"
+                    ? "bg-on-action/12 text-on-action"
                     : "bg-success-soft text-success"
                 }`}
               >
-                +
+                ✓
               </span>
               <span>{option}</span>
             </li>
@@ -280,17 +332,23 @@ function PlanPreview({ plan }: { plan: AdminPlanDraft }) {
 export function AdminPlansPage({ initialPlans }: AdminPlansPageProps) {
   const [plans, setPlans] = useState(() => initialPlans.map(toDraftPlan));
   const [selectedPlanId, setSelectedPlanId] = useState(() => {
-    const featuredPlan = plans.find((plan) => plan.isFeatured);
+    const initialDrafts = initialPlans.map(toDraftPlan);
+    const featuredPlan = initialDrafts.find((plan) => plan.isFeatured);
     if (featuredPlan) return planDraftKey(featuredPlan);
-    if (plans[0]) return planDraftKey(plans[0]);
+    if (initialDrafts[0]) return planDraftKey(initialDrafts[0]);
     return "missing-plan";
   });
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const selectedPlan =
     plans.find((plan) => planDraftKey(plan) === selectedPlanId) ?? plans[0];
+  const visiblePlans = plans.filter((plan) => plan.isVisible).length;
+  const featuredPlan = plans.find((plan) => plan.isFeatured);
+  const stripeConfiguredPlans = plans.filter((plan) => plan.stripePriceId).length;
 
   function updateSelectedPlan(update: Partial<AdminPlanDraft>) {
+    if (!selectedPlan) return;
+
     setStatusMessage(null);
     const selectedKey = planDraftKey(selectedPlan);
     setPlans((currentPlans) =>
@@ -304,6 +362,8 @@ export function AdminPlansPage({ initialPlans }: AdminPlansPageProps) {
   }
 
   function updateFeaturedStatus(checked: boolean) {
+    if (!selectedPlan) return;
+
     setStatusMessage(null);
     const selectedKey = planDraftKey(selectedPlan);
     setPlans((currentPlans) =>
@@ -315,6 +375,8 @@ export function AdminPlansPage({ initialPlans }: AdminPlansPageProps) {
   }
 
   function updateOption(index: number, value: string) {
+    if (!selectedPlan) return;
+
     updateSelectedPlan({
       options: selectedPlan.options.map((option, optionIndex) =>
         optionIndex === index ? value : option,
@@ -323,18 +385,24 @@ export function AdminPlansPage({ initialPlans }: AdminPlansPageProps) {
   }
 
   function addOption() {
+    if (!selectedPlan) return;
+
     updateSelectedPlan({
       options: [...selectedPlan.options, "Opțiune nouă inclusă"],
     });
   }
 
   function removeOption(index: number) {
+    if (!selectedPlan) return;
+
     updateSelectedPlan({
       options: selectedPlan.options.filter((_, optionIndex) => optionIndex !== index),
     });
   }
 
   async function saveConfiguration() {
+    if (!selectedPlan) return;
+
     setIsSaving(true);
     setStatusMessage(null);
     try {
@@ -364,51 +432,101 @@ export function AdminPlansPage({ initialPlans }: AdminPlansPageProps) {
     }
   }
 
-  return (
-    <AccountStaticShell activePage="admin-settings">
-      <section className="space-y-6">
-        <div className="rounded-[2rem] border border-subtle bg-surface p-6 sm:p-8">
+  if (!selectedPlan) {
+    return (
+      <AccountStaticShell activePage="admin-settings">
+        <section className="space-y-7">
           <Link
             href="/admin/settings"
-            className="text-sm font-bold text-muted transition hover:text-content"
+            className="flex w-fit items-center rounded-full border border-subtle bg-surface px-4 py-2 text-sm font-semibold text-muted transition hover:bg-surface-hover hover:text-content"
           >
-            &lt;- Înapoi la setări admin
+            ← Setări admin
           </Link>
-          <p className="mt-6 text-xs font-bold uppercase tracking-[0.2em] text-muted">
-            Plan și administrare plan
-          </p>
-          <h1 className="mt-3 font-serif text-4xl font-semibold leading-tight">
-            Administrare abonamente
-          </h1>
-          <p className="mt-4 max-w-2xl text-sm leading-7 text-muted">
-            Configurează planurile vândute în aplicație: preț, reduceri, limită
-            de materiale, nivel AI și opțiunile incluse.
-          </p>
+          <div className="rounded-xl border border-warning-border bg-warning-soft p-5 text-sm font-bold text-warning">
+            Nu există planuri configurate momentan.
+          </div>
+        </section>
+      </AccountStaticShell>
+    );
+  }
+
+  return (
+    <AccountStaticShell activePage="admin-settings">
+      <section className="space-y-7">
+        <div className="flex flex-col gap-5 border-b border-subtle pb-7 lg:flex-row lg:items-end lg:justify-between">
+          <div>
+            <Link
+              href="/admin/settings"
+              className="mb-5 flex w-fit items-center rounded-full border border-subtle bg-surface px-4 py-2 text-sm font-semibold text-muted transition hover:bg-surface-hover hover:text-content"
+            >
+              ← Setări admin
+            </Link>
+            <p className="inline-flex rounded-full border border-subtle bg-action-soft px-3 py-1 text-[10px] font-black uppercase tracking-[0.18em] text-muted">
+              Abonamente
+            </p>
+            <h1 className="mt-3 max-w-3xl font-serif text-4xl font-semibold leading-[0.95] text-content sm:text-5xl">
+              Administrare planuri.
+            </h1>
+            <p className="mt-3 max-w-2xl text-sm leading-6 text-muted">
+              Configurează prețuri, reduceri, vizibilitate, Stripe și beneficiile
+              afișate în aplicație.
+            </p>
+          </div>
+
+          <button
+            type="button"
+            onClick={saveConfiguration}
+            disabled={isSaving}
+            className="inline-flex w-fit items-center justify-center rounded-full bg-action px-5 py-3 text-sm font-black text-on-action transition hover:bg-action-hover disabled:cursor-wait disabled:opacity-60"
+          >
+            {isSaving ? "Se salvează..." : "Salvează"}
+          </button>
+        </div>
+
+        <div className="grid gap-5 md:grid-cols-3">
+          <PlanMetric
+            label="Planuri"
+            value={String(plans.length)}
+            detail={`${visiblePlans} vizibile`}
+          />
+          <PlanMetric
+            label="Recomandat"
+            value={featuredPlan?.name ?? "Niciunul"}
+            detail="afișat ca alegere principală"
+          />
+          <PlanMetric
+            label="Stripe"
+            value={`${stripeConfiguredPlans}/${plans.length}`}
+            detail="cu Price ID configurat"
+          />
         </div>
 
         {statusMessage ? (
-          <div className="rounded-2xl border border-info-border bg-info-soft px-5 py-4 text-sm font-bold text-info">
+          <div className="rounded-xl border border-info-border bg-info-soft px-5 py-4 text-sm font-bold text-info">
             {statusMessage}
           </div>
         ) : null}
 
-        <div className="grid gap-5 xl:grid-cols-[18rem_1fr_22rem]">
-          <aside className="rounded-[2rem] border border-subtle bg-surface p-4">
-            <div className="mb-4 flex items-center justify-between gap-3">
+        <div className="grid gap-6 xl:grid-cols-[18rem_minmax(0,1fr)_22rem]">
+          <aside className="rounded-xl border border-subtle bg-surface p-5 xl:sticky xl:top-6 xl:self-start">
+            <div className="flex items-end justify-between gap-3">
               <div>
-                <p className="text-xs font-bold uppercase tracking-[0.18em] text-muted">
+                <p className="text-xs font-black uppercase tracking-[0.18em] text-muted">
                   Planuri
                 </p>
-                <h2 className="mt-1 text-lg font-black">Lista planuri</h2>
+                <h2 className="mt-2 font-serif text-2xl font-semibold leading-tight text-content">
+                  Lista activă
+                </h2>
               </div>
               <span className="rounded-full border border-subtle bg-app px-3 py-1 text-xs font-bold text-muted">
                 {plans.length}
               </span>
             </div>
 
-            <div className="space-y-2">
+            <div className="mt-4 divide-y divide-subtle border-y border-subtle">
               {plans.map((plan) => {
                 const isSelected = planDraftKey(plan) === selectedPlanId;
+
                 return (
                   <button
                     key={planDraftKey(plan)}
@@ -417,28 +535,25 @@ export function AdminPlansPage({ initialPlans }: AdminPlansPageProps) {
                       setSelectedPlanId(planDraftKey(plan));
                       setStatusMessage(null);
                     }}
-                    className={`w-full rounded-2xl border px-4 py-3 text-left transition ${
-                      isSelected
-                        ? "border-action bg-action text-on-action"
-                        : "border-subtle bg-app hover:bg-surface-hover"
+                    className={`group -mx-3 grid w-[calc(100%+1.5rem)] gap-2 rounded-lg px-3 py-4 text-left transition hover:bg-surface-hover ${
+                      isSelected ? "bg-action-soft" : ""
                     }`}
                   >
                     <span className="flex items-center justify-between gap-3">
-                      <span className="font-black">{plan.name}</span>
-                      <span
-                        className={`text-xs font-bold ${
-                          isSelected ? "text-on-action/70" : "text-muted"
-                        }`}
-                      >
+                      <span className="min-w-0 font-black text-content">
+                        {plan.name}
+                      </span>
+                      <span className="shrink-0 text-xs font-bold text-muted">
                         {plan.price} RON
                       </span>
                     </span>
-                    <span
-                      className={`mt-1 block text-xs ${
-                        isSelected ? "text-on-action/65" : "text-muted"
-                      }`}
-                    >
-                      {plan.isFeatured ? "Plan recomandat" : plan.badge}
+                    <span className="flex flex-wrap items-center gap-2 text-xs text-muted">
+                      <span>{plan.slug}</span>
+                      {plan.isFeatured ? (
+                        <span className="rounded-full border border-success-border bg-success-soft px-2 py-0.5 font-bold text-success">
+                          recomandat
+                        </span>
+                      ) : null}
                     </span>
                   </button>
                 );
@@ -446,169 +561,164 @@ export function AdminPlansPage({ initialPlans }: AdminPlansPageProps) {
             </div>
           </aside>
 
-          <section className="rounded-[2rem] border border-subtle bg-surface p-4 sm:p-6">
-            <div className="mb-5 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
-              <div>
-                <p className="text-xs font-bold uppercase tracking-[0.18em] text-muted">
-                  Editor plan
-                </p>
-                <h2 className="mt-2 font-serif text-2xl font-semibold">
-                  {selectedPlan.name}
-                </h2>
+          <section className="rounded-xl border border-subtle bg-surface">
+            <EditorSection
+              title="Editor plan"
+              detail={`${selectedPlan.slug} · ${selectedPlan.price || "0"} RON`}
+            >
+              <div className="grid gap-4 md:grid-cols-2">
+                <TextField
+                  label="Nume plan"
+                  value={selectedPlan.name}
+                  onChange={(value) => updateSelectedPlan({ name: value })}
+                />
+                <TextField
+                  label="Slug intern"
+                  value={selectedPlan.slug}
+                  onChange={(value) => updateSelectedPlan({ slug: value })}
+                />
+                <TextField
+                  label="Preț lunar"
+                  value={selectedPlan.price}
+                  onChange={(value) => updateSelectedPlan({ price: value })}
+                  placeholder="29"
+                />
+                <TextField
+                  label="Preț vechi / comparație"
+                  value={selectedPlan.oldPrice}
+                  onChange={(value) => updateSelectedPlan({ oldPrice: value })}
+                  placeholder="39"
+                />
+                <TextField
+                  label="Reducere afișată"
+                  value={selectedPlan.discount}
+                  onChange={(value) => updateSelectedPlan({ discount: value })}
+                  placeholder="25% reducere lansare"
+                />
+                <TextField
+                  label="Interval facturare"
+                  value={selectedPlan.interval}
+                  onChange={(value) => updateSelectedPlan({ interval: value })}
+                  placeholder="lunar"
+                />
+                <TextField
+                  label="Badge"
+                  value={selectedPlan.badge}
+                  onChange={(value) => updateSelectedPlan({ badge: value })}
+                  placeholder="recomandat"
+                />
+                <TextField
+                  label="Limită materiale"
+                  value={selectedPlan.materialLimit}
+                  onChange={(value) =>
+                    updateSelectedPlan({ materialLimit: value })
+                  }
+                />
+                <TextField
+                  label="Nivel AI"
+                  value={selectedPlan.aiLevel}
+                  onChange={(value) => updateSelectedPlan({ aiLevel: value })}
+                />
+                <TextField
+                  label="Stocare / istoric"
+                  value={selectedPlan.storage}
+                  onChange={(value) => updateSelectedPlan({ storage: value })}
+                />
               </div>
-              <button
-                type="button"
-                onClick={saveConfiguration}
-                disabled={isSaving}
-                className="w-fit rounded-2xl bg-action px-5 py-3 text-sm font-black text-on-action transition hover:bg-action-hover disabled:cursor-wait disabled:opacity-60"
-              >
-                {isSaving ? "Se salvează..." : "Salvează configurația"}
-              </button>
-            </div>
 
-            <div className="grid gap-4 md:grid-cols-2">
-              <TextField
-                label="Nume plan"
-                value={selectedPlan.name}
-                onChange={(value) => updateSelectedPlan({ name: value })}
-              />
-              <TextField
-                label="Slug intern"
-                value={selectedPlan.slug}
-                onChange={(value) => updateSelectedPlan({ slug: value })}
-              />
-              <TextField
-                label="Preț lunar"
-                value={selectedPlan.price}
-                onChange={(value) => updateSelectedPlan({ price: value })}
-                placeholder="29"
-              />
-              <TextField
-                label="Preț vechi / comparație"
-                value={selectedPlan.oldPrice}
-                onChange={(value) => updateSelectedPlan({ oldPrice: value })}
-                placeholder="39"
-              />
-              <TextField
-                label="Reducere afisata"
-                value={selectedPlan.discount}
-                onChange={(value) => updateSelectedPlan({ discount: value })}
-                placeholder="25% reducere lansare"
-              />
-              <TextField
-                label="Interval facturare"
-                value={selectedPlan.interval}
-                onChange={(value) => updateSelectedPlan({ interval: value })}
-                placeholder="lunar"
-              />
-              <TextField
-                label="Badge"
-                value={selectedPlan.badge}
-                onChange={(value) => updateSelectedPlan({ badge: value })}
-                placeholder="recomandat"
-              />
-              <TextField
-                label="Limita materiale"
-                value={selectedPlan.materialLimit}
-                onChange={(value) => updateSelectedPlan({ materialLimit: value })}
-              />
-              <TextField
-                label="Nivel AI"
-                value={selectedPlan.aiLevel}
-                onChange={(value) => updateSelectedPlan({ aiLevel: value })}
-              />
-              <TextField
-                label="Stocare / istoric"
-                value={selectedPlan.storage}
-                onChange={(value) => updateSelectedPlan({ storage: value })}
-              />
-              <TextField
-                label="Stripe Product ID"
-                value={selectedPlan.stripeProductId}
-                onChange={(value) => updateSelectedPlan({ stripeProductId: value })}
-                placeholder="prod_..."
-              />
-              <TextField
-                label="Stripe Price ID"
-                value={selectedPlan.stripePriceId}
-                onChange={(value) => updateSelectedPlan({ stripePriceId: value })}
-                placeholder="price_..."
-              />
-            </div>
+              <label className="mt-4 block">
+                <span className="text-sm font-bold text-content">Descriere</span>
+                <textarea
+                  value={selectedPlan.description}
+                  onChange={(event) =>
+                    updateSelectedPlan({ description: event.target.value })
+                  }
+                  className="mt-2 min-h-28 w-full resize-y rounded-lg border border-subtle bg-app p-4 text-sm leading-6 text-content outline-none transition placeholder:text-muted focus:border-action"
+                />
+              </label>
+            </EditorSection>
 
-            <label className="mt-4 block">
-              <span className="text-sm font-bold text-content">Descriere</span>
-              <textarea
-                value={selectedPlan.description}
-                onChange={(event) =>
-                  updateSelectedPlan({ description: event.target.value })
-                }
-                className="mt-2 min-h-28 w-full resize-y rounded-[1.5rem] border border-subtle bg-app p-4 text-sm leading-6 text-content outline-none transition placeholder:text-muted focus:border-action"
-              />
-            </label>
+            <EditorSection title="Stripe" detail="produs și preț checkout">
+              <div className="grid gap-4 md:grid-cols-2">
+                <TextField
+                  label="Stripe Product ID"
+                  value={selectedPlan.stripeProductId}
+                  onChange={(value) =>
+                    updateSelectedPlan({ stripeProductId: value })
+                  }
+                  placeholder="prod_..."
+                />
+                <TextField
+                  label="Stripe Price ID"
+                  value={selectedPlan.stripePriceId}
+                  onChange={(value) => updateSelectedPlan({ stripePriceId: value })}
+                  placeholder="price_..."
+                />
+              </div>
+            </EditorSection>
 
-            <div className="mt-5 grid gap-3 sm:grid-cols-2">
-              <Toggle
-                label="Plan vizibil în aplicație"
-                checked={selectedPlan.isVisible}
-                onChange={(checked) => updateSelectedPlan({ isVisible: checked })}
-              />
-              <Toggle
-                label="Marchează ca recomandat"
-                checked={selectedPlan.isFeatured}
-                onChange={updateFeaturedStatus}
-              />
-            </div>
+            <EditorSection title="Publicare" detail="stare în aplicație">
+              <div className="divide-y divide-subtle border-y border-subtle">
+                <Toggle
+                  label="Plan vizibil în aplicație"
+                  detail="Apare în homepage, upgrade și checkout."
+                  checked={selectedPlan.isVisible}
+                  onChange={(checked) => updateSelectedPlan({ isVisible: checked })}
+                />
+                <Toggle
+                  label="Marchează ca recomandat"
+                  detail="Doar un plan poate fi recomandat simultan."
+                  checked={selectedPlan.isFeatured}
+                  onChange={updateFeaturedStatus}
+                />
+              </div>
+            </EditorSection>
 
-            <div className="mt-6 border-t border-subtle pt-5">
+            <EditorSection title="Opțiuni incluse" detail="beneficii afișate public">
               <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                <div>
-                  <p className="text-sm font-black">Optiuni incluse</p>
-                  <p className="mt-1 text-xs leading-5 text-muted">
-                    Aceste beneficii apar în cardurile de preț și în pagina de
-                    abonament.
-                  </p>
-                </div>
+                <p className="text-sm leading-6 text-muted">
+                  Aceste rânduri apar în cardurile de preț și în pagina de abonament.
+                </p>
                 <button
                   type="button"
                   onClick={addOption}
-                  className="w-fit rounded-2xl border border-subtle bg-app px-4 py-2 text-sm font-bold transition hover:bg-surface-hover"
+                  className="w-fit rounded-full border border-subtle bg-app px-4 py-2 text-sm font-bold text-content transition hover:bg-surface-hover"
                 >
                   Adaugă opțiune
                 </button>
               </div>
 
-              <div className="space-y-3">
+              <div className="divide-y divide-subtle border-y border-subtle">
                 {selectedPlan.options.map((option, index) => (
-                  <div key={`${selectedPlan.id}-${index}`} className="flex gap-2">
+                  <div
+                    key={`${selectedPlan.id}-${index}`}
+                    className="grid gap-2 py-3 sm:grid-cols-[1fr_auto] sm:items-center"
+                  >
                     <input
                       value={option}
                       onChange={(event) => updateOption(index, event.target.value)}
-                      className="h-12 min-w-0 flex-1 rounded-2xl border border-subtle bg-app px-4 text-sm text-content outline-none transition focus:border-action"
+                      className="h-12 min-w-0 rounded-lg border border-subtle bg-app px-4 text-sm text-content outline-none transition focus:border-action"
                     />
                     <button
                       type="button"
                       onClick={() => removeOption(index)}
-                      className="h-12 rounded-2xl border border-subtle bg-app px-4 text-sm font-black text-muted transition hover:bg-surface-hover hover:text-content"
+                      className="h-12 rounded-full border border-subtle bg-app px-4 text-sm font-black text-muted transition hover:bg-surface-hover hover:text-content"
                       aria-label="Șterge opțiunea"
                     >
-                      X
+                      Șterge
                     </button>
                   </div>
                 ))}
               </div>
-            </div>
+            </EditorSection>
           </section>
 
           <aside className="space-y-4 xl:sticky xl:top-6 xl:self-start">
             <PlanPreview plan={selectedPlan} />
 
-            <div className="rounded-[1.5rem] border border-subtle bg-surface p-5">
-              <p className="text-sm font-black">Campuri pentru backend</p>
-              <p className="mt-2 text-xs leading-5 text-muted">
-                Pentru funcțional, schema ar trebui să aibă planuri, prețuri,
-                reduceri, beneficii și status de publicare. UI-ul este deja gândit
-                după aceste câmpuri.
+            <section className="rounded-xl border border-subtle bg-surface p-5">
+              <p className="text-xs font-black uppercase tracking-[0.16em] text-muted">
+                Câmpuri backend
               </p>
               <div className="mt-4 flex flex-wrap gap-2">
                 {["plans", "prices", "discounts", "features", "visibility"].map(
@@ -622,7 +732,7 @@ export function AdminPlansPage({ initialPlans }: AdminPlansPageProps) {
                   ),
                 )}
               </div>
-            </div>
+            </section>
           </aside>
         </div>
       </section>
