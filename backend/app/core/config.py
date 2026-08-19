@@ -50,6 +50,12 @@ class Settings(BaseSettings):
     project_storage_dir: Path = BACKEND_DIR / "storage" / "projects"
     project_upload_max_mb: int = Field(default=50, ge=1, le=250)
 
+    openai_api_key: SecretStr | None = None
+    openai_study_model: str = "gpt-5.6-luna"
+    openai_quiz_model: str = "gpt-5.6-terra"
+    openai_request_timeout_seconds: int = Field(default=180, ge=30, le=900)
+    openai_max_input_chars: int = Field(default=1_000_000, ge=20_000, le=2_000_000)
+
     cors_origins: str = "http://localhost:3000,http://127.0.0.1:3000"
 
     @field_validator("database_url")

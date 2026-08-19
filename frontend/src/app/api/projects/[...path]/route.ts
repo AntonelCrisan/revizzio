@@ -6,6 +6,7 @@ const allowedRoutes = [
   { method: "GET", pattern: /^[0-9a-fA-F-]{36}\/prompt$/ },
   { method: "PATCH", pattern: /^[0-9a-fA-F-]{36}$/ },
   { method: "POST", pattern: /^prepare$/ },
+  { method: "POST", pattern: /^[0-9a-fA-F-]{36}\/generate-quizzes$/ },
   { method: "POST", pattern: /^[0-9a-fA-F-]{36}\/archive$/ },
   { method: "POST", pattern: /^[0-9a-fA-F-]{36}\/restore$/ },
   { method: "POST", pattern: /^[0-9a-fA-F-]{36}\/import-json$/ },

@@ -10,6 +10,7 @@ import re
 import shutil
 import subprocess
 import uuid
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -17,17 +18,19 @@ from typing import Any
 from fastapi import UploadFile
 from markitdown import MarkItDown
 from markitdown._markitdown import UnsupportedFormatException
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 from starlette.concurrency import run_in_threadpool
 
 from app.core.config import Settings
+from app.db.session import AsyncSessionFactory
 from app.models import (
     StudyProject,
     StudyProjectArchive,
     StudyProjectFile,
     StudyProjectFlashcard,
+    StudyProjectGenerationJob,
     StudyProjectImport,
     StudyProjectKeyword,
     StudyProjectQuiz,
@@ -41,6 +44,12 @@ from app.models import (
     User,
 )
 from app.schemas.projects import StudyProjectResponse
+from app.services.openai_generation import (
+    QUIZ_PACK_SCHEMA,
+    STUDY_PACK_SCHEMA,
+    OpenAIGenerationError,
+    OpenAIStudyGenerator,
+)
 
 logger = logging.getLogger("revizzio.projects")
 
@@ -64,6 +73,57 @@ LEGACY_OFFICE_TARGETS = {
 MAX_JSON_IMPORT_BYTES = 5 * 1024 * 1024
 MAX_FLASHCARD_IMAGE_BYTES = 5 * 1024 * 1024
 ALLOWED_FLASHCARD_IMAGE_EXTENSIONS = {".gif", ".jpeg", ".jpg", ".png", ".webp"}
+ESTIMATED_MARKDOWN_CHARS_PER_PAGE = 2200
+
+
+@dataclass(frozen=True, slots=True)
+class ProjectPlanLimits:
+    active_projects: int
+    monthly_materials: int
+    files_per_project: int
+    file_mb: int
+    total_project_mb: int
+    estimated_pages: int
+    initial_flashcards: int
+    quiz_groups_per_complexity: int
+    quiz_questions_per_quiz: int
+
+
+PLAN_LIMITS: dict[str, ProjectPlanLimits] = {
+    "start": ProjectPlanLimits(
+        active_projects=1,
+        monthly_materials=3,
+        files_per_project=2,
+        file_mb=10,
+        total_project_mb=20,
+        estimated_pages=25,
+        initial_flashcards=20,
+        quiz_groups_per_complexity=1,
+        quiz_questions_per_quiz=8,
+    ),
+    "focus": ProjectPlanLimits(
+        active_projects=10,
+        monthly_materials=30,
+        files_per_project=10,
+        file_mb=50,
+        total_project_mb=200,
+        estimated_pages=200,
+        initial_flashcards=40,
+        quiz_groups_per_complexity=3,
+        quiz_questions_per_quiz=12,
+    ),
+    "pro": ProjectPlanLimits(
+        active_projects=50,
+        monthly_materials=100,
+        files_per_project=30,
+        file_mb=150,
+        total_project_mb=500,
+        estimated_pages=500,
+        initial_flashcards=50,
+        quiz_groups_per_complexity=4,
+        quiz_questions_per_quiz=12,
+    ),
+}
 
 
 class ProjectError(Exception):
@@ -111,6 +171,34 @@ def _safe_filename(filename: str) -> str:
     stem = re.sub(r"[^A-Za-z0-9._-]+", "-", Path(clean_name).stem).strip("-")
     suffix = Path(clean_name).suffix.lower()
     return f"{stem or 'material'}{suffix}"
+
+
+def _user_plan_slug(user: User) -> str:
+    plan = getattr(user, "current_plan", None)
+    slug = getattr(plan, "slug", None)
+    if isinstance(slug, str) and slug.strip():
+        return slug.strip().lower()
+    return "start"
+
+
+def _limits_for_user(user: User) -> ProjectPlanLimits:
+    return PLAN_LIMITS.get(_user_plan_slug(user), PLAN_LIMITS["start"])
+
+
+def _estimate_markdown_pages(markdown_char_count: int) -> int:
+    if markdown_char_count <= 0:
+        return 0
+    return max(1, round(markdown_char_count / ESTIMATED_MARKDOWN_CHARS_PER_PAGE))
+
+
+def _truncate_for_openai(markdown: str, max_chars: int) -> str:
+    clean_markdown = markdown.strip()
+    if len(clean_markdown) <= max_chars:
+        return clean_markdown
+    return (
+        clean_markdown[:max_chars]
+        + "\n\n[Materialul a fost taiat automat pentru limita tehnica de input.]"
+    )
 
 
 def _long_path(path: Path) -> Path:
@@ -215,12 +303,93 @@ class StudyProjectService:
         self.session = session
         self.settings = settings
 
+    async def _enforce_upload_plan_limits(
+        self,
+        *,
+        user: User,
+        uploads: list[UploadFile],
+        limits: ProjectPlanLimits,
+    ) -> None:
+        active_projects = await self.session.scalar(
+            select(func.count(StudyProject.id)).where(
+                StudyProject.user_id == user.id,
+                ~StudyProject.archive.has(),
+                StudyProject.status != "failed",
+            )
+        )
+        if int(active_projects or 0) >= limits.active_projects:
+            raise ProjectValidationError(
+                "Planul curent nu permite crearea unui proiect activ nou."
+            )
+
+        if len(uploads) > limits.files_per_project:
+            raise ProjectValidationError(
+                f"Planul curent permite maximum {limits.files_per_project} "
+                "materiale intr-un proiect."
+            )
+
+        month_start = datetime.now(UTC).replace(
+            day=1,
+            hour=0,
+            minute=0,
+            second=0,
+            microsecond=0,
+        )
+        monthly_materials = await self.session.scalar(
+            select(func.count(StudyProjectFile.id))
+            .join(StudyProject)
+            .where(
+                StudyProject.user_id == user.id,
+                StudyProject.status != "failed",
+                StudyProjectFile.created_at >= month_start,
+            )
+        )
+        if int(monthly_materials or 0) + len(uploads) > limits.monthly_materials:
+            raise ProjectValidationError(
+                "Ai atins limita lunara de materiale pentru planul curent."
+            )
+
+    async def _enforce_converted_plan_limits(
+        self,
+        *,
+        project: StudyProject,
+        limits: ProjectPlanLimits,
+    ) -> None:
+        files = list(
+            (
+                await self.session.scalars(
+                    select(StudyProjectFile).where(
+                        StudyProjectFile.project_id == project.id
+                    )
+                )
+            ).all()
+        )
+        total_bytes = sum(file.size_bytes for file in files)
+        total_mb = total_bytes / (1024 * 1024)
+        if total_mb > limits.total_project_mb:
+            raise ProjectValidationError(
+                f"Materialele proiectului depasesc limita de "
+                f"{limits.total_project_mb}MB pentru planul curent."
+            )
+
+        estimated_pages = sum(
+            _estimate_markdown_pages(file.markdown_char_count)
+            for file in files
+            if file.conversion_status == "converted"
+        )
+        if estimated_pages > limits.estimated_pages:
+            raise ProjectValidationError(
+                f"Materialele par sa aiba aproximativ {estimated_pages} pagini. "
+                f"Planul curent permite maximum {limits.estimated_pages} pagini."
+            )
+
     async def list_projects(self, user: User) -> list[StudyProject]:
         result = await self.session.scalars(
             self._project_query()
             .where(
                 StudyProject.user_id == user.id,
                 ~StudyProject.archive.has(),
+                StudyProject.status.in_(["ready", "generating_quizzes"]),
             )
             .order_by(StudyProject.created_at.desc())
         )
@@ -342,8 +511,19 @@ class StudyProjectService:
             )
         if not uploads:
             raise ProjectValidationError("Incarca cel putin un fisier.")
+        if self.settings.openai_api_key is None:
+            raise ProjectValidationError(
+                "Serviciul de generare nu este configurat in backend."
+            )
         for upload in uploads:
             _validate_upload_extension(upload.filename or "material")
+
+        limits = _limits_for_user(user)
+        await self._enforce_upload_plan_limits(
+            user=user,
+            uploads=uploads,
+            limits=limits,
+        )
 
         project = StudyProject(
             user_id=user.id,
@@ -364,7 +544,8 @@ class StudyProjectService:
         markdown_dir.mkdir(parents=True, exist_ok=True)
 
         markdown_parts: list[str] = []
-        max_upload_bytes = self.settings.project_upload_max_mb * 1024 * 1024
+        max_upload_mb = min(self.settings.project_upload_max_mb, limits.file_mb)
+        max_upload_bytes = max_upload_mb * 1024 * 1024
 
         for upload_index, upload in enumerate(uploads):
             file_model = await self._store_and_convert_file(
@@ -374,6 +555,7 @@ class StudyProjectService:
                 source_dir=source_dir,
                 markdown_dir=markdown_dir,
                 max_upload_bytes=max_upload_bytes,
+                max_upload_mb=max_upload_mb,
             )
             if file_model.markdown_path:
                 markdown = Path(file_model.markdown_path).read_text(encoding="utf-8")
@@ -389,24 +571,44 @@ class StudyProjectService:
             await self.session.commit()
             raise ProjectConversionError(project.error_message)
 
+        try:
+            await self._enforce_converted_plan_limits(project=project, limits=limits)
+        except ProjectValidationError as exc:
+            project.status = "failed"
+            project.error_message = str(exc)
+            await self.session.commit()
+            raise
+
         combined_markdown = "\n\n---\n\n".join(markdown_parts)
         combined_path = project_dir / "reviss-material.md"
         prompt_path = project_dir / "reviss-prompt.txt"
         combined_path.write_text(combined_markdown, encoding="utf-8")
         prompt_path.write_text(
-            self._build_prompt(
+            self._build_study_pack_prompt(
                 project_name=project.name,
                 subject_name=project.subject_name,
                 institution_name=project.institution_name,
                 markdown=combined_markdown,
+                flashcard_count=limits.initial_flashcards,
             ),
             encoding="utf-8",
         )
 
         project.combined_markdown_path = str(combined_path)
         project.prompt_path = str(prompt_path)
-        project.status = "awaiting_ai_json"
+        project.status = "generating_study_pack"
+        project.error_message = None
         project.updated_at = datetime.now(UTC)
+        self.session.add(
+            StudyProjectGenerationJob(
+                project_id=project.id,
+                user_id=user.id,
+                job_type="study_pack",
+                status="queued",
+                model=self.settings.openai_study_model,
+                prompt_path=str(prompt_path),
+            )
+        )
         await self.session.commit()
         return await self.get_project(user, project.id)
 
@@ -448,6 +650,220 @@ class StudyProjectService:
         )
         await self.session.commit()
         return await self.get_project(user, project.id)
+
+    async def start_quiz_generation(
+        self,
+        *,
+        user: User,
+        project_id: uuid.UUID,
+    ) -> StudyProject:
+        project = await self.get_project(user, project_id)
+        if project.status == "generating_quizzes":
+            return project
+        if project.summary is None:
+            raise ProjectValidationError(
+                "Genereaza mai intai rezumatul si flashcardurile."
+            )
+        if self.settings.openai_api_key is None:
+            raise ProjectValidationError(
+                "Serviciul de generare nu este configurat in backend."
+            )
+        if project.quizzes:
+            return project
+
+        project.status = "generating_quizzes"
+        project.error_message = None
+        project.updated_at = datetime.now(UTC)
+        self.session.add(
+            StudyProjectGenerationJob(
+                project_id=project.id,
+                user_id=user.id,
+                job_type="quiz_pack",
+                status="queued",
+                model=self.settings.openai_quiz_model,
+            )
+        )
+        await self.session.commit()
+        return await self.get_project(user, project.id)
+
+    async def generate_study_pack(
+        self,
+        *,
+        user: User,
+        project_id: uuid.UUID,
+    ) -> StudyProject:
+        project = await self.get_project(user, project_id)
+        job = await self._get_latest_generation_job(project, "study_pack")
+        await self._mark_generation_job_running(job)
+
+        try:
+            markdown = self._read_project_markdown(project)
+            limits = _limits_for_user(user)
+            prompt = self._build_study_pack_prompt(
+                project_name=project.name,
+                subject_name=project.subject_name,
+                institution_name=project.institution_name,
+                markdown=markdown,
+                flashcard_count=limits.initial_flashcards,
+            )
+            prompt_path = self._write_generation_prompt(
+                user_id=user.id,
+                project_id=project.id,
+                job_id=job.id,
+                job_type="study-pack",
+                prompt=prompt,
+            )
+            job.prompt_path = str(prompt_path)
+
+            result = await OpenAIStudyGenerator(self.settings).generate_json(
+                model=self.settings.openai_study_model,
+                instructions=(
+                    "Esti motorul educational Reviss. Returneaza exclusiv JSON "
+                    "valid conform schemei primite."
+                ),
+                prompt=prompt,
+                schema_name="reviss_study_pack",
+                schema=STUDY_PACK_SCHEMA,
+                max_output_tokens=18_000,
+                reasoning_effort="low",
+                user_id=str(user.id),
+                project_id=str(project.id),
+                job_type="study_pack",
+            )
+
+            response_path = self._write_generation_response(
+                user_id=user.id,
+                project_id=project.id,
+                job_id=job.id,
+                payload=result.payload,
+            )
+
+            await self._clear_generated_study_pack_content(project)
+            self._apply_generated_payload(
+                project,
+                result.payload,
+                include_study_pack=True,
+                include_quizzes=False,
+            )
+            project.generated_json_path = str(response_path)
+            project.status = "ready"
+            project.error_message = None
+            project.updated_at = datetime.now(UTC)
+            self._mark_generation_job_completed(
+                job,
+                result=result,
+                response_path=response_path,
+            )
+            self.session.add(
+                StudyProjectImport(
+                    project_id=project.id,
+                    original_filename=response_path.name,
+                    json_path=str(response_path),
+                    schema_version="reviss.study_pack.v1",
+                    payload=result.payload,
+                )
+            )
+            await self.session.commit()
+            return await self.get_project(user, project.id)
+        except Exception as exc:
+            await self._fail_generation_job(
+                project=project,
+                job=job,
+                error=exc,
+                project_status="failed",
+            )
+            raise
+
+    async def generate_quiz_pack(
+        self,
+        *,
+        user: User,
+        project_id: uuid.UUID,
+    ) -> StudyProject:
+        project = await self.get_project(user, project_id)
+        if project.summary is None:
+            raise ProjectValidationError(
+                "Genereaza mai intai pachetul de studiu."
+            )
+
+        job = await self._get_latest_generation_job(project, "quiz_pack")
+        await self._mark_generation_job_running(job)
+
+        try:
+            markdown = self._read_project_markdown(project)
+            limits = _limits_for_user(user)
+            prompt = self._build_quiz_pack_prompt(
+                project=project,
+                markdown=markdown,
+                quiz_groups_per_complexity=limits.quiz_groups_per_complexity,
+                questions_per_quiz=limits.quiz_questions_per_quiz,
+            )
+            prompt_path = self._write_generation_prompt(
+                user_id=user.id,
+                project_id=project.id,
+                job_id=job.id,
+                job_type="quiz-pack",
+                prompt=prompt,
+            )
+            job.prompt_path = str(prompt_path)
+
+            result = await OpenAIStudyGenerator(self.settings).generate_json(
+                model=self.settings.openai_quiz_model,
+                instructions=(
+                    "Esti generatorul de quizuri Reviss. Returneaza exclusiv JSON "
+                    "valid conform schemei primite."
+                ),
+                prompt=prompt,
+                schema_name="reviss_quiz_pack",
+                schema=QUIZ_PACK_SCHEMA,
+                max_output_tokens=48_000,
+                reasoning_effort="medium",
+                user_id=str(user.id),
+                project_id=str(project.id),
+                job_type="quiz_pack",
+            )
+
+            response_path = self._write_generation_response(
+                user_id=user.id,
+                project_id=project.id,
+                job_id=job.id,
+                payload=result.payload,
+            )
+
+            await self._clear_generated_quizzes(project)
+            self._apply_generated_payload(
+                project,
+                result.payload,
+                include_study_pack=False,
+                include_quizzes=True,
+            )
+            project.status = "ready"
+            project.error_message = None
+            project.updated_at = datetime.now(UTC)
+            self._mark_generation_job_completed(
+                job,
+                result=result,
+                response_path=response_path,
+            )
+            self.session.add(
+                StudyProjectImport(
+                    project_id=project.id,
+                    original_filename=response_path.name,
+                    json_path=str(response_path),
+                    schema_version="reviss.quiz_pack.v1",
+                    payload=result.payload,
+                )
+            )
+            await self.session.commit()
+            return await self.get_project(user, project.id)
+        except Exception as exc:
+            await self._fail_generation_job(
+                project=project,
+                job=job,
+                error=exc,
+                project_status="ready",
+            )
+            raise
 
     async def create_quiz_mistake_flashcard(
         self,
@@ -808,6 +1224,123 @@ class StudyProjectService:
         await self.session.commit()
         return await self.get_project(user, project.id)
 
+    async def _get_latest_generation_job(
+        self,
+        project: StudyProject,
+        job_type: str,
+    ) -> StudyProjectGenerationJob:
+        job = await self.session.scalar(
+            select(StudyProjectGenerationJob)
+            .where(
+                StudyProjectGenerationJob.project_id == project.id,
+                StudyProjectGenerationJob.job_type == job_type,
+            )
+            .order_by(StudyProjectGenerationJob.created_at.desc())
+        )
+        if job is None:
+            job = StudyProjectGenerationJob(
+                project_id=project.id,
+                user_id=project.user_id,
+                job_type=job_type,
+                status="queued",
+                model=(
+                    self.settings.openai_study_model
+                    if job_type == "study_pack"
+                    else self.settings.openai_quiz_model
+                ),
+            )
+            self.session.add(job)
+            await self.session.flush()
+        return job
+
+    async def _mark_generation_job_running(
+        self,
+        job: StudyProjectGenerationJob,
+    ) -> None:
+        job.status = "running"
+        job.error_message = None
+        job.started_at = datetime.now(UTC)
+        await self.session.flush()
+
+    def _mark_generation_job_completed(
+        self,
+        job: StudyProjectGenerationJob,
+        *,
+        result: Any,
+        response_path: Path,
+    ) -> None:
+        job.status = "completed"
+        job.response_path = str(response_path)
+        job.error_message = None
+        job.input_tokens = int(getattr(result, "input_tokens", 0) or 0)
+        job.output_tokens = int(getattr(result, "output_tokens", 0) or 0)
+        job.total_tokens = int(getattr(result, "total_tokens", 0) or 0)
+        job.finished_at = datetime.now(UTC)
+
+    async def _fail_generation_job(
+        self,
+        *,
+        project: StudyProject,
+        job: StudyProjectGenerationJob,
+        error: Exception,
+        project_status: str,
+    ) -> None:
+        message = str(error) or "Generarea AI nu a reusit."
+        job.status = "failed"
+        job.error_message = message[:2000]
+        job.finished_at = datetime.now(UTC)
+        project.status = project_status
+        project.error_message = message[:2000]
+        project.updated_at = datetime.now(UTC)
+        await self.session.commit()
+
+    def _read_project_markdown(self, project: StudyProject) -> str:
+        if not project.combined_markdown_path:
+            raise ProjectValidationError("Materialul markdown nu exista.")
+
+        markdown_path = Path(project.combined_markdown_path)
+        storage_root = self.settings.project_storage_dir.resolve()
+        resolved_path = markdown_path.resolve()
+        if storage_root not in resolved_path.parents:
+            raise ProjectValidationError("Materialul markdown nu este valid.")
+        if not resolved_path.exists():
+            raise ProjectValidationError("Materialul markdown nu exista.")
+
+        markdown = resolved_path.read_text(encoding="utf-8")
+        return _truncate_for_openai(markdown, self.settings.openai_max_input_chars)
+
+    def _write_generation_prompt(
+        self,
+        *,
+        user_id: uuid.UUID,
+        project_id: uuid.UUID,
+        job_id: uuid.UUID,
+        job_type: str,
+        prompt: str,
+    ) -> Path:
+        prompt_dir = self._project_dir(user_id, project_id) / "prompts"
+        prompt_dir.mkdir(parents=True, exist_ok=True)
+        prompt_path = prompt_dir / f"{job_type}-{job_id}.txt"
+        prompt_path.write_text(prompt, encoding="utf-8")
+        return prompt_path
+
+    def _write_generation_response(
+        self,
+        *,
+        user_id: uuid.UUID,
+        project_id: uuid.UUID,
+        job_id: uuid.UUID,
+        payload: dict[str, Any],
+    ) -> Path:
+        imports_dir = self._project_dir(user_id, project_id) / "imports"
+        imports_dir.mkdir(parents=True, exist_ok=True)
+        response_path = imports_dir / f"openai-output-{job_id}.json"
+        response_path.write_text(
+            json.dumps(payload, ensure_ascii=False, indent=2),
+            encoding="utf-8",
+        )
+        return response_path
+
     def to_response(self, project: StudyProject) -> StudyProjectResponse:
         return StudyProjectResponse(
             id=project.id,
@@ -960,6 +1493,7 @@ class StudyProjectService:
         source_dir: Path,
         markdown_dir: Path,
         max_upload_bytes: int,
+        max_upload_mb: int,
     ) -> StudyProjectFile:
         safe_name = _safe_filename(upload.filename or f"material-{upload_index + 1}")
         _validate_upload_extension(safe_name)
@@ -978,7 +1512,7 @@ class StudyProjectService:
                     if size_bytes > max_upload_bytes:
                         raise ProjectValidationError(
                             f"Fisierul {safe_name} depaseste limita de "
-                            f"{self.settings.project_upload_max_mb}MB."
+                            f"{max_upload_mb}MB pentru planul curent."
                         )
                     destination.write(chunk)
             temp_source_path.replace(source_path)
@@ -1049,9 +1583,18 @@ class StudyProjectService:
         return payload
 
     async def _clear_generated_content(self, project: StudyProject) -> None:
+        await self._clear_generated_study_pack_content(project)
+        await self._clear_generated_quizzes(project)
+        await self.session.flush()
+
+    async def _clear_generated_study_pack_content(
+        self,
+        project: StudyProject,
+    ) -> None:
         if project.summary is not None:
             await self.session.delete(project.summary)
-        for collection in (project.keywords, project.quizzes, project.strategies):
+            project.summary = None
+        for collection in (project.keywords, project.strategies):
             for item in list(collection):
                 await self.session.delete(item)
             collection.clear()
@@ -1061,90 +1604,105 @@ class StudyProjectService:
                 project.flashcards.remove(flashcard)
         await self.session.flush()
 
+    async def _clear_generated_quizzes(self, project: StudyProject) -> None:
+        for quiz in list(project.quizzes):
+            await self.session.delete(quiz)
+        project.quizzes.clear()
+        await self.session.flush()
+
     def _apply_generated_payload(
         self,
         project: StudyProject,
         payload: dict[str, Any],
+        *,
+        include_study_pack: bool = True,
+        include_quizzes: bool = True,
     ) -> None:
-        summary_value = payload.get("summary") or payload.get("rezumat")
-        summary_content = ""
-        reading_minutes: int | None = None
-        if isinstance(summary_value, dict):
-            summary_content = _string_or_default(
-                summary_value.get("content") or summary_value.get("text")
-            )
-            minutes_value = summary_value.get("estimated_reading_minutes")
-            if isinstance(minutes_value, int) and minutes_value > 0:
-                reading_minutes = minutes_value
-        else:
-            summary_content = _string_or_default(summary_value)
-        if summary_content:
-            project.summary = StudyProjectSummary(
-                content=summary_content,
-                estimated_reading_minutes=reading_minutes,
-            )
-
-        for index, item in enumerate(
-            _list_value(payload.get("keywords") or payload.get("cuvinte_cheie"))
-        ):
-            item_dict = _dict_value(item)
-            term = _string_or_default(item_dict.get("term") or item_dict.get("word"))
-            explanation = _string_or_default(
-                item_dict.get("explanation") or item_dict.get("definition")
-            )
-            if not term or not explanation:
-                continue
-            project.keywords.append(
-                StudyProjectKeyword(
-                    term=term[:180],
-                    explanation=explanation,
-                    anchor_text=_string_or_default(item_dict.get("anchor_text"))[:240]
-                    or None,
-                    sort_order=index,
+        if include_study_pack:
+            summary_value = payload.get("summary") or payload.get("rezumat")
+            summary_content = ""
+            reading_minutes: int | None = None
+            if isinstance(summary_value, dict):
+                summary_content = _string_or_default(
+                    summary_value.get("content") or summary_value.get("text")
                 )
-            )
-
-        for index, item in enumerate(_list_value(payload.get("flashcards"))):
-            item_dict = _dict_value(item)
-            front = _string_or_default(
-                item_dict.get("front")
-                or item_dict.get("question")
-                or item_dict.get("intrebare")
-            )
-            back = _string_or_default(
-                item_dict.get("back")
-                or item_dict.get("answer")
-                or item_dict.get("raspuns")
-            )
-            if not front or not back:
-                continue
-            project.flashcards.append(
-                StudyProjectFlashcard(
-                    front=front,
-                    back=back,
-                    category=(
-                        _string_or_default(item_dict.get("category"))[:120] or None
-                    ),
-                    difficulty=_string_or_default(item_dict.get("difficulty"))[:40]
-                    or None,
-                    source_type="generated",
-                    sort_order=index,
+                minutes_value = summary_value.get("estimated_reading_minutes")
+                if isinstance(minutes_value, int) and minutes_value > 0:
+                    reading_minutes = minutes_value
+            else:
+                summary_content = _string_or_default(summary_value)
+            if summary_content:
+                project.summary = StudyProjectSummary(
+                    content=summary_content,
+                    estimated_reading_minutes=reading_minutes,
                 )
-            )
 
-        for index, item in enumerate(_list_value(payload.get("strategies"))):
-            item_dict = _dict_value(item)
-            title = _string_or_default(item_dict.get("title"))
-            description = _string_or_default(item_dict.get("description"))
-            if not title or not description:
-                continue
-            project.strategies.append(
-                StudyProjectStrategy(
-                    title=title[:180],
-                    description=description,
-                    sort_order=index,
+            for index, item in enumerate(
+                _list_value(payload.get("keywords") or payload.get("cuvinte_cheie"))
+            ):
+                item_dict = _dict_value(item)
+                term = _string_or_default(item_dict.get("term") or item_dict.get("word"))
+                explanation = _string_or_default(
+                    item_dict.get("explanation") or item_dict.get("definition")
                 )
-            )
+                if not term or not explanation:
+                    continue
+                project.keywords.append(
+                    StudyProjectKeyword(
+                        term=term[:180],
+                        explanation=explanation,
+                        anchor_text=_string_or_default(item_dict.get("anchor_text"))[
+                            :240
+                        ]
+                        or None,
+                        sort_order=index,
+                    )
+                )
+
+            for index, item in enumerate(_list_value(payload.get("flashcards"))):
+                item_dict = _dict_value(item)
+                front = _string_or_default(
+                    item_dict.get("front")
+                    or item_dict.get("question")
+                    or item_dict.get("intrebare")
+                )
+                back = _string_or_default(
+                    item_dict.get("back")
+                    or item_dict.get("answer")
+                    or item_dict.get("raspuns")
+                )
+                if not front or not back:
+                    continue
+                project.flashcards.append(
+                    StudyProjectFlashcard(
+                        front=front,
+                        back=back,
+                        category=(
+                            _string_or_default(item_dict.get("category"))[:120] or None
+                        ),
+                        difficulty=_string_or_default(item_dict.get("difficulty"))[:40]
+                        or None,
+                        source_type="generated",
+                        sort_order=index,
+                    )
+                )
+
+            for index, item in enumerate(_list_value(payload.get("strategies"))):
+                item_dict = _dict_value(item)
+                title = _string_or_default(item_dict.get("title"))
+                description = _string_or_default(item_dict.get("description"))
+                if not title or not description:
+                    continue
+                project.strategies.append(
+                    StudyProjectStrategy(
+                        title=title[:180],
+                        description=description,
+                        sort_order=index,
+                    )
+                )
+
+        if not include_quizzes:
+            return
 
         for quiz_index, item in enumerate(
             _list_value(payload.get("quizzes") or payload.get("quizuri"))
@@ -1198,6 +1756,57 @@ class StudyProjectService:
                 quiz.questions.append(question)
             project.quizzes.append(quiz)
 
+    def _build_study_pack_prompt(
+        self,
+        *,
+        project_name: str,
+        subject_name: str,
+        institution_name: str,
+        markdown: str,
+        flashcard_count: int,
+    ) -> str:
+        return build_reviss_study_pack_prompt(
+            project_name=project_name,
+            subject_name=subject_name,
+            institution_name=institution_name,
+            material_markdown=markdown,
+            flashcard_count=flashcard_count,
+        )
+
+    def _build_quiz_pack_prompt(
+        self,
+        *,
+        project: StudyProject,
+        markdown: str,
+        quiz_groups_per_complexity: int,
+        questions_per_quiz: int,
+    ) -> str:
+        generated_flashcards = [
+            flashcard
+            for flashcard in project.flashcards
+            if flashcard.source_type == "generated"
+        ][:60]
+        flashcard_context = "\n".join(
+            (
+                f"- Q: {flashcard.front.strip()}\n"
+                f"  A: {flashcard.back.strip()}\n"
+                f"  Categorie: {flashcard.category or 'general'}; "
+                f"Dificultate: {flashcard.difficulty or 'medium'}"
+            )
+            for flashcard in generated_flashcards
+        )
+
+        return build_reviss_quiz_pack_prompt(
+            project_name=project.name,
+            subject_name=project.subject_name,
+            institution_name=project.institution_name,
+            summary=project.summary.content if project.summary else "",
+            flashcard_context=flashcard_context,
+            material_markdown=markdown,
+            quiz_groups_per_complexity=quiz_groups_per_complexity,
+            questions_per_quiz=questions_per_quiz,
+        )
+
     def _build_prompt(
         self,
         *,
@@ -1213,6 +1822,321 @@ class StudyProjectService:
             institution_name=institution_name,
             material_markdown=markdown,
         )
+
+
+async def run_study_pack_generation_task(
+    *,
+    user_id: uuid.UUID,
+    project_id: uuid.UUID,
+    settings: Settings,
+) -> None:
+    async with AsyncSessionFactory() as session:
+        user = await session.scalar(
+            select(User)
+            .options(selectinload(User.current_plan))
+            .where(User.id == user_id)
+        )
+        if user is None:
+            logger.warning("Skipped study pack generation for missing user %s", user_id)
+            return
+
+        service = StudyProjectService(session, settings)
+        try:
+            await service.generate_study_pack(user=user, project_id=project_id)
+        except OpenAIGenerationError as exc:
+            logger.error(
+                "Study pack generation failed for project %s: %s",
+                project_id,
+                exc,
+            )
+        except Exception:
+            logger.exception(
+                "Study pack generation failed for project %s",
+                project_id,
+            )
+
+
+async def run_quiz_pack_generation_task(
+    *,
+    user_id: uuid.UUID,
+    project_id: uuid.UUID,
+    settings: Settings,
+) -> None:
+    async with AsyncSessionFactory() as session:
+        user = await session.scalar(
+            select(User)
+            .options(selectinload(User.current_plan))
+            .where(User.id == user_id)
+        )
+        if user is None:
+            logger.warning("Skipped quiz generation for missing user %s", user_id)
+            return
+
+        service = StudyProjectService(session, settings)
+        try:
+            await service.generate_quiz_pack(user=user, project_id=project_id)
+        except OpenAIGenerationError as exc:
+            logger.error(
+                "Quiz generation failed for project %s: %s",
+                project_id,
+                exc,
+            )
+        except Exception:
+            logger.exception(
+                "Quiz generation failed for project %s",
+                project_id,
+            )
+
+
+def build_reviss_study_pack_prompt(
+    project_name: str,
+    subject_name: str,
+    institution_name: str,
+    material_markdown: str,
+    flashcard_count: int,
+) -> str:
+    required = {
+        "project_name": project_name,
+        "subject_name": subject_name,
+        "institution_name": institution_name,
+        "material_markdown": material_markdown,
+    }
+    for field_name, value in required.items():
+        if not isinstance(value, str) or not value.strip():
+            raise ValueError(f"{field_name} trebuie sa fie un sir nevid.")
+
+    clean_flashcard_count = max(10, min(flashcard_count, 60))
+    return f"""Esti motorul educational al platformei Reviss.
+Transforma materialul intr-un pachet initial de studiu, fara quizuri.
+
+Returneaza exclusiv un obiect JSON valid cu schema_version "reviss.study_pack.v1".
+Nu adauga markdown in afara JSON-ului, comentarii sau chei suplimentare.
+Toate textele pentru utilizator trebuie sa fie in romana, cu diacritice.
+Nu folosi informatii externe si nu completa golurile din memorie.
+
+PROIECT:
+- Nume: {project_name.strip()}
+- Materie: {subject_name.strip()}
+- Facultate/Scoala/Nivel: {institution_name.strip()}
+
+OBIECTIV:
+Construieste un pachet util pentru invatare activa:
+1. rezumat amplu, structurat si scanabil;
+2. cuvinte cheie cu ancore exacte in rezumat;
+3. flashcarduri clare pentru recuperare activa;
+4. strategii concrete de invatare adaptate materialului.
+
+CONTRACT JSON:
+{{
+  "schema_version": "reviss.study_pack.v1",
+  "summary": {{
+    "content": "string",
+    "estimated_reading_minutes": 1
+  }},
+  "keywords": [
+    {{
+      "term": "string",
+      "explanation": "string",
+      "anchor_text": "string"
+    }}
+  ],
+  "flashcards": [
+    {{
+      "front": "string",
+      "back": "string",
+      "category": "string",
+      "difficulty": "low"
+    }}
+  ],
+  "strategies": [
+    {{
+      "title": "string",
+      "description": "string"
+    }}
+  ]
+}}
+
+REGULI PENTRU REZUMAT:
+- Scrie un rezumat autosuficient, nu o lista de fragmente.
+- Acopera toate temele importante proportional cu ponderea lor in sursa.
+- Foloseste sectiuni tematice cu titluri scurte.
+- Include liste numai cand ajuta la clasificari, etape, comparatii sau componente.
+- Nu copia pasaje lungi; reformuleaza fidel.
+- Pastreaza conditiile, exceptiile, unitatile, relatiile si ordinea din sursa.
+- "estimated_reading_minutes" se calculeaza realist la aproximativ 200 cuvinte/minut.
+
+REGULI PENTRU KEYWORDS:
+- Genereaza 12-25 termeni cheie, daca materialul permite.
+- Termenii trebuie sa fie specifici, nu generici.
+- "anchor_text" trebuie sa apara identic in summary.content.
+- Explicatia are 1-3 fraze si ramane in limitele materialului.
+
+REGULI PENTRU FLASHCARDS:
+- Genereaza exact {clean_flashcard_count} flashcarduri, daca sursa are suficient continut.
+- Daca materialul e prea scurt, genereaza maximum posibil fara repetitii.
+- Fiecare flashcard testeaza un singur obiectiv.
+- "front" este o intrebare clara si autosuficienta.
+- "back" este scurt, complet si verificabil.
+- Distribuie dificultatile intre "low", "medium" si "high".
+- Nu repeta aceeasi intrebare cu alte cuvinte.
+- Nu transforma fiecare propozitie in flashcard.
+
+REGULI PENTRU STRATEGII:
+- Genereaza 4-8 strategii concrete.
+- Fiecare strategie spune ce parte a materialului foloseste, ce actiune face studentul si ce rezultat urmareste.
+- Evita sfaturi generice precum "citeste atent".
+
+AUDIT FINAL INTERN:
+- JSON-ul este parsabil.
+- schema_version este exact "reviss.study_pack.v1".
+- Nu exista cheia "quizzes".
+- Fiecare afirmatie este sustinuta de material.
+- Anchor-urile keywords apar in rezumat.
+- Flashcardurile sunt utile, diferite si acopera materialul echilibrat.
+
+MATERIAL MARKDOWN:
+{material_markdown.strip()}
+"""
+
+
+def build_reviss_quiz_pack_prompt(
+    project_name: str,
+    subject_name: str,
+    institution_name: str,
+    summary: str,
+    flashcard_context: str,
+    material_markdown: str,
+    quiz_groups_per_complexity: int,
+    questions_per_quiz: int,
+) -> str:
+    required = {
+        "project_name": project_name,
+        "subject_name": subject_name,
+        "institution_name": institution_name,
+        "summary": summary,
+        "material_markdown": material_markdown,
+    }
+    for field_name, value in required.items():
+        if not isinstance(value, str) or not value.strip():
+            raise ValueError(f"{field_name} trebuie sa fie un sir nevid.")
+
+    groups = max(1, min(quiz_groups_per_complexity, 6))
+    questions = max(5, min(questions_per_quiz, 15))
+    total_quizzes = groups * 3
+    total_questions = total_quizzes * questions
+    single_count = max(1, round(questions * 0.65))
+    multiple_count = questions - single_count
+    if multiple_count < 2 and questions >= 6:
+        multiple_count = 2
+        single_count = questions - multiple_count
+
+    return f"""Esti generatorul de quizuri al platformei Reviss.
+Genereaza quizuri de examen pornind exclusiv din materialul proiectului.
+
+Returneaza exclusiv un obiect JSON valid cu schema_version "reviss.quiz_pack.v1".
+Nu adauga text in afara JSON-ului, markdown, comentarii sau chei suplimentare.
+Toate textele pentru utilizator trebuie sa fie in romana, cu diacritice.
+Nu folosi informatii externe si nu inventa date.
+
+PROIECT:
+- Nume: {project_name.strip()}
+- Materie: {subject_name.strip()}
+- Facultate/Scoala/Nivel: {institution_name.strip()}
+
+STRUCTURA OBLIGATORIE:
+- Genereaza exact {total_quizzes} quizuri.
+- Genereaza exact {groups} quizuri cu complexity "low".
+- Genereaza exact {groups} quizuri cu complexity "medium".
+- Genereaza exact {groups} quizuri cu complexity "high".
+- Fiecare quiz are exact {questions} intrebari.
+- Total intrebari: exact {total_questions}.
+- In fiecare quiz include aproximativ {single_count} intrebari single_choice si {multiple_count} intrebari multiple_choice.
+- "question_type" la nivel de quiz ramane "single_choice", fiind tipul predominant.
+
+CONTRACT JSON:
+{{
+  "schema_version": "reviss.quiz_pack.v1",
+  "quizzes": [
+    {{
+      "title": "string",
+      "description": "string",
+      "complexity": "low",
+      "question_type": "single_choice",
+      "questions": [
+        {{
+          "prompt": "string",
+          "type": "single_choice",
+          "options": [
+            {{ "label": "string", "is_correct": true }},
+            {{ "label": "string", "is_correct": false }}
+          ],
+          "explanation": "string"
+        }}
+      ]
+    }}
+  ]
+}}
+
+PROGRESIE:
+- Low: recapitulare, terminologie, definitii, componente, clasificari si asocieri directe.
+- Medium: intelegere, comparatii, relatii, aplicare directa si interpretare.
+- High: examen, scenarii cu minimum doi pasi, erori conceptuale plauzibile si integrare intre capitole.
+
+REGULI PENTRU INTREBARI:
+- Fiecare prompt trebuie sa fie concret, autosuficient si evaluabil.
+- Pentru multiple_choice spune clar ca exista mai multe raspunsuri corecte.
+- Evita negatiile; daca sunt necesare, marcheaza textual "NU".
+- Nu folosi "toate variantele" sau "niciuna dintre variante".
+- Nu face intrebari basic pentru high; high cere cel putin doua idei si doi pasi de rationament.
+- Nu repeta acelasi prompt cu alte cuvinte.
+
+REGULI PENTRU SINGLE_CHOICE:
+- Exact 4 optiuni.
+- Exact 1 optiune corecta.
+- Raspunsurile corecte A/B/C/D trebuie echilibrate in fiecare quiz.
+- Aceeasi pozitie nu poate fi corecta de trei ori consecutiv.
+- Nu folosi tipare previzibile A-B-C-D, A-A-B-B sau alternante regulate.
+
+REGULI PENTRU MULTIPLE_CHOICE:
+- Intre 4 si 6 optiuni.
+- Minimum 2 optiuni corecte si minimum 2 optiuni gresite.
+- Variaza semnaturile raspunsurilor corecte: AC, BD, BCE etc.
+- Nu pune mereu primele optiuni corecte.
+- Aceeasi semnatura nu poate aparea de mai mult de doua ori in acelasi quiz.
+
+REGULI PENTRU OPTIUNI:
+- Distractorii trebuie sa fie greseli realiste din concepte apropiate.
+- Nu folosi optiuni absurde sau complet fara legatura.
+- Raspunsul corect nu trebuie sa fie identificabil prin lungime, detaliu sau vocabular.
+- Optiunile aceleiasi intrebari trebuie sa aiba forma gramaticala si granularitate similare.
+- La multiple_choice, optiunile corecte nu trebuie sa fie ca grup mai lungi sau mai detaliate decat cele gresite.
+
+REGULI PENTRU EXPLICATII:
+- Explica de ce raspunsurile corecte sunt corecte.
+- Explica de ce distractorii sunt gresiti sau de ce nu indeplinesc criteriul.
+- Pentru high, include lantul de rationament in 2-4 pasi.
+- Explicatia ramane in limitele materialului.
+
+AUDIT FINAL INTERN:
+- Exista exact {total_quizzes} quizuri si exact {total_questions} intrebari.
+- Fiecare quiz are exact {questions} intrebari.
+- Exista exact {groups} low, {groups} medium si {groups} high.
+- Fiecare intrebare are prompt, type, options si explanation.
+- Fiecare single_choice are 4 optiuni si una corecta.
+- Fiecare multiple_choice are 4-6 optiuni, minimum doua corecte si minimum doua gresite.
+- Pozitiile corecte sunt echilibrate.
+- Nu exista tipare detectabile.
+- Nu exista cunostinte externe.
+
+REZUMATUL PROIECTULUI:
+{summary.strip()}
+
+FLASHCARDURI GENERATE INITIAL:
+{flashcard_context.strip() or "- Nu exista flashcarduri disponibile."}
+
+MATERIAL MARKDOWN:
+{material_markdown.strip()}
+"""
 
 
 def build_revizzio_prompt(

@@ -1,7 +1,15 @@
 import uuid
 from typing import Annotated
 
-from fastapi import APIRouter, File, Form, HTTPException, UploadFile, status
+from fastapi import (
+    APIRouter,
+    BackgroundTasks,
+    File,
+    Form,
+    HTTPException,
+    UploadFile,
+    status,
+)
 from fastapi.responses import FileResponse
 
 from app.api.dependencies import AppSettings, CurrentUser, DbSession
@@ -23,6 +31,8 @@ from app.services.projects import (
     ProjectNotFoundError,
     ProjectValidationError,
     StudyProjectService,
+    run_quiz_pack_generation_task,
+    run_study_pack_generation_task,
 )
 
 router = APIRouter(prefix="/api/projects", tags=["projects"])
@@ -56,6 +66,7 @@ async def list_archived_projects(
 
 @router.post("/prepare", response_model=StudyProjectPrepareResponse)
 async def prepare_project(
+    background_tasks: BackgroundTasks,
     current_user: CurrentUser,
     session: DbSession,
     settings: AppSettings,
@@ -88,6 +99,13 @@ async def prepare_project(
             detail=str(exc),
         ) from exc
 
+    background_tasks.add_task(
+        run_study_pack_generation_task,
+        user_id=current_user.id,
+        project_id=project.id,
+        settings=settings,
+    )
+
     project_response = service.to_response(project)
     if (
         project_response.markdown_download_url is None
@@ -102,11 +120,48 @@ async def prepare_project(
         project=project_response,
         markdown_download_url=project_response.markdown_download_url,
         prompt_download_url=project_response.prompt_download_url,
-        next_step=(
-            "Descarca markdown-ul si promptul, incarca-le in ChatGPT, apoi "
-            "revino cu JSON-ul generat."
-        ),
+        next_step="Generam automat pachetul de studiu.",
     )
+
+
+@router.post("/{project_id}/generate-quizzes", response_model=StudyProjectResponse)
+async def generate_project_quizzes(
+    project_id: uuid.UUID,
+    background_tasks: BackgroundTasks,
+    current_user: CurrentUser,
+    session: DbSession,
+    settings: AppSettings,
+) -> StudyProjectResponse:
+    service = _service(session, settings)
+    try:
+        existing_project = await service.get_project(current_user, project_id)
+        was_generating = existing_project.status == "generating_quizzes"
+        project = await service.start_quiz_generation(
+            user=current_user,
+            project_id=project_id,
+        )
+    except ProjectNotFoundError as exc:
+        await session.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Proiectul nu a fost gasit.",
+        ) from exc
+    except ProjectValidationError as exc:
+        await session.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(exc),
+        ) from exc
+
+    if project.status == "generating_quizzes" and not was_generating:
+        background_tasks.add_task(
+            run_quiz_pack_generation_task,
+            user_id=current_user.id,
+            project_id=project.id,
+            settings=settings,
+        )
+
+    return service.to_response(project)
 
 
 @router.get("/{project_id}", response_model=StudyProjectResponse)

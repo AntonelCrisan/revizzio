@@ -28,7 +28,14 @@ class StudyProject(Base):
     __tablename__ = "study_projects"
     __table_args__ = (
         CheckConstraint(
-            "status IN ('processing', 'awaiting_ai_json', 'ready', 'failed')",
+            "status IN ("
+            "'processing', "
+            "'generating_study_pack', "
+            "'awaiting_ai_json', "
+            "'ready', "
+            "'generating_quizzes', "
+            "'failed'"
+            ")",
             name="ck_study_projects_status",
         ),
     )
@@ -82,6 +89,12 @@ class StudyProject(Base):
         back_populates="project",
         cascade="all, delete-orphan",
         passive_deletes=True,
+    )
+    generation_jobs: Mapped[list[StudyProjectGenerationJob]] = relationship(
+        back_populates="project",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+        order_by="StudyProjectGenerationJob.created_at",
     )
     summary: Mapped[StudyProjectSummary | None] = relationship(
         back_populates="project",
@@ -213,6 +226,57 @@ class StudyProjectImport(Base):
     )
 
     project: Mapped[StudyProject] = relationship(back_populates="imports")
+
+
+class StudyProjectGenerationJob(Base):
+    __tablename__ = "study_project_generation_jobs"
+    __table_args__ = (
+        CheckConstraint(
+            "job_type IN ('study_pack', 'quiz_pack')",
+            name="ck_study_project_generation_jobs_type",
+        ),
+        CheckConstraint(
+            "status IN ('queued', 'running', 'completed', 'failed')",
+            name="ck_study_project_generation_jobs_status",
+        ),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    project_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("study_projects.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    job_type: Mapped[str] = mapped_column(String(40), nullable=False)
+    status: Mapped[str] = mapped_column(
+        String(40),
+        nullable=False,
+        default="queued",
+        server_default="queued",
+        index=True,
+    )
+    model: Mapped[str | None] = mapped_column(String(120))
+    prompt_path: Mapped[str | None] = mapped_column(Text)
+    response_path: Mapped[str | None] = mapped_column(Text)
+    error_message: Mapped[str | None] = mapped_column(Text)
+    input_tokens: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    output_tokens: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    total_tokens: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+    )
+    started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+    project: Mapped[StudyProject] = relationship(back_populates="generation_jobs")
+    user: Mapped[User] = relationship()
 
 
 class StudyProjectSummary(Base):

@@ -111,7 +111,14 @@ export type StudyProject = {
   subject_name: string;
   institution_name: string;
   slug: string;
-  status: "processing" | "awaiting_ai_json" | "ready" | "failed" | string;
+  status:
+    | "processing"
+    | "generating_study_pack"
+    | "awaiting_ai_json"
+    | "ready"
+    | "generating_quizzes"
+    | "failed"
+    | string;
   material_rights_confirmed: boolean;
   error_message: string | null;
   created_at: string;
@@ -193,6 +200,14 @@ export async function listStudyProjects(): Promise<StudyProject[]> {
     cache: "no-store",
   });
   return parseProjectResponse<StudyProject[]>(response);
+}
+
+export async function getStudyProject(projectId: string): Promise<StudyProject> {
+  const response = await fetch(`/api/projects/${projectId}`, {
+    credentials: "same-origin",
+    cache: "no-store",
+  });
+  return parseProjectResponse<StudyProject>(response);
 }
 
 export async function listArchivedStudyProjects(): Promise<StudyProject[]> {
@@ -301,6 +316,17 @@ export async function importStudyProjectJson(payload: {
     cache: "no-store",
   });
   return parseProjectResponse<StudyProjectImportResponse>(response);
+}
+
+export async function generateStudyProjectQuizzes(
+  projectId: string,
+): Promise<StudyProject> {
+  const response = await fetch(`/api/projects/${projectId}/generate-quizzes`, {
+    method: "POST",
+    credentials: "same-origin",
+    cache: "no-store",
+  });
+  return parseProjectResponse<StudyProject>(response);
 }
 
 export async function createQuizMistakeFlashcard(payload: {

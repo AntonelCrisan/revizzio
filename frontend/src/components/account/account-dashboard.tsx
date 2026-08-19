@@ -23,7 +23,8 @@ import {
   deleteStudyProject,
   deleteSummaryHighlight,
   deleteSummaryNote,
-  importStudyProjectJson,
+  generateStudyProjectQuizzes,
+  getStudyProject,
   listStudyProjects,
   prepareStudyProject,
   renameStudyProject,
@@ -67,6 +68,8 @@ type StudyProject = {
   name: string;
   subjectName: string;
   institutionName: string;
+  status: ApiStudyProject["status"];
+  errorMessage: string | null;
   isArchived: boolean;
   archivedAt: string | null;
   meta: string;
@@ -131,10 +134,20 @@ const sidebarBillingItems = [
 
 const generationSteps = [
   "Încărcare materiale",
-  "Conversie Markdown",
-  "Fișier prompt",
-  "Pregătit pentru ChatGPT",
+  "Pregătire conținut",
+  "Creare pachet",
+  "Salvare pachet",
 ];
+
+const GENERATION_POLL_INTERVAL_MS = 2000;
+const GENERATION_POLL_ATTEMPTS = 180;
+
+class ProjectGenerationFailedError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "ProjectGenerationFailedError";
+  }
+}
 
 function Icon({
   children,
@@ -173,14 +186,36 @@ function formatBytes(bytes: number) {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
-function slugify(value: string) {
-  const slug = value
-    .toLowerCase()
-    .trim()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/(^-|-$)/g, "");
+function delay(ms: number) {
+  return new Promise((resolve) => window.setTimeout(resolve, ms));
+}
 
-  return slug || `proiect-${Date.now()}`;
+function toFriendlyGenerationError(message?: string | null) {
+  const cleanMessage = message?.trim();
+  if (!cleanMessage) return null;
+
+  const lowerMessage = cleanMessage.toLocaleLowerCase("ro-RO");
+  if (
+    lowerMessage.includes("insufficient_quota") ||
+    lowerMessage.includes("exceeded your current quota")
+  ) {
+    return "Generarea nu este disponibilă momentan. Încearcă din nou în câteva minute.";
+  }
+
+  if (
+    lowerMessage.includes("a refuzat") ||
+    lowerMessage.includes("nu a putut procesa")
+  ) {
+    return "Pachetul nu a putut fi generat momentan. Încearcă din nou.";
+  }
+
+  return cleanMessage
+    .replaceAll("OPENAI_API_KEY", "serviciul de generare")
+    .replaceAll("OpenAI", "serviciul de generare")
+    .replaceAll("Markdown", "conținut")
+    .replaceAll("markdown", "conținut")
+    .replaceAll("JSON-ul", "pachetul generat")
+    .replaceAll("JSON", "pachet generat");
 }
 
 function initials(name: string) {
@@ -201,10 +236,16 @@ function getProjectById(projects: StudyProject[], projectId?: string) {
 
 function apiProjectStatusLabel(status: ApiStudyProject["status"]) {
   if (status === "ready") return "gata";
-  if (status === "awaiting_ai_json") return "așteaptă JSON";
+  if (status === "generating_study_pack") return "creează pachet";
+  if (status === "generating_quizzes") return "creează quizuri";
+  if (status === "awaiting_ai_json") return "în așteptare";
   if (status === "processing") return "în procesare";
   if (status === "failed") return "eroare";
   return status;
+}
+
+function isVisibleStudyProjectStatus(status: ApiStudyProject["status"]) {
+  return status === "ready" || status === "generating_quizzes";
 }
 
 function mapQuizMistakeFlashcards(
@@ -296,6 +337,8 @@ function mapApiProject(project: ApiStudyProject): StudyProject {
     name: project.name,
     subjectName: project.subject_name,
     institutionName: project.institution_name,
+    status: project.status,
+    errorMessage: toFriendlyGenerationError(project.error_message),
     isArchived: project.is_archived,
     archivedAt: project.archived_at,
     meta: `${project.subject_name} · ${project.file_count} materiale · ${apiProjectStatusLabel(project.status)}`,
@@ -320,11 +363,11 @@ function mapApiProject(project: ApiStudyProject): StudyProject {
             title:
               project.status === "ready"
                 ? "Continuă cu rezumatul generat"
-                : "Încarcă JSON-ul generat de ChatGPT",
+                : "Așteaptă generarea pachetului",
             description:
               project.status === "ready"
-                ? "Pachetul proiectului este importat și poate fi folosit pentru studiu."
-                : "Descarcă markdown-ul și promptul, cere JSON-ul în ChatGPT, apoi revino cu fișierul generat.",
+                ? "Pachetul proiectului este generat și poate fi folosit pentru studiu."
+                : "Reviss convertește materialele și salvează automat conținutul generat.",
           },
         ],
   };
@@ -368,7 +411,6 @@ export function AccountDashboard({
   const router = useRouter();
   const { user, isLoading, logout } = useAuth();
   const fileInputRef = useRef<HTMLInputElement | null>(null);
-  const generationTimers = useRef<number[]>([]);
 
   const [projects, setProjects] = useState(initialProjects);
   const [view, setView] = useState<ViewId>(initialView);
@@ -407,8 +449,6 @@ export function AccountDashboard({
   const [preparedProject, setPreparedProject] =
     useState<StudyProjectPrepareResponse | null>(null);
   const [generationError, setGenerationError] = useState<string | null>(null);
-  const [isImportingJson, setIsImportingJson] = useState(false);
-  const [jsonImportMessage, setJsonImportMessage] = useState<string | null>(null);
   const activeProject = useMemo(
     () => getProjectById(projects, activeProjectId),
     [activeProjectId, projects],
@@ -439,7 +479,9 @@ export function AccountDashboard({
       .then((apiProjects) => {
         if (!isMounted) return;
 
-        const mappedProjects = apiProjects.map(mapApiProject);
+        const mappedProjects = apiProjects
+          .filter((project) => isVisibleStudyProjectStatus(project.status))
+          .map(mapApiProject);
         setProjects(mappedProjects);
 
         if (mappedProjects.length === 0) {
@@ -466,12 +508,6 @@ export function AccountDashboard({
       isMounted = false;
     };
   }, [initialProjectId, isLoading, user]);
-
-  useEffect(() => {
-    return () => {
-      generationTimers.current.forEach((timer) => window.clearTimeout(timer));
-    };
-  }, []);
 
   function toggleSidebarCollapsed() {
     setIsSidebarCollapsed((current) => {
@@ -739,6 +775,41 @@ export function AccountDashboard({
     );
   }
 
+  async function generateProjectQuizPack(projectId: string) {
+    const queuedProject = await generateStudyProjectQuizzes(projectId);
+    storeApiProject(queuedProject);
+
+    if (queuedProject.status !== "generating_quizzes") {
+      return mapApiProject(queuedProject);
+    }
+
+    for (let attempt = 0; attempt < GENERATION_POLL_ATTEMPTS; attempt += 1) {
+      await delay(GENERATION_POLL_INTERVAL_MS);
+      const apiProject = await getStudyProject(projectId);
+      const mappedProject = storeApiProject(apiProject);
+
+      if (apiProject.status === "ready" && apiProject.quizzes.length > 0) {
+        return mappedProject;
+      }
+
+      if (apiProject.status === "ready" && apiProject.error_message) {
+        throw new Error(
+          toFriendlyGenerationError(apiProject.error_message) ||
+            "Quizurile nu au putut fi generate.",
+        );
+      }
+
+      if (apiProject.status === "failed") {
+        throw new Error(
+          toFriendlyGenerationError(apiProject.error_message) ||
+            "Quizurile nu au putut fi generate.",
+        );
+      }
+    }
+
+    throw new Error("Generarea quizurilor durează prea mult. Reîncarcă pagina.");
+  }
+
   async function toggleFlashcardReview(
     projectId: string,
     flashcardId: string,
@@ -818,8 +889,6 @@ export function AccountDashboard({
   }
 
   function resetNewProject() {
-    generationTimers.current.forEach((timer) => window.clearTimeout(timer));
-    generationTimers.current = [];
     setProjectName("");
     setSubjectName("");
     setInstitutionName("");
@@ -829,8 +898,6 @@ export function AccountDashboard({
     setGenerationState("form");
     setPreparedProject(null);
     setGenerationError(null);
-    setJsonImportMessage(null);
-    setIsImportingJson(false);
   }
 
   function addFiles(files: FileList | null) {
@@ -851,19 +918,79 @@ export function AccountDashboard({
     addFiles(event.dataTransfer.files);
   }
 
+  function storeApiProject(apiProject: ApiStudyProject) {
+    const mappedProject = mapApiProject(apiProject);
+
+    if (!isVisibleStudyProjectStatus(apiProject.status)) {
+      setProjects((currentProjects) =>
+        currentProjects.filter((project) => project.id !== mappedProject.id),
+      );
+      setActiveProjectId((currentProjectId) =>
+        currentProjectId === mappedProject.id ? "" : currentProjectId,
+      );
+      setOpenProjectId((currentProjectId) =>
+        currentProjectId === mappedProject.id ? null : currentProjectId,
+      );
+      return mappedProject;
+    }
+
+    setProjects((currentProjects) => [
+      mappedProject,
+      ...currentProjects.filter((project) => project.id !== mappedProject.id),
+    ]);
+    setActiveProjectId(mappedProject.id);
+    setOpenProjectId(mappedProject.id);
+    return mappedProject;
+  }
+
+  async function pollProjectUntilReady(projectId: string) {
+    for (let attempt = 0; attempt < GENERATION_POLL_ATTEMPTS; attempt += 1) {
+      await delay(GENERATION_POLL_INTERVAL_MS);
+      const apiProject = await getStudyProject(projectId);
+      const mappedProject = storeApiProject(apiProject);
+      setPreparedProject((currentProject) =>
+        currentProject
+          ? {
+              ...currentProject,
+              project: apiProject,
+            }
+          : currentProject,
+      );
+
+      if (apiProject.status === "ready") {
+        setCompletedSteps(generationSteps);
+        return mappedProject;
+      }
+
+      if (apiProject.status === "failed") {
+        throw new ProjectGenerationFailedError(
+          toFriendlyGenerationError(apiProject.error_message) ||
+            "Generarea nu a putut fi finalizată.",
+        );
+      }
+
+      if (apiProject.status === "generating_study_pack") {
+        setCompletedSteps(generationSteps.slice(0, 3));
+      } else if (apiProject.status === "processing") {
+        setCompletedSteps(generationSteps.slice(0, 2));
+      }
+    }
+
+    throw new Error("Generarea durează prea mult. Reîncarcă pagina în câteva minute.");
+  }
+
   async function startGeneration() {
     if (!canGenerate) return;
 
-    generationTimers.current.forEach((timer) => window.clearTimeout(timer));
-    generationTimers.current = [];
+    let transientProjectId: string | null = null;
+
     setGenerationState("generating");
     setCompletedSteps([]);
     setPreparedProject(null);
     setGenerationError(null);
-    setJsonImportMessage(null);
 
     try {
-      setCompletedSteps(["Încărcare materiale"]);
+      setCompletedSteps(generationSteps.slice(0, 1));
       const response = await prepareStudyProject({
         name: projectName,
         subjectName,
@@ -871,124 +998,39 @@ export function AccountDashboard({
         files: uploadedFiles.map((file) => file.file),
         materialRightsConfirmed: hasMaterialRights,
       });
-      const apiProject = mapApiProject(response.project);
-      setProjects((currentProjects) => [
-        apiProject,
-        ...currentProjects.filter((project) => project.id !== apiProject.id),
-      ]);
-      setActiveProjectId(apiProject.id);
-      setOpenProjectId(apiProject.id);
+      transientProjectId = response.project.id;
       setPreparedProject(response);
-      setCompletedSteps(generationSteps);
+      setCompletedSteps(generationSteps.slice(0, 3));
+      await pollProjectUntilReady(response.project.id);
       setGenerationState("done");
     } catch (error) {
+      const friendlyError =
+        error instanceof Error
+          ? toFriendlyGenerationError(error.message)
+          : "Proiectul nu a putut fi pregătit momentan.";
+      if (transientProjectId && error instanceof ProjectGenerationFailedError) {
+        try {
+          await deleteStudyProject(transientProjectId);
+        } catch {
+          // The project is already hidden from the UI; cleanup can be retried later.
+        }
+      }
       setGenerationState("form");
       setCompletedSteps([]);
-      setGenerationError(
-        error instanceof Error
-          ? error.message
-          : "Proiectul nu a putut fi pregătit momentan.",
-      );
+      setPreparedProject(null);
+      setGenerationError(`${friendlyError} Proiectul nu a fost salvat.`);
     }
   }
 
   function createGeneratedProject() {
-    if (preparedProject) {
-      const apiProject = mapApiProject(preparedProject.project);
-      setProjects((currentProjects) => [
-        apiProject,
-        ...currentProjects.filter((project) => project.id !== apiProject.id),
-      ]);
-      setActiveProjectId(apiProject.id);
-      setOpenProjectId(apiProject.id);
-      setActiveTab("rezumat");
-      setView("project");
-      resetNewProject();
-      return;
-    }
+    if (!preparedProject) return;
 
-    const name = projectName.trim();
-    if (!name) return;
-
-    const id = `${slugify(name)}-${Math.floor(Math.random() * 1000)}`;
-    const newProject: StudyProject = {
-      id,
-      name,
-      subjectName: subjectName.trim() || "Materie",
-      institutionName: institutionName.trim() || "Instituție",
-      isArchived: false,
-      archivedAt: null,
-      meta: `${subjectName.trim() || "Materie"} · ${uploadedFiles.length} materiale · generat azi`,
-      flashcardsDue: 24,
-      flashcardsTotal: 24,
-      progress: 0,
-      summary: null,
-      keywords: [],
-      flashcards: [],
-      quizzes: [],
-      quizMistakeFlashcards: [],
-      manualFlashcards: [],
-      summaryHighlights: [],
-      summaryNotes: [],
-      strategies: [
-        {
-          title: "Citește mai întâi rezumatul",
-          description:
-            "Ai context dinainte, iar informația nouă se leagă mai ușor de ceva ce ai văzut deja.",
-        },
-        {
-          title: "Testează-te cu flashcard-urile înainte de quiz",
-          description:
-            "Recall-ul activ îți arată exact ce mai trebuie revizuit.",
-        },
-        {
-          title: "Notează 3 întrebări la care nu ai răspuns sigur",
-          description:
-            "Golurile specifice se închid mai repede decât recitind tot materialul.",
-        },
-      ],
-    };
-
-    setProjects((currentProjects) => [newProject, ...currentProjects]);
-    setActiveProjectId(id);
-    setOpenProjectId(id);
+    const apiProject = storeApiProject(preparedProject.project);
+    setActiveProjectId(apiProject.id);
+    setOpenProjectId(apiProject.id);
     setActiveTab("rezumat");
     setView("project");
     resetNewProject();
-  }
-
-  async function importGeneratedJson(file: File) {
-    if (!preparedProject) return;
-
-    setIsImportingJson(true);
-    setJsonImportMessage(null);
-    setGenerationError(null);
-
-    try {
-      const response = await importStudyProjectJson({
-        projectId: preparedProject.project.id,
-        file,
-      });
-      const nextPreparedProject = {
-        ...preparedProject,
-        project: response.project,
-      };
-      const apiProject = mapApiProject(response.project);
-      setPreparedProject(nextPreparedProject);
-      setProjects((currentProjects) => [
-        apiProject,
-        ...currentProjects.filter((project) => project.id !== apiProject.id),
-      ]);
-      setJsonImportMessage(response.message);
-    } catch (error) {
-      setGenerationError(
-        error instanceof Error
-          ? error.message
-          : "JSON-ul nu a putut fi importat momentan.",
-      );
-    } finally {
-      setIsImportingJson(false);
-    }
   }
 
   if (isLoading || !user) {
@@ -1322,6 +1364,7 @@ export function AccountDashboard({
               onTabChange={changeProjectTab}
               onQuizMistake={saveQuizMistakeFlashcard}
               onQuizComplete={completeQuizAttempt}
+              onGenerateQuizzes={generateProjectQuizPack}
               onManualFlashcardCreate={addManualFlashcard}
               onToggleFlashcardReview={toggleFlashcardReview}
               onHighlightCreate={addSummaryHighlight}
@@ -1346,8 +1389,6 @@ export function AccountDashboard({
               completedSteps={completedSteps}
               preparedProject={preparedProject}
               generationError={generationError}
-              isImportingJson={isImportingJson}
-              jsonImportMessage={jsonImportMessage}
               isDragging={isDragging}
               fileInputRef={fileInputRef}
               onBack={showHome}
@@ -1364,7 +1405,6 @@ export function AccountDashboard({
               onDrop={handleDrop}
               onDragStateChange={setIsDragging}
               onStartGeneration={startGeneration}
-              onImportJson={importGeneratedJson}
               onOpenGeneratedProject={createGeneratedProject}
             />
           ) : null}
@@ -1549,7 +1589,7 @@ function HomeView({
         <AccountMetric
           label="Gata de studiu"
           value={readyProjects.toString()}
-          detail="cu pachet importat"
+          detail="cu pachet generat"
         />
         <AccountMetric
           label="Flashcard-uri"
@@ -1844,6 +1884,7 @@ function ProjectView({
   onTabChange,
   onQuizMistake,
   onQuizComplete,
+  onGenerateQuizzes,
   onManualFlashcardCreate,
   onToggleFlashcardReview,
   onHighlightCreate,
@@ -1869,6 +1910,7 @@ function ProjectView({
     quizId: string,
     result: { correctCount: number; answeredCount: number },
   ) => Promise<void>;
+  onGenerateQuizzes: (projectId: string) => Promise<StudyProject>;
   onManualFlashcardCreate: (
     projectId: string,
     flashcard: ManualFlashcardPayload,
@@ -2033,6 +2075,7 @@ function ProjectView({
             project={project}
             onQuizMistake={onQuizMistake}
             onQuizComplete={onQuizComplete}
+            onGenerateQuizzes={onGenerateQuizzes}
           />
         ) : null}
         {activeTab === "strategii" ? (
@@ -3274,8 +3317,8 @@ function SummaryPanel({
           Rezumatul nu este generat încă.
         </h2>
         <p className="mx-auto mt-3 max-w-xl text-sm leading-7 text-muted">
-          Descarcă promptul proiectului, generează JSON-ul în ChatGPT și
-          importă fișierul ca să vezi conținutul real aici.
+          Reviss generează automat rezumatul după încărcarea materialelor.
+          Dacă generarea a eșuat, reîncearcă din pagina proiectului.
         </p>
       </article>
     );
@@ -3878,8 +3921,8 @@ function buildProjectFlashcardDecks(
         : "Flashcardurile nu sunt generate încă",
       description:
         generatedFlashcards.length
-          ? "Pachetul importat din JSON-ul generat, pregătit pentru recapitulare activă."
-          : "Importă JSON-ul generat ca să vezi aici flashcardurile reale ale proiectului.",
+          ? "Pachetul generat automat din materialele încărcate, pregătit pentru recapitulare activă."
+          : "Flashcardurile apar aici după ce Reviss termină generarea pachetului de studiu.",
       cards,
     },
     quiz: {
@@ -5324,7 +5367,7 @@ function buildProjectQuizData(project: StudyProject) {
         title: quiz.title,
         description:
           quiz.description ??
-          "Quiz generat din materialele importate pentru acest proiect.",
+          "Quiz generat din materialele acestui proiect.",
         complexity,
         mode: getGeneratedQuizModeLabel(questionModes),
         duration: `${Math.max(3, Math.ceil(questionIds.length * 1.4))} min`,
@@ -5420,6 +5463,7 @@ function QuizPanel({
   project,
   onQuizMistake,
   onQuizComplete,
+  onGenerateQuizzes,
 }: {
   project: StudyProject;
   onQuizMistake: (
@@ -5432,6 +5476,7 @@ function QuizPanel({
     quizId: string,
     result: { correctCount: number; answeredCount: number },
   ) => Promise<void>;
+  onGenerateQuizzes: (projectId: string) => Promise<StudyProject>;
 }) {
   const [activeQuizId, setActiveQuizId] = useState<string | null>(null);
   const [activeQuestionIndex, setActiveQuestionIndex] = useState(0);
@@ -5441,6 +5486,10 @@ function QuizPanel({
   >({});
   const [showQuizSummary, setShowQuizSummary] = useState(false);
   const [attemptId, setAttemptId] = useState(0);
+  const [isGeneratingQuizzes, setIsGeneratingQuizzes] = useState(false);
+  const [quizGenerationError, setQuizGenerationError] = useState<string | null>(
+    null,
+  );
   const isPersistingCompletionRef = useRef(false);
   const persistedAttemptRef = useRef<number | null>(null);
 
@@ -5506,7 +5555,26 @@ function QuizPanel({
   if (!activeQuiz) {
     return (
       <QuizLibrary
+        projectStatus={project.status}
+        errorMessage={project.errorMessage}
         quizzes={quizData.catalog}
+        isGenerating={isGeneratingQuizzes}
+        generationError={quizGenerationError}
+        onGenerateQuizzes={async () => {
+          setIsGeneratingQuizzes(true);
+          setQuizGenerationError(null);
+          try {
+            await onGenerateQuizzes(project.id);
+          } catch (error) {
+            setQuizGenerationError(
+              error instanceof Error
+                ? toFriendlyGenerationError(error.message)
+                : "Quizurile nu au putut fi generate.",
+            );
+          } finally {
+            setIsGeneratingQuizzes(false);
+          }
+        }}
         onStartQuiz={(quizId) => {
           setActiveQuizId(quizId);
           setActiveQuestionIndex(0);
@@ -5968,25 +6036,57 @@ function QuizPanel({
 }
 
 function QuizLibrary({
+  projectStatus,
+  errorMessage,
   quizzes,
+  isGenerating,
+  generationError,
+  onGenerateQuizzes,
   onStartQuiz,
 }: {
+  projectStatus: StudyProject["status"];
+  errorMessage: string | null;
   quizzes: AccountQuiz[];
+  isGenerating: boolean;
+  generationError: string | null;
+  onGenerateQuizzes: () => Promise<void>;
   onStartQuiz: (quizId: string) => void;
 }) {
   if (!quizzes.length) {
+    const isBackendGenerating = projectStatus === "generating_quizzes";
+    const isButtonBusy = isGenerating || isBackendGenerating;
+
     return (
-      <section className="rounded-xl border border-subtle bg-surface p-6 text-center sm:p-8">
-        <p className="mx-auto inline-flex rounded-full border border-subtle bg-action-soft px-3 py-1 text-[10px] font-black uppercase tracking-[0.18em] text-muted">
-          Quiz-uri
-        </p>
-        <h2 className="mx-auto mt-3 max-w-2xl font-serif text-3xl font-semibold leading-tight">
-          Quizurile nu sunt generate încă.
-        </h2>
-        <p className="mx-auto mt-3 max-w-xl text-sm leading-7 text-muted">
-          După importul JSON-ului, aici vor apărea quizurile reale ale
-          proiectului: recapitulare, aplicare și pregătire de examen.
-        </p>
+      <section className="grid gap-6 rounded-xl border border-subtle bg-surface p-6 sm:p-8 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center">
+        <div>
+          <p className="inline-flex rounded-full border border-subtle bg-action-soft px-3 py-1 text-[10px] font-black uppercase tracking-[0.18em] text-muted">
+            Quiz-uri
+          </p>
+          <h2 className="mt-4 max-w-2xl font-serif text-3xl font-semibold leading-tight">
+            Generează testele când ești gata.
+          </h2>
+          <p className="mt-3 max-w-xl text-sm leading-7 text-muted">
+            Quizurile sunt create separat ca să nu consumăm AI înainte să ai
+            rezumatul și flashcardurile pregătite.
+          </p>
+          {generationError || errorMessage ? (
+            <div className="mt-4 rounded-xl border border-danger-border bg-danger-soft px-4 py-3 text-sm font-semibold text-danger">
+              {generationError || errorMessage}
+            </div>
+          ) : null}
+        </div>
+
+        <button
+          type="button"
+          onClick={onGenerateQuizzes}
+          disabled={isButtonBusy}
+          className="inline-flex min-w-56 cursor-pointer items-center justify-center gap-2 rounded-full bg-action px-6 py-4 text-sm font-black text-on-action transition hover:bg-action-hover disabled:cursor-wait disabled:bg-subtle disabled:text-muted"
+        >
+          {isButtonBusy ? "Se generează..." : "Generează quizuri"}
+          <Icon>
+            <path d="M5 12h14M13 5l7 7-7 7" />
+          </Icon>
+        </button>
       </section>
     );
   }
@@ -6936,8 +7036,6 @@ function NewProjectView({
   completedSteps,
   preparedProject,
   generationError,
-  isImportingJson,
-  jsonImportMessage,
   isDragging,
   fileInputRef,
   onBack,
@@ -6950,7 +7048,6 @@ function NewProjectView({
   onDrop,
   onDragStateChange,
   onStartGeneration,
-  onImportJson,
   onOpenGeneratedProject,
 }: {
   projectName: string;
@@ -6964,8 +7061,6 @@ function NewProjectView({
   completedSteps: string[];
   preparedProject: StudyProjectPrepareResponse | null;
   generationError: string | null;
-  isImportingJson: boolean;
-  jsonImportMessage: string | null;
   isDragging: boolean;
   fileInputRef: React.RefObject<HTMLInputElement | null>;
   onBack: () => void;
@@ -6978,7 +7073,6 @@ function NewProjectView({
   onDrop: (event: DragEvent<HTMLButtonElement>) => void;
   onDragStateChange: (isDragging: boolean) => void;
   onStartGeneration: () => void | Promise<void>;
-  onImportJson: (file: File) => void | Promise<void>;
   onOpenGeneratedProject: () => void;
 }) {
   const totalFileSize = files.reduce((total, file) => total + file.size, 0);
@@ -6991,6 +7085,7 @@ function NewProjectView({
     { label: "Materiale", done: files.length > 0 },
     { label: "Drepturi", done: hasMaterialRights },
   ];
+  const completedStepCount = setupSteps.filter((step) => step.done).length;
 
   return (
     <section className="space-y-6">
@@ -7007,26 +7102,21 @@ function NewProjectView({
 
       {generationState === "form" ? (
         <>
-          <div className="flex flex-col gap-4 border-b border-subtle pb-5 lg:flex-row lg:items-center lg:justify-between">
+          <header className="flex flex-col gap-4 border-b border-subtle pb-5 lg:flex-row lg:items-end lg:justify-between">
             <div className="min-w-0">
               <p className="inline-flex rounded-full border border-subtle bg-action-soft px-3 py-1 text-[10px] font-black uppercase tracking-[0.18em] text-muted">
                 Proiect nou
               </p>
-              <div className="mt-2 flex flex-wrap items-end gap-x-4 gap-y-1">
-                <h1 className="font-serif text-3xl font-semibold leading-none text-content sm:text-4xl">
-                  Încarcă materialele.
-                </h1>
-                <p className="pb-1 text-sm leading-6 text-muted">
-                  Context, fișiere și drepturi pentru import.
-                </p>
-              </div>
+              <h1 className="mt-3 font-serif text-4xl font-semibold leading-none text-content sm:text-5xl">
+                Încarcă un curs.
+              </h1>
             </div>
 
-            <span className="inline-flex w-fit items-center gap-2 rounded-full border border-subtle bg-surface px-3 py-2 text-xs font-black text-muted">
+            <div className="flex w-fit items-center gap-3 rounded-full border border-subtle bg-surface px-4 py-2 text-xs font-black text-muted">
               <span className="h-2 w-2 rounded-full bg-success" />
-              {setupSteps.filter((step) => step.done).length}/3 pași completați
-            </span>
-          </div>
+              {completedStepCount}/3 pași
+            </div>
+          </header>
 
           {generationError ? (
             <div className="rounded-xl border border-danger-border bg-danger-soft px-4 py-3 text-sm font-semibold text-danger">
@@ -7034,55 +7124,68 @@ function NewProjectView({
             </div>
           ) : null}
 
-          <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_320px]">
+          <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_22rem]">
             <div className="space-y-5">
-              <div className="overflow-hidden rounded-xl border border-subtle bg-surface">
-                <div className="grid divide-y divide-subtle lg:grid-cols-3 lg:divide-x lg:divide-y-0">
-                  <label className="block px-4 py-4 sm:px-5">
-                    <span className="text-[11px] font-black uppercase tracking-[0.14em] text-muted">
+              <div className="rounded-xl border border-subtle bg-surface">
+                <label className="grid gap-3 border-b border-subtle px-5 py-4 md:grid-cols-[12rem_minmax(0,1fr)] md:items-center">
+                  <span>
+                    <span className="block text-[11px] font-black uppercase tracking-[0.14em] text-muted">
                       Nume proiect
                     </span>
-                    <input
-                      value={projectName}
-                      onChange={(event) =>
-                        onProjectNameChange(event.target.value)
-                      }
-                      type="text"
-                      placeholder="Ex: Farma sem. 2"
-                      className="mt-2 h-11 w-full rounded-lg border border-subtle bg-app px-3 text-sm font-semibold text-content outline-none transition placeholder:text-muted/45 focus:border-action focus:ring-4 focus:ring-action-soft"
-                    />
-                  </label>
+                    <span className="mt-1 hidden text-xs text-muted md:block">
+                      Cum îl vei găsi în cont.
+                    </span>
+                  </span>
+                  <input
+                    value={projectName}
+                    onChange={(event) =>
+                      onProjectNameChange(event.target.value)
+                    }
+                    type="text"
+                    placeholder="Ex: Farma sem. 2"
+                    className="h-11 w-full rounded-lg border border-subtle bg-app px-3 text-sm font-semibold text-content outline-none transition placeholder:text-muted/45 focus:border-action focus:ring-4 focus:ring-action-soft"
+                  />
+                </label>
 
-                  <label className="block px-4 py-4 sm:px-5">
-                    <span className="text-[11px] font-black uppercase tracking-[0.14em] text-muted">
+                <label className="grid gap-3 border-b border-subtle px-5 py-4 md:grid-cols-[12rem_minmax(0,1fr)] md:items-center">
+                  <span>
+                    <span className="block text-[11px] font-black uppercase tracking-[0.14em] text-muted">
                       Materie
                     </span>
-                    <input
-                      value={subjectName}
-                      onChange={(event) =>
-                        onSubjectNameChange(event.target.value)
-                      }
-                      type="text"
-                      placeholder="Ex: Imunologie"
-                      className="mt-2 h-11 w-full rounded-lg border border-subtle bg-app px-3 text-sm font-semibold text-content outline-none transition placeholder:text-muted/45 focus:border-action focus:ring-4 focus:ring-action-soft"
-                    />
-                  </label>
+                    <span className="mt-1 hidden text-xs text-muted md:block">
+                      Context pentru AI.
+                    </span>
+                  </span>
+                  <input
+                    value={subjectName}
+                    onChange={(event) =>
+                      onSubjectNameChange(event.target.value)
+                    }
+                    type="text"
+                    placeholder="Ex: Imunologie"
+                    className="h-11 w-full rounded-lg border border-subtle bg-app px-3 text-sm font-semibold text-content outline-none transition placeholder:text-muted/45 focus:border-action focus:ring-4 focus:ring-action-soft"
+                  />
+                </label>
 
-                  <label className="block px-4 py-4 sm:px-5">
-                    <span className="text-[11px] font-black uppercase tracking-[0.14em] text-muted">
+                <label className="grid gap-3 px-5 py-4 md:grid-cols-[12rem_minmax(0,1fr)] md:items-center">
+                  <span>
+                    <span className="block text-[11px] font-black uppercase tracking-[0.14em] text-muted">
                       Școală
                     </span>
-                    <input
-                      value={institutionName}
-                      onChange={(event) =>
-                        onInstitutionNameChange(event.target.value)
-                      }
-                      type="text"
-                      placeholder="Ex: UMF / UTCN"
-                      className="mt-2 h-11 w-full rounded-lg border border-subtle bg-app px-3 text-sm font-semibold text-content outline-none transition placeholder:text-muted/45 focus:border-action focus:ring-4 focus:ring-action-soft"
-                    />
-                  </label>
-                </div>
+                    <span className="mt-1 hidden text-xs text-muted md:block">
+                      Facultate, școală sau nivel.
+                    </span>
+                  </span>
+                  <input
+                    value={institutionName}
+                    onChange={(event) =>
+                      onInstitutionNameChange(event.target.value)
+                    }
+                    type="text"
+                    placeholder="Ex: UMF / UTCN"
+                    className="h-11 w-full rounded-lg border border-subtle bg-app px-3 text-sm font-semibold text-content outline-none transition placeholder:text-muted/45 focus:border-action focus:ring-4 focus:ring-action-soft"
+                  />
+                </label>
               </div>
 
               <button
@@ -7101,13 +7204,13 @@ function NewProjectView({
                   onDragStateChange(false);
                 }}
                 onDrop={onDrop}
-                className={`flex w-full items-center gap-4 rounded-xl border bg-surface px-5 py-5 text-left transition ${
+                className={`group flex w-full cursor-pointer items-center gap-4 rounded-xl border bg-surface px-5 py-5 text-left transition hover:-translate-y-0.5 hover:border-content/25 ${
                   isDragging
                     ? "border-success bg-success-soft"
                     : "border-subtle hover:bg-surface-hover"
                 }`}
               >
-                <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-app text-content">
+                <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-app text-content transition group-hover:bg-action group-hover:text-on-action">
                   <Icon className="h-6 w-6">
                     <path d="M12 16V4M7 9l5-5 5 5" />
                     <path d="M4 16v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3" />
@@ -7122,7 +7225,7 @@ function NewProjectView({
                   <span className="mt-1 block text-sm text-muted">
                     {files.length
                       ? `${formatBytes(totalFileSize)} în total`
-                      : "PDF, PPTX, DOCX, XLSX, TXT sau Markdown"}
+                      : "Trage fișiere aici sau apasă pentru selectare."}
                   </span>
                 </span>
                 <span className="hidden rounded-full bg-action px-4 py-2 text-xs font-black text-on-action sm:inline-flex">
@@ -7140,11 +7243,11 @@ function NewProjectView({
               />
 
               {files.length > 0 ? (
-                <div className="divide-y divide-subtle rounded-xl border border-subtle bg-surface px-5">
+                <div className="divide-y divide-subtle rounded-xl border border-subtle bg-surface">
                   {files.map((file, index) => (
                     <div
                       key={`${file.name}-${index}`}
-                      className="grid gap-3 py-4 sm:grid-cols-[1fr_auto] sm:items-center"
+                      className="grid gap-3 px-5 py-4 sm:grid-cols-[1fr_auto] sm:items-center"
                     >
                       <span className="min-w-0">
                         <span className="block truncate text-sm font-black">
@@ -7157,7 +7260,7 @@ function NewProjectView({
                       <button
                         type="button"
                         onClick={() => onRemoveFile(index)}
-                        className="w-fit rounded-full border border-subtle px-3 py-2 text-xs font-bold text-muted transition hover:bg-surface-hover hover:text-content"
+                        className="w-fit cursor-pointer rounded-full border border-subtle px-3 py-2 text-xs font-bold text-muted transition hover:bg-danger-soft hover:text-danger"
                       >
                         Elimină
                       </button>
@@ -7168,7 +7271,7 @@ function NewProjectView({
             </div>
 
             <aside className="h-fit rounded-xl border border-subtle bg-surface p-5 xl:sticky xl:top-6">
-              <p className="text-xs font-black uppercase tracking-[0.16em] text-muted">
+              <p className="text-[11px] font-black uppercase tracking-[0.16em] text-muted">
                 Pregătire
               </p>
               <div className="mt-4 divide-y divide-subtle border-y border-subtle">
@@ -7178,15 +7281,13 @@ function NewProjectView({
                     className="flex items-center justify-between gap-4 py-3"
                   >
                     <span className="text-sm font-bold">{step.label}</span>
-                    <span
-                      className={`rounded-full px-3 py-1 text-xs font-black ${
-                        step.done
-                          ? "bg-success-soft text-success"
-                          : "bg-surface-hover text-muted"
-                      }`}
-                    >
-                      {step.done ? "ok" : "lipsește"}
-                    </span>
+                    <input
+                      aria-label={`${step.label} completat`}
+                      type="checkbox"
+                      checked={step.done}
+                      readOnly
+                      className="h-5 w-5 cursor-default rounded border-subtle accent-action"
+                    />
                   </div>
                 ))}
               </div>
@@ -7207,30 +7308,23 @@ function NewProjectView({
                 type="button"
                 disabled={!canGenerate}
                 onClick={onStartGeneration}
-                className="mt-5 flex w-full items-center justify-center gap-2 rounded-full bg-action px-5 py-4 text-sm font-black text-on-action transition hover:bg-action-hover disabled:cursor-not-allowed disabled:bg-subtle disabled:text-muted"
+                className="mt-5 flex w-full cursor-pointer items-center justify-center gap-2 rounded-full bg-action px-5 py-4 text-sm font-black text-on-action transition hover:bg-action-hover disabled:cursor-not-allowed disabled:bg-subtle disabled:text-muted"
               >
-                Pregătește proiectul
+                Generează pachetul
                 <Icon>
                   <path d="M5 12h14M13 5l7 7-7 7" />
                 </Icon>
               </button>
 
               <p className="mt-4 text-xs leading-5 text-muted">
-                Nu încărca date sensibile. Limita curentă este 50MB / fișier.
+                Se generează rezumatul, cuvintele cheie, strategiile și
+                flashcardurile. Quizurile se pornesc separat din tabul dedicat.
               </p>
 
-              <div className="mt-5 grid grid-cols-2 gap-2 text-xs font-bold text-muted">
-                {["Rezumat", "Flashcard-uri", "Quiz-uri", "Cuvinte cheie"].map(
-                  (item) => (
-                    <span
-                      key={item}
-                      className="rounded-full border border-subtle px-3 py-2 text-center"
-                    >
-                      {item}
-                    </span>
-                  ),
-                )}
-              </div>
+              <p className="mt-3 text-xs leading-5 text-muted">
+                Nu încărca date sensibile sau materiale pentru care nu ai drept
+                de utilizare.
+              </p>
             </aside>
           </div>
 
@@ -7243,9 +7337,6 @@ function NewProjectView({
             completedSteps={completedSteps}
             preparedProject={preparedProject}
             generationError={generationError}
-            isImportingJson={isImportingJson}
-            jsonImportMessage={jsonImportMessage}
-            onImportJson={onImportJson}
             onOpenGeneratedProject={onOpenGeneratedProject}
           />
       )}
@@ -7260,9 +7351,6 @@ function GenerationView({
   completedSteps,
   preparedProject,
   generationError,
-  isImportingJson,
-  jsonImportMessage,
-  onImportJson,
   onOpenGeneratedProject,
 }: {
   projectName: string;
@@ -7271,21 +7359,18 @@ function GenerationView({
   completedSteps: string[];
   preparedProject: StudyProjectPrepareResponse | null;
   generationError: string | null;
-  isImportingJson: boolean;
-  jsonImportMessage: string | null;
-  onImportJson: (file: File) => void | Promise<void>;
   onOpenGeneratedProject: () => void;
 }) {
   return (
     <div className="rounded-xl border border-subtle bg-surface p-6 sm:p-8">
       <h1 className="font-serif text-3xl font-semibold leading-tight">
-        {state === "done" ? "Materialul este pregătit" : "Se convertește"}
+        {state === "done" ? "Pachetul este gata" : "Generăm pachetul"}
         <span className="text-muted"> - {projectName}</span>
       </h1>
       <p className="mt-3 max-w-2xl text-sm leading-6 text-muted">
         {state === "done"
-          ? "Descarcă markdown-ul și promptul, apoi încarcă JSON-ul primit de la ChatGPT."
-          : "Documentele sunt convertite în markdown cu MarkItDown."}
+          ? "Rezumatul, cuvintele cheie, strategiile și flashcardurile au fost salvate în proiect."
+          : "Pregătim materialele și creăm primul pachet de studiu."}
       </p>
 
       {generationError ? (
@@ -7338,62 +7423,15 @@ function GenerationView({
             </Icon>
           </span>
           <p className="mx-auto mt-4 max-w-md text-sm leading-6 text-muted">
-            Markdown-ul și promptul au fost create. Următorul pas este manual:
-            le încarci în ChatGPT, iar JSON-ul primit îl aduci aici.
+            Proiectul este pregătit pentru studiu. Quizurile se generează separat,
+            din tabul Quiz-uri, când vrei să intri în testare.
           </p>
-
-          {preparedProject ? (
-            <div className="mx-auto mt-5 grid max-w-md gap-2 divide-y divide-subtle border-y border-subtle text-left sm:grid-cols-2 sm:gap-0 sm:divide-x sm:divide-y-0">
-              <a
-                href={preparedProject.markdown_download_url}
-                className="flex items-center justify-center gap-2 py-3 text-sm font-black transition hover:bg-surface-hover sm:justify-start sm:pr-4"
-              >
-                Descarcă Markdown
-              </a>
-              <a
-                href={preparedProject.prompt_download_url}
-                className="flex items-center justify-center gap-2 py-3 text-sm font-black transition hover:bg-surface-hover sm:justify-start sm:pl-4"
-              >
-                Descarcă promptul
-              </a>
-            </div>
-          ) : null}
-
-          <label className="mx-auto mt-6 flex max-w-md cursor-pointer flex-col items-center rounded-xl border border-dashed border-subtle bg-app p-5 transition hover:bg-surface-hover">
-            <span className="text-sm font-black">
-              Încarcă JSON-ul generat de ChatGPT
-            </span>
-            <span className="mt-1 text-xs leading-5 text-muted">
-              Format acceptat: .json, conform promptului generat.
-            </span>
-            <input
-              type="file"
-              accept="application/json,.json"
-              className="hidden"
-              disabled={!preparedProject || isImportingJson}
-              onChange={(event) => {
-                const file = event.target.files?.[0];
-                if (file) void onImportJson(file);
-                event.currentTarget.value = "";
-              }}
-            />
-          </label>
-
-          {isImportingJson ? (
-            <p className="mt-3 text-xs font-semibold text-muted">
-              Importăm JSON-ul și creăm pachetul proiectului...
-            </p>
-          ) : null}
-          {jsonImportMessage ? (
-            <div className="mx-auto mt-3 max-w-md rounded-xl border border-success-border bg-success-soft px-4 py-3 text-sm font-semibold text-success">
-              {jsonImportMessage}
-            </div>
-          ) : null}
 
           <button
             type="button"
+            disabled={!preparedProject}
             onClick={onOpenGeneratedProject}
-            className="mt-6 inline-flex items-center justify-center gap-2 rounded-full bg-action px-5 py-3 text-sm font-semibold text-on-action transition hover:bg-action-hover"
+            className="mt-6 inline-flex items-center justify-center gap-2 rounded-full bg-action px-5 py-3 text-sm font-semibold text-on-action transition hover:bg-action-hover disabled:cursor-not-allowed disabled:bg-subtle disabled:text-muted"
           >
             Deschide proiectul
             <Icon>

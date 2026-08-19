@@ -56,7 +56,11 @@ const fieldGroups: Array<{
     title: "Furnizori",
     detail: "Nume afișate în politica publică.",
     fields: [
-      { name: "ai_provider", label: "Furnizor AI", placeholder: "OpenAI" },
+      {
+        name: "ai_provider",
+        label: "Furnizor AI",
+        placeholder: "Serviciu de generare",
+      },
       { name: "payment_provider", label: "Furnizor plăți", placeholder: "Stripe" },
       { name: "hosting_provider", label: "Furnizor hosting", placeholder: "Vercel" },
     ],
