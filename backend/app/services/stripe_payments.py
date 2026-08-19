@@ -14,6 +14,7 @@ from uuid import UUID
 
 from anyio import to_thread
 from sqlalchemy import select
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -26,8 +27,18 @@ from app.models import (
     UserSubscription,
 )
 from app.services.audit import add_audit_log
+from app.services.email import (
+    EmailDeliveryError,
+    EmailMessage,
+    EmailService,
+    email_logo_html,
+    invoice_paid_email,
+)
 
 ACTIVE_SUBSCRIPTION_STATUSES = {"active", "trialing"}
+CHECKOUT_SUBSCRIPTION_STATUSES = ACTIVE_SUBSCRIPTION_STATUSES | {
+    "checkout_completed",
+}
 INACTIVE_SUBSCRIPTION_STATUSES = {
     "canceled",
     "incomplete_expired",
@@ -93,6 +104,23 @@ def _int_or_zero(value: object) -> int:
         return 0
 
 
+def _format_invoice_amount(invoice: SubscriptionInvoice) -> str:
+    amount = invoice.amount_paid if invoice.amount_paid > 0 else invoice.amount_due
+    normalized = f"{amount / 100:.2f}".replace(".", ",")
+    return f"{normalized} {invoice.currency.upper()}"
+
+
+def _format_invoice_paid_at(invoice: SubscriptionInvoice) -> str | None:
+    if invoice.paid_at is None:
+        return None
+    return invoice.paid_at.astimezone(UTC).strftime("%d.%m.%Y, %H:%M")
+
+
+def _trim_delivery_error(error: Exception) -> str:
+    message = str(error).strip() or error.__class__.__name__
+    return message[:1000]
+
+
 class StripeClient:
     def __init__(self, settings: Settings) -> None:
         if settings.stripe_secret_key is None:
@@ -120,30 +148,38 @@ class StripeClient:
         customer_id: str,
         success_url: str,
         cancel_url: str,
+        replaces_subscription_id: str | None = None,
     ) -> dict[str, Any]:
         if not plan.stripe_price_id:
             raise StripePlanUnavailableError("Planul nu are stripe_price_id.")
+
+        data = {
+            "mode": "subscription",
+            "customer": customer_id,
+            "client_reference_id": str(user.id),
+            "line_items[0][price]": plan.stripe_price_id,
+            "line_items[0][quantity]": "1",
+            "success_url": success_url,
+            "cancel_url": cancel_url,
+            "allow_promotion_codes": "true",
+            "metadata[user_id]": str(user.id),
+            "metadata[plan_id]": str(plan.id),
+            "metadata[plan_slug]": plan.slug,
+            "subscription_data[metadata][user_id]": str(user.id),
+            "subscription_data[metadata][plan_id]": str(plan.id),
+            "subscription_data[metadata][plan_slug]": plan.slug,
+        }
+        if replaces_subscription_id is not None:
+            data["metadata[replaces_subscription_id]"] = replaces_subscription_id
+            data["subscription_data[metadata][replaces_subscription_id]"] = (
+                replaces_subscription_id
+            )
 
         return await to_thread.run_sync(
             self._request,
             "POST",
             "/checkout/sessions",
-            {
-                "mode": "subscription",
-                "customer": customer_id,
-                "client_reference_id": str(user.id),
-                "line_items[0][price]": plan.stripe_price_id,
-                "line_items[0][quantity]": "1",
-                "success_url": success_url,
-                "cancel_url": cancel_url,
-                "allow_promotion_codes": "true",
-                "metadata[user_id]": str(user.id),
-                "metadata[plan_id]": str(plan.id),
-                "metadata[plan_slug]": plan.slug,
-                "subscription_data[metadata][user_id]": str(user.id),
-                "subscription_data[metadata][plan_id]": str(plan.id),
-                "subscription_data[metadata][plan_slug]": plan.slug,
-            },
+            data,
         )
 
     async def retrieve_checkout_session(self, *, session_id: str) -> dict[str, Any]:
@@ -171,6 +207,15 @@ class StripeClient:
             "GET",
             f"/invoices/{safe_invoice_id}",
             None,
+        )
+
+    async def cancel_subscription(self, *, subscription_id: str) -> dict[str, Any]:
+        safe_subscription_id = urllib.parse.quote(subscription_id, safe="")
+        return await to_thread.run_sync(
+            self._request,
+            "DELETE",
+            f"/subscriptions/{safe_subscription_id}",
+            {"invoice_now": "false", "prorate": "false"},
         )
 
     def _request(
@@ -211,6 +256,7 @@ class StripePaymentService:
     def __init__(self, session: AsyncSession, settings: Settings) -> None:
         self._session = session
         self._settings = settings
+        self._email = EmailService(settings)
 
     async def create_checkout_session(
         self,
@@ -233,6 +279,20 @@ class StripePaymentService:
                 "Planul nu are configurat Price ID-ul Stripe."
             )
 
+        active_subscriptions = await self._fetch_active_subscriptions(user=user)
+        active_paid_subscription = next(
+            (
+                subscription
+                for subscription in active_subscriptions
+                if subscription.plan_id == plan.id
+            ),
+            None,
+        )
+        if active_paid_subscription is not None:
+            raise StripePlanUnavailableError("Planul selectat este deja activ.")
+
+        replaced_subscription = next(iter(active_subscriptions), None)
+
         stripe = StripeClient(self._settings)
         if not user.stripe_customer_id:
             customer = await stripe.create_customer(user=user)
@@ -250,6 +310,11 @@ class StripePaymentService:
             customer_id=customer_id,
             success_url=self._success_url(),
             cancel_url=self._cancel_url(),
+            replaces_subscription_id=(
+                replaced_subscription.stripe_subscription_id
+                if replaced_subscription is not None
+                else None
+            ),
         )
         checkout_url = str(checkout_session.get("url") or "")
         session_id = str(checkout_session.get("id") or "")
@@ -266,6 +331,11 @@ class StripePaymentService:
                 "plan_slug": plan.slug,
                 "stripe_price_id": plan.stripe_price_id,
                 "stripe_checkout_session_id": session_id,
+                "replaces_subscription_id": (
+                    replaced_subscription.stripe_subscription_id
+                    if replaced_subscription is not None
+                    else None
+                ),
             },
             ip_address=ip_address,
             user_agent=user_agent,
@@ -285,18 +355,19 @@ class StripePaymentService:
         if not event_id or not event_type:
             raise StripeSignatureError("Eveniment Stripe invalid.")
 
-        existing_event = await self._session.get(StripeEvent, event_id)
-        if existing_event is not None:
-            return
-
-        self._session.add(
-            StripeEvent(
+        claimed_event_id = await self._session.scalar(
+            pg_insert(StripeEvent)
+            .values(
                 id=event_id,
                 type=event_type,
                 payload=event,
                 processed_at=datetime.now(UTC),
             )
+            .on_conflict_do_nothing(index_elements=[StripeEvent.id])
+            .returning(StripeEvent.id)
         )
+        if claimed_event_id is None:
+            return
 
         data_object = event.get("data", {}).get("object", {})
         if event_type == "checkout.session.completed":
@@ -309,8 +380,10 @@ class StripePaymentService:
             await self._handle_subscription_event(data_object)
         elif event_type == "invoice.payment_failed":
             await self._handle_invoice_payment_failed(data_object)
-        elif event_type in {"invoice.paid", "invoice.payment_succeeded"}:
-            await self._handle_invoice_paid(data_object)
+        elif event_type == "invoice.paid":
+            await self._handle_invoice_paid(data_object, send_email=True)
+        elif event_type == "invoice.payment_succeeded":
+            await self._handle_invoice_paid(data_object, send_email=False)
 
         await self._session.commit()
 
@@ -350,6 +423,7 @@ class StripePaymentService:
             await self._sync_latest_invoice_from_stripe(
                 stripe=stripe,
                 stripe_subscription_id=stripe_subscription_id,
+                send_email_user=user,
             )
         add_audit_log(
             self._session,
@@ -367,6 +441,7 @@ class StripePaymentService:
             select(User)
             .options(selectinload(User.current_plan))
             .where(User.id == user.id)
+            .execution_options(populate_existing=True)
         )
         return refreshed_user or user
 
@@ -385,6 +460,17 @@ class StripePaymentService:
             .where(SubscriptionInvoice.user_id == user.id)
             .order_by(SubscriptionInvoice.created_at.desc())
             .limit(50)
+        )
+        return list(result)
+
+    async def _fetch_active_subscriptions(self, *, user: User) -> list[UserSubscription]:
+        result = await self._session.scalars(
+            select(UserSubscription)
+            .where(
+                UserSubscription.user_id == user.id,
+                UserSubscription.status.in_(CHECKOUT_SUBSCRIPTION_STATUSES),
+            )
+            .order_by(UserSubscription.updated_at.desc())
         )
         return list(result)
 
@@ -492,17 +578,27 @@ class StripePaymentService:
     async def _handle_invoice_payment_failed(self, invoice: dict[str, Any]) -> None:
         await self._mark_subscription_from_invoice(invoice, status="past_due")
 
-    async def _handle_invoice_paid(self, invoice: dict[str, Any]) -> None:
-        await self._mark_subscription_from_invoice(invoice, status="active")
+    async def _handle_invoice_paid(
+        self,
+        invoice: dict[str, Any],
+        *,
+        send_email: bool,
+    ) -> None:
+        await self._mark_subscription_from_invoice(
+            invoice,
+            status="active",
+            send_email=send_email,
+        )
 
     async def _mark_subscription_from_invoice(
         self,
         invoice: dict[str, Any],
         *,
         status: str,
+        send_email: bool = False,
     ) -> None:
         user_subscription = await self._find_subscription_from_invoice(invoice)
-        await self._upsert_invoice(
+        subscription_invoice = await self._upsert_invoice(
             invoice=invoice,
             user_subscription=user_subscription,
         )
@@ -520,13 +616,30 @@ class StripePaymentService:
         user_subscription.updated_at = datetime.now(UTC)
         user = await self._session.get(User, user_subscription.user_id)
         if user is not None and status in ACTIVE_SUBSCRIPTION_STATUSES:
-            user.current_plan_id = user_subscription.plan_id
+            latest_active_subscription = await self._latest_active_subscription(
+                user=user,
+            )
+            if (
+                latest_active_subscription is None
+                or latest_active_subscription.id == user_subscription.id
+            ):
+                user.current_plan_id = user_subscription.plan_id
+                await self._cancel_superseded_subscriptions(
+                    user=user,
+                    active_subscription=user_subscription,
+                )
+            if send_email and subscription_invoice is not None:
+                await self._send_paid_invoice_email_if_needed(
+                    invoice=subscription_invoice,
+                    user=user,
+                )
 
     async def _sync_latest_invoice_from_stripe(
         self,
         *,
         stripe: StripeClient,
         stripe_subscription_id: str,
+        send_email_user: User | None = None,
     ) -> None:
         try:
             subscription = await stripe.retrieve_subscription(
@@ -537,7 +650,12 @@ class StripePaymentService:
 
         latest_invoice = subscription.get("latest_invoice")
         if isinstance(latest_invoice, dict):
-            await self._upsert_invoice(invoice=latest_invoice)
+            subscription_invoice = await self._upsert_invoice(invoice=latest_invoice)
+            if send_email_user is not None and subscription_invoice is not None:
+                await self._send_paid_invoice_email_if_needed(
+                    invoice=subscription_invoice,
+                    user=send_email_user,
+                )
             return
 
         if isinstance(latest_invoice, str) and latest_invoice.startswith("in_"):
@@ -545,7 +663,12 @@ class StripePaymentService:
                 invoice = await stripe.retrieve_invoice(invoice_id=latest_invoice)
             except StripeRequestError:
                 return
-            await self._upsert_invoice(invoice=invoice)
+            subscription_invoice = await self._upsert_invoice(invoice=invoice)
+            if send_email_user is not None and subscription_invoice is not None:
+                await self._send_paid_invoice_email_if_needed(
+                    invoice=subscription_invoice,
+                    user=send_email_user,
+                )
 
     async def _find_subscription_from_invoice(
         self,
@@ -566,11 +689,11 @@ class StripePaymentService:
         *,
         invoice: dict[str, Any],
         user_subscription: UserSubscription | None = None,
-    ) -> None:
+    ) -> SubscriptionInvoice | None:
         stripe_invoice_id = _string_or_none(invoice.get("id"))
         stripe_customer_id = _string_or_none(invoice.get("customer"))
         if stripe_invoice_id is None or stripe_customer_id is None:
-            return
+            return None
 
         if user_subscription is None:
             user_subscription = await self._find_subscription_from_invoice(invoice)
@@ -591,7 +714,7 @@ class StripePaymentService:
                 plan_id = user.current_plan_id
 
         if user is None:
-            return
+            return None
 
         subscription_invoice = await self._session.scalar(
             select(SubscriptionInvoice).where(
@@ -631,6 +754,78 @@ class StripePaymentService:
         subscription_invoice.period_end = _timestamp(invoice.get("period_end"))
         subscription_invoice.paid_at = _timestamp(status_transitions.get("paid_at"))
         subscription_invoice.updated_at = datetime.now(UTC)
+        return subscription_invoice
+
+    async def _send_paid_invoice_email_if_needed(
+        self,
+        *,
+        invoice: SubscriptionInvoice,
+        user: User,
+    ) -> None:
+        if invoice.email_sent_at is not None or invoice.status != "paid":
+            return
+
+        invoice_url = invoice.hosted_invoice_url or invoice.invoice_pdf_url
+        if invoice_url is None:
+            invoice.email_delivery_error = (
+                "Factura Stripe nu are hosted_invoice_url sau invoice_pdf."
+            )
+            return
+
+        plan_name: str | None = None
+        if invoice.plan_id is not None:
+            plan = await self._session.get(SubscriptionPlan, invoice.plan_id)
+            plan_name = plan.name if plan is not None else None
+
+        html, text = invoice_paid_email(
+            invoice_url=invoice_url,
+            invoice_pdf_url=invoice.invoice_pdf_url,
+            invoice_number=invoice.number,
+            amount_label=_format_invoice_amount(invoice),
+            paid_at_label=_format_invoice_paid_at(invoice),
+            plan_name=plan_name,
+            logo_html=email_logo_html(self._settings.email_logo_url, app_name="Reviss"),
+            app_name="Reviss",
+        )
+
+        try:
+            await self._email.send(
+                EmailMessage(
+                    to=user.email,
+                    subject=f"Factura Reviss {invoice.number or invoice.stripe_invoice_id}",
+                    html=html,
+                    text=text,
+                )
+            )
+        except EmailDeliveryError as exc:
+            invoice.email_delivery_error = _trim_delivery_error(exc)
+            add_audit_log(
+                self._session,
+                action="stripe.invoice_email.failed",
+                status="failed",
+                actor=user,
+                resource_type="subscription_invoice",
+                resource_id=str(invoice.id),
+                details={
+                    "stripe_invoice_id": invoice.stripe_invoice_id,
+                    "error": invoice.email_delivery_error,
+                },
+            )
+            return
+
+        invoice.email_sent_at = datetime.now(UTC)
+        invoice.email_delivery_error = None
+        add_audit_log(
+            self._session,
+            action="stripe.invoice_email.sent",
+            actor=user,
+            resource_type="subscription_invoice",
+            resource_id=str(invoice.id),
+            details={
+                "stripe_invoice_id": invoice.stripe_invoice_id,
+                "invoice_number": invoice.number,
+            },
+        )
 
     async def _upsert_subscription(
         self,
@@ -677,7 +872,18 @@ class StripePaymentService:
         user_subscription.updated_at = now
 
         if status in ACTIVE_SUBSCRIPTION_STATUSES:
-            user.current_plan_id = plan.id
+            latest_active_subscription = await self._latest_active_subscription(
+                user=user,
+            )
+            if (
+                latest_active_subscription is None
+                or latest_active_subscription.id == user_subscription.id
+            ):
+                user.current_plan_id = plan.id
+                await self._cancel_superseded_subscriptions(
+                    user=user,
+                    active_subscription=user_subscription,
+                )
         elif (
             status in INACTIVE_SUBSCRIPTION_STATUSES
             and user.current_plan_id == plan.id
@@ -686,6 +892,98 @@ class StripePaymentService:
                 select(SubscriptionPlan).where(SubscriptionPlan.slug == "start")
             )
             user.current_plan_id = free_plan.id if free_plan is not None else None
+
+    async def _latest_active_subscription(
+        self,
+        *,
+        user: User,
+    ) -> UserSubscription | None:
+        return await self._session.scalar(
+            select(UserSubscription)
+            .where(
+                UserSubscription.user_id == user.id,
+                UserSubscription.status.in_(ACTIVE_SUBSCRIPTION_STATUSES),
+            )
+            .order_by(
+                UserSubscription.created_at.desc(),
+                UserSubscription.updated_at.desc(),
+            )
+            .limit(1)
+        )
+
+    async def _cancel_superseded_subscriptions(
+        self,
+        *,
+        user: User,
+        active_subscription: UserSubscription,
+    ) -> None:
+        result = await self._session.scalars(
+            select(UserSubscription).where(
+                UserSubscription.user_id == user.id,
+                UserSubscription.id != active_subscription.id,
+                UserSubscription.status.in_(ACTIVE_SUBSCRIPTION_STATUSES),
+            )
+        )
+        superseded_subscriptions = list(result)
+        if not superseded_subscriptions:
+            return
+
+        try:
+            stripe = StripeClient(self._settings)
+        except StripeConfigurationError as exc:
+            for subscription in superseded_subscriptions:
+                add_audit_log(
+                    self._session,
+                    action="stripe.subscription.superseded_cancel_failed",
+                    status="failed",
+                    actor=user,
+                    resource_type="user_subscription",
+                    resource_id=str(subscription.id),
+                    details={
+                        "active_subscription_id": str(active_subscription.id),
+                        "stripe_subscription_id": subscription.stripe_subscription_id,
+                        "error": _trim_delivery_error(exc),
+                    },
+                )
+            return
+
+        now = datetime.now(UTC)
+        for subscription in superseded_subscriptions:
+            try:
+                await stripe.cancel_subscription(
+                    subscription_id=subscription.stripe_subscription_id,
+                )
+            except StripeRequestError as exc:
+                add_audit_log(
+                    self._session,
+                    action="stripe.subscription.superseded_cancel_failed",
+                    status="failed",
+                    actor=user,
+                    resource_type="user_subscription",
+                    resource_id=str(subscription.id),
+                    details={
+                        "active_subscription_id": str(active_subscription.id),
+                        "stripe_subscription_id": subscription.stripe_subscription_id,
+                        "error": _trim_delivery_error(exc),
+                    },
+                )
+                continue
+
+            subscription.status = "canceled"
+            subscription.cancel_at_period_end = False
+            subscription.canceled_at = now
+            subscription.updated_at = now
+            add_audit_log(
+                self._session,
+                action="stripe.subscription.superseded_cancelled",
+                actor=user,
+                resource_type="user_subscription",
+                resource_id=str(subscription.id),
+                details={
+                    "active_subscription_id": str(active_subscription.id),
+                    "stripe_subscription_id": subscription.stripe_subscription_id,
+                },
+            )
 
     def _verify_event(
         self,

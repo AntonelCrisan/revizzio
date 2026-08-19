@@ -323,3 +323,52 @@ def password_reset_email(
         ],
     )
     return html, text
+
+
+def invoice_paid_email(
+    *,
+    invoice_url: str,
+    invoice_pdf_url: str | None,
+    invoice_number: str | None,
+    amount_label: str,
+    paid_at_label: str | None,
+    plan_name: str | None,
+    logo_html: str,
+    app_name: str = "Reviss",
+) -> tuple[str, str]:
+    invoice_label = invoice_number or "factura ta"
+    plan_label = plan_name or "abonamentul Reviss"
+    paid_label = paid_at_label or "astăzi"
+    pdf_line = f"\nPDF direct: {invoice_pdf_url}\n" if invoice_pdf_url else ""
+
+    text = (
+        f"Plata pentru {plan_label} a fost confirmată.\n\n"
+        f"Factura {invoice_label} în valoare de {amount_label} este disponibilă aici:\n"
+        f"{invoice_url}\n"
+        f"{pdf_line}\n"
+        "Mulțumim că folosești Reviss."
+    )
+    html = _email_shell(
+        app_name=app_name,
+        eyebrow="Factură abonament",
+        title="Plata ta a fost confirmată.",
+        intro=(
+            f"Am înregistrat plata pentru {plan_label}. Factura este disponibilă "
+            "în pagina securizată Stripe, de unde o poți vedea sau descărca."
+        ),
+        logo_html=logo_html,
+        cta_label="Vezi factura",
+        action_url=invoice_url,
+        note_title="Despre factura ta",
+        note=(
+            "Factura este găzduită securizat de Stripe. Linkul include și opțiunea "
+            "de descărcare PDF, acolo unde Stripe o oferă pentru această factură."
+        ),
+        details=[
+            f"Plan: {plan_label}",
+            f"Total plătit: {amount_label}",
+            f"Data plății: {paid_label}",
+            f"Număr factură: {invoice_label}",
+        ],
+    )
+    return html, text

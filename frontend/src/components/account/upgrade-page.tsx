@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
 import { AccountStaticShell } from "@/components/account/account-static-shell";
 import { useAuth } from "@/components/auth/auth-provider";
 import { syncCheckoutSession } from "@/lib/payments-api";
@@ -28,6 +28,9 @@ type UpgradePlan = {
   highlighted: boolean;
   features: string[];
 };
+
+const CHECKOUT_SYNC_ATTEMPTS = 12;
+const CHECKOUT_SYNC_INTERVAL_MS = 1500;
 
 function CheckIcon() {
   return (
@@ -113,6 +116,12 @@ function toUpgradePlans(plans: SubscriptionPlan[]): UpgradePlan[] {
     });
 }
 
+function wait(milliseconds: number) {
+  return new Promise((resolve) => {
+    window.setTimeout(resolve, milliseconds);
+  });
+}
+
 export function UpgradePage({
   plans,
   checkoutSessionId,
@@ -121,15 +130,6 @@ export function UpgradePage({
   const router = useRouter();
   const { user, isLoading, setUser } = useAuth();
   const syncedCheckoutSessionRef = useRef<string | null>(null);
-  const [checkoutMessage, setCheckoutMessage] = useState<string | null>(() => {
-    if (checkoutStatus === "cancelled") {
-      return "Plata a fost anulată. Planul tău nu a fost schimbat.";
-    }
-    if (checkoutStatus === "success" && checkoutSessionId) {
-      return "Confirmăm plata cu Stripe și actualizăm planul...";
-    }
-    return null;
-  });
   const currentPlanSlug = user?.current_plan?.slug ?? "start";
   const upgradePlans = toUpgradePlans(plans);
 
@@ -148,23 +148,33 @@ export function UpgradePage({
       };
     }
 
-    syncedCheckoutSessionRef.current = checkoutSessionId;
-    syncCheckoutSession(checkoutSessionId)
-      .then((updatedUser) => {
-        if (!isMounted) return;
-        setUser(updatedUser);
-        setCheckoutMessage(
-          `Plata a fost confirmată. Planul activ este ${updatedUser.current_plan?.name ?? "Start"}.`,
-        );
-        router.refresh();
-      })
-      .catch(() => {
-        syncedCheckoutSessionRef.current = null;
-        if (!isMounted) return;
-        setCheckoutMessage(
-          "Plata a fost înregistrată. Dacă planul nu apare imediat, Stripe îl va sincroniza în scurt timp.",
-        );
-      });
+    const activeCheckoutSessionId = checkoutSessionId;
+
+    async function syncCheckoutUntilConfirmed() {
+      syncedCheckoutSessionRef.current = activeCheckoutSessionId;
+
+      for (let attempt = 1; attempt <= CHECKOUT_SYNC_ATTEMPTS; attempt += 1) {
+        try {
+          const updatedUser = await syncCheckoutSession(activeCheckoutSessionId);
+          if (!isMounted) return;
+
+          setUser(updatedUser);
+          router.refresh();
+          return;
+        } catch {
+          if (!isMounted) return;
+
+          if (attempt < CHECKOUT_SYNC_ATTEMPTS) {
+            await wait(CHECKOUT_SYNC_INTERVAL_MS);
+          }
+        }
+      }
+
+      if (!isMounted) return;
+      syncedCheckoutSessionRef.current = null;
+    }
+
+    void syncCheckoutUntilConfirmed();
 
     return () => {
       isMounted = false;
@@ -203,12 +213,6 @@ export function UpgradePage({
             </Link>
           </div>
         </div>
-
-        {checkoutMessage ? (
-          <div className="rounded-xl border border-success-border bg-success-soft px-5 py-4 text-sm font-bold text-success">
-            {checkoutMessage}
-          </div>
-        ) : null}
 
         <div className="grid gap-5 lg:grid-cols-3 lg:items-stretch">
           {upgradePlans.map((plan) => {

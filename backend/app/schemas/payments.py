@@ -30,4 +30,5 @@ class SubscriptionInvoiceResponse(BaseModel):
     hosted_invoice_url: str | None
     invoice_pdf_url: str | None
     paid_at: datetime | None
+    email_sent_at: datetime | None
     created_at: datetime
