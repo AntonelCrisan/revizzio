@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import { AccountTabRoutePage } from "@/components/account/account-tab-route-page";
 
 export const metadata: Metadata = {
-  title: "Chat AI | Revizzio",
-  description: "Chat AI contextual pentru proiectul tău Revizzio.",
+  title: "Chat AI | Reviss",
+  description: "Chat AI contextual pentru proiectul tău Reviss.",
 };
 
 export default function ChatAiPage({

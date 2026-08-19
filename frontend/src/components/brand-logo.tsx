@@ -19,7 +19,7 @@ export function BrandLogo({
   variant = "full",
   className = "",
   logoClassName = "",
-  label = "Revizzio",
+  label = "Reviss",
 }: BrandLogoProps) {
   const wrapperClassName = `inline-flex items-center ${className || "text-content"}`;
   const logo = (

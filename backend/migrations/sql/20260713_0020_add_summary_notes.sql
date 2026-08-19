@@ -1,4 +1,4 @@
--- Revizzio summary notes (a free-text note attached to a selected passage)
+-- Reviss summary notes (a free-text note attached to a selected passage)
 
 CREATE TABLE IF NOT EXISTS study_project_summary_notes (
     id UUID PRIMARY KEY,

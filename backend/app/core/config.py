@@ -35,7 +35,7 @@ class Settings(BaseSettings):
     public_app_url: str = "http://localhost:3000"
     email_logo_url: str | None = None
     resend_api_key: SecretStr | None = None
-    resend_from_email: str = "Revizzio <onboarding@resend.dev>"
+    resend_from_email: str = "Reviss <onboarding@resend.dev>"
     email_verification_ttl_minutes: int = Field(default=30, ge=5, le=1440)
     password_reset_ttl_minutes: int = Field(default=30, ge=5, le=1440)
 

@@ -13,7 +13,6 @@ import {
 } from "react";
 import { useAuth } from "@/components/auth/auth-provider";
 import { BrandLogo } from "@/components/brand-logo";
-import { GeneratedContentDisclaimer } from "@/components/legal/generated-content-disclaimer";
 import {
   archiveStudyProject,
   completeQuiz,
@@ -1720,7 +1719,7 @@ function HomeView({
               Niciun proiect încă.
             </p>
             <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-muted">
-              Creează primul proiect, încarcă materialele și Revizzio îți
+              Creează primul proiect, încarcă materialele și Reviss îți
               pregătește rezumatul, flashcardurile și quizurile.
             </p>
           </div>
@@ -3688,7 +3687,7 @@ function SummaryPanel({
             <div className="shrink-0 flex items-start justify-between gap-4 border-b border-subtle bg-surface p-5 sm:p-6">
               <div>
                 <p className="text-xs font-bold uppercase tracking-[0.2em] text-info">
-                  Revizzio AI
+                  Reviss AI
                 </p>
                 <h3
                   id="summary-ai-title"
@@ -3891,7 +3890,7 @@ function buildProjectFlashcardDecks(
       description:
         quizMistakeCards.length
           ? "Fiecare greșeală din quiz devine automat un card de recapitulare."
-          : "Fă un quiz. Când greșești, Revizzio pune întrebarea și răspunsul corect aici.",
+          : "Fă un quiz. Când greșești, Reviss pune întrebarea și răspunsul corect aici.",
       cards: quizMistakeCards,
     },
     manual: {
@@ -4597,52 +4596,75 @@ function FlashcardDeckPage({
           )}
 
           {hasCards ? (
-            <div className="mt-4 flex flex-wrap items-center justify-center gap-3 sm:mt-5">
-              <button
-                type="button"
-                onClick={shuffleDeck}
-                disabled={isAnimating || cards.length <= 1}
-                className="inline-flex h-12 items-center gap-2 rounded-full border border-subtle bg-app px-5 text-sm font-bold text-content transition hover:-translate-y-0.5 hover:bg-surface-hover disabled:cursor-not-allowed disabled:opacity-55"
-              >
-                <Icon>
-                  <path d="M16 3h5v5M4 20l17-17M21 16v5h-5M15 15l6 6M4 4l5 5" />
-                </Icon>
-                Amestecă
-              </button>
-              <button
-                type="button"
-                onClick={() => moveCard(-1)}
-                disabled={isAnimating || cards.length <= 1}
-                className="flex h-12 w-12 items-center justify-center rounded-full border border-subtle bg-app text-content transition hover:-translate-y-0.5 hover:bg-surface-hover disabled:cursor-not-allowed disabled:opacity-55"
-                aria-label="Flashcard anterior"
-              >
-                <Icon>
-                  <path d="M19 12H5M11 5l-7 7 7 7" />
-                </Icon>
-              </button>
-              <button
-                type="button"
-                onClick={() => moveCard(1)}
-                disabled={isAnimating || cards.length <= 1}
-                className="flex h-12 w-12 items-center justify-center rounded-full bg-action text-on-action transition hover:-translate-y-0.5 hover:bg-action-hover disabled:cursor-not-allowed disabled:opacity-55"
-                aria-label="Flashcard următor"
-              >
-                <Icon>
-                  <path d="M5 12h14M13 5l7 7-7 7" />
-                </Icon>
-              </button>
-              <span className="text-xs font-bold text-muted">
-                {activeIndex + 1}/{cards.length}
-              </span>
+            <div className="mt-8 flex w-full flex-col items-center gap-2 sm:mt-5 sm:gap-3">
+              <div className="flex w-full max-w-[18rem] items-center justify-center gap-2 sm:max-w-none sm:gap-3">
+                <button
+                  type="button"
+                  onClick={() => moveCard(-1)}
+                  disabled={isAnimating || cards.length <= 1}
+                  className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-subtle bg-app text-content transition hover:-translate-y-0.5 hover:bg-surface-hover disabled:cursor-not-allowed disabled:opacity-55 sm:h-12 sm:w-12"
+                  aria-label="Flashcard anterior"
+                >
+                  <Icon>
+                    <path d="M19 12H5M11 5l-7 7 7 7" />
+                  </Icon>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => moveCard(1)}
+                  disabled={isAnimating || cards.length <= 1}
+                  className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-action text-on-action transition hover:-translate-y-0.5 hover:bg-action-hover disabled:cursor-not-allowed disabled:opacity-55 sm:h-12 sm:w-12"
+                  aria-label="Flashcard următor"
+                >
+                  <Icon>
+                    <path d="M5 12h14M13 5l7 7-7 7" />
+                  </Icon>
+                </button>
+                <span className="min-w-14 rounded-full border border-subtle bg-app px-3 py-2 text-center text-xs font-bold text-muted sm:border-0 sm:bg-transparent sm:px-0">
+                  {activeIndex + 1}/{cards.length}
+                </span>
+              </div>
+
+              <div className="flex w-full flex-col items-center gap-2 sm:flex-row sm:justify-center sm:gap-3">
+                <button
+                  type="button"
+                  onClick={shuffleDeck}
+                  disabled={isAnimating || cards.length <= 1}
+                  className="inline-flex h-10 w-full max-w-[13.5rem] items-center justify-center gap-2 rounded-full border border-subtle bg-app px-4 text-xs font-bold text-content transition hover:-translate-y-0.5 hover:bg-surface-hover disabled:cursor-not-allowed disabled:opacity-55 sm:h-12 sm:w-auto sm:max-w-none sm:px-5 sm:text-sm"
+                >
+                  <Icon className="h-4 w-4 sm:h-5 sm:w-5">
+                    <path d="M16 3h5v5M4 20l17-17M21 16v5h-5M15 15l6 6M4 4l5 5" />
+                  </Icon>
+                  Amestecă
+                </button>
+                {deck.cards.length > 0 ? (
+                  <button
+                    type="button"
+                    onClick={toggleReviewOnlyFilter}
+                    className={`inline-flex h-10 w-full max-w-[17.5rem] items-center justify-center gap-2 rounded-full border px-4 text-xs font-bold transition sm:w-auto sm:max-w-none ${
+                      showReviewOnly
+                        ? "border-action bg-action text-on-action"
+                        : "border-subtle bg-app text-content hover:bg-surface-hover"
+                    }`}
+                    aria-pressed={showReviewOnly}
+                  >
+                    <Icon className="h-4 w-4">
+                      <path d="M9.5 2a2.5 2.5 0 0 0-2.5 2.5v.5a3 3 0 0 0-2 2.83V8a3 3 0 0 0-1 5.83V15a3 3 0 0 0 3 3 2.5 2.5 0 0 0 2.5 2.5h.5a2.5 2.5 0 0 0 2.5-2.5V4.5A2.5 2.5 0 0 0 9.5 2Z" />
+                      <path d="M14.5 2a2.5 2.5 0 0 1 2.5 2.5v.5a3 3 0 0 1 2 2.83V8a3 3 0 0 1 1 5.83V15a3 3 0 0 1-3 3 2.5 2.5 0 0 1-2.5 2.5h-.5a2.5 2.5 0 0 1-2.5-2.5V4.5A2.5 2.5 0 0 1 14.5 2Z" />
+                    </Icon>
+                    Doar marcate pentru recapitulare
+                  </button>
+                ) : null}
+              </div>
             </div>
           ) : null}
 
-          {deck.cards.length > 0 ? (
+          {!hasCards && deck.cards.length > 0 ? (
             <div className="mt-3 flex justify-center">
               <button
                 type="button"
                 onClick={toggleReviewOnlyFilter}
-                className={`inline-flex h-10 items-center gap-2 rounded-full border px-4 text-xs font-bold transition ${
+                className={`inline-flex h-10 w-full max-w-[17.5rem] items-center justify-center gap-2 rounded-full border px-4 text-xs font-bold transition sm:w-auto sm:max-w-none ${
                   showReviewOnly
                     ? "border-action bg-action text-on-action"
                     : "border-subtle bg-app text-content hover:bg-surface-hover"
@@ -4843,58 +4865,78 @@ function ManualFlashcardBuilderPage({
   }
 
   return (
-    <section className="space-y-6">
-      <button
-        type="button"
-        onClick={onBack}
-        className="inline-flex h-11 cursor-pointer items-center gap-2 rounded-full border border-subtle bg-surface px-4 text-sm font-semibold text-muted transition hover:bg-surface-hover hover:text-content focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-action"
-      >
-        <Icon>
-          <path d="M19 12H5M12 19l-7-7 7-7" />
-        </Icon>
-        Înapoi la pachete
-      </button>
+    <section className="space-y-5">
+      <div className="grid gap-4 border-b border-subtle pb-5 xl:grid-cols-[minmax(0,1fr)_minmax(24rem,0.55fr)] xl:items-end">
+        <div className="min-w-0">
+          <button
+            type="button"
+            onClick={onBack}
+            className="inline-flex h-10 cursor-pointer items-center gap-2 rounded-full border border-subtle bg-surface px-4 text-sm font-semibold text-muted transition hover:bg-surface-hover hover:text-content focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-action"
+          >
+            <Icon>
+              <path d="M19 12H5M12 19l-7-7 7-7" />
+            </Icon>
+            Înapoi la pachete
+          </button>
 
-      <div className="grid gap-3 border-t border-subtle pt-6 lg:grid-cols-[1fr_auto]">
-        <label className="block rounded-xl border border-subtle bg-surface px-4 py-3">
-          <span className="text-[11px] font-black uppercase tracking-[0.16em] text-muted">
-            Categorie
-          </span>
-          <input
-            value={category}
-            onChange={(event) => setCategory(event.target.value)}
-            placeholder="Ex: Farmacognozie, formule, capitol 2"
-            className="mt-2 w-full bg-transparent text-base font-semibold text-content outline-none placeholder:text-muted/50"
-          />
-        </label>
-        <div className="flex flex-wrap items-center gap-2 rounded-xl border border-subtle bg-surface p-2">
-          {manualFlashcardDifficulties.map((option) => {
-            const isActive = difficulty === option.value;
+          <div className="mt-4 flex min-w-0 flex-wrap items-center gap-x-4 gap-y-2">
+            <span className="inline-flex rounded-full border border-subtle bg-action-soft px-3 py-1 text-[10px] font-black uppercase tracking-[0.18em] text-muted">
+              Flashcard manual
+            </span>
+            <h2 className="min-w-0 font-serif text-3xl font-semibold leading-none text-content sm:text-4xl">
+              Creează flashcard.
+            </h2>
+          </div>
+        </div>
 
-            return (
-              <button
-                key={option.value}
-                type="button"
-                onClick={() => setDifficulty(option.value)}
-                className={`rounded-full px-3 py-1.5 text-xs font-bold transition sm:px-4 sm:py-2 sm:text-sm ${
-                  isActive
-                    ? "bg-action text-on-action"
-                    : "text-muted hover:bg-surface-hover hover:text-content"
-                }`}
-              >
-                {option.label}
-              </button>
-            );
-          })}
+        <div className="divide-y divide-subtle border-y border-subtle">
+            <label className="grid gap-2 py-3 sm:grid-cols-[8rem_minmax(0,1fr)] sm:items-center">
+              <span className="text-[11px] font-black uppercase tracking-[0.16em] text-muted">
+                Categorie
+              </span>
+              <input
+                value={category}
+                onChange={(event) => setCategory(event.target.value)}
+                placeholder="Ex: Farmacognozie"
+                className="w-full bg-transparent text-sm font-bold text-content outline-none placeholder:text-muted/45"
+              />
+            </label>
+
+            <div className="grid gap-2 py-3 sm:grid-cols-[8rem_minmax(0,1fr)] sm:items-center">
+              <span className="text-[11px] font-black uppercase tracking-[0.16em] text-muted">
+                Dificultate
+              </span>
+              <div className="flex flex-wrap gap-2">
+                {manualFlashcardDifficulties.map((option) => {
+                  const isActive = difficulty === option.value;
+
+                  return (
+                    <button
+                      key={option.value}
+                      type="button"
+                      onClick={() => setDifficulty(option.value)}
+                      className={`h-9 cursor-pointer rounded-full border px-4 text-xs font-bold transition ${
+                        isActive
+                          ? "border-action bg-action text-on-action"
+                          : "border-subtle text-muted hover:bg-surface-hover hover:text-content"
+                      }`}
+                    >
+                      {option.label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
         </div>
       </div>
 
       <div className="grid gap-5 xl:grid-cols-2">
         <ManualFlashcardEditorCard
           label="Întrebare"
+          eyebrow="Față"
           value={question}
           image={questionImage}
-          placeholder="Scrie întrebarea sau adaugă o imagine..."
+          placeholder="Scrie întrebarea aici..."
           onChange={setQuestion}
           onImageChange={handleImageChange}
           onImageRemove={() => {
@@ -4904,6 +4946,7 @@ function ManualFlashcardBuilderPage({
         />
         <ManualFlashcardEditorCard
           label="Răspuns"
+          eyebrow="Spate"
           value={answer}
           placeholder="Scrie răspunsul..."
           onChange={setAnswer}
@@ -4911,9 +4954,9 @@ function ManualFlashcardBuilderPage({
         />
       </div>
 
-      <div className="mt-5 flex flex-wrap justify-end gap-3">
+      <div className="flex flex-wrap items-center justify-end gap-3 border-t border-subtle pt-5">
         {saveError ? (
-          <p className="mr-auto rounded-full border border-danger-border bg-danger-soft px-4 py-3 text-sm font-bold text-danger">
+          <p className="mr-auto rounded-lg border border-danger-border bg-danger-soft px-4 py-3 text-sm font-bold text-danger">
             {saveError}
           </p>
         ) : null}
@@ -4921,7 +4964,7 @@ function ManualFlashcardBuilderPage({
           type="button"
           onClick={handleCancel}
           disabled={isSaving}
-          className="rounded-full border border-subtle px-5 py-3 text-sm font-bold text-content transition hover:bg-surface-hover"
+          className="h-12 cursor-pointer rounded-full border border-subtle px-5 text-sm font-bold text-content transition hover:bg-surface-hover disabled:cursor-wait disabled:opacity-60"
         >
           Anulare
         </button>
@@ -4929,7 +4972,7 @@ function ManualFlashcardBuilderPage({
           type="button"
           onClick={handleSave}
           disabled={!canSave}
-          className="rounded-full bg-action px-6 py-3 text-sm font-bold text-on-action transition hover:bg-action-hover disabled:cursor-not-allowed disabled:bg-subtle disabled:text-muted"
+          className="h-12 cursor-pointer rounded-full bg-action px-6 text-sm font-bold text-on-action transition hover:bg-action-hover disabled:cursor-not-allowed disabled:bg-subtle disabled:text-muted"
         >
           {isSaving ? "Se salvează..." : "Salvare"}
         </button>
@@ -4940,6 +4983,7 @@ function ManualFlashcardBuilderPage({
 
 function ManualFlashcardEditorCard({
   label,
+  eyebrow,
   value,
   image,
   placeholder,
@@ -4949,6 +4993,7 @@ function ManualFlashcardEditorCard({
   allowImage = true,
 }: {
   label: string;
+  eyebrow: string;
   value: string;
   image?: string;
   placeholder: string;
@@ -4958,14 +5003,22 @@ function ManualFlashcardEditorCard({
   allowImage?: boolean;
 }) {
   return (
-    <article className="min-h-[20rem] rounded-xl border border-subtle bg-surface p-5 sm:min-h-[26rem]">
-      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-        <span className="rounded-full bg-success-soft px-3 py-1 text-[11px] font-black uppercase tracking-[0.12em] text-success">
-          {label}
-        </span>
+    <article className="rounded-xl border border-subtle bg-surface">
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-subtle px-5 py-4">
+        <div>
+          <p className="text-[10px] font-black uppercase tracking-[0.18em] text-muted">
+            {eyebrow}
+          </p>
+          <h3 className="mt-1 font-serif text-2xl font-semibold leading-none text-content">
+            {label}
+          </h3>
+        </div>
         {allowImage ? (
-          <label className="cursor-pointer rounded-full border border-subtle bg-app px-3 py-2 text-xs font-bold text-content transition hover:bg-surface-hover">
-            Imagine
+          <label className="inline-flex h-10 cursor-pointer items-center gap-2 rounded-full border border-subtle bg-app px-4 text-xs font-bold text-content transition hover:bg-surface-hover">
+            <Icon className="h-4 w-4">
+              <path d="M12 5v14M5 12h14" />
+            </Icon>
+            Adaugă imagine
             <input
               type="file"
               accept="image/*"
@@ -4979,21 +5032,23 @@ function ManualFlashcardEditorCard({
         ) : null}
       </div>
 
-      <div className="flex h-[15rem] flex-col gap-4 sm:h-[20rem]">
+      <div className="flex min-h-[18rem] flex-col sm:min-h-[20rem]">
         <textarea
           value={value}
           onChange={(event) => onChange(event.target.value)}
           placeholder={placeholder}
-          className="min-h-0 flex-1 resize-none rounded-lg border border-subtle bg-app p-4 font-serif text-lg font-semibold leading-tight text-content outline-none transition placeholder:text-muted/50 focus:border-action focus:ring-4 focus:ring-action-soft sm:p-5 sm:text-2xl"
+          className="min-h-[11rem] flex-1 resize-none bg-transparent px-5 py-5 font-serif text-2xl font-semibold leading-tight text-content outline-none placeholder:text-muted/35 sm:text-3xl"
         />
         {allowImage && image ? (
-          <div className="relative h-28 overflow-hidden rounded-lg border border-subtle bg-app p-3 sm:h-40">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={image} alt="" className="h-full w-full object-contain" />
+          <div className="relative border-t border-subtle bg-app p-4">
+            <div className="h-44 overflow-hidden rounded-lg border border-subtle bg-surface p-3">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={image} alt="" className="h-full w-full object-contain" />
+            </div>
             <button
               type="button"
               onClick={onImageRemove}
-              className="absolute right-3 top-3 rounded-full bg-action px-3 py-1.5 text-xs font-bold text-on-action"
+              className="absolute right-7 top-7 cursor-pointer rounded-full bg-action px-3 py-1.5 text-xs font-bold text-on-action transition hover:bg-action-hover"
             >
               Șterge
             </button>
@@ -5092,13 +5147,12 @@ function FlashcardsPanel({
   return (
     <div className="space-y-5">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-        <GeneratedContentDisclaimer className="w-fit max-w-full" />
         <button
           type="button"
           onClick={() =>
             router.push(`/myaccount/flashcarduri/creeaza?project=${project.id}`)
           }
-          className="inline-flex h-11 w-fit shrink-0 items-center gap-2 rounded-full bg-action px-5 text-sm font-bold text-on-action transition hover:-translate-y-0.5 hover:bg-action-hover sm:ml-auto"
+          className="inline-flex h-11 w-fit shrink-0 cursor-pointer items-center gap-2 rounded-full bg-action px-5 text-sm font-bold text-on-action transition hover:-translate-y-0.5 hover:bg-action-hover sm:ml-auto"
         >
           <Icon>
             <path d="M12 5v14M5 12h14" />
@@ -5877,7 +5931,7 @@ function QuizPanel({
 
             <p className="mt-3 text-sm leading-7 text-muted">
               Pregătirea estimată crește cu {correctCount >= 3 ? "6" : "3"}%.
-              Revizzio ar transforma automat greșelile în flashcard-uri de
+              Reviss ar transforma automat greșelile în flashcard-uri de
               recapitulare.
             </p>
 

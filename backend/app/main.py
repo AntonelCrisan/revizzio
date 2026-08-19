@@ -24,17 +24,17 @@ settings = get_settings()
 @asynccontextmanager
 async def lifespan(_: FastAPI) -> AsyncIterator[None]:
     logger.info(
-        "Revizzio API rulează în mediul %s și este pregătit.",
+        "Reviss API rulează în mediul %s și este pregătit.",
         settings.environment,
     )
     yield
     await engine.dispose()
-    logger.info("Revizzio API a fost oprit.")
+    logger.info("Reviss API a fost oprit.")
 
 
 app = FastAPI(
-    title="Revizzio API",
-    description="API pentru aplicatia Revizzio.",
+    title="Reviss API",
+    description="API pentru aplicatia Reviss.",
     version="0.1.0",
     lifespan=lifespan,
 )
@@ -44,7 +44,10 @@ app.add_middleware(
     allow_origins=settings.allowed_origins,
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "PATCH", "OPTIONS"],
-    allow_headers=["Content-Type", "X-Revizzio-Form-Intent"],
+    allow_headers=[
+        "Content-Type",
+        "X-Reviss-Form-Intent",
+    ],
 )
 
 app.include_router(health_router)
@@ -61,6 +64,6 @@ app.include_router(projects_router)
 @app.get("/")
 async def root() -> dict[str, str]:
     return {
-        "name": "Revizzio API",
+        "name": "Reviss API",
         "docs": "/docs",
     }

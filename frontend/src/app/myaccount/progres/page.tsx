@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import { AccountTabRoutePage } from "@/components/account/account-tab-route-page";
 
 export const metadata: Metadata = {
-  title: "Progres | Revizzio",
-  description: "Progresul proiectului tău Revizzio.",
+  title: "Progres | Reviss",
+  description: "Progresul proiectului tău Reviss.",
 };
 
 export default function ProgresPage({

@@ -1,8 +1,8 @@
--- Revizzio authentication schema
+-- Reviss authentication schema
 -- Alembic revision: 20260611_0001
 -- PostgreSQL only
 --
--- Run this file only on a new, empty Revizzio database.
+-- Run this file only on a new, empty Reviss database.
 -- This is the SQL equivalent of:
 --   python -m alembic upgrade head
 --

@@ -40,7 +40,7 @@ async function proxyComplianceRequest(
     "user-agent",
     "origin",
     "referer",
-    "x-revizzio-form-intent",
+    "x-reviss-form-intent",
   ]) {
     const value = request.headers.get(headerName);
     if (value) headers.set(headerName, value);

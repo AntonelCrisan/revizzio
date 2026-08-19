@@ -128,14 +128,14 @@ function applyTheme(preference: ThemePreference) {
   });
 
   const favicon = document.querySelector<HTMLLinkElement>(
-    "link[data-revizzio-favicon]",
+    "link[data-reviss-favicon]",
   );
 
   if (favicon) {
     favicon.href =
       resolvedTheme === "dark"
-        ? "/assets/logos/revizzio-favicon-light.svg"
-        : "/assets/logos/revizzio-favicon-dark.svg";
+        ? "/assets/logos/Reviss_favicon_light.svg"
+        : "/assets/logos/Reviss_favicon_dark.svg";
   }
 }
 

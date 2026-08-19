@@ -1,4 +1,4 @@
--- Revizzio subscription plans
+-- Reviss subscription plans
 -- Alembic revision: 20260627_0006
 -- PostgreSQL only
 --
@@ -62,7 +62,7 @@ INSERT INTO subscription_plans (
     NULL,
     'lunar',
     'gratuit',
-    'Pentru primul curs și testarea fluxului Revizzio.',
+    'Pentru primul curs și testarea fluxului Reviss.',
     '3 materiale procesate lunar',
     'AI de bază',
     'Istoric limitat',

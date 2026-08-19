@@ -390,8 +390,8 @@ class StudyProjectService:
             raise ProjectConversionError(project.error_message)
 
         combined_markdown = "\n\n---\n\n".join(markdown_parts)
-        combined_path = project_dir / "revizzio-material.md"
-        prompt_path = project_dir / "revizzio-prompt.txt"
+        combined_path = project_dir / "reviss-material.md"
+        prompt_path = project_dir / "reviss-prompt.txt"
         combined_path.write_text(combined_markdown, encoding="utf-8")
         prompt_path.write_text(
             self._build_prompt(
@@ -1206,7 +1206,7 @@ class StudyProjectService:
         institution_name: str,
         markdown: str,
     ) -> str:
-        """Adaptor compatibil cu metoda existentă din serviciul Revizzio."""
+        """Adaptor compatibil cu metoda existentă din serviciul Reviss."""
         return build_revizzio_prompt(
             project_name=project_name,
             subject_name=subject_name,
@@ -1221,7 +1221,7 @@ def build_revizzio_prompt(
     institution_name: str,
     material_markdown: str,
 ) -> str:
-    """Construiește promptul principal Revizzio pentru generarea pachetului JSON."""
+    """Construiește promptul principal Reviss pentru generarea pachetului JSON."""
     required = {
         "project_name": project_name,
         "subject_name": subject_name,
@@ -1232,7 +1232,7 @@ def build_revizzio_prompt(
         if not isinstance(value, str) or not value.strip():
             raise ValueError(f"{field_name} trebuie să fie un șir nevid.")
 
-    return f"""Ești motorul educațional al platformei Revizzio.
+    return f"""Ești motorul educațional al platformei Reviss.
 Transformă materialul furnizat într-un singur obiect JSON complet, riguros și gata de import într-o aplicație de învățare.
 
 PRIORITĂȚI, ÎN ACEASTĂ ORDINE:
@@ -1648,7 +1648,7 @@ def build_revizzio_validation_prompt(
     if not isinstance(generated_json, str) or not generated_json.strip():
         raise ValueError("generated_json trebuie să fie un șir nevid.")
 
-    return f"""Acționezi ca auditor independent pentru un pachet educațional Revizzio.
+    return f"""Acționezi ca auditor independent pentru un pachet educațional Reviss.
 Primești materialul-sursă și un JSON generat. Verifică fiecare item exclusiv față de material.
 
 SCOP:

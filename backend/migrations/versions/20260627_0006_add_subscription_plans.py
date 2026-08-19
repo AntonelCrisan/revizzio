@@ -28,7 +28,7 @@ DEFAULT_PLANS = [
         "discount_label": None,
         "billing_interval": "lunar",
         "badge": "gratuit",
-        "description": "Pentru primul curs și testarea fluxului Revizzio.",
+        "description": "Pentru primul curs și testarea fluxului Reviss.",
         "material_limit": "3 materiale procesate lunar",
         "ai_level": "AI de bază",
         "storage": "Istoric limitat",

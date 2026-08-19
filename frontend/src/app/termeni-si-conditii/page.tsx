@@ -6,8 +6,8 @@ import { getServerLegalDocument } from "@/lib/server-legal";
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
-  title: "Termeni și condiții | Revizzio",
-  description: "Termenii și condițiile de utilizare pentru platforma Revizzio.",
+  title: "Termeni și condiții | Reviss",
+  description: "Termenii și condițiile de utilizare pentru platforma Reviss.",
 };
 
 export default async function TermsPage() {
@@ -19,7 +19,7 @@ export default async function TermsPage() {
     <LegalDocument
       contentHtml={contentHtml}
       eyebrow="Termeni legali"
-      summary="Regulile de utilizare ale platformei Revizzio, drepturile și responsabilitățile aplicabile contului, materialelor încărcate și funcționalităților disponibile."
+      summary="Regulile de utilizare ale platformei Reviss, drepturile și responsabilitățile aplicabile contului, materialelor încărcate și funcționalităților disponibile."
     />
   );
 }

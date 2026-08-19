@@ -1,4 +1,4 @@
--- Revizzio study project pipeline
+-- Reviss study project pipeline
 -- Alembic revision: 20260711_0011
 -- PostgreSQL only
 --

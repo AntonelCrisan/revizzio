@@ -1,4 +1,4 @@
--- Revizzio dynamic legal content and company data
+-- Reviss dynamic legal content and company data
 -- Alembic revision: 20260627_0005
 -- PostgreSQL only
 

@@ -193,7 +193,7 @@ class StripeClient:
             headers={
                 "Authorization": f"Bearer {self._secret_key}",
                 "Content-Type": "application/x-www-form-urlencoded",
-                "User-Agent": "Revizzio/1.0",
+                "User-Agent": "Reviss/1.0",
             },
         )
 

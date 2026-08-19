@@ -294,7 +294,7 @@ export function FlashcardStory() {
               Nu doar citești. Îți testezi memoria.
             </h2>
             <p className="flashcard-story-description mt-5 hidden max-w-lg text-sm leading-7 text-muted sm:block sm:text-base">
-              Încarci cursul, iar Revizzio extrage ideile-cheie și le transformă
+              Încarci cursul, iar Reviss extrage ideile-cheie și le transformă
               în flashcard-uri. Derulează pentru a răsfoi pachetul în ambele
               direcții.
             </p>

@@ -6,8 +6,8 @@ import {
 } from "@/lib/server-plans";
 
 export const metadata: Metadata = {
-  title: "Abonament | Revizzio",
-  description: "Alege planul Revizzio potrivit pentru studiul tău.",
+  title: "Abonament | Reviss",
+  description: "Alege planul Reviss potrivit pentru studiul tău.",
 };
 
 type UpgradeRouteProps = {

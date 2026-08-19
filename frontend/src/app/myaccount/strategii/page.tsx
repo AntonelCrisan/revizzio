@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import { AccountTabRoutePage } from "@/components/account/account-tab-route-page";
 
 export const metadata: Metadata = {
-  title: "Strategii | Revizzio",
-  description: "Strategiile de învățare pentru proiectul tău Revizzio.",
+  title: "Strategii | Reviss",
+  description: "Strategiile de învățare pentru proiectul tău Reviss.",
 };
 
 export default function StrategiiPage({

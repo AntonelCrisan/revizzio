@@ -1,4 +1,4 @@
--- Revizzio user role
+-- Reviss user role
 -- Alembic revision: 20260627_0004
 -- PostgreSQL only
 

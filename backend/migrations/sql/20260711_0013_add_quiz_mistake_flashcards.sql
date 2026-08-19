@@ -1,4 +1,4 @@
--- Revizzio quiz mistake flashcards
+-- Reviss quiz mistake flashcards
 -- Alembic revision: 20260711_0013
 -- PostgreSQL only
 --

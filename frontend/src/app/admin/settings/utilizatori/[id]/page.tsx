@@ -5,7 +5,7 @@ import { getServerAdminUser } from "@/lib/server-admin-users";
 import { requireAdminUser } from "@/lib/server-auth";
 
 export const metadata: Metadata = {
-  title: "Detalii utilizator | Revizzio",
+  title: "Detalii utilizator | Reviss",
   description: "Date administrative pentru utilizator.",
 };
 

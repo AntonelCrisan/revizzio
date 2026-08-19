@@ -1,4 +1,4 @@
--- Revizzio Stripe subscriptions
+-- Reviss Stripe subscriptions
 -- Alembic revision: 20260704_0009
 -- PostgreSQL only
 --

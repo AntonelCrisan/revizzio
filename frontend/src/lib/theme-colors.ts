@@ -176,7 +176,7 @@ const classicDark: ThemeColorMap = {
 export const colorThemePresets: ColorThemePreset[] = [
   {
     id: "classic",
-    name: "Revizzio Classic",
+    name: "Reviss Classic",
     description: "Paleta caldă actuală, potrivită pentru studiu lung.",
     preview: ["#fbf9f5", "#ffffff", "#1c1a17", "#3b4d36"],
     colors: {

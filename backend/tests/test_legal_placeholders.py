@@ -6,13 +6,13 @@ from app.services.legal import render_company_placeholders
 
 def build_company_data() -> CompanyData:
     return CompanyData(
-        name="Revizzio SRL",
+        name="Reviss SRL",
         social_location="Cluj-Napoca",
         cui="RO12345678",
         register_number="J12/1234/2026",
         social_capital="200 RON",
-        email="contact@revizzio.test",
-        privacy_email="privacy@revizzio.test",
+        email="contact@reviss.test",
+        privacy_email="privacy@reviss.test",
         phone="0712345678",
         ai_provider="OpenAI",
         payment_provider="Stripe",

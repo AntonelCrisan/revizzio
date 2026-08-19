@@ -57,7 +57,7 @@ class FakeAuthService:
         )
 
 
-def test_register_sets_http_only_session_cookie() -> None:
+def test_register_requests_email_confirmation_without_session_cookie() -> None:
     service = FakeAuthService()
     settings = get_settings().model_copy(
         update={"session_cookie_name": "revizzio_session"}
@@ -79,14 +79,14 @@ def test_register_sets_http_only_session_cookie() -> None:
     finally:
         app.dependency_overrides.clear()
 
-    assert response.status_code == 201
-    assert response.json()["email"] == "student@example.com"
-    set_cookie = response.headers["set-cookie"]
-    assert "revizzio_session=test-session-token" in set_cookie
-    assert "HttpOnly" in set_cookie
-    assert "SameSite=lax" in set_cookie
-    assert "Max-Age" not in set_cookie
-    assert "expires=" not in set_cookie.lower()
+    assert response.status_code == 202
+    assert response.json() == {
+        "message": (
+            "Ți-am trimis un email de confirmare. Contul va fi creat după "
+            "validarea adresei de email."
+        )
+    }
+    assert "set-cookie" not in response.headers
 
 
 def test_remember_me_sets_a_persistent_cookie() -> None:

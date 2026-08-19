@@ -7,8 +7,8 @@ import {
 } from "@/lib/server-plans";
 
 export const metadata: Metadata = {
-  title: "Administrare planuri | Revizzio",
-  description: "UI administrativ pentru planurile și prețurile Revizzio.",
+  title: "Administrare planuri | Reviss",
+  description: "UI administrativ pentru planurile și prețurile Reviss.",
 };
 
 export default async function AdminPlansRoute() {

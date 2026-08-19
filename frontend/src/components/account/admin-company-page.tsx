@@ -28,7 +28,7 @@ const fieldGroups: Array<{
     title: "Identitate firmă",
     detail: "Date juridice afișate în documente.",
     fields: [
-      { name: "name", label: "Denumire firmă", placeholder: "Revizzio SRL" },
+      { name: "name", label: "Denumire firmă", placeholder: "Reviss SRL" },
       { name: "social_location", label: "Sediu social", placeholder: "Stradă, număr, oraș" },
       { name: "cui", label: "CUI", placeholder: "RO12345678" },
       {
@@ -43,11 +43,11 @@ const fieldGroups: Array<{
     title: "Contact",
     detail: "Canale publice pentru suport și confidențialitate.",
     fields: [
-      { name: "email", label: "E-mail contact", placeholder: "contact@revizzio.ro" },
+      { name: "email", label: "E-mail contact", placeholder: "contact@reviss.ro" },
       {
         name: "privacy_email",
         label: "E-mail confidențialitate",
-        placeholder: "privacy@revizzio.ro",
+        placeholder: "privacy@reviss.ro",
       },
       { name: "phone", label: "Telefon", placeholder: "+40 700 000 000" },
     ],

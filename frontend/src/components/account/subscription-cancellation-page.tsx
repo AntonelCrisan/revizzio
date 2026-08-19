@@ -15,7 +15,7 @@ async function requestCancellation() {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      "X-Revizzio-Form-Intent": "subscription-cancel",
+      "X-Reviss-Form-Intent": "subscription-cancel",
     },
     body: JSON.stringify({
       plan_name: "Focus",

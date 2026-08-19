@@ -62,7 +62,7 @@ const settingsTabs: Array<{
     id: "study",
     label: "Studiu",
     eyebrow: "Învățare",
-    title: "Cum vrei să lucreze Revizzio.",
+    title: "Cum vrei să lucreze Reviss.",
     description: "Preferințe pentru ritmul de studiu și feedback-ul AI.",
   },
   {
@@ -216,7 +216,7 @@ const studyAutomationOptions = [
   {
     id: "quizAfterSummary",
     title: "Quiz după rezumat",
-    description: "După fiecare rezumat, Revizzio propune un quiz scurt.",
+    description: "După fiecare rezumat, Reviss propune un quiz scurt.",
   },
   {
     id: "weakConceptAlerts",
@@ -256,7 +256,7 @@ const notificationAlertOptions = [
   {
     id: "weakConcepts",
     title: "Concepte de repetat",
-    description: "Când Revizzio observă zone care scad la retenție.",
+    description: "Când Reviss observă zone care scad la retenție.",
   },
   {
     id: "billing",
@@ -550,7 +550,7 @@ export function SettingsPage() {
                 <div className="flex flex-col gap-5 sm:flex-row sm:items-center">
                   <div className="relative w-fit">
                     <span className="flex h-20 w-20 shrink-0 items-center justify-center rounded-full bg-action font-serif text-2xl font-semibold text-on-action">
-                      {initials(user?.full_name ?? "Student Revizzio")}
+                      {initials(user?.full_name ?? "Student Reviss")}
                     </span>
                     <span className="absolute bottom-0 right-0 flex h-6 w-6 items-center justify-center rounded-full border border-subtle bg-surface text-success">
                       <svg
@@ -573,7 +573,7 @@ export function SettingsPage() {
                   <div className="min-w-0">
                     <div className="flex flex-wrap items-center gap-2">
                       <h2 className="font-serif text-3xl font-semibold leading-tight text-content">
-                        {user?.full_name ?? "Student Revizzio"}
+                        {user?.full_name ?? "Student Reviss"}
                       </h2>
                       <span className="inline-flex rounded-full border border-success-border bg-success-soft px-3 py-1 text-[10px] font-black uppercase tracking-[0.12em] text-success">
                         {user?.is_active ? "Cont activ" : "Neverificat"}

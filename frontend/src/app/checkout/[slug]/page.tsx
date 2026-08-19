@@ -7,7 +7,7 @@ import {
 } from "@/lib/server-plans";
 
 export const metadata: Metadata = {
-  title: "Confirmare abonament | Revizzio",
+  title: "Confirmare abonament | Reviss",
   description: "Verifică informațiile planului înainte de plată.",
 };
 

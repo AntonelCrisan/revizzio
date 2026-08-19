@@ -1,4 +1,4 @@
-# Revizzio API
+# Reviss API
 
 Backend FastAPI asincron, cu PostgreSQL, SQLAlchemy 2, Alembic, sesiuni
 persistate și parole Argon2.

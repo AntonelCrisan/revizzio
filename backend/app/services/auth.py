@@ -141,7 +141,7 @@ class AuthService:
             await self._email.send(
                 EmailMessage(
                     to=email,
-                    subject="Confirmă contul Revizzio",
+                    subject="Confirmă contul Reviss",
                     html=html,
                     text=text,
                 )
@@ -358,7 +358,7 @@ class AuthService:
             await self._email.send(
                 EmailMessage(
                     to=email,
-                    subject="Resetare parolă Revizzio",
+                    subject="Resetare parolă Reviss",
                     html=html,
                     text=text,
                 )
@@ -589,7 +589,7 @@ class AuthService:
         return f"{self._settings.public_app_url}/reset-password?token={token}"
 
     def _email_logo_html(self) -> str:
-        return email_logo_html(self._settings.email_logo_url, app_name="Revizzio")
+        return email_logo_html(self._settings.email_logo_url, app_name="Reviss")
 
     def _hash_token(self, token: str) -> str:
         return hash_session_token(

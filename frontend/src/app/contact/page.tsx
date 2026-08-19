@@ -6,9 +6,9 @@ import {
 import { LegalPageShell } from "@/components/legal/legal-page-shell";
 
 export const metadata: Metadata = {
-  title: "Contact și suport | Revizzio",
+  title: "Contact și suport | Reviss",
   description:
-    "Trimite o solicitare către Revizzio pentru suport, facturare, confidențialitate sau raportare conținut.",
+    "Trimite o solicitare către Reviss pentru suport, facturare, confidențialitate sau raportare conținut.",
 };
 
 export default function ContactPage() {

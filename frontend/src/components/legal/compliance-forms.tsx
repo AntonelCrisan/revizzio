@@ -21,7 +21,7 @@ async function postComplianceForm(endpoint: string, payload: object) {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      "X-Revizzio-Form-Intent": endpoint,
+      "X-Reviss-Form-Intent": endpoint,
     },
     body: JSON.stringify(payload),
     cache: "no-store",

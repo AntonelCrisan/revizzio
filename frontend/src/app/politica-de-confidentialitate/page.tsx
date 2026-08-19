@@ -6,9 +6,9 @@ import { getServerLegalDocument } from "@/lib/server-legal";
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
-  title: "Politica de confidențialitate | Revizzio",
+  title: "Politica de confidențialitate | Reviss",
   description:
-    "Politica de confidențialitate Revizzio privind datele personale și modul în care acestea sunt prelucrate.",
+    "Politica de confidențialitate Reviss privind datele personale și modul în care acestea sunt prelucrate.",
 };
 
 export default async function PrivacyPolicyPage() {
@@ -20,7 +20,7 @@ export default async function PrivacyPolicyPage() {
     <LegalDocument
       contentHtml={contentHtml}
       eyebrow="Confidențialitate"
-      summary="Detalii despre datele personale prelucrate în Revizzio, scopurile utilizării lor, drepturile utilizatorilor și măsurile de protecție aplicate."
+      summary="Detalii despre datele personale prelucrate în Reviss, scopurile utilizării lor, drepturile utilizatorilor și măsurile de protecție aplicate."
     />
   );
 }

@@ -1,4 +1,4 @@
--- Revizzio user theme preference
+-- Reviss user theme preference
 -- Alembic revision: 20260611_0002
 -- PostgreSQL only
 --

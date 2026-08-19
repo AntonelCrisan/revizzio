@@ -1,4 +1,4 @@
--- Revizzio quiz attempt history (every completion is kept, not just the latest)
+-- Reviss quiz attempt history (every completion is kept, not just the latest)
 
 CREATE TABLE IF NOT EXISTS study_project_quiz_attempts (
     id UUID PRIMARY KEY,

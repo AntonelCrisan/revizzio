@@ -8,8 +8,8 @@ import {
 import { requireAdminUser } from "@/lib/server-auth";
 
 export const metadata: Metadata = {
-  title: "Editare termeni și condiții | Revizzio",
-  description: "Editor UI pentru termenii și condițiile platformei Revizzio.",
+  title: "Editare termeni și condiții | Reviss",
+  description: "Editor UI pentru termenii și condițiile platformei Reviss.",
 };
 
 export default async function AdminTermsEditorRoute() {

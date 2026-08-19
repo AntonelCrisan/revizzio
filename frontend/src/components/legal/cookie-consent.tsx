@@ -69,7 +69,7 @@ async function logCookieConsent(
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "X-Revizzio-Form-Intent": "cookie-consent",
+        "X-Reviss-Form-Intent": "cookie-consent",
       },
       body: JSON.stringify({
         action,
@@ -176,7 +176,7 @@ export function CookieConsentProvider({ children }: { children: ReactNode }) {
         >
           <div className="grid gap-4 lg:grid-cols-[1fr_auto] lg:items-center">
             <div>
-              <p className="text-sm font-black">Setări cookie Revizzio</p>
+              <p className="text-sm font-black">Setări cookie Reviss</p>
               <p className="mt-1 max-w-3xl text-xs leading-5 text-muted sm:text-sm sm:leading-6">
                 Folosim cookie-uri necesare pentru funcționare. Cookie-urile
                 funcționale, de analiză și marketing sunt opționale și nu se

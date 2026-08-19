@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import { AccountTabRoutePage } from "@/components/account/account-tab-route-page";
 
 export const metadata: Metadata = {
-  title: "Creează flashcard | Revizzio",
-  description: "Creează manual flashcarduri pentru proiectul tău Revizzio.",
+  title: "Creează flashcard | Reviss",
+  description: "Creează manual flashcarduri pentru proiectul tău Reviss.",
 };
 
 export default function CreeazaFlashcardPage({

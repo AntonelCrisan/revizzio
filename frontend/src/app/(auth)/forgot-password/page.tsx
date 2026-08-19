@@ -3,8 +3,8 @@ import { AuthForm } from "@/components/auth/auth-form";
 import { AuthShell } from "@/components/auth/auth-shell";
 
 export const metadata: Metadata = {
-  title: "Resetare parolă | Revizzio",
-  description: "Solicită un link pentru resetarea parolei Revizzio.",
+  title: "Resetare parolă | Reviss",
+  description: "Solicită un link pentru resetarea parolei Reviss.",
 };
 
 export default function ForgotPasswordPage() {

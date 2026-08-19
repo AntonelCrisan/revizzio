@@ -1,4 +1,4 @@
-# Revizzio
+# Reviss
 
 Aplicație full-stack cu backend FastAPI, PostgreSQL și frontend Next.js.
 

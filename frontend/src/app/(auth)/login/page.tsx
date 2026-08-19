@@ -3,8 +3,8 @@ import { AuthForm } from "@/components/auth/auth-form";
 import { AuthShell } from "@/components/auth/auth-shell";
 
 export const metadata: Metadata = {
-  title: "Autentificare | Revizzio",
-  description: "Intră în contul tău Revizzio.",
+  title: "Autentificare | Reviss",
+  description: "Intră în contul tău Reviss.",
 };
 
 export default function LoginPage() {
@@ -17,7 +17,7 @@ export default function LoginPage() {
       alternateLabel="Înregistrează-te"
       alternateHref="/register"
       asideTitle="Ritmul tău. Progresul tău."
-      asideDescription="Revizzio organizează materialele de curs într-un spațiu calm, clar și ușor de reluat în fiecare zi."
+      asideDescription="Reviss organizează materialele de curs într-un spațiu calm, clar și ușor de reluat în fiecare zi."
       features={[
         "Quiz-uri adaptate nivelului tău",
         "Progres păstrat între sesiuni",

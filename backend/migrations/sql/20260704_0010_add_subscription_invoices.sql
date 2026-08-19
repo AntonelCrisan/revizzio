@@ -1,4 +1,4 @@
--- Revizzio Stripe invoice history
+-- Reviss Stripe invoice history
 -- Alembic revision: 20260704_0010
 -- PostgreSQL only
 --

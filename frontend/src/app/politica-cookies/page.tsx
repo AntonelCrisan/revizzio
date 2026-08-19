@@ -4,9 +4,9 @@ import { LegalPageShell } from "@/components/legal/legal-page-shell";
 import { cookieCategories, legalConfig } from "@/lib/legal-config";
 
 export const metadata: Metadata = {
-  title: "Politica privind cookie-urile | Revizzio",
+  title: "Politica privind cookie-urile | Reviss",
   description:
-    "Informații despre categoriile de cookie-uri folosite de Revizzio și modul de administrare a consimțământului.",
+    "Informații despre categoriile de cookie-uri folosite de Reviss și modul de administrare a consimțământului.",
 };
 
 export default function CookiePolicyPage() {

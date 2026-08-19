@@ -1,4 +1,4 @@
--- Revizzio quiz completion tracking (a quiz can only be completed once)
+-- Reviss quiz completion tracking (a quiz can only be completed once)
 
 ALTER TABLE study_project_quizzes
     ADD COLUMN IF NOT EXISTS completed_at TIMESTAMPTZ,

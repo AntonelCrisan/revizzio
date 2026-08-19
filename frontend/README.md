@@ -1,4 +1,4 @@
-# Revizzio Frontend
+# Reviss Frontend
 
 ## Configurare
 

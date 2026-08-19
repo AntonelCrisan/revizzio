@@ -1,4 +1,4 @@
--- Revizzio internal audit logs
+-- Reviss internal audit logs
 -- Alembic revision: 20260629_0007
 -- PostgreSQL only
 --

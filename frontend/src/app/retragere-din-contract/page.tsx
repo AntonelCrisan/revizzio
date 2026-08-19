@@ -3,9 +3,9 @@ import { WithdrawalForm } from "@/components/legal/compliance-forms";
 import { LegalPageShell } from "@/components/legal/legal-page-shell";
 
 export const metadata: Metadata = {
-  title: "Retragere din contract | Revizzio",
+  title: "Retragere din contract | Reviss",
   description:
-    "Formular pentru exercitarea dreptului de retragere din contract pentru abonamente sau comenzi Revizzio.",
+    "Formular pentru exercitarea dreptului de retragere din contract pentru abonamente sau comenzi Reviss.",
 };
 
 export default function WithdrawalPage() {

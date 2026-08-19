@@ -1,4 +1,4 @@
--- Revizzio email verification and password reset tokens
+-- Reviss email verification and password reset tokens
 -- Alembic revision: 20260630_0008
 -- PostgreSQL only
 --

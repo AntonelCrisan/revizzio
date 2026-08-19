@@ -4,8 +4,8 @@ import { getServerAdminAuditLogs } from "@/lib/server-admin-audit";
 import { requireAdminUser } from "@/lib/server-auth";
 
 export const metadata: Metadata = {
-  title: "Jurnal activitate | Revizzio",
-  description: "Audit logs pentru platforma Revizzio.",
+  title: "Jurnal activitate | Reviss",
+  description: "Audit logs pentru platforma Reviss.",
 };
 
 export default async function AdminAuditLogsRoute() {

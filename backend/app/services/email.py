@@ -20,7 +20,7 @@ DEFAULT_LOGO_PATH = (
     / "public"
     / "assets"
     / "logos"
-    / "revizzio-logo-dark.svg"
+    / "Reviss_logo_dark.svg"
 )
 
 
@@ -65,7 +65,7 @@ class EmailService:
                 ),
                 "Accept": "application/json",
                 "Content-Type": "application/json",
-                "User-Agent": "Revizzio/1.0",
+                "User-Agent": "Reviss/1.0",
             },
         )
 
@@ -95,7 +95,7 @@ def _fallback_logo_html(app_name: str) -> str:
 
 
 @lru_cache(maxsize=8)
-def default_email_logo_html(app_name: str = "Revizzio") -> str:
+def default_email_logo_html(app_name: str = "Reviss") -> str:
     try:
         logo_svg = DEFAULT_LOGO_PATH.read_text(encoding="utf-8")
     except OSError:
@@ -116,7 +116,7 @@ def default_email_logo_html(app_name: str = "Revizzio") -> str:
     return logo_svg
 
 
-def email_logo_html(logo_url: str | None, app_name: str = "Revizzio") -> str:
+def email_logo_html(logo_url: str | None, app_name: str = "Reviss") -> str:
     if logo_url:
         safe_logo_url = escape(logo_url, quote=True)
         safe_app_name = escape(app_name, quote=True)
@@ -257,7 +257,7 @@ def _email_shell(
 
 
 def verification_email(
-    *, verification_url: str, logo_html: str, app_name: str = "Revizzio"
+    *, verification_url: str, logo_html: str, app_name: str = "Reviss"
 ) -> tuple[str, str]:
     text = (
         f"Bine ai venit în {app_name}.\n\n"
@@ -292,7 +292,7 @@ def verification_email(
 
 
 def password_reset_email(
-    *, reset_url: str, logo_html: str, app_name: str = "Revizzio"
+    *, reset_url: str, logo_html: str, app_name: str = "Reviss"
 ) -> tuple[str, str]:
     text = (
         f"Ai cerut resetarea parolei pentru {app_name}.\n\n"

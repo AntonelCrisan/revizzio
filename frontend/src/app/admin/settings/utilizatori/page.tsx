@@ -4,8 +4,8 @@ import { getServerAdminUsers } from "@/lib/server-admin-users";
 import { requireAdminUser } from "@/lib/server-auth";
 
 export const metadata: Metadata = {
-  title: "Utilizatori | Revizzio",
-  description: "Administrare utilizatori Revizzio.",
+  title: "Utilizatori | Reviss",
+  description: "Administrare utilizatori Reviss.",
 };
 
 export default async function AdminUsersRoute() {

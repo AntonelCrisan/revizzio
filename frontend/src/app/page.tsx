@@ -12,9 +12,9 @@ import {
 } from "@/lib/server-plans";
 
 export const metadata: Metadata = {
-  title: "Revizzio | Din cursuri în progres real",
+  title: "Reviss | Din cursuri în progres real",
   description:
-    "Transformă PDF-uri și notițe în rezumate, flashcard-uri și quiz-uri personalizate cu Revizzio.",
+    "Transformă PDF-uri și notițe în rezumate, flashcard-uri și quiz-uri personalizate cu Reviss.",
 };
 
 function ArrowIcon() {
@@ -126,7 +126,7 @@ const workflow = [
     step: "02",
     title: "AI-ul îl structurează",
     description:
-      "Revizzio identifică ideile importante și pregătește rezumatul, flashcard-urile și testele.",
+      "Reviss identifică ideile importante și pregătește rezumatul, flashcard-urile și testele.",
     icon: <SparkIcon />,
     tone: "border-warning-border bg-warning-soft text-warning",
   },
@@ -280,7 +280,7 @@ export default async function Home() {
             </h1>
 
             <p className="mt-7 max-w-xl text-base leading-8 text-muted sm:text-lg">
-              Revizzio transformă suporturile tale de curs în rezumate clare,
+              Reviss transformă suporturile tale de curs în rezumate clare,
               flashcard-uri și quiz-uri care te ajută să înțelegi, să repeți și
               să reții.
             </p>
@@ -330,7 +330,7 @@ export default async function Home() {
                   <div>
                     <p className="text-xs font-bold">Biologie celulară</p>
                     <p className="mt-0.5 text-[10px] text-muted">
-                      Curs procesat de Revizzio
+                      Curs procesat de Reviss
                     </p>
                   </div>
                 </div>
@@ -439,7 +439,7 @@ export default async function Home() {
           </h2>
           <p className="mt-5 text-sm leading-7 text-muted sm:text-base">
             Fără zeci de tab-uri și fără ore pierdute pregătind materiale.
-            Revizzio construiește spațiul de studiu, iar tu te concentrezi pe
+            Reviss construiește spațiul de studiu, iar tu te concentrezi pe
             învățare.
           </p>
         </div>
@@ -833,8 +833,8 @@ export default async function Home() {
               "Platforma este gândită pentru PDF-uri, documente și notițe text. Formatele disponibile vor fi afișate clar în zona de încărcare.",
             ],
             [
-              "Revizzio îmi înlocuiește cursul?",
-              "Nu. Cursul rămâne sursa principală, iar Revizzio îl structurează în instrumente de învățare activă.",
+              "Reviss îmi înlocuiește cursul?",
+              "Nu. Cursul rămâne sursa principală, iar Reviss îl structurează în instrumente de învățare activă.",
             ],
             [
               "Pot folosi tema întunecată?",

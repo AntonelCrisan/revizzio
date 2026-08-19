@@ -1,4 +1,4 @@
--- Revizzio summary highlights (user-selected passages within a project's summary)
+-- Reviss summary highlights (user-selected passages within a project's summary)
 
 CREATE TABLE IF NOT EXISTS study_project_summary_highlights (
     id UUID PRIMARY KEY,

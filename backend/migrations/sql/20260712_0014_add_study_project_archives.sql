@@ -1,4 +1,4 @@
--- Revizzio archived study projects
+-- Reviss archived study projects
 -- Alembic revision: 20260712_0014
 -- PostgreSQL only
 --

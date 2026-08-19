@@ -51,13 +51,13 @@ const themeScript = `
     root.dataset.colorScheme = colorScheme;
     root.classList.toggle("dark", isDark);
     root.style.colorScheme = isDark ? "dark" : "light";
-    const favicon = document.querySelector('link[data-revizzio-favicon]');
+    const favicon = document.querySelector('link[data-reviss-favicon]');
     if (favicon) {
       favicon.setAttribute(
         "href",
         isDark
-          ? "/assets/logos/revizzio-favicon-light.svg"
-          : "/assets/logos/revizzio-favicon-dark.svg",
+          ? "/assets/logos/Reviss_favicon_light.svg"
+          : "/assets/logos/Reviss_favicon_dark.svg",
       );
     }
 
@@ -78,7 +78,7 @@ const themeScript = `
 `;
 
 export const metadata: Metadata = {
-  title: "Revizzio",
+  title: "Reviss",
   description: "Aplicatie educationala de quiz-uri.",
 };
 
@@ -96,20 +96,20 @@ export default function RootLayout({
       <head>
         <meta name="color-scheme" content="light dark" />
         <link
-          data-revizzio-favicon
+          data-reviss-favicon
           rel="icon"
-          href="/assets/logos/revizzio-favicon-dark.svg"
+          href="/assets/logos/Reviss_favicon_dark.svg"
           type="image/svg+xml"
         />
         <link
           rel="icon"
-          href="/assets/logos/revizzio-favicon-dark.svg"
+          href="/assets/logos/Reviss_favicon_dark.svg"
           type="image/svg+xml"
           media="(prefers-color-scheme: light)"
         />
         <link
           rel="icon"
-          href="/assets/logos/revizzio-favicon-light.svg"
+          href="/assets/logos/Reviss_favicon_light.svg"
           type="image/svg+xml"
           media="(prefers-color-scheme: dark)"
         />

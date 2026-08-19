@@ -3,8 +3,8 @@ import { AuthShell } from "@/components/auth/auth-shell";
 import { VerifyEmailClient } from "@/components/auth/verify-email-client";
 
 export const metadata: Metadata = {
-  title: "Confirmare email | Revizzio",
-  description: "Confirmă adresa de email pentru contul tău Revizzio.",
+  title: "Confirmare email | Reviss",
+  description: "Confirmă adresa de email pentru contul tău Reviss.",
 };
 
 type VerifyEmailPageProps = {

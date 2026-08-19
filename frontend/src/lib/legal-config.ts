@@ -22,7 +22,7 @@ export const generatedContentDisclaimer =
   "Conținutul este generat automat și poate conține erori. Verifică informațiile înainte de utilizare.";
 
 export const footerGeneratedContentDisclaimer =
-  "Revizzio este un instrument educațional. Conținutul generat automat poate conține erori și trebuie verificat.";
+  "Reviss este un instrument educațional. Conținutul generat automat poate conține erori și trebuie verificat.";
 
 export const legalLinks = [
   { href: "/termeni-si-conditii", label: "Termeni și condiții" },

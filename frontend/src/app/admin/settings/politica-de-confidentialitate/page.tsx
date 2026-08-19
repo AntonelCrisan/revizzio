@@ -8,8 +8,8 @@ import {
 import { requireAdminUser } from "@/lib/server-auth";
 
 export const metadata: Metadata = {
-  title: "Editare politică de confidențialitate | Revizzio",
-  description: "Editor UI pentru politica de confidențialitate Revizzio.",
+  title: "Editare politică de confidențialitate | Reviss",
+  description: "Editor UI pentru politica de confidențialitate Reviss.",
 };
 
 export default async function AdminPrivacyEditorRoute() {

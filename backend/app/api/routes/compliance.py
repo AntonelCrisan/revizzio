@@ -68,7 +68,7 @@ async def protect_form_request(
             detail="Referer-ul solicitării nu este permis.",
         )
 
-    form_intent = request.headers.get("x-revizzio-form-intent")
+    form_intent = request.headers.get("x-reviss-form-intent")
     if not form_intent:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,

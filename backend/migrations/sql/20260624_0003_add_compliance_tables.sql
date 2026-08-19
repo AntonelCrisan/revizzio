@@ -1,4 +1,4 @@
--- Revizzio compliance tables and newsletter consent
+-- Reviss compliance tables and newsletter consent
 -- Alembic revision: 20260624_0003
 -- PostgreSQL only
 

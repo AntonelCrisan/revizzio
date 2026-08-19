@@ -3,8 +3,8 @@ import { AuthForm } from "@/components/auth/auth-form";
 import { AuthShell } from "@/components/auth/auth-shell";
 
 export const metadata: Metadata = {
-  title: "Înregistrare | Revizzio",
-  description: "Creează un cont Revizzio.",
+  title: "Înregistrare | Reviss",
+  description: "Creează un cont Reviss.",
 };
 
 export default function RegisterPage() {

@@ -3,8 +3,8 @@ import { AuthShell } from "@/components/auth/auth-shell";
 import { ResetPasswordForm } from "@/components/auth/reset-password-form";
 
 export const metadata: Metadata = {
-  title: "Parolă nouă | Revizzio",
-  description: "Setează o parolă nouă pentru contul tău Revizzio.",
+  title: "Parolă nouă | Reviss",
+  description: "Setează o parolă nouă pentru contul tău Reviss.",
 };
 
 type ResetPasswordPageProps = {

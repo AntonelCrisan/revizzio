@@ -1,4 +1,4 @@
--- Revizzio study project academic context
+-- Reviss study project academic context
 -- Alembic revision: 20260711_0012
 -- PostgreSQL only
 --
