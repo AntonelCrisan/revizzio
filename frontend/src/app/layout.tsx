@@ -93,9 +93,60 @@ const languageScript = `
 })();
 `;
 
+const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://reviss.app";
+const defaultSeoTitle =
+  "Reviss | Platformă AI pentru rezumate, flashcard-uri și quiz-uri";
+const defaultSeoDescription =
+  "Reviss ajută studenții să transforme cursuri, PDF-uri, documente și prezentări în rezumate clare, flashcard-uri, quiz-uri și planuri de învățare.";
+
 export const metadata: Metadata = {
-  title: "Reviss",
-  description: "Aplicatie educationala de quiz-uri.",
+  metadataBase: new URL(siteUrl),
+  title: {
+    default: defaultSeoTitle,
+    template: "%s | Reviss",
+  },
+  description: defaultSeoDescription,
+  applicationName: "Reviss",
+  category: "education",
+  creator: "Reviss",
+  publisher: "Reviss",
+  keywords: [
+    "Reviss",
+    "platformă AI pentru studenți",
+    "rezumate cursuri AI",
+    "flashcard-uri AI",
+    "quiz-uri din cursuri",
+    "învățare activă",
+    "aplicație studenți",
+    "generator flashcarduri",
+    "generator quizuri",
+    "rezumat PDF",
+    "pregătire examen",
+  ],
+  robots: {
+    index: true,
+    follow: true,
+  },
+  openGraph: {
+    title: defaultSeoTitle,
+    description: defaultSeoDescription,
+    url: "/",
+    siteName: "Reviss",
+    locale: "ro_RO",
+    type: "website",
+    images: [
+      {
+        url: "/assets/logos/Reviss_logo_dark.svg",
+        alt: "Reviss",
+      },
+    ],
+  },
+  twitter: {
+    card: "summary",
+    title: defaultSeoTitle,
+    description: defaultSeoDescription,
+    images: ["/assets/logos/Reviss_logo_dark.svg"],
+  },
 };
 
 export default function RootLayout({

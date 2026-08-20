@@ -13,9 +13,37 @@ import {
 } from "@/lib/server-plans";
 
 export const metadata: Metadata = {
-  title: "Reviss | Din cursuri în progres real",
+  title: "Reviss | Rezumate AI, flashcard-uri și quiz-uri pentru studenți",
   description:
-    "Transformă PDF-uri și notițe în rezumate, flashcard-uri și quiz-uri personalizate cu Reviss.",
+    "Încarcă PDF-uri, documente sau prezentări, iar Reviss le transformă în rezumate, flashcard-uri, quiz-uri și strategii de învățare pentru examen.",
+  keywords: [
+    "Reviss",
+    "rezumate AI pentru studenți",
+    "flashcard-uri din cursuri",
+    "quiz-uri pentru examen",
+    "generator rezumat PDF",
+    "învățare activă cu AI",
+    "pregătire examen facultate",
+    "platformă educațională AI",
+    "aplicație de studiu",
+    "recapitulare inteligentă",
+  ],
+  alternates: {
+    canonical: "/",
+  },
+  openGraph: {
+    title: "Reviss | Rezumate AI, flashcard-uri și quiz-uri pentru studenți",
+    description:
+      "Transformă cursurile în pachete de studiu: rezumate clare, flashcard-uri, quiz-uri și progres măsurabil.",
+    url: "/",
+    type: "website",
+  },
+  twitter: {
+    card: "summary",
+    title: "Reviss | Rezumate AI, flashcard-uri și quiz-uri pentru studenți",
+    description:
+      "Încarcă materialele de curs și primește rezumate, flashcard-uri și quiz-uri pentru învățare activă.",
+  },
 };
 
 function ArrowIcon() {
@@ -194,6 +222,70 @@ const fallbackMarketingPricingPlans = [
   },
 ] as const;
 
+const homepageFaq = [
+  [
+    "Ce materiale pot încărca în Reviss?",
+    "Poți încărca PDF-uri, documente Word, prezentări și notițe text. Pentru documente scanate sau poze cu text, accesul este rezervat planului Pro, unde activăm procesare OCR.",
+  ],
+  [
+    "Ce generează Reviss dintr-un curs?",
+    "Mai întâi primești rezumatul, cuvintele-cheie, strategiile de învățare și flashcard-urile. Quiz-urile se generează separat, când ești pregătit să intri în testare activă.",
+  ],
+  [
+    "Quiz-urile sunt utile pentru examen?",
+    "Da, întrebările sunt gândite pe niveluri: recapitulare, înțelegere și aplicare, apoi simulare de examen. Nu înlocuiesc subiectele oficiale, dar te ajută să vezi unde trebuie să revii.",
+  ],
+  [
+    "Pot cere explicații AI pe fragmente din rezumat sau flashcarduri?",
+    "Da, în planul Pro poți selecta un text care nu este clar și poți cere o explicație contextuală, legată de materia, proiectul și conținutul încărcat.",
+  ],
+  [
+    "Materialele mele sunt publice?",
+    "Nu. Materialele sunt asociate contului tău și proiectelor tale. Tu trebuie să ai dreptul să folosești fișierele încărcate, iar conținutul generat trebuie verificat înainte de utilizare.",
+  ],
+  [
+    "Există un plan gratuit?",
+    "Da. Planul Start este pentru testarea fluxului cu limite mai mici. Planurile plătite adaugă mai multe materiale, documente mai mari, explicații AI și opțiuni avansate pentru studiu.",
+  ],
+] as const;
+
+const homepageStructuredData = {
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "WebSite",
+      name: "Reviss",
+      url: "https://reviss.app",
+      inLanguage: "ro-RO",
+    },
+    {
+      "@type": "SoftwareApplication",
+      name: "Reviss",
+      applicationCategory: "EducationalApplication",
+      operatingSystem: "Web",
+      url: "https://reviss.app",
+      description:
+        "Platformă AI pentru studenți care transformă cursuri, PDF-uri, documente și prezentări în rezumate, flashcard-uri, quiz-uri și strategii de învățare.",
+      offers: {
+        "@type": "Offer",
+        price: "0",
+        priceCurrency: "RON",
+      },
+    },
+    {
+      "@type": "FAQPage",
+      mainEntity: homepageFaq.map(([question, answer]) => ({
+        "@type": "Question",
+        name: question,
+        acceptedAnswer: {
+          "@type": "Answer",
+          text: answer,
+        },
+      })),
+    },
+  ],
+};
+
 function formatPlanPrice(value: SubscriptionPlan["price_ron"]) {
   const numericValue = Number(value);
   if (!Number.isFinite(numericValue)) return String(value);
@@ -262,6 +354,12 @@ export default async function Home() {
 
   return (
     <main className="min-h-screen overflow-x-clip bg-app text-content">
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify(homepageStructuredData),
+        }}
+      />
       <MarketingHeader />
 
       <section className="relative isolate">
@@ -830,24 +928,7 @@ export default async function Home() {
         </div>
 
         <div className="mt-12 space-y-3">
-          {[
-            [
-              "Ce tipuri de materiale pot încărca?",
-              "Platforma este gândită pentru PDF-uri, documente și notițe text. Formatele disponibile vor fi afișate clar în zona de încărcare.",
-            ],
-            [
-              "Reviss îmi înlocuiește cursul?",
-              "Nu. Cursul rămâne sursa principală, iar Reviss îl structurează în instrumente de învățare activă.",
-            ],
-            [
-              "Pot folosi tema întunecată?",
-              "Da. Tema Warm Night este disponibilă pe toate paginile și preferința rămâne salvată pe dispozitiv.",
-            ],
-            [
-              "Funcționează și pe telefon?",
-              "Da. Interfața, formularele și sesiunile de studiu sunt construite responsive pentru telefon, tabletă și desktop.",
-            ],
-          ].map(([question, answer]) => (
+          {homepageFaq.map(([question, answer]) => (
             <details
               key={question}
               className="group rounded-2xl border border-subtle bg-surface px-5 py-4 open:bg-surface-hover/45 sm:px-6"

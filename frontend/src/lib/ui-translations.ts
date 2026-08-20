@@ -1405,6 +1405,54 @@ export const uiTranslations: Record<string, UiTranslation> = {
     en: "Yes. The interface, forms and study sessions are responsive for phone, tablet and desktop.",
     fr: "Oui. L'interface, les formulaires et les sessions d'étude sont responsives sur téléphone, tablette et ordinateur.",
   },
+  "Ce materiale pot încărca în Reviss?": {
+    en: "What materials can I upload to Reviss?",
+    fr: "Quels supports puis-je importer dans Reviss ?",
+  },
+  "Poți încărca PDF-uri, documente Word, prezentări și notițe text. Pentru documente scanate sau poze cu text, accesul este rezervat planului Pro, unde activăm procesare OCR.": {
+    en: "You can upload PDFs, Word documents, presentations and text notes. For scanned documents or images with text, access is reserved for the Pro plan, where OCR processing is enabled.",
+    fr: "Tu peux importer des PDF, documents Word, présentations et notes texte. Pour les documents scannés ou images avec texte, l'accès est réservé au plan Pro, avec traitement OCR.",
+  },
+  "Ce generează Reviss dintr-un curs?": {
+    en: "What does Reviss generate from a course?",
+    fr: "Que génère Reviss à partir d'un cours ?",
+  },
+  "Mai întâi primești rezumatul, cuvintele-cheie, strategiile de învățare și flashcard-urile. Quiz-urile se generează separat, când ești pregătit să intri în testare activă.": {
+    en: "First you receive the summary, keywords, learning strategies and flashcards. Quizzes are generated separately when you are ready to start active testing.",
+    fr: "Tu reçois d'abord le résumé, les mots-clés, les stratégies d'apprentissage et les flashcards. Les quiz sont générés séparément lorsque tu es prêt pour l'entraînement actif.",
+  },
+  "Quiz-urile sunt utile pentru examen?": {
+    en: "Are the quizzes useful for exams?",
+    fr: "Les quiz sont-ils utiles pour les examens ?",
+  },
+  "Da, întrebările sunt gândite pe niveluri: recapitulare, înțelegere și aplicare, apoi simulare de examen. Nu înlocuiesc subiectele oficiale, dar te ajută să vezi unde trebuie să revii.": {
+    en: "Yes, the questions are designed in levels: review, understanding and application, then exam simulation. They do not replace official exam topics, but they help you see where to review.",
+    fr: "Oui, les questions sont pensées par niveaux : révision, compréhension et application, puis simulation d'examen. Elles ne remplacent pas les sujets officiels, mais t'aident à voir quoi revoir.",
+  },
+  "Pot cere explicații AI pe fragmente din rezumat sau flashcarduri?": {
+    en: "Can I ask for AI explanations on summary fragments or flashcards?",
+    fr: "Puis-je demander des explications IA sur des fragments du résumé ou des flashcards ?",
+  },
+  "Da, în planul Pro poți selecta un text care nu este clar și poți cere o explicație contextuală, legată de materia, proiectul și conținutul încărcat.": {
+    en: "Yes, on the Pro plan you can select unclear text and ask for a contextual explanation connected to the subject, project and uploaded content.",
+    fr: "Oui, avec le plan Pro tu peux sélectionner un texte peu clair et demander une explication contextuelle liée à la matière, au projet et au contenu importé.",
+  },
+  "Materialele mele sunt publice?": {
+    en: "Are my materials public?",
+    fr: "Mes supports sont-ils publics ?",
+  },
+  "Nu. Materialele sunt asociate contului tău și proiectelor tale. Tu trebuie să ai dreptul să folosești fișierele încărcate, iar conținutul generat trebuie verificat înainte de utilizare.": {
+    en: "No. Materials are associated with your account and projects. You must have the right to use uploaded files, and generated content should be checked before use.",
+    fr: "Non. Les supports sont associés à ton compte et à tes projets. Tu dois avoir le droit d'utiliser les fichiers importés, et le contenu généré doit être vérifié avant usage.",
+  },
+  "Există un plan gratuit?": {
+    en: "Is there a free plan?",
+    fr: "Existe-t-il un plan gratuit ?",
+  },
+  "Da. Planul Start este pentru testarea fluxului cu limite mai mici. Planurile plătite adaugă mai multe materiale, documente mai mari, explicații AI și opțiuni avansate pentru studiu.": {
+    en: "Yes. The Start plan lets you test the flow with smaller limits. Paid plans add more materials, larger documents, AI explanations and advanced study options.",
+    fr: "Oui. Le plan Start permet de tester le flux avec des limites plus petites. Les plans payants ajoutent plus de supports, des documents plus volumineux, des explications IA et des options avancées.",
+  },
   "Aplicație educațională de quiz-uri.": {
     en: "Educational quiz application.",
     fr: "Application éducative de quiz.",
