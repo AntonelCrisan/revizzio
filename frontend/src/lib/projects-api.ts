@@ -157,6 +157,21 @@ export type StudyProjectImportResponse = {
   message: string;
 };
 
+export type StudyProjectAiSelectionExplainResponse = {
+  title: string;
+  answer: string;
+  bullets: string[];
+};
+
+export type StudyProjectChatMessage = {
+  role: "assistant" | "user";
+  text: string;
+};
+
+export type StudyProjectChatResponse = {
+  answer: string;
+};
+
 type ApiErrorPayload = {
   detail?: string | Array<{ msg?: string }>;
 };
@@ -327,6 +342,74 @@ export async function generateStudyProjectQuizzes(
     cache: "no-store",
   });
   return parseProjectResponse<StudyProject>(response);
+}
+
+export async function explainStudyProjectSummarySelection(payload: {
+  projectId: string;
+  paragraphIndex: number;
+  selectedText: string;
+}): Promise<StudyProjectAiSelectionExplainResponse> {
+  const response = await fetch(
+    `/api/projects/${payload.projectId}/ai/explain-selection`,
+    {
+      method: "POST",
+      credentials: "same-origin",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        paragraph_index: payload.paragraphIndex,
+        selected_text: payload.selectedText,
+      }),
+      cache: "no-store",
+    },
+  );
+  return parseProjectResponse<StudyProjectAiSelectionExplainResponse>(response);
+}
+
+export async function explainStudyProjectFlashcardSelection(payload: {
+  projectId: string;
+  flashcardId: string;
+  side: "question" | "answer";
+  selectedText: string;
+}): Promise<StudyProjectAiSelectionExplainResponse> {
+  const response = await fetch(
+    `/api/projects/${payload.projectId}/ai/explain-flashcard-selection`,
+    {
+      method: "POST",
+      credentials: "same-origin",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        flashcard_id: payload.flashcardId,
+        side: payload.side,
+        selected_text: payload.selectedText,
+      }),
+      cache: "no-store",
+    },
+  );
+  return parseProjectResponse<StudyProjectAiSelectionExplainResponse>(response);
+}
+
+export async function chatWithStudyProjectAi(payload: {
+  projectId: string;
+  message: string;
+  history: StudyProjectChatMessage[];
+}): Promise<StudyProjectChatResponse> {
+  const response = await fetch(`/api/projects/${payload.projectId}/ai/chat`, {
+    method: "POST",
+    credentials: "same-origin",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      message: payload.message,
+      history: payload.history,
+    }),
+    cache: "no-store",
+  });
+  return parseProjectResponse<StudyProjectChatResponse>(response);
 }
 
 export async function createQuizMistakeFlashcard(payload: {

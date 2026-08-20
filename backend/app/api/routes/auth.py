@@ -18,10 +18,10 @@ from app.schemas.auth import (
 from app.schemas.user import UserPreferencesUpdate, UserResponse
 from app.services.auth import (
     AuthResult,
-    EmailDeliveryUnavailableError,
     EmailAlreadyRegisteredError,
-    InvalidEmailTokenError,
+    EmailDeliveryUnavailableError,
     InvalidCredentialsError,
+    InvalidEmailTokenError,
     PendingEmailConfirmationError,
 )
 
@@ -96,11 +96,17 @@ async def register(
     except EmailDeliveryUnavailableError as exc:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Emailul de confirmare nu a putut fi trimis momentan. Te rugăm să încerci din nou.",
+            detail=(
+                "Emailul de confirmare nu a putut fi trimis momentan. "
+                "Te rugăm să încerci din nou."
+            ),
         ) from exc
 
     return MessageResponse(
-        message="Ți-am trimis un email de confirmare. Contul va fi creat după validarea adresei de email.",
+        message=(
+            "Ți-am trimis un email de confirmare. Contul va fi creat după "
+            "validarea adresei de email."
+        ),
     )
 
 
@@ -157,7 +163,10 @@ async def login(
     except PendingEmailConfirmationError as exc:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Contul este in asteptarea confirmarii. Verifica emailul primit si confirma adresa inainte sa te autentifici.",
+            detail=(
+                "Contul este in asteptarea confirmarii. Verifica emailul "
+                "primit si confirma adresa inainte sa te autentifici."
+            ),
         ) from exc
 
     _set_session_cookie(response, result, settings)
@@ -180,11 +189,17 @@ async def request_password_reset(
     except EmailDeliveryUnavailableError as exc:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Emailul de resetare nu a putut fi trimis momentan. Te rugăm să încerci din nou.",
+            detail=(
+                "Emailul de resetare nu a putut fi trimis momentan. "
+                "Te rugăm să încerci din nou."
+            ),
         ) from exc
 
     return MessageResponse(
-        message="Dacă adresa există în platformă, vei primi în scurt timp un link pentru resetarea parolei.",
+        message=(
+            "Dacă adresa există în platformă, vei primi în scurt timp un link "
+            "pentru resetarea parolei."
+        ),
     )
 
 

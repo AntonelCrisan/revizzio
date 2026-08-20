@@ -1,4 +1,6 @@
+import time
 import uuid
+from collections import defaultdict
 from typing import Annotated
 
 from fastapi import (
@@ -14,6 +16,11 @@ from fastapi.responses import FileResponse
 
 from app.api.dependencies import AppSettings, CurrentUser, DbSession
 from app.schemas.projects import (
+    StudyProjectAiSelectionExplainRequest,
+    StudyProjectAiSelectionExplainResponse,
+    StudyProjectChatRequest,
+    StudyProjectChatResponse,
+    StudyProjectFlashcardAiSelectionExplainRequest,
     StudyProjectFlashcardReviewUpdate,
     StudyProjectImportResponse,
     StudyProjectPrepareResponse,
@@ -26,9 +33,11 @@ from app.schemas.projects import (
     StudyProjectSummaryNoteCreate,
     StudyProjectSummaryNoteUpdate,
 )
+from app.services.openai_generation import OpenAIGenerationError
 from app.services.projects import (
     ProjectConversionError,
     ProjectNotFoundError,
+    ProjectPlanRestrictionError,
     ProjectValidationError,
     StudyProjectService,
     run_quiz_pack_generation_task,
@@ -37,9 +46,31 @@ from app.services.projects import (
 
 router = APIRouter(prefix="/api/projects", tags=["projects"])
 
+AI_RATE_LIMIT_WINDOW_SECONDS = 60
+AI_RATE_LIMIT_MAX_REQUESTS = 12
+_ai_rate_limit_buckets: dict[str, list[float]] = defaultdict(list)
+
 
 def _service(session: DbSession, settings: AppSettings) -> StudyProjectService:
     return StudyProjectService(session, settings)
+
+
+def _enforce_ai_rate_limit(current_user: CurrentUser) -> None:
+    bucket_key = f"{current_user.id}:project-ai"
+    now = time.monotonic()
+    bucket = [
+        timestamp
+        for timestamp in _ai_rate_limit_buckets[bucket_key]
+        if now - timestamp < AI_RATE_LIMIT_WINDOW_SECONDS
+    ]
+    if len(bucket) >= AI_RATE_LIMIT_MAX_REQUESTS:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="Prea multe solicitari AI. Incearca din nou peste putin timp.",
+        )
+
+    bucket.append(now)
+    _ai_rate_limit_buckets[bucket_key] = bucket
 
 
 @router.get("/", response_model=list[StudyProjectResponse])
@@ -162,6 +193,142 @@ async def generate_project_quizzes(
         )
 
     return service.to_response(project)
+
+
+@router.post(
+    "/{project_id}/ai/explain-selection",
+    response_model=StudyProjectAiSelectionExplainResponse,
+)
+async def explain_project_summary_selection(
+    project_id: uuid.UUID,
+    payload: StudyProjectAiSelectionExplainRequest,
+    current_user: CurrentUser,
+    session: DbSession,
+    settings: AppSettings,
+) -> StudyProjectAiSelectionExplainResponse:
+    _enforce_ai_rate_limit(current_user)
+    service = _service(session, settings)
+    try:
+        explanation = await service.explain_summary_selection(
+            user=current_user,
+            project_id=project_id,
+            paragraph_index=payload.paragraph_index,
+            selected_text=payload.selected_text,
+        )
+    except ProjectPlanRestrictionError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=str(exc),
+        ) from exc
+    except ProjectNotFoundError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Proiectul nu a fost gasit.",
+        ) from exc
+    except ProjectValidationError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(exc),
+        ) from exc
+    except OpenAIGenerationError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Explicatia nu a putut fi generata momentan.",
+        ) from exc
+
+    return StudyProjectAiSelectionExplainResponse.model_validate(explanation)
+
+
+@router.post(
+    "/{project_id}/ai/chat",
+    response_model=StudyProjectChatResponse,
+)
+async def chat_with_project_ai(
+    project_id: uuid.UUID,
+    payload: StudyProjectChatRequest,
+    current_user: CurrentUser,
+    session: DbSession,
+    settings: AppSettings,
+) -> StudyProjectChatResponse:
+    _enforce_ai_rate_limit(current_user)
+    service = _service(session, settings)
+    try:
+        answer = await service.chat_with_project_ai(
+            user=current_user,
+            project_id=project_id,
+            message=payload.message,
+            history=[
+                {"role": item.role, "text": item.text}
+                for item in payload.history
+            ],
+        )
+    except ProjectPlanRestrictionError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=str(exc),
+        ) from exc
+    except ProjectNotFoundError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Proiectul nu a fost gasit.",
+        ) from exc
+    except ProjectValidationError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(exc),
+        ) from exc
+    except OpenAIGenerationError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Raspunsul nu a putut fi generat momentan.",
+        ) from exc
+
+    return StudyProjectChatResponse(answer=answer)
+
+
+@router.post(
+    "/{project_id}/ai/explain-flashcard-selection",
+    response_model=StudyProjectAiSelectionExplainResponse,
+)
+async def explain_project_flashcard_selection(
+    project_id: uuid.UUID,
+    payload: StudyProjectFlashcardAiSelectionExplainRequest,
+    current_user: CurrentUser,
+    session: DbSession,
+    settings: AppSettings,
+) -> StudyProjectAiSelectionExplainResponse:
+    _enforce_ai_rate_limit(current_user)
+    service = _service(session, settings)
+    try:
+        explanation = await service.explain_flashcard_selection(
+            user=current_user,
+            project_id=project_id,
+            flashcard_id=payload.flashcard_id,
+            side=payload.side,
+            selected_text=payload.selected_text,
+        )
+    except ProjectPlanRestrictionError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=str(exc),
+        ) from exc
+    except ProjectNotFoundError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Flashcardul nu a fost gasit.",
+        ) from exc
+    except ProjectValidationError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(exc),
+        ) from exc
+    except OpenAIGenerationError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Explicatia nu a putut fi generata momentan.",
+        ) from exc
+
+    return StudyProjectAiSelectionExplainResponse.model_validate(explanation)
 
 
 @router.get("/{project_id}", response_model=StudyProjectResponse)

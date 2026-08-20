@@ -129,6 +129,33 @@ class OpenAIStudyGenerator:
         )
 
 
+AI_EXPLANATION_SCHEMA: dict[str, Any] = {
+    "type": "object",
+    "additionalProperties": False,
+    "required": ["title", "answer", "bullets"],
+    "properties": {
+        "title": {"type": "string", "minLength": 2, "maxLength": 120},
+        "answer": {"type": "string", "minLength": 2, "maxLength": 1200},
+        "bullets": {
+            "type": "array",
+            "minItems": 2,
+            "maxItems": 4,
+            "items": {"type": "string", "minLength": 2, "maxLength": 260},
+        },
+    },
+}
+
+
+AI_CHAT_RESPONSE_SCHEMA: dict[str, Any] = {
+    "type": "object",
+    "additionalProperties": False,
+    "required": ["answer"],
+    "properties": {
+        "answer": {"type": "string", "minLength": 2, "maxLength": 4000},
+    },
+}
+
+
 STUDY_PACK_SCHEMA: dict[str, Any] = {
     "type": "object",
     "additionalProperties": False,

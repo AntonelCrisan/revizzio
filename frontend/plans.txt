@@ -1,6 +1,5 @@
 Start / gratuit
 - 1 proiect activ
-- 3 materiale pe lună
 - 2 fișiere per proiect
 - 10 MB per fișier
 - 20 MB total per proiect
@@ -10,7 +9,6 @@ Start / gratuit
 
 Focus
 - 10 proiecte active
-- 30 materiale pe lună
 - 10 fișiere per proiect
 - 50 MB per fișier
 - 200 MB total per proiect
@@ -20,10 +18,10 @@ Focus
 
 Pro
 - 50 proiecte active
-- 100 materiale pe lună
 - 30 fișiere per proiect
 - 150 MB per fișier
 - 500 MB total per proiect
 - aprox. 500 pagini
 - 50 flashcarduri inițiale
 - quiz: 4 seturi per complexitate, 12 întrebări / quiz
+- acces la functionalitatiile AI in rezumat, flashcarduri si chat AI

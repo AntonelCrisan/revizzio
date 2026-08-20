@@ -35,7 +35,7 @@ class Settings(BaseSettings):
     public_app_url: str = "http://localhost:3000"
     email_logo_url: str | None = None
     resend_api_key: SecretStr | None = None
-    resend_from_email: str = "Reviss <onboarding@resend.dev>"
+    resend_from_email: str = "Reviss <noreply@reviss.app>"
     email_verification_ttl_minutes: int = Field(default=30, ge=5, le=1440)
     password_reset_ttl_minutes: int = Field(default=30, ge=5, le=1440)
 
@@ -108,6 +108,30 @@ class Settings(BaseSettings):
     def empty_email_logo_url_is_none(cls, value: object) -> object:
         return None if value == "" else value
 
+    @field_validator("resend_from_email")
+    @classmethod
+    def validate_resend_from_email(cls, value: str) -> str:
+        sender = value.strip()
+        if not sender:
+            raise ValueError("RESEND_FROM_EMAIL must not be empty.")
+
+        sender_email = sender
+        if "<" in sender or ">" in sender:
+            if "<" not in sender or ">" not in sender:
+                raise ValueError(
+                    "RESEND_FROM_EMAIL must be a plain email or Name <email>."
+                )
+            sender_email = sender.rsplit("<", 1)[1].split(">", 1)[0].strip()
+
+        if "@" not in sender_email or sender_email.startswith("@"):
+            raise ValueError("RESEND_FROM_EMAIL must contain a valid email address.")
+        if sender_email.lower().endswith("@resend.dev"):
+            raise ValueError(
+                "RESEND_FROM_EMAIL must use a verified sender domain."
+            )
+
+        return sender
+
     @field_validator("project_storage_dir", mode="before")
     @classmethod
     def normalize_project_storage_dir(cls, value: object) -> Path:
@@ -126,6 +150,10 @@ class Settings(BaseSettings):
         if self.environment == "production":
             if not self.session_cookie_secure:
                 raise ValueError("SESSION_COOKIE_SECURE must be true in production.")
+            if not self.public_app_url.startswith("https://"):
+                raise ValueError("PUBLIC_APP_URL must use HTTPS in production.")
+            if self.email_logo_url and not self.email_logo_url.startswith("https://"):
+                raise ValueError("EMAIL_LOGO_URL must use HTTPS in production.")
             if (
                 self.session_secret.get_secret_value()
                 == "replace-with-at-least-32-random-characters"

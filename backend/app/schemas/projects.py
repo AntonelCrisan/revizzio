@@ -215,3 +215,34 @@ class StudyProjectRenameRequest(BaseModel):
 
 class StudyProjectQuizMistakeFlashcardCreate(BaseModel):
     question_id: uuid.UUID
+
+
+class StudyProjectAiSelectionExplainRequest(BaseModel):
+    paragraph_index: int = Field(ge=0)
+    selected_text: str = Field(min_length=3, max_length=2000)
+
+
+class StudyProjectFlashcardAiSelectionExplainRequest(BaseModel):
+    flashcard_id: uuid.UUID
+    side: Literal["question", "answer"]
+    selected_text: str = Field(min_length=3, max_length=2000)
+
+
+class StudyProjectAiSelectionExplainResponse(BaseModel):
+    title: str = Field(min_length=2, max_length=120)
+    answer: str = Field(min_length=2, max_length=1200)
+    bullets: list[str] = Field(min_length=2, max_length=4)
+
+
+class StudyProjectChatMessage(BaseModel):
+    role: Literal["assistant", "user"]
+    text: str = Field(min_length=1, max_length=3000)
+
+
+class StudyProjectChatRequest(BaseModel):
+    message: str = Field(min_length=2, max_length=3000)
+    history: list[StudyProjectChatMessage] = Field(default_factory=list, max_length=12)
+
+
+class StudyProjectChatResponse(BaseModel):
+    answer: str = Field(min_length=2, max_length=4000)

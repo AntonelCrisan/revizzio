@@ -5,11 +5,11 @@ Revises: 20260627_0004
 Create Date: 2026-06-27
 """
 
+import re
+import uuid
 from collections.abc import Sequence
 from datetime import UTC, datetime
 from pathlib import Path
-import re
-import uuid
 
 import sqlalchemy as sa
 from alembic import op
@@ -54,7 +54,10 @@ def _read_legal_file(file_name: str, title: str) -> str:
     try:
         return (LEGAL_CONTENT_DIR / file_name).read_text(encoding="utf-8")
     except OSError:
-        return f"<article><h1>{title}</h1><p>Document in curs de configurare.</p></article>"
+        return (
+            f"<article><h1>{title}</h1>"
+            "<p>Document in curs de configurare.</p></article>"
+        )
 
 
 def _split_sections(content: str) -> list[tuple[str, str, str, int]]:
@@ -212,9 +215,12 @@ def upgrade() -> None:
                     "sort_order": sort_order,
                     "last_date_modified": now,
                 }
-                for section_key, section_title, section_content, sort_order in _split_sections(
-                    content
-                )
+                for (
+                    section_key,
+                    section_title,
+                    section_content,
+                    sort_order,
+                ) in _split_sections(content)
             ],
         )
 

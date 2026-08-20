@@ -1,3 +1,4 @@
+# ruff: noqa: E501
 from __future__ import annotations
 
 import json
@@ -45,7 +46,7 @@ class EmailService:
 
     def _send_sync(self, message: EmailMessage) -> None:
         if self._settings.resend_api_key is None:
-            raise EmailDeliveryError("RESEND_API_KEY nu este configurat.")
+            raise EmailDeliveryError("Serviciul de email nu este configurat.")
 
         payload = {
             "from": self._settings.resend_from_email,
@@ -73,16 +74,16 @@ class EmailService:
             with urllib.request.urlopen(request, timeout=15) as response:
                 if response.status >= 400:
                     raise EmailDeliveryError(
-                        f"Resend a întors statusul {response.status}."
+                        f"Serviciul de email a întors statusul {response.status}."
                     )
         except urllib.error.HTTPError as exc:
             response_body = exc.read().decode("utf-8", errors="replace")
             raise EmailDeliveryError(
-                f"Resend a refuzat trimiterea emailului: {response_body}"
+                f"Serviciul de email a refuzat trimiterea: {response_body}"
             ) from exc
         except urllib.error.URLError as exc:
             raise EmailDeliveryError(
-                "Serviciul Resend nu a putut fi contactat."
+                "Serviciul de email nu a putut fi contactat."
             ) from exc
 
 

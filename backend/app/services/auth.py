@@ -331,7 +331,8 @@ class AuthService:
         reset_token = PasswordResetToken(
             user_id=user.id,
             token_hash=self._hash_token(token),
-            expires_at=now + timedelta(minutes=self._settings.password_reset_ttl_minutes),
+            expires_at=now
+            + timedelta(minutes=self._settings.password_reset_ttl_minutes),
         )
         self._session.add(reset_token)
         actor_user_id = user.id
@@ -445,7 +446,11 @@ class AuthService:
         )
         add_audit_log(
             self._session,
-            action="auth.logged_out" if auth_session is not None else "auth.logout_failed",
+            action=(
+                "auth.logged_out"
+                if auth_session is not None
+                else "auth.logout_failed"
+            ),
             status="success" if auth_session is not None else "failure",
             actor_user_id=auth_session.user_id if auth_session is not None else None,
             resource_type="auth_session",

@@ -24,6 +24,8 @@ python -m pip install -r requirements.txt
 ```env
 DATABASE_URL=postgresql+asyncpg://UTILIZATOR:PAROLA@127.0.0.1:5432/revizzio
 SESSION_SECRET=un-secret-aleator-de-cel-putin-32-de-caractere
+RESEND_API_KEY=<cheia_resend>
+RESEND_FROM_EMAIL="Reviss <noreply@reviss.app>"
 ```
 
 Parola bazei de date și secretul sesiunilor nu se introduc în cod și nu se

@@ -16,6 +16,7 @@ import { BrandLogo } from "@/components/brand-logo";
 import type { AuthUserPlan } from "@/lib/auth-api";
 import {
   archiveStudyProject,
+  chatWithStudyProjectAi,
   completeQuiz,
   createManualStudyProjectFlashcard,
   createQuizMistakeFlashcard,
@@ -24,6 +25,8 @@ import {
   deleteStudyProject,
   deleteSummaryHighlight,
   deleteSummaryNote,
+  explainStudyProjectFlashcardSelection,
+  explainStudyProjectSummarySelection,
   generateStudyProjectQuizzes,
   getStudyProject,
   listStudyProjects,
@@ -2127,11 +2130,11 @@ function ProjectView({
 
   if (activeTab === "chat") {
     return (
-      <section className="space-y-5">
+      <section className="space-y-4">
         <button
           type="button"
           onClick={() => onTabChange(isChatBackTab(chatBackTab) ? chatBackTab : "rezumat")}
-          className="inline-flex h-11 cursor-pointer items-center gap-2 rounded-full border border-subtle bg-surface px-4 text-sm font-semibold text-muted transition hover:bg-surface-hover hover:text-content"
+          className="inline-flex h-9 cursor-pointer items-center gap-2 rounded-full border border-subtle bg-surface px-3 text-xs font-bold text-muted transition hover:bg-surface-hover hover:text-content"
         >
           <Icon>
             <path d="M19 12H5M12 19l-7-7 7-7" />
@@ -2284,53 +2287,9 @@ function createProjectChatIntro(project: StudyProject): ProjectChatMessage {
   };
 }
 
-function buildProjectChatAnswer(project: StudyProject, prompt: string) {
-  const normalizedPrompt = prompt.toLocaleLowerCase("ro-RO");
-
-  if (
-    normalizedPrompt.includes("plan") ||
-    normalizedPrompt.includes("minute") ||
-    normalizedPrompt.includes("azi")
-  ) {
-    return `Pentru „${project.name}”, aș face azi o sesiune scurtă: 5 minute rezumat, 5 minute flashcard-uri și apoi un quiz rapid. Ai ${project.flashcardsDue} flashcard-uri care merită repetate.`;
-  }
-
-  if (
-    normalizedPrompt.includes("risc") ||
-    normalizedPrompt.includes("examen") ||
-    normalizedPrompt.includes("greu")
-  ) {
-    const riskLevel =
-      project.progress >= 75
-        ? "moderat"
-        : project.progress >= 45
-          ? "ridicat pe conceptele neexersate"
-          : "ridicat";
-
-    return `Pentru „${project.name}”, riscul pare ${riskLevel}. Eu aș începe cu flashcard-urile unde eziți, apoi aș verifica printr-un quiz scurt dacă ai fixat ideea.`;
-  }
-
-  if (
-    normalizedPrompt.includes("concept") ||
-    normalizedPrompt.includes("explic") ||
-    normalizedPrompt.includes("rezumat")
-  ) {
-    return `În proiectul „${project.name}”, încearcă să înveți conceptele ca relații: termenul, rolul lui și de ce contează. Asta te ajută mai mult decât memorarea unei definiții izolate.`;
-  }
-
-  if (
-    normalizedPrompt.includes("quiz") ||
-    normalizedPrompt.includes("întreb") ||
-    normalizedPrompt.includes("intreb")
-  ) {
-    return `La quiz-uri, începe cu întrebările simple și apoi treci la cele mixte. Dacă greșești un concept de două ori, transformă-l într-un flashcard.`;
-  }
-
-  return `Am înțeles. Pentru „${project.name}”, aș lega asta de materialul proiectului și de ce ai deja generat: rezumat, flashcard-uri și quiz-uri. Spune-mi conceptul exact dacă vrei să intru mai punctual.`;
-}
-
 function ProjectChatPanel({ project }: { project: StudyProject }) {
   const streamTimerRef = useRef<number | null>(null);
+  const chatRequestIdRef = useRef(0);
   const messageIdRef = useRef(0);
   const bottomRef = useRef<HTMLDivElement | null>(null);
   const messageInputRef = useRef<HTMLTextAreaElement | null>(null);
@@ -2363,52 +2322,22 @@ function ProjectChatPanel({ project }: { project: StudyProject }) {
       if (streamTimerRef.current) {
         window.clearInterval(streamTimerRef.current);
       }
+      chatRequestIdRef.current += 1;
     };
   }, []);
 
-  function sendChatMessage(message?: string) {
-    const text = (message ?? draftMessage).trim();
-
-    if (!text || isGenerating) {
-      return;
-    }
+  function streamAssistantAnswer(assistantMessageId: string, answer: string) {
+    const cleanAnswer =
+      answer.trim() ||
+      "Nu am putut genera un răspuns util momentan. Încearcă din nou peste câteva momente.";
+    const answerChunks = cleanAnswer.match(/\S+\s*/g) ?? [cleanAnswer];
+    let chunkIndex = 0;
+    let streamedAnswer = "";
 
     if (streamTimerRef.current) {
       window.clearInterval(streamTimerRef.current);
       streamTimerRef.current = null;
     }
-
-    messageIdRef.current += 1;
-    const userMessage: ProjectChatMessage = {
-      id: `user-${project.id}-${messageIdRef.current}`,
-      role: "user",
-      text,
-    };
-
-    setMessages((currentMessages) => [...currentMessages, userMessage]);
-    setDraftMessage("");
-    if (messageInputRef.current) {
-      messageInputRef.current.style.height = "0px";
-    }
-    setIsGenerating(true);
-
-    const answer = buildProjectChatAnswer(project, text);
-    const answerChunks = answer.match(/\S+\s*/g) ?? [answer];
-    let chunkIndex = 0;
-    let streamedAnswer = "";
-
-    messageIdRef.current += 1;
-    const assistantMessageId = `assistant-${project.id}-${messageIdRef.current}`;
-
-    setStreamingMessageId(assistantMessageId);
-    setMessages((currentMessages) => [
-      ...currentMessages,
-      {
-        id: assistantMessageId,
-        role: "assistant",
-        text: "",
-      },
-    ]);
 
     streamTimerRef.current = window.setInterval(() => {
       const nextChunk = answerChunks[chunkIndex];
@@ -2426,75 +2355,148 @@ function ProjectChatPanel({ project }: { project: StudyProject }) {
       streamedAnswer += nextChunk;
       chunkIndex += 1;
 
-      setMessages((currentMessages) => [
-        ...currentMessages.map((currentMessage) =>
+      setMessages((currentMessages) =>
+        currentMessages.map((currentMessage) =>
           currentMessage.id === assistantMessageId
             ? { ...currentMessage, text: streamedAnswer }
             : currentMessage,
         ),
-      ]);
-    }, 42);
+      );
+    }, 34);
+  }
+
+  async function sendChatMessage(message?: string) {
+    const text = (message ?? draftMessage).trim();
+
+    if (!text || isGenerating) {
+      return;
+    }
+
+    if (streamTimerRef.current) {
+      window.clearInterval(streamTimerRef.current);
+      streamTimerRef.current = null;
+    }
+
+    chatRequestIdRef.current += 1;
+    const requestId = chatRequestIdRef.current;
+    const history = messages.slice(-10).map((item) => ({
+      role: item.role,
+      text: item.text,
+    }));
+
+    messageIdRef.current += 1;
+    const userMessage: ProjectChatMessage = {
+      id: `user-${project.id}-${messageIdRef.current}`,
+      role: "user",
+      text,
+    };
+
+    messageIdRef.current += 1;
+    const assistantMessageId = `assistant-${project.id}-${messageIdRef.current}`;
+
+    setStreamingMessageId(assistantMessageId);
+    setMessages((currentMessages) => [
+      ...currentMessages,
+      userMessage,
+      {
+        id: assistantMessageId,
+        role: "assistant",
+        text: "",
+      },
+    ]);
+    setDraftMessage("");
+    if (messageInputRef.current) {
+      messageInputRef.current.style.height = "0px";
+    }
+    setIsGenerating(true);
+
+    try {
+      const response = await chatWithStudyProjectAi({
+        projectId: project.id,
+        message: text,
+        history,
+      });
+
+      if (requestId !== chatRequestIdRef.current) {
+        return;
+      }
+
+      streamAssistantAnswer(assistantMessageId, response.answer);
+    } catch (error) {
+      if (requestId !== chatRequestIdRef.current) {
+        return;
+      }
+
+      const fallbackAnswer =
+        error instanceof Error
+          ? error.message
+          : "Răspunsul nu a putut fi generat momentan. Încearcă din nou.";
+      streamAssistantAnswer(assistantMessageId, fallbackAnswer);
+    }
   }
 
   return (
-    <section className="theme-shadow-card overflow-hidden rounded-xl border border-subtle bg-surface">
-      <div className="flex h-[calc(100svh-8.75rem)] min-h-[34rem] max-h-[54rem] flex-col">
-        <header className="grid shrink-0 gap-4 border-b border-subtle p-4 sm:p-5 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end">
-          <div className="min-w-0">
-            <span className="inline-flex rounded-full border border-subtle bg-action-soft px-3 py-1 text-[10px] font-black uppercase tracking-[0.18em] text-muted">
-              Chat AI
-            </span>
-            <h2 className="mt-3 truncate font-serif text-2xl font-semibold leading-tight text-content sm:text-3xl">
-              Întreabă despre {project.name}.
-            </h2>
-            <p className="mt-1.5 max-w-2xl text-sm leading-6 text-muted">
-              Conversație contextuală pe rezumat, flashcard-uri, quiz-uri și
-              progresul acestui proiect.
-            </p>
-          </div>
-          <div className="grid grid-cols-3 divide-x divide-subtle rounded-xl border border-subtle bg-app">
-            <ChatHeaderStat label="Flashcard-uri" value={String(project.flashcardsTotal)} />
-            <ChatHeaderStat label="Quiz-uri" value={String(project.quizzes.length)} />
-            <ChatHeaderStat label="Progres" value={`${project.progress}%`} />
-          </div>
-        </header>
+    <section className="overflow-hidden rounded-xl border border-subtle bg-surface">
+      <div className="flex h-[calc(100svh-7.75rem)] min-h-[34rem] max-h-[58rem] flex-col">
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-5 sm:px-6 lg:px-8">
+          <div className="mx-auto flex max-w-5xl flex-col gap-4">
+            {messages.map((message) => {
+              const isAssistant = message.role === "assistant";
+              const isStreaming = message.id === streamingMessageId;
+              const isWaiting = isStreaming && !message.text;
 
-        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 py-5 sm:px-5">
-          <div className="mx-auto flex max-w-4xl flex-col gap-3">
-            {messages.map((message) => (
-              <div
-                key={message.id}
-                className={`flex ${
-                  message.role === "user" ? "justify-end" : "justify-start"
-                }`}
-              >
-                <article
-                  className={`max-w-[min(42rem,92%)] border px-4 py-3 text-sm leading-6 ${
-                    message.role === "user"
-                      ? "rounded-l-xl rounded-br-sm rounded-tr-xl border-action bg-action text-on-action"
-                      : "rounded-r-xl rounded-bl-sm rounded-tl-xl border-subtle bg-app text-content"
+              return (
+                <div
+                  key={message.id}
+                  className={`flex items-start gap-2 ${
+                    isAssistant ? "justify-start" : "justify-end"
                   }`}
                 >
-                  <p>
-                    {message.text}
-                    {message.id === streamingMessageId ? (
-                      <span className="ml-1 inline-block h-4 w-1 translate-y-0.5 animate-pulse rounded-full bg-info align-baseline" />
-                    ) : null}
-                  </p>
-                </article>
-              </div>
-            ))}
+                  {isAssistant ? <ProjectChatAssistantAvatar /> : null}
+                  <article
+                    className={`max-w-[min(42rem,90%)] border px-3 py-2 text-sm leading-6 ${
+                      isAssistant
+                        ? "rounded-r-xl rounded-bl-sm rounded-tl-xl border-subtle bg-app text-content"
+                        : "rounded-l-xl rounded-br-sm rounded-tr-xl border-action bg-action text-on-action"
+                    }`}
+                  >
+                    {isWaiting ? (
+                      <div className="flex items-center gap-2 text-muted">
+                        <span className="text-xs font-bold text-content">
+                          Reviss pregătește răspunsul
+                        </span>
+                        <span
+                          aria-hidden="true"
+                          className="inline-flex items-center gap-1"
+                        >
+                          <span className="h-1 w-1 animate-pulse rounded-full bg-info" />
+                          <span className="h-1 w-1 animate-pulse rounded-full bg-info [animation-delay:120ms]" />
+                          <span className="h-1 w-1 animate-pulse rounded-full bg-info [animation-delay:240ms]" />
+                        </span>
+                      </div>
+                    ) : (
+                      <p>
+                        {message.text}
+                        {isStreaming ? (
+                          <span className="ml-1 inline-block h-4 w-1 translate-y-0.5 animate-pulse rounded-full bg-info align-baseline" />
+                        ) : null}
+                      </p>
+                    )}
+                  </article>
+                </div>
+              );
+            })}
             <div ref={bottomRef} />
           </div>
         </div>
 
-        <div className="shrink-0 border-t border-subtle bg-surface p-3 sm:p-4">
+        <div className="shrink-0 border-t border-subtle bg-surface p-2 sm:p-3">
           <form
             onSubmit={(event) => {
               event.preventDefault();
-              sendChatMessage();
+              void sendChatMessage();
             }}
-            className="mx-auto flex max-w-4xl items-end gap-2 rounded-xl border border-subtle bg-app p-2"
+            className="mx-auto flex max-w-5xl items-end gap-2 rounded-xl border border-subtle bg-app p-1.5"
           >
             <label className="sr-only" htmlFor="project-chat-message">
               Mesaj pentru Chat AI
@@ -2507,17 +2509,17 @@ function ProjectChatPanel({ project }: { project: StudyProject }) {
               onKeyDown={(event) => {
                 if (event.key === "Enter" && !event.shiftKey) {
                   event.preventDefault();
-                  sendChatMessage();
+                  void sendChatMessage();
                 }
               }}
               placeholder="Scrie un mesaj..."
               rows={1}
-              className="max-h-32 min-h-11 min-w-0 flex-1 resize-none overflow-y-auto bg-transparent px-3 py-2.5 text-sm leading-6 text-content outline-none placeholder:text-muted"
+              className="max-h-28 min-h-9 min-w-0 flex-1 resize-none overflow-y-auto bg-transparent px-3 py-2 text-sm leading-5 text-content outline-none placeholder:text-muted"
             />
             <button
               type="submit"
               disabled={!draftMessage.trim() || isGenerating}
-              className="inline-flex h-11 cursor-pointer items-center justify-center rounded-full bg-action px-4 text-sm font-bold text-on-action transition hover:bg-action-hover disabled:cursor-not-allowed disabled:opacity-60 sm:px-5"
+              className="inline-flex h-9 cursor-pointer items-center justify-center rounded-full bg-action px-4 text-xs font-bold text-on-action transition hover:bg-action-hover disabled:cursor-not-allowed disabled:opacity-60"
             >
               Trimite
             </button>
@@ -2528,16 +2530,12 @@ function ProjectChatPanel({ project }: { project: StudyProject }) {
   );
 }
 
-function ChatHeaderStat({ label, value }: { label: string; value: string }) {
+function ProjectChatAssistantAvatar() {
   return (
-    <div className="min-w-24 px-4 py-3 text-center">
-      <p className="font-serif text-2xl font-semibold leading-none text-content">
-        {value}
-      </p>
-      <p className="mt-1 text-[10px] font-black uppercase tracking-[0.12em] text-muted">
-        {label}
-      </p>
-    </div>
+    <span
+      aria-hidden="true"
+      className="brand-logo-mask brand-logo-mask-mark mt-1 h-3.5 w-3.5 shrink-0 text-content"
+    />
   );
 }
 
@@ -2783,32 +2781,6 @@ function getSummaryHighlightStyle(
     backgroundColor: color.bg,
     borderColor: color.border,
     color: color.text,
-  };
-}
-
-function buildSummaryAiResponse(
-  selection: PendingSummarySelection,
-  paragraphs: SummaryDisplayBlock[],
-  keywords: SummaryKeyword[],
-): LearningAiResponse {
-  const normalizedText = selection.text.toLocaleLowerCase("ro-RO");
-  const matchedKeyword = keywords.find(
-    (keyword) =>
-      normalizedText.includes(keyword.text.toLocaleLowerCase("ro-RO")) ||
-      normalizedText.includes(keyword.label.toLocaleLowerCase("ro-RO")),
-  );
-  const concept = matchedKeyword?.label ?? "fragmentul selectat";
-  const sourceParagraph =
-    paragraphs[selection.paragraphIndex]?.text ?? selection.text;
-
-  return {
-    title: `Explicație rapidă pentru ${concept}`,
-    answer: `Fragmentul ales este important pentru că leagă ideea principală din paragraf de felul în care funcționează celula ca sistem. În contextul rezumatului, „${selection.text}” trebuie înțeles ca o piesă din mecanismul general: fiecare structură are un rol, iar rolurile se susțin între ele pentru energie, organizare și adaptare.`,
-    bullets: [
-      `În paragraf, ideea apare în contextul: ${sourceParagraph.slice(0, 145)}...`,
-      "Dacă îl reformulezi pentru examen, pornește de la întrebarea: ce face această componentă pentru supraviețuirea celulei?",
-      "Reține legătura cauză-efect: structură → funcție → impact asupra întregii celule.",
-    ],
   };
 }
 
@@ -3234,7 +3206,7 @@ function SummaryPanel({
 }) {
   const summaryRef = useRef<HTMLDivElement | null>(null);
   const keywordFocusTimer = useRef<number | null>(null);
-  const aiResponseTimer = useRef<number | null>(null);
+  const aiRequestIdRef = useRef(0);
   const selectionChangeTimer = useRef<number | null>(null);
   const selectionReadFrame = useRef<number | null>(null);
   const readCurrentSelectionRef = useRef<() => void>(() => {});
@@ -3242,6 +3214,8 @@ function SummaryPanel({
   const [isToolsDialogOpen, setIsToolsDialogOpen] = useState(false);
   const [activeKeywordId, setActiveKeywordId] = useState<string | null>(null);
   const [aiDialog, setAiDialog] = useState<SummaryAiDialog | null>(null);
+  const [pendingAiSelection, setPendingAiSelection] =
+    useState<PendingSummarySelection | null>(null);
   const [pendingHighlightColor, setPendingHighlightColor] =
     useState<SummaryHighlightColorId>(defaultSummaryHighlightColor);
   const [notePanel, setNotePanel] = useState<SummaryNotePanelState | null>(
@@ -3332,34 +3306,58 @@ function SummaryPanel({
     window.getSelection()?.removeAllRanges();
   }
 
-  function handleAskAi(selection: PendingSummarySelection) {
+  async function handleAskAi(selection: PendingSummarySelection) {
     if (!hasProAiAccess) {
       return;
     }
 
-    if (aiResponseTimer.current) {
-      window.clearTimeout(aiResponseTimer.current);
-    }
+    setPendingAiSelection(null);
+    aiRequestIdRef.current += 1;
+    const requestId = aiRequestIdRef.current;
 
     setAiDialog({
       ...selection,
       status: "loading",
     });
+    window.getSelection()?.removeAllRanges();
 
-    aiResponseTimer.current = window.setTimeout(() => {
+    try {
+      const response = await explainStudyProjectSummarySelection({
+        projectId: project.id,
+        paragraphIndex: selection.paragraphIndex,
+        selectedText: selection.text,
+      });
+
+      if (requestId !== aiRequestIdRef.current) {
+        return;
+      }
+
       setAiDialog({
         ...selection,
         status: "done",
-        response: buildSummaryAiResponse(
-          selection,
-          displayParagraphs,
-          displayKeywords,
-        ),
+        response,
       });
-      aiResponseTimer.current = null;
-    }, 950);
+    } catch (error) {
+      if (requestId !== aiRequestIdRef.current) {
+        return;
+      }
 
-    window.getSelection()?.removeAllRanges();
+      setAiDialog({
+        ...selection,
+        status: "done",
+        response: {
+          title: "Explicația nu este disponibilă momentan",
+          answer:
+            error instanceof Error
+              ? error.message
+              : "Nu am putut genera explicația. Încearcă din nou peste câteva momente.",
+          bullets: [
+            "Verifică dacă ai selectat un fragment clar din rezumat.",
+            "Poți continua studiul și poți reveni la explicație mai târziu.",
+          ],
+        },
+      });
+    }
   }
 
   function getCurrentSummarySelectionPayload() {
@@ -3419,6 +3417,7 @@ function SummaryPanel({
     }
 
     if (activeTool === "note") {
+      setPendingAiSelection(null);
       setNotePanel({ mode: "create", selection: selectionPayload, draft: "" });
       return;
     }
@@ -3428,7 +3427,8 @@ function SummaryPanel({
         return;
       }
 
-      handleAskAi(selectionPayload);
+      setNotePanel(null);
+      setPendingAiSelection(selectionPayload);
       return;
     }
   }
@@ -3462,9 +3462,6 @@ function SummaryPanel({
     return () => {
       if (keywordFocusTimer.current) {
         window.clearTimeout(keywordFocusTimer.current);
-      }
-      if (aiResponseTimer.current) {
-        window.clearTimeout(aiResponseTimer.current);
       }
       if (selectionChangeTimer.current) {
         window.clearTimeout(selectionChangeTimer.current);
@@ -3547,12 +3544,21 @@ function SummaryPanel({
   }
 
   function handleCloseAiDialog() {
-    if (aiResponseTimer.current) {
-      window.clearTimeout(aiResponseTimer.current);
-      aiResponseTimer.current = null;
+    aiRequestIdRef.current += 1;
+    setAiDialog(null);
+  }
+
+  function handleConfirmAiSelection() {
+    if (!pendingAiSelection) {
+      return;
     }
 
-    setAiDialog(null);
+    void handleAskAi(pendingAiSelection);
+  }
+
+  function handleCancelAiSelection() {
+    setPendingAiSelection(null);
+    window.getSelection()?.removeAllRanges();
   }
 
   function handleKeywordClick(keywordId: string) {
@@ -3583,12 +3589,14 @@ function SummaryPanel({
 
     setActiveTool((current) => (current === tool ? null : tool));
     setNotePanel(null);
+    setPendingAiSelection(null);
     window.getSelection()?.removeAllRanges();
   }
 
   function handleResetTool() {
     setActiveTool(null);
     setNotePanel(null);
+    setPendingAiSelection(null);
     window.getSelection()?.removeAllRanges();
   }
 
@@ -3659,7 +3667,7 @@ function SummaryPanel({
       : activeTool === "erase"
         ? "Apasă pe un text evidențiat ca să-l ștergi."
         : activeTool === "ai"
-          ? "Selectează un fragment ca să întrebi AI despre el."
+          ? "Selectează un fragment, apoi confirmă cu Întreabă."
       : activeTool === "note"
         ? "Selectează un fragment ca să adaugi o notiță."
         : null;
@@ -3697,6 +3705,33 @@ function SummaryPanel({
 
       <div className="grid gap-8 xl:grid-cols-[minmax(0,1fr)_18rem]">
         <div className="max-w-none">
+          {pendingAiSelection ? (
+            <div className="sticky top-16 z-20 mt-4 w-full max-w-md rounded-xl border border-info-border bg-info-soft p-4 text-info theme-shadow-card">
+              <p className="text-[11px] font-black uppercase tracking-[0.16em]">
+                Text selectat pentru AI
+              </p>
+              <p className="mt-2 line-clamp-3 text-sm leading-6">
+                “{pendingAiSelection.text}”
+              </p>
+              <div className="mt-4 flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={handleConfirmAiSelection}
+                  className="inline-flex h-10 cursor-pointer items-center justify-center rounded-full bg-action px-5 text-sm font-bold text-on-action transition hover:bg-action-hover"
+                >
+                  Întreabă
+                </button>
+                <button
+                  type="button"
+                  onClick={handleCancelAiSelection}
+                  className="inline-flex h-10 cursor-pointer items-center justify-center rounded-full border border-info-border bg-surface px-5 text-sm font-bold text-content transition hover:bg-surface-hover"
+                >
+                  Anulează
+                </button>
+              </div>
+            </div>
+          ) : null}
+
           {notePanel ? (
             <div className="sticky top-16 z-20 mt-4 w-full max-w-sm rounded-xl border border-warning-border bg-warning-soft p-3 text-warning theme-shadow-card">
               <div className="flex items-center justify-end gap-0.5">
@@ -4074,6 +4109,7 @@ type FlashcardShuffleState =
 type FlashcardTextSide = "question" | "answer";
 
 type PendingFlashcardSelection = {
+  flashcardId: string;
   text: string;
   side: FlashcardTextSide;
   topic: string;
@@ -4249,24 +4285,6 @@ function getFlashcardTextDensity(text: string) {
   return "lg";
 }
 
-function buildFlashcardAiResponse(
-  selection: PendingFlashcardSelection,
-): LearningAiResponse {
-  const sideLabel = selection.side === "question" ? "întrebarea" : "răspunsul";
-  const oppositeLabel =
-    selection.side === "question" ? "răspunsul de pe spate" : "întrebarea";
-
-  return {
-    title: `Explicație pentru ${sideLabel}`,
-    answer: `Fragmentul selectat din flashcardul „${selection.topic}” merită privit ca o piesă de verificare rapidă. Înainte să memorezi formularea exactă, încearcă să vezi ce relație testează: termenul-cheie, rolul lui și legătura cu restul celulei.`,
-    bullets: [
-      `Text selectat: „${selection.text}”`,
-      `Compară fragmentul cu ${oppositeLabel} și verifică dacă poți explica ideea fără să te uiți pe card.`,
-      "Transformă explicația într-o propoziție scurtă: concept → funcție → de ce contează.",
-    ],
-  };
-}
-
 function FlashcardTicket({
   card,
   onOpenDeck,
@@ -4435,11 +4453,13 @@ function AccountFlashcardContent({
 }
 
 function FlashcardDeckPage({
+  projectId,
   deck,
   onBack,
   onToggleReview,
   hasProAiAccess,
 }: {
+  projectId: string;
   deck: AccountFlashcardDeck;
   onBack: () => void;
   onToggleReview: (flashcardId: string, review: boolean) => Promise<void>;
@@ -4448,7 +4468,7 @@ function FlashcardDeckPage({
   const flashcardTextRef = useRef<HTMLDivElement | null>(null);
   const shuffleIdRef = useRef(0);
   const shuffleTimerRef = useRef<number | null>(null);
-  const aiResponseTimerRef = useRef<number | null>(null);
+  const flashcardAiRequestIdRef = useRef(0);
   const fullCardsRef = useRef<AccountFlashcard[]>(deck.cards);
   const [cards, setCards] = useState<AccountFlashcard[]>(deck.cards);
   const [showReviewOnly, setShowReviewOnly] = useState(false);
@@ -4468,9 +4488,7 @@ function FlashcardDeckPage({
       if (shuffleTimerRef.current) {
         window.clearTimeout(shuffleTimerRef.current);
       }
-      if (aiResponseTimerRef.current) {
-        window.clearTimeout(aiResponseTimerRef.current);
-      }
+      flashcardAiRequestIdRef.current += 1;
     };
   }, []);
 
@@ -4612,43 +4630,77 @@ function FlashcardDeckPage({
       return;
     }
 
+    const activeCard = cards[activeIndex];
+    if (!activeCard) {
+      return;
+    }
+
     setPendingFlashcardSelection({
+      flashcardId: activeCard.flashcardId,
       text: selectedText,
       side: anchorSide,
-      topic: cards[activeIndex].topic,
+      topic: activeCard.topic,
     });
   }
 
-  function handleAskFlashcardAi() {
+  async function handleAskFlashcardAi() {
     if (!pendingFlashcardSelection || !hasProAiAccess) {
       return;
     }
 
-    if (aiResponseTimerRef.current) {
-      window.clearTimeout(aiResponseTimerRef.current);
-    }
+    flashcardAiRequestIdRef.current += 1;
+    const requestId = flashcardAiRequestIdRef.current;
+    const selection = pendingFlashcardSelection;
 
     setFlashcardAiDialog({
-      ...pendingFlashcardSelection,
+      ...selection,
       status: "loading",
     });
+    setPendingFlashcardSelection(null);
+    window.getSelection()?.removeAllRanges();
 
-    aiResponseTimerRef.current = window.setTimeout(() => {
-      setFlashcardAiDialog({
-        ...pendingFlashcardSelection,
-        status: "done",
-        response: buildFlashcardAiResponse(pendingFlashcardSelection),
+    try {
+      const response = await explainStudyProjectFlashcardSelection({
+        projectId,
+        flashcardId: selection.flashcardId,
+        side: selection.side,
+        selectedText: selection.text,
       });
-      aiResponseTimerRef.current = null;
-    }, 950);
+
+      if (requestId !== flashcardAiRequestIdRef.current) {
+        return;
+      }
+
+      setFlashcardAiDialog({
+        ...selection,
+        status: "done",
+        response,
+      });
+    } catch (error) {
+      if (requestId !== flashcardAiRequestIdRef.current) {
+        return;
+      }
+
+      setFlashcardAiDialog({
+        ...selection,
+        status: "done",
+        response: {
+          title: "Explicația nu este disponibilă momentan",
+          answer:
+            error instanceof Error
+              ? error.message
+              : "Nu am putut genera explicația. Încearcă din nou peste câteva momente.",
+          bullets: [
+            "Verifică dacă ai selectat un fragment clar din flashcard.",
+            "Poți continua recapitularea și poți reveni la explicație mai târziu.",
+          ],
+        },
+      });
+    }
   }
 
   function handleCloseFlashcardAiDialog() {
-    if (aiResponseTimerRef.current) {
-      window.clearTimeout(aiResponseTimerRef.current);
-      aiResponseTimerRef.current = null;
-    }
-
+    flashcardAiRequestIdRef.current += 1;
     setFlashcardAiDialog(null);
   }
 
@@ -4720,7 +4772,7 @@ function FlashcardDeckPage({
                         : "cursor-not-allowed border border-info-border bg-surface text-muted opacity-65"
                     }`}
                   >
-                    {hasProAiAccess ? "Întreabă AI" : "AI inclus în Pro"}
+                    {hasProAiAccess ? "Întreabă" : "AI inclus în Pro"}
                   </button>
                   {!hasProAiAccess ? (
                     <span className="pointer-events-none absolute left-0 top-full z-30 mt-2 w-64 rounded-lg border border-subtle bg-surface px-3 py-2 text-xs font-semibold leading-5 text-content opacity-0 shadow-lg shadow-black/10 transition group-hover:opacity-100 group-focus-within:opacity-100">
@@ -4736,7 +4788,7 @@ function FlashcardDeckPage({
                   }}
                   className="rounded-full border border-info-border px-4 py-2 text-xs font-bold transition hover:bg-info-soft/70"
                 >
-                  Renunță
+                  Anulează
                 </button>
               </div>
             </div>
@@ -5417,6 +5469,7 @@ function FlashcardsPanel({
   if (activeDeckId) {
     return (
       <FlashcardDeckPage
+        projectId={project.id}
         deck={decks[activeDeckId]}
         onBack={() => setActiveDeckId(null)}
         hasProAiAccess={hasProAiAccess}

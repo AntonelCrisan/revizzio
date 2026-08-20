@@ -36,9 +36,13 @@ def _session_response(
 
 def _user_response(user: User, now: datetime) -> AdminUserResponse:
     sessions = sorted(user.sessions, key=lambda item: item.created_at, reverse=True)
-    session_responses = [_session_response(auth_session, now) for auth_session in sessions]
+    session_responses = [
+        _session_response(auth_session, now) for auth_session in sessions
+    ]
     active_sessions = sum(
-        1 for auth_session in sessions if _session_status(auth_session, now) == "activă"
+        1
+        for auth_session in sessions
+        if _session_status(auth_session, now) == "activă"
     )
     last_session_at = sessions[0].created_at if sessions else None
     last_seen_at = next(

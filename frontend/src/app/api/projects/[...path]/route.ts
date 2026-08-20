@@ -7,6 +7,12 @@ const allowedRoutes = [
   { method: "PATCH", pattern: /^[0-9a-fA-F-]{36}$/ },
   { method: "POST", pattern: /^prepare$/ },
   { method: "POST", pattern: /^[0-9a-fA-F-]{36}\/generate-quizzes$/ },
+  { method: "POST", pattern: /^[0-9a-fA-F-]{36}\/ai\/chat$/ },
+  { method: "POST", pattern: /^[0-9a-fA-F-]{36}\/ai\/explain-selection$/ },
+  {
+    method: "POST",
+    pattern: /^[0-9a-fA-F-]{36}\/ai\/explain-flashcard-selection$/,
+  },
   { method: "POST", pattern: /^[0-9a-fA-F-]{36}\/archive$/ },
   { method: "POST", pattern: /^[0-9a-fA-F-]{36}\/restore$/ },
   { method: "POST", pattern: /^[0-9a-fA-F-]{36}\/import-json$/ },

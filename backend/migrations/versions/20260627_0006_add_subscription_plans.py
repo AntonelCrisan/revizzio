@@ -5,10 +5,10 @@ Revises: 20260627_0005
 Create Date: 2026-06-27
 """
 
+import uuid
 from collections.abc import Sequence
 from datetime import UTC, datetime
 from decimal import Decimal
-import uuid
 
 import sqlalchemy as sa
 from alembic import op

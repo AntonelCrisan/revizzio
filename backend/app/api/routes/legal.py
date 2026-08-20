@@ -1,6 +1,6 @@
+import re
 from datetime import UTC, datetime
 from pathlib import Path
-import re
 
 from fastapi import APIRouter, HTTPException, Request, status
 from sqlalchemy import select
@@ -66,7 +66,10 @@ def _read_seed_content(slug: str) -> str:
     try:
         return (LEGAL_CONTENT_DIR / file_name).read_text(encoding="utf-8")
     except OSError:
-        return f"<article><h1>{title}</h1><p>Document in curs de configurare.</p></article>"
+        return (
+            f"<article><h1>{title}</h1>"
+            "<p>Document in curs de configurare.</p></article>"
+        )
 
 
 def _split_seed_sections(content: str) -> list[LegalDocumentSection]:
