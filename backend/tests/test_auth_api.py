@@ -25,6 +25,7 @@ def build_user() -> User:
         terms_accepted_at=datetime.now(UTC),
         terms_version="2026-06-11",
         theme_preference="system",
+        language_preference="ro",
     )
 
 
@@ -42,12 +43,17 @@ class FakeAuthService:
     async def logout(self, _: str | None) -> None:
         return None
 
-    async def update_theme_preference(
+    async def update_preferences(
         self,
         user: User,
-        theme_preference: str,
+        *,
+        theme_preference: str | None = None,
+        language_preference: str | None = None,
     ) -> User:
-        user.theme_preference = theme_preference
+        if theme_preference is not None:
+            user.theme_preference = theme_preference
+        if language_preference is not None:
+            user.language_preference = language_preference
         return user
 
     def _result(self) -> AuthResult:
@@ -208,6 +214,7 @@ def test_me_returns_the_authenticated_user() -> None:
     assert response.json()["full_name"] == "Student Test"
     assert response.json()["role"] == "user"
     assert response.json()["theme_preference"] == "system"
+    assert response.json()["language_preference"] == "ro"
 
 
 def test_me_normalizes_role_padding_from_database() -> None:
@@ -244,6 +251,25 @@ def test_authenticated_user_can_update_theme_preference() -> None:
     assert response.json()["theme_preference"] == "dark"
 
 
+def test_authenticated_user_can_update_language_preference() -> None:
+    user = build_user()
+    service = FakeAuthService()
+    app.dependency_overrides[get_current_user] = lambda: user
+    app.dependency_overrides[get_auth_service] = lambda: service
+
+    try:
+        with TestClient(app) as client:
+            response = client.patch(
+                "/api/auth/me/preferences",
+                json={"language_preference": "fr"},
+            )
+    finally:
+        app.dependency_overrides.clear()
+
+    assert response.status_code == 200
+    assert response.json()["language_preference"] == "fr"
+
+
 def test_theme_preference_rejects_unknown_values() -> None:
     user = build_user()
     service = FakeAuthService()
@@ -255,6 +281,24 @@ def test_theme_preference_rejects_unknown_values() -> None:
             response = client.patch(
                 "/api/auth/me/preferences",
                 json={"theme_preference": "sepia"},
+            )
+    finally:
+        app.dependency_overrides.clear()
+
+    assert response.status_code == 422
+
+
+def test_language_preference_rejects_unknown_values() -> None:
+    user = build_user()
+    service = FakeAuthService()
+    app.dependency_overrides[get_current_user] = lambda: user
+    app.dependency_overrides[get_auth_service] = lambda: service
+
+    try:
+        with TestClient(app) as client:
+            response = client.patch(
+                "/api/auth/me/preferences",
+                json={"language_preference": "de"},
             )
     finally:
         app.dependency_overrides.clear()

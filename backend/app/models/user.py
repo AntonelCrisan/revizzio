@@ -21,6 +21,10 @@ class User(Base):
             name="ck_users_theme_preference",
         ),
         CheckConstraint(
+            "language_preference IN ('ro', 'en', 'fr')",
+            name="ck_users_language_preference",
+        ),
+        CheckConstraint(
             "role IN ('admin', 'user')",
             name="ck_users_role",
         ),
@@ -73,6 +77,12 @@ class User(Base):
         nullable=False,
         default="system",
         server_default="system",
+    )
+    language_preference: Mapped[str] = mapped_column(
+        String(8),
+        nullable=False,
+        default="ro",
+        server_default="ro",
     )
     stripe_customer_id: Mapped[str | None] = mapped_column(
         String(120),

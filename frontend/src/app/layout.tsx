@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { AuthProvider } from "@/components/auth/auth-provider";
+import { LanguageProvider } from "@/components/language-provider";
 import { CookieConsentProvider } from "@/components/legal/cookie-consent";
 import { ThemeProvider } from "@/components/theme-provider";
 import {
@@ -77,6 +78,21 @@ const themeScript = `
 })();
 `;
 
+const languageScript = `
+(() => {
+  try {
+    const stored = localStorage.getItem("reviss-language");
+    const language = stored === "en" || stored === "fr" || stored === "ro"
+      ? stored
+      : "ro";
+    document.documentElement.lang = language;
+    document.documentElement.dataset.language = language;
+  } catch {
+    document.documentElement.lang = "ro";
+  }
+})();
+`;
+
 export const metadata: Metadata = {
   title: "Reviss",
   description: "Aplicatie educationala de quiz-uri.",
@@ -114,11 +130,14 @@ export default function RootLayout({
           media="(prefers-color-scheme: dark)"
         />
         <script dangerouslySetInnerHTML={{ __html: themeScript }} />
+        <script dangerouslySetInnerHTML={{ __html: languageScript }} />
       </head>
       <body className="flex min-h-full flex-col">
         <ThemeProvider>
           <CookieConsentProvider>
-            <AuthProvider>{children}</AuthProvider>
+            <LanguageProvider>
+              <AuthProvider>{children}</AuthProvider>
+            </LanguageProvider>
           </CookieConsentProvider>
         </ThemeProvider>
       </body>

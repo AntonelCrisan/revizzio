@@ -364,8 +364,9 @@ async def update_preferences(
     current_user: CurrentUser,
     service: AuthServiceDependency,
 ) -> UserResponse:
-    user = await service.update_theme_preference(
+    user = await service.update_preferences(
         current_user,
-        payload.theme_preference,
+        theme_preference=payload.theme_preference,
+        language_preference=payload.language_preference,
     )
     return UserResponse.model_validate(user)

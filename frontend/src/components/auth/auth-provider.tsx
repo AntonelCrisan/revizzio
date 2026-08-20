@@ -14,6 +14,7 @@ import {
   getCurrentUser,
   logout as logoutRequest,
 } from "@/lib/auth-api";
+import { useLanguage } from "@/components/language-provider";
 
 type AuthContextValue = {
   user: AuthUser | null;
@@ -26,6 +27,7 @@ const AuthContext = createContext<AuthContextValue | null>(null);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const { setTheme } = useTheme();
+  const { setLanguage } = useLanguage();
   const [user, setUser] = useState<AuthUser | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -59,8 +61,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (user) {
       setTheme(user.theme_preference);
+      setLanguage(user.language_preference);
     }
-  }, [setTheme, user]);
+  }, [setLanguage, setTheme, user]);
 
   const value = useMemo<AuthContextValue>(
     () => ({

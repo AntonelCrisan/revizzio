@@ -3,9 +3,10 @@ from datetime import datetime
 from decimal import Decimal
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, EmailStr, field_validator
+from pydantic import BaseModel, ConfigDict, EmailStr, field_validator, model_validator
 
 ThemePreference = Literal["light", "dark", "system"]
+LanguagePreference = Literal["ro", "en", "fr"]
 UserRole = Literal["admin", "user"]
 
 
@@ -45,6 +46,7 @@ class UserResponse(BaseModel):
     role: UserRole
     created_at: datetime
     theme_preference: ThemePreference
+    language_preference: LanguagePreference
     current_plan: UserPlanResponse | None = None
 
     @field_validator("role", mode="before")
@@ -56,4 +58,11 @@ class UserResponse(BaseModel):
 
 
 class UserPreferencesUpdate(BaseModel):
-    theme_preference: ThemePreference
+    theme_preference: ThemePreference | None = None
+    language_preference: LanguagePreference | None = None
+
+    @model_validator(mode="after")
+    def at_least_one_preference(self) -> UserPreferencesUpdate:
+        if self.theme_preference is None and self.language_preference is None:
+            raise ValueError("Trimite cel putin o preferinta de actualizat.")
+        return self

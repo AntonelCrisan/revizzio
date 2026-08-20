@@ -18,7 +18,7 @@ from app.core.security import (
 from app.models import PasswordResetToken, PendingRegistration, User
 from app.repositories.auth import AuthSessionRepository, UserRepository
 from app.schemas.auth import LoginRequest, PasswordResetRequest, RegisterRequest
-from app.schemas.user import ThemePreference
+from app.schemas.user import LanguagePreference, ThemePreference
 from app.services.audit import add_audit_log
 from app.services.email import (
     EmailDeliveryError,
@@ -469,15 +469,19 @@ class AuthService:
         )
         await self._session.commit()
 
-    async def update_theme_preference(
+    async def update_preferences(
         self,
         user: User,
-        theme_preference: ThemePreference,
+        *,
+        theme_preference: ThemePreference | None = None,
+        language_preference: LanguagePreference | None = None,
     ) -> User:
         old_theme_preference = user.theme_preference
-        updated_user = await self._users.update_theme_preference(
+        old_language_preference = user.language_preference
+        updated_user = await self._users.update_preferences(
             user,
-            theme_preference,
+            theme_preference=theme_preference,
+            language_preference=language_preference,
         )
         add_audit_log(
             self._session,
@@ -487,7 +491,9 @@ class AuthService:
             resource_id=str(updated_user.id),
             details={
                 "theme_preference": theme_preference,
+                "language_preference": language_preference,
                 "previous_theme_preference": old_theme_preference,
+                "previous_language_preference": old_language_preference,
             },
         )
         await self._session.commit()

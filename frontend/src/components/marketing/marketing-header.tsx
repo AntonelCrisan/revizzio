@@ -4,15 +4,17 @@ import Link from "next/link";
 import { useState } from "react";
 import { useAuth } from "@/components/auth/auth-provider";
 import { BrandLogo } from "@/components/brand-logo";
+import { LanguageSelect } from "@/components/language-select";
+import { useLanguage } from "@/components/language-provider";
 import { ThemeToggle } from "@/components/theme-toggle";
 
 const menuItems = [
-  { href: "#cum-functioneaza", label: "Cum funcționează" },
-  { href: "#flashcards", label: "Flashcard-uri" },
-  { href: "#beneficii", label: "Beneficii" },
-  { href: "#abonamente", label: "Prețuri" },
-  { href: "#intrebari", label: "Întrebări" },
-];
+  { href: "#cum-functioneaza", labelKey: "marketing.nav.how" },
+  { href: "#flashcards", labelKey: "marketing.nav.flashcards" },
+  { href: "#beneficii", labelKey: "marketing.nav.benefits" },
+  { href: "#abonamente", labelKey: "marketing.nav.pricing" },
+  { href: "#intrebari", labelKey: "marketing.nav.questions" },
+] as const;
 
 function MenuIcon({ open }: { open: boolean }) {
   return (
@@ -36,6 +38,7 @@ function MenuIcon({ open }: { open: boolean }) {
 export function MarketingHeader() {
   const [isOpen, setIsOpen] = useState(false);
   const { user, isLoading } = useAuth();
+  const { t } = useLanguage();
 
   return (
     <header className="sticky top-0 z-50 border-b border-subtle/80 bg-surface/90 backdrop-blur-xl">
@@ -47,7 +50,7 @@ export function MarketingHeader() {
         />
 
         <nav
-          aria-label="Navigație principală"
+          aria-label="Navigatie principala"
           className="hidden items-center gap-1 rounded-2xl border border-subtle bg-app/70 p-1 lg:flex"
         >
           {menuItems.map((item) => (
@@ -56,12 +59,13 @@ export function MarketingHeader() {
               href={item.href}
               className="rounded-xl px-3 py-2 text-xs font-bold text-muted transition hover:bg-surface hover:text-content xl:px-4"
             >
-              {item.label}
+              {t(item.labelKey)}
             </a>
           ))}
         </nav>
 
         <div className="flex items-center justify-end gap-2">
+          <LanguageSelect compact className="hidden sm:inline-flex" />
           {!isLoading && !user ? <ThemeToggle /> : null}
           {isLoading ? (
             <span className="hidden h-10 w-28 animate-pulse rounded-xl bg-surface-hover sm:block" />
@@ -73,7 +77,7 @@ export function MarketingHeader() {
               <span className="flex h-5 w-5 items-center justify-center rounded-full bg-on-action/15 text-[9px]">
                 {user.full_name.charAt(0).toUpperCase()}
               </span>
-              Contul meu
+              {t("marketing.account")}
             </Link>
           ) : (
             <>
@@ -81,13 +85,13 @@ export function MarketingHeader() {
                 href="/login"
                 className="hidden rounded-xl px-4 py-2.5 text-xs font-bold text-muted transition hover:bg-surface-hover hover:text-content sm:inline-flex"
               >
-                Intră în cont
+                {t("marketing.login")}
               </Link>
               <Link
                 href="/register"
                 className="hidden rounded-xl bg-action px-4 py-2.5 text-xs font-bold text-on-action transition hover:bg-action-hover sm:inline-flex"
               >
-                Creează cont
+                {t("marketing.register")}
               </Link>
             </>
           )}
@@ -96,7 +100,9 @@ export function MarketingHeader() {
             onClick={() => setIsOpen((open) => !open)}
             aria-expanded={isOpen}
             aria-controls="mobile-navigation"
-            aria-label={isOpen ? "Închide meniul" : "Deschide meniul"}
+            aria-label={
+              isOpen ? t("marketing.closeMenu") : t("marketing.openMenu")
+            }
             className="flex h-10 w-10 items-center justify-center rounded-xl border border-subtle bg-surface text-content lg:hidden"
           >
             <MenuIcon open={isOpen} />
@@ -111,9 +117,10 @@ export function MarketingHeader() {
         }`}
       >
         <nav
-          aria-label="Navigație mobilă"
+          aria-label="Navigatie mobila"
           className="mx-auto flex max-w-7xl flex-col gap-1 px-4 py-4 sm:px-6"
         >
+          <LanguageSelect className="mb-2 w-full sm:hidden" />
           {menuItems.map((item) => (
             <a
               key={item.href}
@@ -121,7 +128,7 @@ export function MarketingHeader() {
               onClick={() => setIsOpen(false)}
               className="rounded-xl px-4 py-3 text-sm font-bold text-muted transition hover:bg-surface-hover hover:text-content"
             >
-              {item.label}
+              {t(item.labelKey)}
             </a>
           ))}
           {!isLoading ? (
@@ -131,7 +138,7 @@ export function MarketingHeader() {
                 onClick={() => setIsOpen(false)}
                 className="mt-2 rounded-xl bg-action px-4 py-3 text-center text-xs font-bold text-on-action sm:hidden"
               >
-                Mergi la contul meu
+                {t("marketing.goToAccount")}
               </Link>
             ) : (
               <div className="mt-2 grid grid-cols-2 gap-2 border-t border-subtle pt-4 sm:hidden">
@@ -139,13 +146,13 @@ export function MarketingHeader() {
                   href="/login"
                   className="rounded-xl border border-subtle bg-app px-4 py-3 text-center text-xs font-bold"
                 >
-                  Intră în cont
+                  {t("marketing.login")}
                 </Link>
                 <Link
                   href="/register"
                   className="rounded-xl bg-action px-4 py-3 text-center text-xs font-bold text-on-action"
                 >
-                  Creează cont
+                  {t("marketing.register")}
                 </Link>
               </div>
             )

@@ -1,4 +1,5 @@
 export type ThemePreference = "light" | "dark" | "system";
+export type LanguagePreference = "ro" | "en" | "fr";
 export type UserRole = "admin" | "user";
 
 export type AuthUserPlan = {
@@ -33,6 +34,7 @@ export type AuthUser = {
   role: UserRole;
   created_at: string;
   theme_preference: ThemePreference;
+  language_preference: LanguagePreference;
   current_plan: AuthUserPlan | null;
 };
 
@@ -159,5 +161,14 @@ export function updateThemePreference(
   return authRequest<AuthUser>("me/preferences", {
     method: "PATCH",
     body: JSON.stringify({ theme_preference: themePreference }),
+  });
+}
+
+export function updateLanguagePreference(
+  languagePreference: LanguagePreference,
+): Promise<AuthUser> {
+  return authRequest<AuthUser>("me/preferences", {
+    method: "PATCH",
+    body: JSON.stringify({ language_preference: languagePreference }),
   });
 }

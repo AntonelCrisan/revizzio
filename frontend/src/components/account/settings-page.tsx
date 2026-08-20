@@ -14,7 +14,12 @@ import {
   type ThemePreference,
   useTheme,
 } from "@/components/theme-provider";
-import { updateThemePreference } from "@/lib/auth-api";
+import { useLanguage } from "@/components/language-provider";
+import {
+  type LanguagePreference,
+  updateLanguagePreference,
+  updateThemePreference,
+} from "@/lib/auth-api";
 import {
   getActivePlanBadge,
   getActivePlanMaterialLimit,
@@ -138,6 +143,34 @@ function formatThemePreference(value: ThemePreference) {
   if (value === "dark") return "Dark";
   return "Light";
 }
+
+function formatLanguagePreference(value: LanguagePreference) {
+  if (value === "en") return "Engleză";
+  if (value === "fr") return "Franceză";
+  return "Română";
+}
+
+const languageOptions: Array<{
+  value: LanguagePreference;
+  title: string;
+  description: string;
+}> = [
+  {
+    value: "ro",
+    title: "Română",
+    description: "Interfața principală pentru studenții din România.",
+  },
+  {
+    value: "en",
+    title: "English",
+    description: "For international students who prefer English.",
+  },
+  {
+    value: "fr",
+    title: "Français",
+    description: "Pentru studenții francofoni.",
+  },
+];
 
 const themeOptions: Array<{
   value: ThemePreference;
@@ -342,9 +375,11 @@ export function SettingsPage() {
     setCustomColor,
     resetCustomColors,
   } = useTheme();
+  const { language, setLanguage } = useLanguage();
   const [activeTab, setActiveTab] =
     useState<SettingsTabId>(defaultSettingsTab);
   const [isSavingTheme, setIsSavingTheme] = useState(false);
+  const [isSavingLanguage, setIsSavingLanguage] = useState(false);
   const [privacyNotice, setPrivacyNotice] = useState<string | null>(null);
   const [archivedProjects, setArchivedProjects] = useState<StudyProject[]>([]);
   const [isLoadingArchive, setIsLoadingArchive] = useState(false);
@@ -519,6 +554,27 @@ export function SettingsPage() {
     }
   }
 
+  async function saveLanguagePreference(
+    languagePreference: LanguagePreference,
+  ) {
+    if (!user || isSavingLanguage) return;
+
+    const previousPreference = user.language_preference;
+    setIsSavingLanguage(true);
+    setLanguage(languagePreference);
+    setUser({ ...user, language_preference: languagePreference });
+
+    try {
+      const updatedUser = await updateLanguagePreference(languagePreference);
+      setUser(updatedUser);
+    } catch {
+      setLanguage(previousPreference);
+      setUser({ ...user, language_preference: previousPreference });
+    } finally {
+      setIsSavingLanguage(false);
+    }
+  }
+
   function toggleStudyAutomation(id: StudyAutomationId) {
     setStudyAutomations((current) => ({
       ...current,
@@ -585,7 +641,7 @@ export function SettingsPage() {
                   </div>
                 </div>
 
-                <div className="grid gap-3 border-t border-subtle pt-5 text-sm sm:grid-cols-3 lg:min-w-[440px] lg:border-l lg:border-t-0 lg:pl-6 lg:pt-0">
+                <div className="grid gap-3 border-t border-subtle pt-5 text-sm sm:grid-cols-2 xl:grid-cols-4 lg:min-w-[520px] lg:border-l lg:border-t-0 lg:pl-6 lg:pt-0">
                   <AccountDetail
                     label="Membru din"
                     value={formatAccountDate(user?.created_at)}
@@ -595,12 +651,40 @@ export function SettingsPage() {
                     value={formatThemePreference(preference)}
                   />
                   <AccountDetail
+                    label="Limba"
+                    value={formatLanguagePreference(
+                      user?.language_preference ?? language,
+                    )}
+                  />
+                  <AccountDetail
                     label="Rol"
                     value={user?.role === "admin" ? "Admin" : "Utilizator"}
                   />
                 </div>
               </div>
             </section>
+
+            <SettingsList
+              title="Limba aplicației"
+              detail="Preferința este salvată pe cont și se aplică după autentificare."
+            >
+              {languageOptions.map((option) => {
+                const isSelected =
+                  (user?.language_preference ?? language) === option.value;
+                return (
+                  <SettingsOptionButton
+                    key={option.value}
+                    disabled={isSavingLanguage}
+                    onClick={() => saveLanguagePreference(option.value)}
+                    title={option.title}
+                    description={option.description}
+                  >
+                    <ToggleSwitch checked={isSelected} />
+                    <OptionState active={isSelected} activeLabel="activ" />
+                  </SettingsOptionButton>
+                );
+              })}
+            </SettingsList>
 
             <div className="grid gap-5 md:grid-cols-3">
               <SettingsMetric

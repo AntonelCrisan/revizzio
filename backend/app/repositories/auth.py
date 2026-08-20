@@ -44,12 +44,17 @@ class UserRepository:
         await self._session.flush()
         return user
 
-    async def update_theme_preference(
+    async def update_preferences(
         self,
         user: User,
-        theme_preference: str,
+        *,
+        theme_preference: str | None = None,
+        language_preference: str | None = None,
     ) -> User:
-        user.theme_preference = theme_preference
+        if theme_preference is not None:
+            user.theme_preference = theme_preference
+        if language_preference is not None:
+            user.language_preference = language_preference
         await self._session.flush()
         return user
 

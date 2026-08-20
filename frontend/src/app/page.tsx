@@ -5,6 +5,7 @@ import { SiteFooter } from "@/components/legal/site-footer";
 import { FlashcardStory } from "@/components/marketing/flashcard-story";
 import { MarketingHeader } from "@/components/marketing/marketing-header";
 import { ScrollReveal } from "@/components/marketing/scroll-reveal";
+import { TranslatedText } from "@/components/translated-text";
 import type { SubscriptionPlan } from "@/lib/plans-api";
 import {
   fallbackSubscriptionPlans,
@@ -271,18 +272,18 @@ export default async function Home() {
           <div>
             <div className="inline-flex items-center gap-2 rounded-full border border-subtle bg-surface px-4 py-2 text-[11px] font-bold uppercase tracking-[0.17em] text-muted shadow-sm">
               <SparkIcon />
-              Cursul tău, transformat într-un plan de învățare
+              <TranslatedText id="marketing.hero.badge" />
             </div>
 
             <h1 className="mt-7 max-w-3xl font-serif text-5xl font-semibold leading-[1.03] tracking-[-0.04em] sm:text-6xl lg:text-7xl">
-              Nu mai reciti.
-              <span className="block italic text-muted">Învață activ.</span>
+              <TranslatedText id="marketing.hero.title.main" />
+              <span className="block italic text-muted">
+                <TranslatedText id="marketing.hero.title.accent" />
+              </span>
             </h1>
 
             <p className="mt-7 max-w-xl text-base leading-8 text-muted sm:text-lg">
-              Reviss transformă suporturile tale de curs în rezumate clare,
-              flashcard-uri și quiz-uri care te ajută să înțelegi, să repeți și
-              să reții.
+              <TranslatedText id="marketing.hero.description" />
             </p>
 
             <div className="mt-9 flex flex-col gap-3 sm:flex-row">
@@ -290,28 +291,30 @@ export default async function Home() {
                 href="/register"
                 className="theme-shadow-action inline-flex items-center justify-center gap-3 rounded-2xl bg-action px-6 py-3.5 text-sm font-bold text-on-action transition hover:-translate-y-0.5 hover:bg-action-hover"
               >
-                Începe să înveți
+                <TranslatedText id="marketing.hero.cta.primary" />
                 <ArrowIcon />
               </Link>
               <a
                 href="#cum-functioneaza"
                 className="inline-flex items-center justify-center rounded-2xl border border-subtle bg-surface px-6 py-3.5 text-sm font-bold transition hover:bg-surface-hover"
               >
-                Vezi cum funcționează
+                <TranslatedText id="marketing.hero.cta.secondary" />
               </a>
             </div>
 
             <div className="mt-10 flex flex-wrap gap-x-7 gap-y-3 text-sm font-medium text-muted">
-              {["PDF și notițe", "Quiz-uri personalizate", "Progres măsurabil"].map(
-                (item) => (
+              {([
+                "marketing.hero.feature.files",
+                "marketing.hero.feature.quiz",
+                "marketing.hero.feature.progress",
+              ] as const).map((item) => (
                   <span key={item} className="flex items-center gap-2">
                     <span className="flex h-5 w-5 items-center justify-center rounded-full bg-success-soft text-success">
                       <CheckIcon />
                     </span>
-                    {item}
+                    <TranslatedText id={item} />
                   </span>
-                ),
-              )}
+                ))}
             </div>
           </div>
 
