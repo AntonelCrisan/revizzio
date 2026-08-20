@@ -72,13 +72,25 @@ LEGACY_OFFICE_TARGETS = {
     ".doc": ".docx",
     ".ppt": ".pptx",
 }
+MAX_SAFE_FILENAME_LENGTH = 180
 MAX_JSON_IMPORT_BYTES = 5 * 1024 * 1024
 MAX_FLASHCARD_IMAGE_BYTES = 5 * 1024 * 1024
+PROJECT_FILE_SIGNATURE_BYTES = 16
 ALLOWED_FLASHCARD_IMAGE_EXTENSIONS = {".gif", ".jpeg", ".jpg", ".png", ".webp"}
 FLASHCARD_IMAGE_SIGNATURE_BYTES = 16
 ESTIMATED_MARKDOWN_CHARS_PER_PAGE = 2200
 SCANNED_PDF_MIN_TEXT_CHARS = 300
 SCANNED_PDF_MIN_WORDS = 30
+MAX_GENERATED_SUMMARY_CHARS = 120_000
+MAX_GENERATED_KEYWORDS = 80
+MAX_GENERATED_FLASHCARDS = 140
+MAX_GENERATED_STRATEGIES = 30
+MAX_GENERATED_QUIZZES = 20
+MAX_GENERATED_QUESTIONS_PER_QUIZ = 80
+MAX_GENERATED_OPTIONS_PER_QUESTION = 8
+MAX_SUMMARY_HIGHLIGHTS_PER_PROJECT = 250
+MAX_SUMMARY_NOTES_PER_PROJECT = 150
+MAX_MANUAL_FLASHCARDS_PER_PROJECT = 300
 TEXT_WORD_PATTERN = re.compile(
     r"[A-Za-z0-9ĂÂÎȘȚăâîșț]+(?:[-'][A-Za-z0-9ĂÂÎȘȚăâîșț]+)?"
 )
@@ -186,7 +198,8 @@ def _safe_filename(filename: str) -> str:
     clean_name = Path(filename or "material").name
     stem = re.sub(r"[^A-Za-z0-9._-]+", "-", Path(clean_name).stem).strip("-")
     suffix = Path(clean_name).suffix.lower()
-    return f"{stem or 'material'}{suffix}"
+    max_stem_length = max(1, MAX_SAFE_FILENAME_LENGTH - len(suffix))
+    return f"{(stem or 'material')[:max_stem_length]}{suffix}"
 
 
 def _user_plan_slug(user: User) -> str:
@@ -319,6 +332,125 @@ def _validate_flashcard_image_signature(extension: str, signature: bytes) -> Non
         )
 
 
+def _validate_project_file_signature(extension: str, signature: bytes) -> None:
+    if extension == ".pdf" and not signature.startswith(b"%PDF"):
+        raise ProjectValidationError("Fisierul PDF incarcat nu pare valid.")
+
+    if extension in {".docx", ".pptx", ".xlsx"} and not signature.startswith(b"PK"):
+        raise ProjectValidationError("Fisierul Office incarcat nu pare valid.")
+
+    if extension in {".doc", ".ppt", ".xls"} and not signature.startswith(
+        b"\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1"
+    ):
+        raise ProjectValidationError("Fisierul Office incarcat nu pare valid.")
+
+    if extension in {".txt", ".md", ".csv", ".html"} and signature.startswith(
+        (b"MZ", b"\x7fELF", b"\xca\xfe\xba\xbe", b"\xfe\xed\xfa")
+    ):
+        raise ProjectValidationError("Fisierul text incarcat nu pare valid.")
+
+
+def _validate_generated_list_size(
+    value: object,
+    max_items: int,
+    label: str,
+) -> list[Any]:
+    if value is None:
+        return []
+    if not isinstance(value, list):
+        raise ProjectValidationError(f"Campul pentru {label} trebuie sa fie o lista.")
+    if len(value) > max_items:
+        raise ProjectValidationError(
+            f"JSON-ul contine prea multe elemente pentru {label}."
+        )
+    return value
+
+
+def _validate_generated_payload(
+    payload: dict[str, Any],
+    *,
+    include_study_pack: bool = True,
+    include_quizzes: bool = True,
+) -> None:
+    has_study_pack = any(
+        key in payload
+        for key in (
+            "summary",
+            "rezumat",
+            "keywords",
+            "cuvinte_cheie",
+            "flashcards",
+            "strategies",
+        )
+    )
+    has_quizzes = "quizzes" in payload or "quizuri" in payload
+    if not has_study_pack and not has_quizzes:
+        raise ProjectValidationError(
+            "JSON-ul nu contine un pachet de studiu sau quizuri valide."
+        )
+
+    if include_study_pack and has_study_pack:
+        summary_value = payload.get("summary") or payload.get("rezumat")
+        summary_content = (
+            _string_or_default(summary_value.get("content") or summary_value.get("text"))
+            if isinstance(summary_value, dict)
+            else _string_or_default(summary_value)
+        )
+        if len(summary_content) > MAX_GENERATED_SUMMARY_CHARS:
+            raise ProjectValidationError("Rezumatul din JSON este prea mare.")
+
+        _validate_generated_list_size(
+            payload.get("keywords") or payload.get("cuvinte_cheie"),
+            MAX_GENERATED_KEYWORDS,
+            "cuvinte cheie",
+        )
+        _validate_generated_list_size(
+            payload.get("flashcards"),
+            MAX_GENERATED_FLASHCARDS,
+            "flashcarduri",
+        )
+        _validate_generated_list_size(
+            payload.get("strategies"),
+            MAX_GENERATED_STRATEGIES,
+            "strategii",
+        )
+
+    if include_quizzes and has_quizzes:
+        quizzes = _validate_generated_list_size(
+            payload.get("quizzes") or payload.get("quizuri"),
+            MAX_GENERATED_QUIZZES,
+            "quizuri",
+        )
+        for quiz_index, quiz_item in enumerate(quizzes, start=1):
+            quiz = _dict_value(quiz_item)
+            questions = _validate_generated_list_size(
+                quiz.get("questions") or quiz.get("intrebari"),
+                MAX_GENERATED_QUESTIONS_PER_QUIZ,
+                f"intrebari in quizul {quiz_index}",
+            )
+            if not questions:
+                raise ProjectValidationError(
+                    f"Quizul {quiz_index} nu contine intrebari valide."
+                )
+            for question_index, question_item in enumerate(questions, start=1):
+                question = _dict_value(question_item)
+                options = _validate_generated_list_size(
+                    question.get("options"),
+                    MAX_GENERATED_OPTIONS_PER_QUESTION,
+                    f"optiuni in intrebarea {question_index}",
+                )
+                if len(options) < 2:
+                    raise ProjectValidationError(
+                        f"Intrebarea {question_index} trebuie sa aiba cel putin doua optiuni."
+                    )
+                if not any(
+                    bool(_dict_value(option).get("is_correct")) for option in options
+                ):
+                    raise ProjectValidationError(
+                        f"Intrebarea {question_index} trebuie sa aiba cel putin un raspuns corect."
+                    )
+
+
 def _truncate_for_openai(markdown: str, max_chars: int) -> str:
     clean_markdown = markdown.strip()
     if len(clean_markdown) <= max_chars:
@@ -386,6 +518,26 @@ def _split_summary_blocks(content: str) -> list[str]:
 
     flush_paragraph()
     return blocks
+
+
+def _summary_block_for_selection(
+    project: StudyProject,
+    paragraph_index: int,
+    selected_text: str,
+) -> str:
+    if project.summary is None or not project.summary.content.strip():
+        raise ProjectValidationError("Rezumatul proiectului nu este disponibil.")
+
+    blocks = _split_summary_blocks(project.summary.content)
+    if not blocks or paragraph_index >= len(blocks):
+        raise ProjectValidationError("Fragmentul selectat nu mai este valid.")
+
+    block = blocks[paragraph_index]
+    if selected_text.lower() not in block.lower():
+        raise ProjectValidationError(
+            "Fragmentul selectat nu apartine paragrafului ales."
+        )
+    return block
 
 
 def _long_path(path: Path) -> Path:
@@ -809,6 +961,7 @@ class StudyProjectService:
     ) -> StudyProject:
         project = await self.get_project(user, project_id)
         payload = await self._read_json_upload(upload)
+        _validate_generated_payload(payload)
 
         project_dir = self._project_dir(user.id, project.id)
         imports_dir = project_dir / "imports"
@@ -919,6 +1072,11 @@ class StudyProjectService:
                 job_type="study_pack",
             )
 
+            _validate_generated_payload(
+                result.payload,
+                include_study_pack=True,
+                include_quizzes=False,
+            )
             response_path = self._write_generation_response(
                 user_id=user.id,
                 project_id=project.id,
@@ -1011,6 +1169,11 @@ class StudyProjectService:
                 job_type="quiz_pack",
             )
 
+            _validate_generated_payload(
+                result.payload,
+                include_study_pack=False,
+                include_quizzes=True,
+            )
             response_path = self._write_generation_response(
                 user_id=user.id,
                 project_id=project.id,
@@ -1351,6 +1514,13 @@ class StudyProjectService:
             raise ProjectValidationError("Adauga o intrebare sau o imagine.")
         if not clean_back:
             raise ProjectValidationError("Adauga raspunsul flashcardului.")
+        manual_flashcards_count = sum(
+            1 for item in project.flashcards if item.source_type == "manually"
+        )
+        if manual_flashcards_count >= MAX_MANUAL_FLASHCARDS_PER_PROJECT:
+            raise ProjectValidationError(
+                "Ai atins limita de flashcarduri manuale pentru acest proiect."
+            )
 
         flashcard = StudyProjectFlashcard(
             id=uuid.uuid4(),
@@ -1442,6 +1612,7 @@ class StudyProjectService:
             raise ProjectValidationError(
                 "Selecteaza un fragment de text pentru highlight."
             )
+        _summary_block_for_selection(project, paragraph_index, clean_text)
 
         existing = next(
             (
@@ -1455,6 +1626,10 @@ class StudyProjectService:
         if existing is not None:
             existing.color = color
         else:
+            if len(project.summary_highlights) >= MAX_SUMMARY_HIGHLIGHTS_PER_PROJECT:
+                raise ProjectValidationError(
+                    "Ai atins limita de highlight-uri pentru acest proiect."
+                )
             project.summary_highlights.append(
                 StudyProjectSummaryHighlight(
                     project_id=project.id,
@@ -1524,6 +1699,7 @@ class StudyProjectService:
             )
         if not clean_note:
             raise ProjectValidationError("Scrie continutul notitei.")
+        _summary_block_for_selection(project, paragraph_index, clean_text)
 
         existing = next(
             (
@@ -1537,6 +1713,10 @@ class StudyProjectService:
         if existing is not None:
             existing.note = clean_note
         else:
+            if len(project.summary_notes) >= MAX_SUMMARY_NOTES_PER_PROJECT:
+                raise ProjectValidationError(
+                    "Ai atins limita de notite pentru acest proiect."
+                )
             project.summary_notes.append(
                 StudyProjectSummaryNote(
                     project_id=project.id,
@@ -1606,8 +1786,12 @@ class StudyProjectService:
         if quiz is None:
             raise ProjectNotFoundError("Quiz-ul nu a fost gasit.")
 
+        question_total = len(quiz.questions)
+        if answered_count > question_total or correct_count > answered_count:
+            raise ProjectValidationError("Rezultatul quizului nu este valid.")
+
         clean_answered = max(answered_count, 0)
-        clean_correct = max(min(correct_count, clean_answered), 0)
+        clean_correct = max(correct_count, 0)
         score_percent = (
             round((clean_correct / clean_answered) * 100) if clean_answered else 0
         )
@@ -1708,7 +1892,7 @@ class StudyProjectService:
         resolved_path = markdown_path.resolve()
         if storage_root not in resolved_path.parents:
             raise ProjectValidationError("Materialul markdown nu este valid.")
-        if not resolved_path.exists():
+        if not resolved_path.exists() or not resolved_path.is_file():
             raise ProjectValidationError("Materialul markdown nu exista.")
 
         markdown = resolved_path.read_text(encoding="utf-8")
@@ -1799,7 +1983,7 @@ class StudyProjectService:
         resolved_path = path.resolve()
         if storage_root not in resolved_path.parents:
             raise ProjectNotFoundError("Fisierul cerut nu exista.")
-        if not resolved_path.exists():
+        if not resolved_path.exists() or not resolved_path.is_file():
             raise ProjectNotFoundError("Fisierul cerut nu exista.")
         return resolved_path
 
@@ -1890,9 +2074,8 @@ class StudyProjectService:
                 safe_name,
                 image_path,
             )
-            detail = exc.strerror or str(exc)
             raise ProjectValidationError(
-                f"Imaginea nu a putut fi salvata pe server: {detail}"
+                "Imaginea nu a putut fi salvata pe server. Incearca din nou."
             ) from exc
 
         return relative_path.as_posix()
@@ -1917,6 +2100,7 @@ class StudyProjectService:
         source_path = source_dir / f"{storage_stem}{extension}"
         temp_source_path = source_dir / f"u-{uuid.uuid4().hex[:16]}.tmp"
         size_bytes = 0
+        signature = bytearray()
         try:
             source_path.parent.mkdir(parents=True, exist_ok=True)
             markdown_dir.mkdir(parents=True, exist_ok=True)
@@ -1928,7 +2112,16 @@ class StudyProjectService:
                             f"Fisierul {safe_name} depaseste limita de "
                             f"{max_upload_mb}MB pentru planul curent."
                         )
+                    if len(signature) < PROJECT_FILE_SIGNATURE_BYTES:
+                        signature.extend(
+                            chunk[
+                                : PROJECT_FILE_SIGNATURE_BYTES - len(signature)
+                            ]
+                        )
                     destination.write(chunk)
+            if size_bytes == 0:
+                raise ProjectValidationError(f"Fisierul {safe_name} este gol.")
+            _validate_project_file_signature(extension, bytes(signature))
             temp_source_path.replace(source_path)
         except ProjectValidationError:
             temp_source_path.unlink(missing_ok=True)
@@ -1940,15 +2133,16 @@ class StudyProjectService:
                 safe_name,
                 source_path,
             )
-            detail = exc.strerror or str(exc)
             raise ProjectConversionError(
-                f"Fisierul incarcat nu a putut fi salvat pe server: {detail}"
+                "Fisierul incarcat nu a putut fi salvat pe server. Incearca din nou."
             ) from exc
 
         file_model = StudyProjectFile(
             project_id=project.id,
             original_filename=safe_name,
-            content_type=upload.content_type,
+            content_type=(upload.content_type or None)[:160]
+            if upload.content_type
+            else None,
             size_bytes=size_bytes,
             source_path=str(source_path),
             conversion_status="processing",
@@ -1996,6 +2190,13 @@ class StudyProjectService:
         filename = upload.filename or "ai-output.json"
         if Path(filename).suffix.lower() != ".json":
             raise ProjectValidationError("Incarca un fisier JSON valid.")
+        if upload.content_type and upload.content_type not in {
+            "application/json",
+            "application/octet-stream",
+            "text/json",
+            "text/plain",
+        }:
+            raise ProjectValidationError("Fisierul incarcat nu pare sa fie JSON.")
 
         content = await upload.read(MAX_JSON_IMPORT_BYTES + 1)
         if len(content) > MAX_JSON_IMPORT_BYTES:

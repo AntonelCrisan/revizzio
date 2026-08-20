@@ -167,46 +167,49 @@ STUDY_PACK_SCHEMA: dict[str, Any] = {
             "additionalProperties": False,
             "required": ["content", "estimated_reading_minutes"],
             "properties": {
-                "content": {"type": "string"},
+                "content": {"type": "string", "maxLength": 120000},
                 "estimated_reading_minutes": {"type": "integer"},
             },
         },
         "keywords": {
             "type": "array",
+            "maxItems": 80,
             "items": {
                 "type": "object",
                 "additionalProperties": False,
                 "required": ["term", "explanation", "anchor_text"],
                 "properties": {
-                    "term": {"type": "string"},
-                    "explanation": {"type": "string"},
-                    "anchor_text": {"type": "string"},
+                    "term": {"type": "string", "maxLength": 180},
+                    "explanation": {"type": "string", "maxLength": 1200},
+                    "anchor_text": {"type": "string", "maxLength": 240},
                 },
             },
         },
         "flashcards": {
             "type": "array",
+            "maxItems": 140,
             "items": {
                 "type": "object",
                 "additionalProperties": False,
                 "required": ["front", "back", "category", "difficulty"],
                 "properties": {
-                    "front": {"type": "string"},
-                    "back": {"type": "string"},
-                    "category": {"type": "string"},
+                    "front": {"type": "string", "maxLength": 1200},
+                    "back": {"type": "string", "maxLength": 1800},
+                    "category": {"type": "string", "maxLength": 120},
                     "difficulty": {"type": "string", "enum": ["low", "medium", "high"]},
                 },
             },
         },
         "strategies": {
             "type": "array",
+            "maxItems": 30,
             "items": {
                 "type": "object",
                 "additionalProperties": False,
                 "required": ["title", "description"],
                 "properties": {
-                    "title": {"type": "string"},
-                    "description": {"type": "string"},
+                    "title": {"type": "string", "maxLength": 180},
+                    "description": {"type": "string", "maxLength": 1600},
                 },
             },
         },
@@ -222,6 +225,7 @@ QUIZ_PACK_SCHEMA: dict[str, Any] = {
         "schema_version": {"type": "string", "enum": ["reviss.quiz_pack.v1"]},
         "quizzes": {
             "type": "array",
+            "maxItems": 20,
             "items": {
                 "type": "object",
                 "additionalProperties": False,
@@ -233,8 +237,8 @@ QUIZ_PACK_SCHEMA: dict[str, Any] = {
                     "questions",
                 ],
                 "properties": {
-                    "title": {"type": "string"},
-                    "description": {"type": "string"},
+                    "title": {"type": "string", "maxLength": 180},
+                    "description": {"type": "string", "maxLength": 1000},
                     "complexity": {"type": "string", "enum": ["low", "medium", "high"]},
                     "question_type": {
                         "type": "string",
@@ -242,29 +246,35 @@ QUIZ_PACK_SCHEMA: dict[str, Any] = {
                     },
                     "questions": {
                         "type": "array",
+                        "maxItems": 80,
                         "items": {
                             "type": "object",
                             "additionalProperties": False,
                             "required": ["prompt", "type", "options", "explanation"],
                             "properties": {
-                                "prompt": {"type": "string"},
+                                "prompt": {"type": "string", "maxLength": 1600},
                                 "type": {
                                     "type": "string",
                                     "enum": ["single_choice", "multiple_choice"],
                                 },
                                 "options": {
                                     "type": "array",
+                                    "minItems": 2,
+                                    "maxItems": 8,
                                     "items": {
                                         "type": "object",
                                         "additionalProperties": False,
                                         "required": ["label", "is_correct"],
                                         "properties": {
-                                            "label": {"type": "string"},
+                                "label": {
+                                    "type": "string",
+                                    "maxLength": 600,
+                                },
                                             "is_correct": {"type": "boolean"},
                                         },
                                     },
                                 },
-                                "explanation": {"type": "string"},
+                                "explanation": {"type": "string", "maxLength": 1600},
                             },
                         },
                     },
