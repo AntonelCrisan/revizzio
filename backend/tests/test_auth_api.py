@@ -1,9 +1,11 @@
 import uuid
 from datetime import UTC, datetime, timedelta
 
+import pytest
 from fastapi.testclient import TestClient
 
 from app.api.dependencies import get_auth_service, get_current_user
+from app.api.routes.auth import _auth_rate_limit_buckets
 from app.core.config import get_settings
 from app.main import app
 from app.models import User
@@ -57,6 +59,13 @@ class FakeAuthService:
         )
 
 
+@pytest.fixture(autouse=True)
+def clear_auth_rate_limiter() -> None:
+    _auth_rate_limit_buckets.clear()
+    yield
+    _auth_rate_limit_buckets.clear()
+
+
 def test_register_requests_email_confirmation_without_session_cookie() -> None:
     service = FakeAuthService()
     settings = get_settings().model_copy(
@@ -87,6 +96,79 @@ def test_register_requests_email_confirmation_without_session_cookie() -> None:
         )
     }
     assert "set-cookie" not in response.headers
+
+
+def test_login_rate_limit_blocks_repeated_attempts() -> None:
+    service = FakeAuthService()
+    app.dependency_overrides[get_auth_service] = lambda: service
+
+    try:
+        with TestClient(app) as client:
+            payload = {
+                "email": "student@example.com",
+                "password": "ParolaSigura123",
+            }
+            for _ in range(10):
+                assert client.post("/api/auth/login", json=payload).status_code == 200
+
+            response = client.post("/api/auth/login", json=payload)
+    finally:
+        app.dependency_overrides.clear()
+
+    assert response.status_code == 429
+
+
+def test_login_rejects_untrusted_origin() -> None:
+    service = FakeAuthService()
+    settings = get_settings().model_copy(
+        update={"cors_origins": "http://localhost:3000"}
+    )
+    app.dependency_overrides[get_auth_service] = lambda: service
+    app.dependency_overrides[get_settings] = lambda: settings
+
+    try:
+        with TestClient(app) as client:
+            response = client.post(
+                "/api/auth/login",
+                headers={"Origin": "https://evil.example"},
+                json={
+                    "email": "student@example.com",
+                    "password": "ParolaSigura123",
+                },
+            )
+    finally:
+        app.dependency_overrides.clear()
+
+    assert response.status_code == 403
+
+
+def test_login_truncates_user_agent_before_service() -> None:
+    class CapturingAuthService(FakeAuthService):
+        user_agent: str | None = None
+
+        async def login(self, *_: object, **kwargs: object) -> AuthResult:
+            self.user_agent = kwargs["user_agent"]  # type: ignore[assignment]
+            return self._result()
+
+    service = CapturingAuthService()
+    app.dependency_overrides[get_auth_service] = lambda: service
+
+    try:
+        with TestClient(app) as client:
+            response = client.post(
+                "/api/auth/login",
+                headers={"User-Agent": "A" * 700},
+                json={
+                    "email": "student@example.com",
+                    "password": "ParolaSigura123",
+                },
+            )
+    finally:
+        app.dependency_overrides.clear()
+
+    assert response.status_code == 200
+    assert service.user_agent is not None
+    assert len(service.user_agent) == 512
 
 
 def test_remember_me_sets_a_persistent_cookie() -> None:

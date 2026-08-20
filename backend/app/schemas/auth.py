@@ -1,10 +1,32 @@
 from pydantic import BaseModel, EmailStr, Field, field_validator
 
+PASSWORD_MIN_LENGTH = 10
+COMMON_PASSWORDS = {
+    "1234567890",
+    "password123",
+    "parola1234",
+    "qwerty1234",
+    "reviss1234",
+    "revizzio1234",
+}
+
+
+def validate_secure_password(value: str) -> str:
+    if value != value.strip():
+        raise ValueError("Parola nu poate incepe sau termina cu spatii.")
+    if value.lower() in COMMON_PASSWORDS:
+        raise ValueError("Alege o parola mai greu de ghicit.")
+    if not any(character.isalpha() for character in value):
+        raise ValueError("Parola trebuie sa contina cel putin o litera.")
+    if not any(character.isdigit() for character in value):
+        raise ValueError("Parola trebuie sa contina cel putin o cifra.")
+    return value
+
 
 class RegisterRequest(BaseModel):
     full_name: str = Field(min_length=2, max_length=120)
     email: EmailStr
-    password: str = Field(min_length=8, max_length=128)
+    password: str = Field(min_length=PASSWORD_MIN_LENGTH, max_length=128)
     accepted_terms: bool
     newsletter_consent: bool = False
 
@@ -15,6 +37,11 @@ class RegisterRequest(BaseModel):
         if len(normalized) < 2:
             raise ValueError("Numele complet este obligatoriu.")
         return normalized
+
+    @field_validator("password")
+    @classmethod
+    def password_must_be_secure(cls, value: str) -> str:
+        return validate_secure_password(value)
 
     @field_validator("accepted_terms")
     @classmethod
@@ -40,7 +67,12 @@ class PasswordResetRequest(BaseModel):
 
 class PasswordResetConfirmRequest(BaseModel):
     token: str = Field(min_length=20, max_length=256)
-    password: str = Field(min_length=8, max_length=128)
+    password: str = Field(min_length=PASSWORD_MIN_LENGTH, max_length=128)
+
+    @field_validator("password")
+    @classmethod
+    def password_must_be_secure(cls, value: str) -> str:
+        return validate_secure_password(value)
 
 
 class MessageResponse(BaseModel):

@@ -227,8 +227,8 @@ export function AuthForm({ mode }: AuthFormProps) {
               type={showPassword ? "text" : "password"}
               autoComplete={isRegister ? "new-password" : "current-password"}
               required
-              minLength={8}
-              placeholder={isRegister ? "Minimum 8 caractere" : "Parola ta"}
+              minLength={isRegister ? 10 : 1}
+              placeholder={isRegister ? "Minimum 10 caractere" : "Parola ta"}
               className={`${inputClassName} pr-12`}
             />
             <button
@@ -263,7 +263,7 @@ export function AuthForm({ mode }: AuthFormProps) {
               type={showConfirmation ? "text" : "password"}
               autoComplete="new-password"
               required
-              minLength={8}
+              minLength={10}
               placeholder="Repetă parola"
               className={`${inputClassName} pr-12`}
             />

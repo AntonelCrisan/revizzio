@@ -54,6 +54,10 @@ class InvalidSessionError(Exception):
     pass
 
 
+def _normalize_email(email: str) -> str:
+    return email.strip().lower()
+
+
 @dataclass(frozen=True)
 class AuthResult:
     user: User
@@ -77,7 +81,7 @@ class AuthService:
         user_agent: str | None,
         ip_address: str | None,
     ) -> None:
-        email = payload.email.lower()
+        email = _normalize_email(str(payload.email))
         if await self._users.get_by_email(email) is not None:
             add_audit_log(
                 self._session,
@@ -225,7 +229,7 @@ class AuthService:
         user_agent: str | None,
         ip_address: str | None,
     ) -> AuthResult:
-        email = payload.email.lower()
+        email = _normalize_email(str(payload.email))
         user = await self._users.get_by_email(email)
         password_is_valid = await to_thread.run_sync(
             verify_password,
@@ -285,7 +289,7 @@ class AuthService:
         user_agent: str | None,
         ip_address: str | None,
     ) -> None:
-        email = payload.email.lower()
+        email = _normalize_email(str(payload.email))
         user = await self._users.get_by_email(email)
         if user is None or not user.is_active:
             add_audit_log(

@@ -1,4 +1,7 @@
+from collections import defaultdict
 from datetime import UTC, datetime
+from time import monotonic
+from urllib.parse import urlparse
 
 from fastapi import APIRouter, HTTPException, Request, Response, status
 
@@ -27,11 +30,99 @@ from app.services.auth import (
 
 router = APIRouter(prefix="/api/auth", tags=["authentication"])
 
+MAX_USER_AGENT_LENGTH = 512
+AUTH_RATE_LIMIT_WINDOW_SECONDS = 300
+AUTH_RATE_LIMIT_IDENTITY_POLICIES = {
+    "register": 5,
+    "login": 10,
+    "password-reset/request": 5,
+    "password-reset/confirm": 10,
+}
+AUTH_RATE_LIMIT_IP_POLICIES = {
+    "register": 20,
+    "verify-email": 60,
+    "login": 50,
+    "password-reset/request": 20,
+    "password-reset/confirm": 30,
+}
+_auth_rate_limit_buckets: defaultdict[str, list[float]] = defaultdict(list)
+
 
 def _client_context(request: Request) -> tuple[str | None, str | None]:
     user_agent = request.headers.get("user-agent")
+    if user_agent is not None:
+        user_agent = user_agent[:MAX_USER_AGENT_LENGTH]
     ip_address = request.client.host if request.client is not None else None
     return user_agent, ip_address
+
+
+def _normalized_rate_limit_value(value: str | None) -> str:
+    return value.strip().lower() if value else "global"
+
+
+def _enforce_auth_rate_limit(
+    request: Request,
+    action: str,
+    *,
+    email: str | None = None,
+) -> None:
+    ip_address = request.client.host if request.client is not None else "unknown"
+    now = monotonic()
+    _consume_rate_limit(
+        key=f"{action}:{ip_address}:ip",
+        max_attempts=AUTH_RATE_LIMIT_IP_POLICIES[action],
+        now=now,
+    )
+    if email is None:
+        return
+
+    _consume_rate_limit(
+        key=f"{action}:{ip_address}:{_normalized_rate_limit_value(email)}",
+        max_attempts=AUTH_RATE_LIMIT_IDENTITY_POLICIES[action],
+        now=now,
+    )
+
+
+def _consume_rate_limit(*, key: str, max_attempts: int, now: float) -> None:
+    bucket = _auth_rate_limit_buckets[key]
+    bucket[:] = [
+        timestamp
+        for timestamp in bucket
+        if timestamp >= now - AUTH_RATE_LIMIT_WINDOW_SECONDS
+    ]
+    if len(bucket) >= max_attempts:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="Prea multe incercari. Incearca din nou peste putin timp.",
+        )
+    bucket.append(now)
+
+
+def _request_origin(request: Request) -> str | None:
+    origin = request.headers.get("origin")
+    if origin:
+        return origin.rstrip("/")
+
+    referer = request.headers.get("referer")
+    if not referer:
+        return None
+
+    parsed_referer = urlparse(referer)
+    if not parsed_referer.scheme or not parsed_referer.netloc:
+        return None
+    return f"{parsed_referer.scheme}://{parsed_referer.netloc}"
+
+
+def _protect_auth_origin(request: Request, settings: AppSettings) -> None:
+    origin = _request_origin(request)
+    if origin is None:
+        return
+
+    if origin not in {allowed.rstrip("/") for allowed in settings.allowed_origins}:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Cererea nu a putut fi verificata.",
+        )
 
 
 def _set_session_cookie(
@@ -80,7 +171,10 @@ async def register(
     payload: RegisterRequest,
     request: Request,
     service: AuthServiceDependency,
+    settings: AppSettings,
 ) -> MessageResponse:
+    _protect_auth_origin(request, settings)
+    _enforce_auth_rate_limit(request, "register", email=str(payload.email))
     user_agent, ip_address = _client_context(request)
     try:
         await service.register(
@@ -118,6 +212,8 @@ async def verify_email(
     service: AuthServiceDependency,
     settings: AppSettings,
 ) -> UserResponse:
+    _protect_auth_origin(request, settings)
+    _enforce_auth_rate_limit(request, "verify-email")
     user_agent, ip_address = _client_context(request)
     try:
         result = await service.verify_email(
@@ -148,6 +244,8 @@ async def login(
     service: AuthServiceDependency,
     settings: AppSettings,
 ) -> UserResponse:
+    _protect_auth_origin(request, settings)
+    _enforce_auth_rate_limit(request, "login", email=str(payload.email))
     user_agent, ip_address = _client_context(request)
     try:
         result = await service.login(
@@ -178,7 +276,14 @@ async def request_password_reset(
     payload: PasswordResetRequest,
     request: Request,
     service: AuthServiceDependency,
+    settings: AppSettings,
 ) -> MessageResponse:
+    _protect_auth_origin(request, settings)
+    _enforce_auth_rate_limit(
+        request,
+        "password-reset/request",
+        email=str(payload.email),
+    )
     user_agent, ip_address = _client_context(request)
     try:
         await service.request_password_reset(
@@ -211,6 +316,8 @@ async def confirm_password_reset(
     service: AuthServiceDependency,
     settings: AppSettings,
 ) -> MessageResponse:
+    _protect_auth_origin(request, settings)
+    _enforce_auth_rate_limit(request, "password-reset/confirm")
     user_agent, ip_address = _client_context(request)
     try:
         await service.reset_password(

@@ -92,9 +92,9 @@ export function ResetPasswordForm({ token }: ResetPasswordFormProps) {
           type="password"
           autoComplete="new-password"
           required
-          minLength={8}
+          minLength={10}
           disabled={!token || isSuccess}
-          placeholder="Minimum 8 caractere"
+          placeholder="Minimum 10 caractere"
           className={inputClassName}
         />
       </div>
@@ -112,7 +112,7 @@ export function ResetPasswordForm({ token }: ResetPasswordFormProps) {
           type="password"
           autoComplete="new-password"
           required
-          minLength={8}
+          minLength={10}
           disabled={!token || isSuccess}
           placeholder="Repetă parola"
           className={inputClassName}

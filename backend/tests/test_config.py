@@ -46,6 +46,14 @@ def test_samesite_none_requires_secure_cookies() -> None:
         )
 
 
+def test_session_secret_requires_minimum_length() -> None:
+    with pytest.raises(ValidationError, match="SESSION_SECRET"):
+        Settings(
+            database_url=BASE_SETTINGS["database_url"],
+            session_secret="too-short",
+        )
+
+
 def test_database_url_rejects_unescaped_at_in_password() -> None:
     with pytest.raises(ValidationError, match="unescaped '@'"):
         Settings(
