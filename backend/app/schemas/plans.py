@@ -40,6 +40,17 @@ class SubscriptionPlanResponse(BaseModel):
     material_limit: str
     ai_level: str
     storage: str
+    conditions: str
+    active_project_limit: int
+    monthly_material_limit: int
+    files_per_project_limit: int
+    file_size_limit_mb: int
+    project_size_limit_mb: int
+    estimated_page_limit: int
+    initial_flashcard_limit: int
+    quiz_groups_per_complexity: int
+    quiz_questions_per_quiz: int
+    allow_scanned_documents: bool
     stripe_product_id: str | None = None
     stripe_price_id: str | None = None
     is_visible: bool
@@ -74,6 +85,17 @@ class SubscriptionPlanUpdate(BaseModel):
     material_limit: str = Field(min_length=1, max_length=300)
     ai_level: str = Field(min_length=1, max_length=300)
     storage: str = Field(min_length=1, max_length=300)
+    conditions: str = Field(min_length=1, max_length=1200)
+    active_project_limit: int = Field(ge=0, le=1000)
+    monthly_material_limit: int = Field(ge=0, le=10000)
+    files_per_project_limit: int = Field(ge=1, le=200)
+    file_size_limit_mb: int = Field(ge=1, le=2048)
+    project_size_limit_mb: int = Field(ge=1, le=10240)
+    estimated_page_limit: int = Field(ge=1, le=10000)
+    initial_flashcard_limit: int = Field(ge=1, le=500)
+    quiz_groups_per_complexity: int = Field(ge=1, le=12)
+    quiz_questions_per_quiz: int = Field(ge=3, le=50)
+    allow_scanned_documents: bool
     stripe_product_id: str | None = Field(default=None, max_length=120)
     stripe_price_id: str | None = Field(default=None, max_length=120)
     is_visible: bool
@@ -108,17 +130,32 @@ class SubscriptionPlanUpdate(BaseModel):
         cleaned = clean_short_text(value)
         return cleaned or None
 
-    @field_validator("description", "material_limit", "ai_level", "storage")
+    @field_validator(
+        "description",
+        "material_limit",
+        "ai_level",
+        "storage",
+        "conditions",
+    )
     @classmethod
     def normalize_long_text(cls, value: str) -> str:
         return clean_long_text(value)
+
+    @model_validator(mode="after")
+    def validate_limit_relationships(self) -> SubscriptionPlanUpdate:
+        if self.project_size_limit_mb < self.file_size_limit_mb:
+            raise ValueError(
+                "Limita totala a proiectului trebuie sa fie cel putin egala "
+                "cu limita unui fisier."
+            )
+        return self
 
 
 class SubscriptionPlansUpdate(BaseModel):
     plans: list[SubscriptionPlanUpdate] = Field(min_length=1, max_length=12)
 
     @model_validator(mode="after")
-    def validate_unique_slugs(self) -> "SubscriptionPlansUpdate":
+    def validate_unique_slugs(self) -> SubscriptionPlansUpdate:
         slugs = [plan.slug for plan in self.plans]
         if len(slugs) != len(set(slugs)):
             raise ValueError("Slugurile planurilor trebuie sa fie unice.")

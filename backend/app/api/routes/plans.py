@@ -29,6 +29,20 @@ DEFAULT_PLANS = [
         "material_limit": "3 materiale procesate lunar",
         "ai_level": "AI de bază",
         "storage": "Istoric limitat",
+        "conditions": (
+            "Potrivit pentru testarea fluxului. Documentele scanate sau OCR "
+            "nu sunt incluse in acest plan."
+        ),
+        "active_project_limit": 1,
+        "monthly_material_limit": 3,
+        "files_per_project_limit": 2,
+        "file_size_limit_mb": 10,
+        "project_size_limit_mb": 20,
+        "estimated_page_limit": 25,
+        "initial_flashcard_limit": 20,
+        "quiz_groups_per_complexity": 1,
+        "quiz_questions_per_quiz": 8,
+        "allow_scanned_documents": False,
         "is_visible": True,
         "is_featured": False,
         "features": [
@@ -49,6 +63,20 @@ DEFAULT_PLANS = [
         "material_limit": "30 materiale procesate lunar",
         "ai_level": "Repetiție inteligentă și strategii AI",
         "storage": "Istoric complet pe proiecte",
+        "conditions": (
+            "Pentru utilizare individuala activa. Limitele sunt lunare si se "
+            "reseteaza automat."
+        ),
+        "active_project_limit": 10,
+        "monthly_material_limit": 30,
+        "files_per_project_limit": 10,
+        "file_size_limit_mb": 50,
+        "project_size_limit_mb": 200,
+        "estimated_page_limit": 200,
+        "initial_flashcard_limit": 40,
+        "quiz_groups_per_complexity": 3,
+        "quiz_questions_per_quiz": 12,
+        "allow_scanned_documents": False,
         "is_visible": True,
         "is_featured": True,
         "features": [
@@ -70,6 +98,20 @@ DEFAULT_PLANS = [
         "material_limit": "Materiale nelimitate rezonabil",
         "ai_level": "Planuri AI pentru examene",
         "storage": "Export și arhivă extinsă",
+        "conditions": (
+            "Pentru sesiuni intense si volume mari rezonabile. Utilizarea "
+            "trebuie sa ramana educationala si individuala."
+        ),
+        "active_project_limit": 50,
+        "monthly_material_limit": 100,
+        "files_per_project_limit": 30,
+        "file_size_limit_mb": 150,
+        "project_size_limit_mb": 500,
+        "estimated_page_limit": 500,
+        "initial_flashcard_limit": 50,
+        "quiz_groups_per_complexity": 4,
+        "quiz_questions_per_quiz": 12,
+        "allow_scanned_documents": True,
         "is_visible": True,
         "is_featured": False,
         "features": [
@@ -108,6 +150,17 @@ async def _ensure_default_plans(session: DbSession) -> None:
             material_limit=str(plan_data["material_limit"]),
             ai_level=str(plan_data["ai_level"]),
             storage=str(plan_data["storage"]),
+            conditions=str(plan_data["conditions"]),
+            active_project_limit=int(plan_data["active_project_limit"]),
+            monthly_material_limit=int(plan_data["monthly_material_limit"]),
+            files_per_project_limit=int(plan_data["files_per_project_limit"]),
+            file_size_limit_mb=int(plan_data["file_size_limit_mb"]),
+            project_size_limit_mb=int(plan_data["project_size_limit_mb"]),
+            estimated_page_limit=int(plan_data["estimated_page_limit"]),
+            initial_flashcard_limit=int(plan_data["initial_flashcard_limit"]),
+            quiz_groups_per_complexity=int(plan_data["quiz_groups_per_complexity"]),
+            quiz_questions_per_quiz=int(plan_data["quiz_questions_per_quiz"]),
+            allow_scanned_documents=bool(plan_data["allow_scanned_documents"]),
             is_visible=bool(plan_data["is_visible"]),
             is_featured=bool(plan_data["is_featured"]),
             sort_order=index,
@@ -208,6 +261,17 @@ async def update_admin_plans(
         plan.material_limit = plan_payload.material_limit
         plan.ai_level = plan_payload.ai_level
         plan.storage = plan_payload.storage
+        plan.conditions = plan_payload.conditions
+        plan.active_project_limit = plan_payload.active_project_limit
+        plan.monthly_material_limit = plan_payload.monthly_material_limit
+        plan.files_per_project_limit = plan_payload.files_per_project_limit
+        plan.file_size_limit_mb = plan_payload.file_size_limit_mb
+        plan.project_size_limit_mb = plan_payload.project_size_limit_mb
+        plan.estimated_page_limit = plan_payload.estimated_page_limit
+        plan.initial_flashcard_limit = plan_payload.initial_flashcard_limit
+        plan.quiz_groups_per_complexity = plan_payload.quiz_groups_per_complexity
+        plan.quiz_questions_per_quiz = plan_payload.quiz_questions_per_quiz
+        plan.allow_scanned_documents = plan_payload.allow_scanned_documents
         plan.stripe_product_id = plan_payload.stripe_product_id
         plan.stripe_price_id = plan_payload.stripe_price_id
         plan.is_visible = plan_payload.is_visible

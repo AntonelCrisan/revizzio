@@ -218,6 +218,25 @@ class StripeClient:
             {"invoice_now": "false", "prorate": "false"},
         )
 
+    async def update_subscription_cancellation(
+        self,
+        *,
+        subscription_id: str,
+        cancel_at_period_end: bool,
+    ) -> dict[str, Any]:
+        safe_subscription_id = urllib.parse.quote(subscription_id, safe="")
+        return await to_thread.run_sync(
+            self._request,
+            "POST",
+            f"/subscriptions/{safe_subscription_id}",
+            {
+                "cancel_at_period_end": (
+                    "true" if cancel_at_period_end else "false"
+                ),
+                "proration_behavior": "none",
+            },
+        )
+
     def _request(
         self,
         method: str,
@@ -454,6 +473,106 @@ class StripePaymentService:
         await self._session.commit()
         return await self._fetch_user_invoices(user=user)
 
+    async def get_current_paid_subscription(
+        self,
+        *,
+        user: User,
+    ) -> UserSubscription | None:
+        return await self._fetch_current_paid_subscription(user=user)
+
+    async def schedule_subscription_cancellation(
+        self,
+        *,
+        user: User,
+        user_agent: str | None,
+        ip_address: str | None,
+    ) -> tuple[User, UserSubscription]:
+        subscription = await self._fetch_current_paid_subscription(user=user)
+        if subscription is None:
+            raise StripePlanUnavailableError(
+                "Nu există un abonament activ care poate fi anulat."
+            )
+        if subscription.cancel_at_period_end:
+            return await self._refreshed_user(user), subscription
+
+        stripe = StripeClient(self._settings)
+        updated_subscription = await stripe.update_subscription_cancellation(
+            subscription_id=subscription.stripe_subscription_id,
+            cancel_at_period_end=True,
+        )
+        await self._handle_subscription_event(updated_subscription)
+        await self._session.flush()
+
+        refreshed_subscription = await self._fetch_subscription_by_stripe_id(
+            subscription.stripe_subscription_id
+        )
+        if refreshed_subscription is None:
+            raise StripeRequestError("Abonamentul nu a putut fi sincronizat.")
+
+        add_audit_log(
+            self._session,
+            action="stripe.subscription.cancel_at_period_end.enabled",
+            actor=user,
+            resource_type="user_subscription",
+            resource_id=str(refreshed_subscription.id),
+            details={
+                "stripe_subscription_id": refreshed_subscription.stripe_subscription_id,
+                "current_period_end": (
+                    refreshed_subscription.current_period_end.isoformat()
+                    if refreshed_subscription.current_period_end is not None
+                    else None
+                ),
+            },
+            ip_address=ip_address,
+            user_agent=user_agent,
+        )
+        await self._session.commit()
+        return await self._refreshed_user(user), refreshed_subscription
+
+    async def resume_subscription_renewal(
+        self,
+        *,
+        user: User,
+        user_agent: str | None,
+        ip_address: str | None,
+    ) -> tuple[User, UserSubscription]:
+        subscription = await self._fetch_current_paid_subscription(user=user)
+        if subscription is None:
+            raise StripePlanUnavailableError(
+                "Nu există un abonament activ care poate fi reactivat."
+            )
+        if not subscription.cancel_at_period_end:
+            return await self._refreshed_user(user), subscription
+
+        stripe = StripeClient(self._settings)
+        updated_subscription = await stripe.update_subscription_cancellation(
+            subscription_id=subscription.stripe_subscription_id,
+            cancel_at_period_end=False,
+        )
+        await self._handle_subscription_event(updated_subscription)
+        await self._session.flush()
+
+        refreshed_subscription = await self._fetch_subscription_by_stripe_id(
+            subscription.stripe_subscription_id
+        )
+        if refreshed_subscription is None:
+            raise StripeRequestError("Abonamentul nu a putut fi sincronizat.")
+
+        add_audit_log(
+            self._session,
+            action="stripe.subscription.cancel_at_period_end.disabled",
+            actor=user,
+            resource_type="user_subscription",
+            resource_id=str(refreshed_subscription.id),
+            details={
+                "stripe_subscription_id": refreshed_subscription.stripe_subscription_id,
+            },
+            ip_address=ip_address,
+            user_agent=user_agent,
+        )
+        await self._session.commit()
+        return await self._refreshed_user(user), refreshed_subscription
+
     async def _fetch_user_invoices(self, *, user: User) -> list[SubscriptionInvoice]:
         result = await self._session.scalars(
             select(SubscriptionInvoice)
@@ -463,7 +582,11 @@ class StripePaymentService:
         )
         return list(result)
 
-    async def _fetch_active_subscriptions(self, *, user: User) -> list[UserSubscription]:
+    async def _fetch_active_subscriptions(
+        self,
+        *,
+        user: User,
+    ) -> list[UserSubscription]:
         result = await self._session.scalars(
             select(UserSubscription)
             .where(
@@ -473,6 +596,48 @@ class StripePaymentService:
             .order_by(UserSubscription.updated_at.desc())
         )
         return list(result)
+
+    async def _fetch_current_paid_subscription(
+        self,
+        *,
+        user: User,
+    ) -> UserSubscription | None:
+        return await self._session.scalar(
+            select(UserSubscription)
+            .join(SubscriptionPlan)
+            .options(selectinload(UserSubscription.plan))
+            .where(
+                UserSubscription.user_id == user.id,
+                UserSubscription.status.in_(CHECKOUT_SUBSCRIPTION_STATUSES),
+                SubscriptionPlan.price_ron > 0,
+            )
+            .order_by(
+                UserSubscription.updated_at.desc(),
+                UserSubscription.created_at.desc(),
+            )
+            .limit(1)
+        )
+
+    async def _fetch_subscription_by_stripe_id(
+        self,
+        stripe_subscription_id: str,
+    ) -> UserSubscription | None:
+        return await self._session.scalar(
+            select(UserSubscription)
+            .options(selectinload(UserSubscription.plan))
+            .where(
+                UserSubscription.stripe_subscription_id == stripe_subscription_id
+            )
+        )
+
+    async def _refreshed_user(self, user: User) -> User:
+        refreshed_user = await self._session.scalar(
+            select(User)
+            .options(selectinload(User.current_plan))
+            .where(User.id == user.id)
+            .execution_options(populate_existing=True)
+        )
+        return refreshed_user or user
 
     async def _sync_latest_invoices_for_user(self, *, user: User) -> None:
         try:
@@ -792,7 +957,10 @@ class StripePaymentService:
             await self._email.send(
                 EmailMessage(
                     to=user.email,
-                    subject=f"Factura Reviss {invoice.number or invoice.stripe_invoice_id}",
+                    subject=(
+                        f"Factura Reviss "
+                        f"{invoice.number or invoice.stripe_invoice_id}"
+                    ),
                     html=html,
                     text=text,
                 )

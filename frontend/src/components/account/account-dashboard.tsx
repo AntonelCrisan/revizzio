@@ -13,6 +13,7 @@ import {
 } from "react";
 import { useAuth } from "@/components/auth/auth-provider";
 import { BrandLogo } from "@/components/brand-logo";
+import type { AuthUserPlan } from "@/lib/auth-api";
 import {
   archiveStudyProject,
   completeQuiz,
@@ -96,14 +97,32 @@ type UploadedFile = {
   file: File;
 };
 
+type ProjectUploadPlanLimits = {
+  planName: string;
+  filesPerProject: number;
+  monthlyMaterials: number;
+  fileSizeMb: number;
+  projectSizeMb: number;
+  estimatedPages: number;
+  allowScannedDocuments: boolean;
+};
+
 const initialProjects: StudyProject[] = [];
 const SIDEBAR_COLLAPSED_STORAGE_KEY = "revizzio-sidebar-collapsed";
+const PRO_AI_ACCESS_MESSAGE =
+  "Funcționalitatea AI este disponibilă doar pentru planul Pro.";
+const PRO_AI_UPGRADE_MESSAGE =
+  "Treci la Pro ca să folosești explicații AI, întrebări pe text selectat și Chat AI contextual.";
+
+function hasProAiPlan(plan: AuthUserPlan | null | undefined) {
+  return plan?.slug === "pro";
+}
 
 const tabs: Array<{ id: TabId; label: string }> = [
   { id: "rezumat", label: "Rezumat" },
   { id: "flashcards", label: "Flashcard-uri" },
-  { id: "quiz", label: "Quiz-uri" },
   { id: "strategii", label: "Strategii" },
+  { id: "quiz", label: "Quiz-uri" },
   { id: "progres", label: "Progres" },
   { id: "chat", label: "Chat AI" },
 ];
@@ -184,6 +203,24 @@ function formatBytes(bytes: number) {
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function mbToBytes(value: number) {
+  return value * 1024 * 1024;
+}
+
+function getProjectUploadPlanLimits(
+  userPlan: AuthUserPlan | null | undefined,
+): ProjectUploadPlanLimits {
+  return {
+    planName: userPlan?.name ?? "Start",
+    filesPerProject: Math.max(1, Number(userPlan?.files_per_project_limit ?? 2)),
+    monthlyMaterials: Math.max(0, Number(userPlan?.monthly_material_limit ?? 3)),
+    fileSizeMb: Math.max(1, Number(userPlan?.file_size_limit_mb ?? 10)),
+    projectSizeMb: Math.max(1, Number(userPlan?.project_size_limit_mb ?? 20)),
+    estimatedPages: Math.max(1, Number(userPlan?.estimated_page_limit ?? 25)),
+    allowScannedDocuments: Boolean(userPlan?.allow_scanned_documents),
+  };
 }
 
 function delay(ms: number) {
@@ -449,18 +486,37 @@ export function AccountDashboard({
   const [preparedProject, setPreparedProject] =
     useState<StudyProjectPrepareResponse | null>(null);
   const [generationError, setGenerationError] = useState<string | null>(null);
+  const [fileSelectionNotice, setFileSelectionNotice] = useState<string | null>(
+    null,
+  );
   const activeProject = useMemo(
     () => getProjectById(projects, activeProjectId),
     [activeProjectId, projects],
   );
 
   const firstName = preferredFirstName(user?.full_name);
+  const hasProAiAccess = hasProAiPlan(user?.current_plan);
+  const uploadPlanLimits = useMemo(
+    () => getProjectUploadPlanLimits(user?.current_plan),
+    [user?.current_plan],
+  );
+  const uploadedFilesTotalSize = uploadedFiles.reduce(
+    (total, file) => total + file.size,
+    0,
+  );
+  const uploadedFilesAreWithinPlan =
+    uploadedFiles.length <= uploadPlanLimits.filesPerProject &&
+    uploadedFilesTotalSize <= mbToBytes(uploadPlanLimits.projectSizeMb) &&
+    uploadedFiles.every(
+      (file) => file.size <= mbToBytes(uploadPlanLimits.fileSizeMb),
+    );
   const canGenerate =
     projectName.trim().length > 0 &&
     subjectName.trim().length > 0 &&
     institutionName.trim().length > 0 &&
     uploadedFiles.length > 0 &&
-    hasMaterialRights;
+    hasMaterialRights &&
+    uploadedFilesAreWithinPlan;
   const generationProgress = Math.round(
     (completedSteps.length / generationSteps.length) * 100,
   );
@@ -552,6 +608,10 @@ export function AccountDashboard({
   }
 
   function openProject(projectId: string, tab: TabId = "rezumat") {
+    if (tab === "chat" && !hasProAiAccess) {
+      return;
+    }
+
     setActiveProjectId(projectId);
     setOpenProjectId(projectId);
     setActiveTab(tab);
@@ -860,6 +920,10 @@ export function AccountDashboard({
   }
 
   function changeProjectTab(tab: TabId) {
+    if (tab === "chat" && !hasProAiAccess) {
+      return;
+    }
+
     const nextChatBackTab = isChatBackTab(tab)
       ? tab
       : isChatBackTab(activeTab)
@@ -898,24 +962,87 @@ export function AccountDashboard({
     setGenerationState("form");
     setPreparedProject(null);
     setGenerationError(null);
+    setFileSelectionNotice(null);
   }
 
   function addFiles(files: FileList | null) {
     if (!files?.length) return;
-    setUploadedFiles((currentFiles) => [
-      ...currentFiles,
-      ...Array.from(files).map((file) => ({
-        name: file.name,
-        size: file.size,
-        file,
-      })),
-    ]);
+    const selectedFiles = Array.from(files);
+
+    setUploadedFiles((currentFiles) => {
+      const remainingSlots = Math.max(
+        0,
+        uploadPlanLimits.filesPerProject - currentFiles.length,
+      );
+      const maxFileBytes = mbToBytes(uploadPlanLimits.fileSizeMb);
+      const maxProjectBytes = mbToBytes(uploadPlanLimits.projectSizeMb);
+      let nextTotalSize = currentFiles.reduce(
+        (total, file) => total + file.size,
+        0,
+      );
+      const acceptedFiles: UploadedFile[] = [];
+      const rejectedReasons = new Set<string>();
+
+      if (remainingSlots === 0) {
+        rejectedReasons.add(
+          `Planul ${uploadPlanLimits.planName} permite maximum ${uploadPlanLimits.filesPerProject} fișiere într-un proiect.`,
+        );
+      }
+
+      for (const file of selectedFiles) {
+        if (acceptedFiles.length >= remainingSlots) {
+          rejectedReasons.add(
+            `Au fost păstrate doar primele ${uploadPlanLimits.filesPerProject} fișiere permise de plan.`,
+          );
+          continue;
+        }
+
+        if (file.size > maxFileBytes) {
+          rejectedReasons.add(
+            `Un fișier poate avea cel mult ${uploadPlanLimits.fileSizeMb} MB pe planul ${uploadPlanLimits.planName}.`,
+          );
+          continue;
+        }
+
+        if (nextTotalSize + file.size > maxProjectBytes) {
+          rejectedReasons.add(
+            `Materialele proiectului pot avea cel mult ${uploadPlanLimits.projectSizeMb} MB în total.`,
+          );
+          continue;
+        }
+
+        acceptedFiles.push({
+          name: file.name,
+          size: file.size,
+          file,
+        });
+        nextTotalSize += file.size;
+      }
+
+      setFileSelectionNotice(
+        rejectedReasons.size > 0 ? [...rejectedReasons].join(" ") : null,
+      );
+
+      if (acceptedFiles.length === 0) {
+        return currentFiles;
+      }
+
+      setGenerationError(null);
+      return [...currentFiles, ...acceptedFiles];
+    });
   }
 
   function handleDrop(event: DragEvent<HTMLButtonElement>) {
     event.preventDefault();
     setIsDragging(false);
     addFiles(event.dataTransfer.files);
+  }
+
+  function removeUploadedFile(index: number) {
+    setUploadedFiles((currentFiles) =>
+      currentFiles.filter((_, fileIndex) => fileIndex !== index),
+    );
+    setFileSelectionNotice(null);
   }
 
   function storeApiProject(apiProject: ApiStudyProject) {
@@ -980,6 +1107,12 @@ export function AccountDashboard({
   }
 
   async function startGeneration() {
+    if (!uploadedFilesAreWithinPlan) {
+      setFileSelectionNotice(
+        `Selecția depășește limitele planului ${uploadPlanLimits.planName}.`,
+      );
+      return;
+    }
     if (!canGenerate) return;
 
     let transientProjectId: string | null = null;
@@ -1254,23 +1387,36 @@ export function AccountDashboard({
                       isOpen ? "max-h-64" : "max-h-0"
                     }`}
                   >
-                    {tabs.map((tab) => (
-                      <button
-                        key={tab.id}
-                        type="button"
-                        onClick={() => openProject(project.id, tab.id)}
-                        className={`ml-5 flex w-[calc(100%-1.25rem)] items-center gap-2 rounded-xl px-3 py-2 text-left text-[13px] transition hover:bg-action-soft ${
-                          activeProjectId === project.id &&
-                          view === "project" &&
-                          activeTab === tab.id
-                            ? "bg-action-soft font-semibold text-content"
-                            : "text-muted"
-                        }`}
-                      >
-                        <span className="h-1.5 w-1.5 rounded-full bg-current opacity-60" />
-                        {tab.label}
-                      </button>
-                    ))}
+                    {tabs.map((tab) => {
+                      const isAiTabLocked =
+                        tab.id === "chat" && !hasProAiAccess;
+
+                      return (
+                        <button
+                          key={tab.id}
+                          type="button"
+                          onClick={() => openProject(project.id, tab.id)}
+                          disabled={isAiTabLocked}
+                          title={
+                            isAiTabLocked ? PRO_AI_ACCESS_MESSAGE : undefined
+                          }
+                          className={`ml-5 flex w-[calc(100%-1.25rem)] items-center gap-2 rounded-xl px-3 py-2 text-left text-[13px] transition ${
+                            isAiTabLocked
+                              ? "cursor-not-allowed opacity-45"
+                              : "cursor-pointer hover:bg-action-soft"
+                          } ${
+                            activeProjectId === project.id &&
+                            view === "project" &&
+                            activeTab === tab.id
+                              ? "bg-action-soft font-semibold text-content"
+                              : "text-muted"
+                          }`}
+                        >
+                          <span className="h-1.5 w-1.5 rounded-full bg-current opacity-60" />
+                          {tab.label}
+                        </button>
+                      );
+                    })}
                   </div>
                 </div>
               );
@@ -1360,6 +1506,7 @@ export function AccountDashboard({
               activeTab={activeTab}
               chatBackTab={chatBackTab}
               flashcardMode={initialFlashcardMode}
+              hasProAiAccess={hasProAiAccess}
               onBack={showHome}
               onTabChange={changeProjectTab}
               onQuizMistake={saveQuizMistakeFlashcard}
@@ -1389,6 +1536,8 @@ export function AccountDashboard({
               completedSteps={completedSteps}
               preparedProject={preparedProject}
               generationError={generationError}
+              fileSelectionNotice={fileSelectionNotice}
+              planLimits={uploadPlanLimits}
               isDragging={isDragging}
               fileInputRef={fileInputRef}
               onBack={showHome}
@@ -1397,11 +1546,7 @@ export function AccountDashboard({
               onInstitutionNameChange={setInstitutionName}
               onMaterialRightsChange={setHasMaterialRights}
               onAddFiles={addFiles}
-              onRemoveFile={(index) =>
-                setUploadedFiles((currentFiles) =>
-                  currentFiles.filter((_, fileIndex) => fileIndex !== index),
-                )
-              }
+              onRemoveFile={removeUploadedFile}
               onDrop={handleDrop}
               onDragStateChange={setIsDragging}
               onStartGeneration={startGeneration}
@@ -1880,6 +2025,7 @@ function ProjectView({
   activeTab,
   chatBackTab,
   flashcardMode,
+  hasProAiAccess,
   onBack,
   onTabChange,
   onQuizMistake,
@@ -1898,6 +2044,7 @@ function ProjectView({
   activeTab: TabId;
   chatBackTab: TabId;
   flashcardMode: FlashcardPanelMode;
+  hasProAiAccess: boolean;
   onBack: () => void;
   onTabChange: (tab: TabId) => void;
   onQuizMistake: (
@@ -1992,7 +2139,11 @@ function ProjectView({
           Înapoi la {chatBackLabel}
         </button>
 
-        <ProjectChatPanel key={project.id} project={project} />
+        {hasProAiAccess ? (
+          <ProjectChatPanel key={project.id} project={project} />
+        ) : (
+          <ProjectAiLockedPanel />
+        )}
       </section>
     );
   }
@@ -2032,20 +2183,28 @@ function ProjectView({
       >
         <div className="ml-16 overflow-x-auto [scrollbar-width:none] md:ml-0 md:flex md:justify-center [&::-webkit-scrollbar]:hidden">
           <div className="flex min-w-max items-center gap-6">
-          {tabs.map((tab) => (
-            <button
-              key={tab.id}
-              type="button"
-              onClick={() => onTabChange(tab.id)}
-              className={`relative cursor-pointer py-4 text-sm font-black transition after:absolute after:inset-x-0 after:bottom-0 after:h-[3px] after:rounded-full after:transition ${
-                activeTab === tab.id
-                  ? "text-content after:bg-action"
-                  : "text-muted after:bg-transparent hover:text-content"
-              }`}
-            >
-              {tab.label}
-            </button>
-          ))}
+          {tabs.map((tab) => {
+            const isAiTabLocked = tab.id === "chat" && !hasProAiAccess;
+
+            return (
+              <button
+                key={tab.id}
+                type="button"
+                onClick={() => onTabChange(tab.id)}
+                disabled={isAiTabLocked}
+                title={isAiTabLocked ? PRO_AI_ACCESS_MESSAGE : undefined}
+                className={`relative py-4 text-sm font-black transition after:absolute after:inset-x-0 after:bottom-0 after:h-[3px] after:rounded-full after:transition ${
+                  isAiTabLocked
+                    ? "cursor-not-allowed text-muted/45 after:bg-transparent"
+                    : activeTab === tab.id
+                      ? "cursor-pointer text-content after:bg-action"
+                      : "cursor-pointer text-muted after:bg-transparent hover:text-content"
+                }`}
+              >
+                {tab.label}
+              </button>
+            );
+          })}
           </div>
         </div>
       </div>
@@ -2054,6 +2213,7 @@ function ProjectView({
         {activeTab === "rezumat" ? (
           <SummaryPanel
             project={project}
+            hasProAiAccess={hasProAiAccess}
             onHighlightCreate={onHighlightCreate}
             onHighlightColorChange={onHighlightColorChange}
             onHighlightRemove={onHighlightRemove}
@@ -2066,6 +2226,7 @@ function ProjectView({
           <FlashcardsPanel
             project={project}
             mode={flashcardMode}
+            hasProAiAccess={hasProAiAccess}
             onManualFlashcardCreate={onManualFlashcardCreate}
             onToggleFlashcardReview={onToggleFlashcardReview}
           />
@@ -2092,6 +2253,28 @@ type ProjectChatMessage = {
   role: "assistant" | "user";
   text: string;
 };
+
+function ProjectAiLockedPanel() {
+  return (
+    <section className="rounded-xl border border-subtle bg-surface p-6 sm:p-8">
+      <span className="inline-flex rounded-full border border-subtle bg-action-soft px-3 py-1 text-[10px] font-black uppercase tracking-[0.18em] text-muted">
+        Pro
+      </span>
+      <h2 className="mt-4 max-w-3xl font-serif text-3xl font-semibold leading-tight text-content sm:text-4xl">
+        Chat AI este disponibil în planul Pro.
+      </h2>
+      <p className="mt-3 max-w-2xl text-sm leading-7 text-muted">
+        {PRO_AI_UPGRADE_MESSAGE}
+      </p>
+      <Link
+        href="/upgrade"
+        className="mt-6 inline-flex h-11 cursor-pointer items-center justify-center rounded-full bg-action px-5 text-sm font-bold text-on-action transition hover:bg-action-hover"
+      >
+        Vezi planul Pro
+      </Link>
+    </section>
+  );
+}
 
 function createProjectChatIntro(project: StudyProject): ProjectChatMessage {
   return {
@@ -2865,34 +3048,52 @@ function SummaryHighlightColorPicker({
 function SummaryToolButton({
   label,
   active,
+  disabled = false,
+  tooltip,
   onClick,
   children,
 }: {
   label: string;
   active: boolean;
+  disabled?: boolean;
+  tooltip?: string;
   onClick: () => void;
   children: ReactNode;
 }) {
+  const isActive = active && !disabled;
+
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      aria-pressed={active}
-      className={`flex w-full cursor-pointer items-center gap-3 rounded-lg px-3 py-3 text-left text-sm font-bold transition ${
-        active
-          ? "bg-action text-on-action"
-          : "text-content hover:bg-surface-hover"
-      }`}
-    >
-      <Icon className="h-4 w-4 shrink-0">{children}</Icon>
-      {label}
-    </button>
+    <div className="group relative">
+      <button
+        type="button"
+        onClick={onClick}
+        disabled={disabled}
+        aria-pressed={isActive}
+        title={tooltip}
+        className={`flex w-full items-center gap-3 rounded-lg px-3 py-3 text-left text-sm font-bold transition ${
+          disabled
+            ? "cursor-not-allowed text-muted/45"
+            : isActive
+              ? "cursor-pointer bg-action text-on-action"
+              : "cursor-pointer text-content hover:bg-surface-hover"
+        }`}
+      >
+        <Icon className="h-4 w-4 shrink-0">{children}</Icon>
+        {label}
+      </button>
+      {tooltip ? (
+        <span className="pointer-events-none absolute left-3 top-full z-30 mt-2 w-64 rounded-lg border border-subtle bg-surface px-3 py-2 text-xs font-semibold leading-5 text-content opacity-0 shadow-lg shadow-black/10 transition group-hover:opacity-100 group-focus-within:opacity-100">
+          {tooltip}
+        </span>
+      ) : null}
+    </div>
   );
 }
 
 function SummaryToolsPanel({
   activeTool,
   pendingHighlightColor,
+  hasProAiAccess,
   toolHintText,
   onToggleTool,
   onResetTool,
@@ -2901,6 +3102,7 @@ function SummaryToolsPanel({
 }: {
   activeTool: SummaryToolMode | null;
   pendingHighlightColor: SummaryHighlightColorId;
+  hasProAiAccess: boolean;
   toolHintText: string | null;
   onToggleTool: (tool: SummaryToolMode) => void;
   onResetTool: () => void;
@@ -2952,6 +3154,8 @@ function SummaryToolsPanel({
         <SummaryToolButton
           label="AI"
           active={activeTool === "ai"}
+          disabled={!hasProAiAccess}
+          tooltip={!hasProAiAccess ? PRO_AI_ACCESS_MESSAGE : undefined}
           onClick={() => onToggleTool("ai")}
         >
           <path d="M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .962 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.963 0z" />
@@ -2993,6 +3197,7 @@ function SummaryToolsPanel({
 
 function SummaryPanel({
   project,
+  hasProAiAccess,
   onHighlightCreate,
   onHighlightColorChange,
   onHighlightRemove,
@@ -3001,6 +3206,7 @@ function SummaryPanel({
   onNoteRemove,
 }: {
   project: StudyProject;
+  hasProAiAccess: boolean;
   onHighlightCreate: (
     projectId: string,
     highlight: {
@@ -3127,6 +3333,10 @@ function SummaryPanel({
   }
 
   function handleAskAi(selection: PendingSummarySelection) {
+    if (!hasProAiAccess) {
+      return;
+    }
+
     if (aiResponseTimer.current) {
       window.clearTimeout(aiResponseTimer.current);
     }
@@ -3214,6 +3424,10 @@ function SummaryPanel({
     }
 
     if (activeTool === "ai") {
+      if (!hasProAiAccess) {
+        return;
+      }
+
       handleAskAi(selectionPayload);
       return;
     }
@@ -3363,6 +3577,10 @@ function SummaryPanel({
   }
 
   function handleToggleTool(tool: SummaryToolMode) {
+    if (tool === "ai" && !hasProAiAccess) {
+      return;
+    }
+
     setActiveTool((current) => (current === tool ? null : tool));
     setNotePanel(null);
     window.getSelection()?.removeAllRanges();
@@ -3649,6 +3867,7 @@ function SummaryPanel({
           <SummaryToolsPanel
             activeTool={activeTool}
             pendingHighlightColor={pendingHighlightColor}
+            hasProAiAccess={hasProAiAccess}
             toolHintText={toolHintText}
             onToggleTool={handleToggleTool}
             onResetTool={handleResetTool}
@@ -3693,6 +3912,7 @@ function SummaryPanel({
               <SummaryToolsPanel
                 activeTool={activeTool}
                 pendingHighlightColor={pendingHighlightColor}
+                hasProAiAccess={hasProAiAccess}
                 toolHintText={toolHintText}
                 onToggleTool={handleToggleTool}
                 onResetTool={handleResetTool}
@@ -4218,10 +4438,12 @@ function FlashcardDeckPage({
   deck,
   onBack,
   onToggleReview,
+  hasProAiAccess,
 }: {
   deck: AccountFlashcardDeck;
   onBack: () => void;
   onToggleReview: (flashcardId: string, review: boolean) => Promise<void>;
+  hasProAiAccess: boolean;
 }) {
   const flashcardTextRef = useRef<HTMLDivElement | null>(null);
   const shuffleIdRef = useRef(0);
@@ -4398,7 +4620,7 @@ function FlashcardDeckPage({
   }
 
   function handleAskFlashcardAi() {
-    if (!pendingFlashcardSelection) {
+    if (!pendingFlashcardSelection || !hasProAiAccess) {
       return;
     }
 
@@ -4469,7 +4691,9 @@ function FlashcardDeckPage({
             </div>
             <div className="flex items-center justify-between gap-4 py-3">
               <span className="text-muted">Interacțiune</span>
-              <b className="text-right text-content">Selectează text pentru AI</b>
+              <b className="text-right text-content">
+                {hasProAiAccess ? "Selectează text pentru AI" : "AI inclus în Pro"}
+              </b>
             </div>
           </div>
           {pendingFlashcardSelection ? (
@@ -4484,13 +4708,26 @@ function FlashcardDeckPage({
                 “{pendingFlashcardSelection.text}”
               </p>
               <div className="mt-3 flex flex-wrap gap-2">
-                <button
-                  type="button"
-                  onClick={handleAskFlashcardAi}
-                  className="rounded-full bg-action px-4 py-2 text-xs font-bold text-on-action transition hover:bg-action-hover"
-                >
-                  Întreabă AI
-                </button>
+                <span className="group relative inline-flex">
+                  <button
+                    type="button"
+                    onClick={handleAskFlashcardAi}
+                    disabled={!hasProAiAccess}
+                    title={!hasProAiAccess ? PRO_AI_ACCESS_MESSAGE : undefined}
+                    className={`rounded-full px-4 py-2 text-xs font-bold transition ${
+                      hasProAiAccess
+                        ? "cursor-pointer bg-action text-on-action hover:bg-action-hover"
+                        : "cursor-not-allowed border border-info-border bg-surface text-muted opacity-65"
+                    }`}
+                  >
+                    {hasProAiAccess ? "Întreabă AI" : "AI inclus în Pro"}
+                  </button>
+                  {!hasProAiAccess ? (
+                    <span className="pointer-events-none absolute left-0 top-full z-30 mt-2 w-64 rounded-lg border border-subtle bg-surface px-3 py-2 text-xs font-semibold leading-5 text-content opacity-0 shadow-lg shadow-black/10 transition group-hover:opacity-100 group-focus-within:opacity-100">
+                      {PRO_AI_ACCESS_MESSAGE}
+                    </span>
+                  ) : null}
+                </span>
                 <button
                   type="button"
                   onClick={() => {
@@ -5105,11 +5342,13 @@ function ManualFlashcardEditorCard({
 function FlashcardsPanel({
   project,
   mode,
+  hasProAiAccess,
   onManualFlashcardCreate,
   onToggleFlashcardReview,
 }: {
   project: StudyProject;
   mode: FlashcardPanelMode;
+  hasProAiAccess: boolean;
   onManualFlashcardCreate: (
     projectId: string,
     flashcard: ManualFlashcardPayload,
@@ -5180,6 +5419,7 @@ function FlashcardsPanel({
       <FlashcardDeckPage
         deck={decks[activeDeckId]}
         onBack={() => setActiveDeckId(null)}
+        hasProAiAccess={hasProAiAccess}
         onToggleReview={(flashcardId, review) =>
           onToggleFlashcardReview(project.id, flashcardId, review)
         }
@@ -7036,6 +7276,8 @@ function NewProjectView({
   completedSteps,
   preparedProject,
   generationError,
+  fileSelectionNotice,
+  planLimits,
   isDragging,
   fileInputRef,
   onBack,
@@ -7061,6 +7303,8 @@ function NewProjectView({
   completedSteps: string[];
   preparedProject: StudyProjectPrepareResponse | null;
   generationError: string | null;
+  fileSelectionNotice: string | null;
+  planLimits: ProjectUploadPlanLimits;
   isDragging: boolean;
   fileInputRef: React.RefObject<HTMLInputElement | null>;
   onBack: () => void;
@@ -7239,8 +7483,42 @@ function NewProjectView({
                 multiple
                 accept=".pdf,.pptx,.docx,.txt,.md,.html,.csv,.xls,.xlsx"
                 className="hidden"
-                onChange={(event) => onAddFiles(event.target.files)}
+                onChange={(event) => {
+                  onAddFiles(event.target.files);
+                  event.currentTarget.value = "";
+                }}
               />
+
+              <div className="rounded-xl border border-subtle bg-surface px-5 py-4">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <span className="min-w-0">
+                    <p className="text-xs font-black uppercase tracking-[0.14em] text-muted">
+                      Limite plan {planLimits.planName}
+                    </p>
+                    <p className="mt-2 text-sm leading-6 text-muted">
+                      Maximum {planLimits.filesPerProject} fișiere/proiect,{" "}
+                      {planLimits.fileSizeMb} MB/fișier,{" "}
+                      {planLimits.projectSizeMb} MB/proiect. Cota lunară:{" "}
+                      {planLimits.monthlyMaterials} materiale. Documente scanate:{" "}
+                      {planLimits.allowScannedDocuments
+                        ? "incluse"
+                        : "doar pe Pro"}
+                      .
+                    </p>
+                  </span>
+                  <Link
+                    href="/upgrade"
+                    className="inline-flex h-10 shrink-0 cursor-pointer items-center justify-center rounded-full border border-subtle bg-app px-4 text-sm font-black text-content transition hover:bg-action hover:text-on-action"
+                  >
+                    Vezi planuri
+                  </Link>
+                </div>
+                {fileSelectionNotice ? (
+                  <p className="mt-3 rounded-lg border border-warning-border bg-warning-soft px-3 py-2 text-sm font-bold text-warning">
+                    {fileSelectionNotice}
+                  </p>
+                ) : null}
+              </div>
 
               {files.length > 0 ? (
                 <div className="divide-y divide-subtle rounded-xl border border-subtle bg-surface">

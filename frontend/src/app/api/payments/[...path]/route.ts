@@ -1,7 +1,10 @@
 const allowedRoutes = new Map([
   ["GET:invoices", "/api/payments/invoices"],
+  ["GET:subscription", "/api/payments/subscription"],
   ["POST:checkout-session", "/api/payments/checkout-session"],
   ["POST:checkout-session/sync", "/api/payments/checkout-session/sync"],
+  ["POST:subscription/cancel", "/api/payments/subscription/cancel"],
+  ["POST:subscription/resume", "/api/payments/subscription/resume"],
 ]);
 
 type PaymentsRouteContext = {

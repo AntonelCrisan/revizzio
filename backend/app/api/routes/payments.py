@@ -1,11 +1,15 @@
 from fastapi import APIRouter, HTTPException, Request, status
 
 from app.api.dependencies import AppSettings, CurrentUser, DbSession
+from app.models import UserSubscription
 from app.schemas.payments import (
     CheckoutSessionCreateRequest,
     CheckoutSessionResponse,
     CheckoutSessionSyncRequest,
+    CurrentSubscriptionResponse,
+    SubscriptionActionResponse,
     SubscriptionInvoiceResponse,
+    SubscriptionStatusResponse,
 )
 from app.schemas.user import UserResponse
 from app.services.stripe_payments import (
@@ -23,6 +27,25 @@ def _client_context(request: Request) -> tuple[str | None, str | None]:
     user_agent = request.headers.get("user-agent")
     ip_address = request.client.host if request.client is not None else None
     return user_agent, ip_address
+
+
+def _subscription_response(
+    subscription: UserSubscription | None,
+) -> CurrentSubscriptionResponse | None:
+    if subscription is None or subscription.plan is None:
+        return None
+
+    return CurrentSubscriptionResponse(
+        id=subscription.id,
+        plan_id=subscription.plan_id,
+        plan_slug=subscription.plan.slug,
+        plan_name=subscription.plan.name,
+        status=subscription.status,
+        current_period_start=subscription.current_period_start,
+        current_period_end=subscription.current_period_end,
+        cancel_at_period_end=subscription.cancel_at_period_end,
+        canceled_at=subscription.canceled_at,
+    )
 
 
 @router.post("/checkout-session", response_model=CheckoutSessionResponse)
@@ -77,6 +100,97 @@ async def list_subscription_invoices(
         SubscriptionInvoiceResponse.model_validate(invoice)
         for invoice in invoices
     ]
+
+
+@router.get("/subscription", response_model=SubscriptionStatusResponse)
+async def get_subscription_status(
+    current_user: CurrentUser,
+    session: DbSession,
+    settings: AppSettings,
+) -> SubscriptionStatusResponse:
+    service = StripePaymentService(session, settings)
+    subscription = await service.get_current_paid_subscription(user=current_user)
+    return SubscriptionStatusResponse(
+        subscription=_subscription_response(subscription),
+    )
+
+
+@router.post("/subscription/cancel", response_model=SubscriptionActionResponse)
+async def cancel_subscription_renewal(
+    request: Request,
+    current_user: CurrentUser,
+    session: DbSession,
+    settings: AppSettings,
+) -> SubscriptionActionResponse:
+    service = StripePaymentService(session, settings)
+    user_agent, ip_address = _client_context(request)
+
+    try:
+        user, subscription = await service.schedule_subscription_cancellation(
+            user=current_user,
+            user_agent=user_agent,
+            ip_address=ip_address,
+        )
+    except StripeConfigurationError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Stripe nu este configurat complet.",
+        ) from exc
+    except StripePlanUnavailableError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(exc),
+        ) from exc
+    except StripeRequestError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="Stripe nu a putut actualiza abonamentul.",
+        ) from exc
+
+    return SubscriptionActionResponse(
+        user=UserResponse.model_validate(user),
+        subscription=_subscription_response(subscription),
+        message="Reînnoirea abonamentului a fost anulată.",
+    )
+
+
+@router.post("/subscription/resume", response_model=SubscriptionActionResponse)
+async def resume_subscription_renewal(
+    request: Request,
+    current_user: CurrentUser,
+    session: DbSession,
+    settings: AppSettings,
+) -> SubscriptionActionResponse:
+    service = StripePaymentService(session, settings)
+    user_agent, ip_address = _client_context(request)
+
+    try:
+        user, subscription = await service.resume_subscription_renewal(
+            user=current_user,
+            user_agent=user_agent,
+            ip_address=ip_address,
+        )
+    except StripeConfigurationError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Stripe nu este configurat complet.",
+        ) from exc
+    except StripePlanUnavailableError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(exc),
+        ) from exc
+    except StripeRequestError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="Stripe nu a putut actualiza abonamentul.",
+        ) from exc
+
+    return SubscriptionActionResponse(
+        user=UserResponse.model_validate(user),
+        subscription=_subscription_response(subscription),
+        message="Reînnoirea abonamentului a fost reactivată.",
+    )
 
 
 @router.post("/checkout-session/sync", response_model=UserResponse)

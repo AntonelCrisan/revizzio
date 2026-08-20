@@ -195,6 +195,11 @@ export function CheckoutPlanPage({ plan }: CheckoutPlanPageProps) {
               După plată, planul devine activ imediat. Îl poți schimba sau
               anula din cont.
             </p>
+            {plan.conditions ? (
+              <p className="mt-4 border-t border-subtle pt-4">
+                {plan.conditions}
+              </p>
+            ) : null}
           </div>
 
           {!hasStripePrice && !isFree ? (

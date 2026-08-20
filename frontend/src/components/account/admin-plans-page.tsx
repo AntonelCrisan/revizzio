@@ -22,6 +22,17 @@ type AdminPlanDraft = {
   materialLimit: string;
   aiLevel: string;
   storage: string;
+  conditions: string;
+  activeProjectLimit: string;
+  monthlyMaterialLimit: string;
+  filesPerProjectLimit: string;
+  fileSizeLimitMb: string;
+  projectSizeLimitMb: string;
+  estimatedPageLimit: string;
+  initialFlashcardLimit: string;
+  quizGroupsPerComplexity: string;
+  quizQuestionsPerQuiz: string;
+  allowScannedDocuments: boolean;
   stripeProductId: string;
   stripePriceId: string;
   isVisible: boolean;
@@ -49,6 +60,12 @@ function optionalText(value: string) {
   return normalized || null;
 }
 
+function normalizeInteger(value: string, fallback: number, minimum: number) {
+  const parsed = Number.parseInt(value.trim(), 10);
+  if (!Number.isFinite(parsed)) return fallback;
+  return Math.max(minimum, parsed);
+}
+
 function optionalUuid(value: string | null) {
   if (!value) return null;
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
@@ -72,6 +89,17 @@ function toDraftPlan(plan: SubscriptionPlan): AdminPlanDraft {
     materialLimit: plan.material_limit,
     aiLevel: plan.ai_level,
     storage: plan.storage,
+    conditions: plan.conditions,
+    activeProjectLimit: String(plan.active_project_limit),
+    monthlyMaterialLimit: String(plan.monthly_material_limit),
+    filesPerProjectLimit: String(plan.files_per_project_limit),
+    fileSizeLimitMb: String(plan.file_size_limit_mb),
+    projectSizeLimitMb: String(plan.project_size_limit_mb),
+    estimatedPageLimit: String(plan.estimated_page_limit),
+    initialFlashcardLimit: String(plan.initial_flashcard_limit),
+    quizGroupsPerComplexity: String(plan.quiz_groups_per_complexity),
+    quizQuestionsPerQuiz: String(plan.quiz_questions_per_quiz),
+    allowScannedDocuments: plan.allow_scanned_documents,
     stripeProductId: plan.stripe_product_id ?? "",
     stripePriceId: plan.stripe_price_id ?? "",
     isVisible: plan.is_visible,
@@ -101,6 +129,21 @@ function toPlanUpdate(
     material_limit: plan.materialLimit,
     ai_level: plan.aiLevel,
     storage: plan.storage,
+    conditions: plan.conditions,
+    active_project_limit: normalizeInteger(plan.activeProjectLimit, 1, 0),
+    monthly_material_limit: normalizeInteger(plan.monthlyMaterialLimit, 3, 0),
+    files_per_project_limit: normalizeInteger(plan.filesPerProjectLimit, 2, 1),
+    file_size_limit_mb: normalizeInteger(plan.fileSizeLimitMb, 10, 1),
+    project_size_limit_mb: normalizeInteger(plan.projectSizeLimitMb, 20, 1),
+    estimated_page_limit: normalizeInteger(plan.estimatedPageLimit, 25, 1),
+    initial_flashcard_limit: normalizeInteger(plan.initialFlashcardLimit, 20, 1),
+    quiz_groups_per_complexity: normalizeInteger(
+      plan.quizGroupsPerComplexity,
+      1,
+      1,
+    ),
+    quiz_questions_per_quiz: normalizeInteger(plan.quizQuestionsPerQuiz, 8, 3),
+    allow_scanned_documents: plan.allowScannedDocuments,
     stripe_product_id: optionalText(plan.stripeProductId),
     stripe_price_id: optionalText(plan.stripePriceId),
     is_visible: plan.isVisible,
@@ -301,6 +344,18 @@ function PlanPreview({ plan }: { plan: AdminPlanDraft }) {
       >
         {plan.description || "Descrierea planului apare aici."}
       </p>
+
+      {plan.conditions ? (
+        <p
+          className={`mt-4 border-t pt-4 text-xs leading-5 ${
+            plan.isFeatured
+              ? "border-on-action/15 text-on-action/62"
+              : "border-subtle text-muted"
+          }`}
+        >
+          {plan.conditions}
+        </p>
+      ) : null}
 
       <ul
         className={`mt-5 divide-y ${
@@ -636,6 +691,105 @@ export function AdminPlansPage({ initialPlans }: AdminPlansPageProps) {
                   className="mt-2 min-h-28 w-full resize-y rounded-lg border border-subtle bg-app p-4 text-sm leading-6 text-content outline-none transition placeholder:text-muted focus:border-action"
                 />
               </label>
+
+              <label className="mt-4 block">
+                <span className="text-sm font-bold text-content">Condiții plan</span>
+                <textarea
+                  value={selectedPlan.conditions}
+                  onChange={(event) =>
+                    updateSelectedPlan({ conditions: event.target.value })
+                  }
+                  className="mt-2 min-h-24 w-full resize-y rounded-lg border border-subtle bg-app p-4 text-sm leading-6 text-content outline-none transition placeholder:text-muted focus:border-action"
+                  placeholder="Ex: Limite lunare, utilizare individuală, condiții de generare."
+                />
+              </label>
+            </EditorSection>
+
+            <EditorSection title="Limite" detail="proiecte, materiale și generare">
+              <div className="grid gap-4 md:grid-cols-3">
+                <TextField
+                  label="Proiecte active"
+                  value={selectedPlan.activeProjectLimit}
+                  onChange={(value) =>
+                    updateSelectedPlan({ activeProjectLimit: value })
+                  }
+                  placeholder="10"
+                />
+                <TextField
+                  label="Materiale / lună"
+                  value={selectedPlan.monthlyMaterialLimit}
+                  onChange={(value) =>
+                    updateSelectedPlan({ monthlyMaterialLimit: value })
+                  }
+                  placeholder="30"
+                />
+                <TextField
+                  label="Fișiere / proiect"
+                  value={selectedPlan.filesPerProjectLimit}
+                  onChange={(value) =>
+                    updateSelectedPlan({ filesPerProjectLimit: value })
+                  }
+                  placeholder="10"
+                />
+                <TextField
+                  label="MB / fișier"
+                  value={selectedPlan.fileSizeLimitMb}
+                  onChange={(value) =>
+                    updateSelectedPlan({ fileSizeLimitMb: value })
+                  }
+                  placeholder="50"
+                />
+                <TextField
+                  label="MB / proiect"
+                  value={selectedPlan.projectSizeLimitMb}
+                  onChange={(value) =>
+                    updateSelectedPlan({ projectSizeLimitMb: value })
+                  }
+                  placeholder="200"
+                />
+                <TextField
+                  label="Pagini estimate"
+                  value={selectedPlan.estimatedPageLimit}
+                  onChange={(value) =>
+                    updateSelectedPlan({ estimatedPageLimit: value })
+                  }
+                  placeholder="200"
+                />
+                <TextField
+                  label="Flashcarduri inițiale"
+                  value={selectedPlan.initialFlashcardLimit}
+                  onChange={(value) =>
+                    updateSelectedPlan({ initialFlashcardLimit: value })
+                  }
+                  placeholder="40"
+                />
+                <TextField
+                  label="Seturi quiz / nivel"
+                  value={selectedPlan.quizGroupsPerComplexity}
+                  onChange={(value) =>
+                    updateSelectedPlan({ quizGroupsPerComplexity: value })
+                  }
+                  placeholder="3"
+                />
+                <TextField
+                  label="Întrebări / quiz"
+                  value={selectedPlan.quizQuestionsPerQuiz}
+                  onChange={(value) =>
+                    updateSelectedPlan({ quizQuestionsPerQuiz: value })
+                  }
+                  placeholder="12"
+                />
+              </div>
+              <div className="mt-5 divide-y divide-subtle border-y border-subtle">
+                <Toggle
+                  label="Documente scanate / OCR"
+                  detail="Permite încărcarea PDF-urilor fără text extractibil. Recomandat doar pentru planurile superioare."
+                  checked={selectedPlan.allowScannedDocuments}
+                  onChange={(checked) =>
+                    updateSelectedPlan({ allowScannedDocuments: checked })
+                  }
+                />
+              </div>
             </EditorSection>
 
             <EditorSection title="Stripe" detail="produs și preț checkout">

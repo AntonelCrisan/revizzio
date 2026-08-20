@@ -47,6 +47,57 @@ class SubscriptionPlan(Base):
     material_limit: Mapped[str] = mapped_column(Text, nullable=False)
     ai_level: Mapped[str] = mapped_column(Text, nullable=False)
     storage: Mapped[str] = mapped_column(Text, nullable=False)
+    conditions: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    active_project_limit: Mapped[int] = mapped_column(
+        Integer,
+        nullable=False,
+        default=1,
+    )
+    monthly_material_limit: Mapped[int] = mapped_column(
+        Integer,
+        nullable=False,
+        default=3,
+    )
+    files_per_project_limit: Mapped[int] = mapped_column(
+        Integer,
+        nullable=False,
+        default=2,
+    )
+    file_size_limit_mb: Mapped[int] = mapped_column(
+        Integer,
+        nullable=False,
+        default=10,
+    )
+    project_size_limit_mb: Mapped[int] = mapped_column(
+        Integer,
+        nullable=False,
+        default=20,
+    )
+    estimated_page_limit: Mapped[int] = mapped_column(
+        Integer,
+        nullable=False,
+        default=25,
+    )
+    initial_flashcard_limit: Mapped[int] = mapped_column(
+        Integer,
+        nullable=False,
+        default=20,
+    )
+    quiz_groups_per_complexity: Mapped[int] = mapped_column(
+        Integer,
+        nullable=False,
+        default=1,
+    )
+    quiz_questions_per_quiz: Mapped[int] = mapped_column(
+        Integer,
+        nullable=False,
+        default=8,
+    )
+    allow_scanned_documents: Mapped[bool] = mapped_column(
+        Boolean,
+        nullable=False,
+        default=False,
+    )
     stripe_product_id: Mapped[str | None] = mapped_column(String(120), nullable=True)
     stripe_price_id: Mapped[str | None] = mapped_column(
         String(120),

@@ -11,6 +11,17 @@ export type AuthUserPlan = {
   material_limit: string;
   ai_level: string;
   storage: string;
+  conditions: string;
+  active_project_limit: number;
+  monthly_material_limit: number;
+  files_per_project_limit: number;
+  file_size_limit_mb: number;
+  project_size_limit_mb: number;
+  estimated_page_limit: number;
+  initial_flashcard_limit: number;
+  quiz_groups_per_complexity: number;
+  quiz_questions_per_quiz: number;
+  allow_scanned_documents: boolean;
   is_featured: boolean;
 };
 

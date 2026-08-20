@@ -23,6 +23,28 @@ export type SubscriptionInvoice = {
   created_at: string;
 };
 
+export type CurrentSubscription = {
+  id: string;
+  plan_id: string;
+  plan_slug: string;
+  plan_name: string;
+  status: string;
+  current_period_start: string | null;
+  current_period_end: string | null;
+  cancel_at_period_end: boolean;
+  canceled_at: string | null;
+};
+
+export type SubscriptionStatusResponse = {
+  subscription: CurrentSubscription | null;
+};
+
+export type SubscriptionActionResponse = {
+  user: AuthUser;
+  subscription: CurrentSubscription | null;
+  message: string;
+};
+
 export class PaymentsApiError extends Error {
   constructor(
     message: string,
@@ -113,4 +135,76 @@ export async function listSubscriptionInvoices(): Promise<SubscriptionInvoice[]>
   }
 
   return (await response.json()) as SubscriptionInvoice[];
+}
+
+export async function getCurrentSubscription(): Promise<SubscriptionStatusResponse> {
+  const response = await fetch("/api/payments/subscription", {
+    method: "GET",
+    credentials: "same-origin",
+    cache: "no-store",
+  });
+
+  if (!response.ok) {
+    let payload: ApiErrorPayload = {};
+    try {
+      payload = (await response.json()) as ApiErrorPayload;
+    } catch {
+      // Non-JSON upstream errors are handled by the fallback message.
+    }
+
+    throw new PaymentsApiError(
+      payload.detail || "Abonamentul nu a putut fi încărcat.",
+      response.status,
+    );
+  }
+
+  return (await response.json()) as SubscriptionStatusResponse;
+}
+
+export async function cancelCurrentSubscription(): Promise<SubscriptionActionResponse> {
+  const response = await fetch("/api/payments/subscription/cancel", {
+    method: "POST",
+    credentials: "same-origin",
+    cache: "no-store",
+  });
+
+  if (!response.ok) {
+    let payload: ApiErrorPayload = {};
+    try {
+      payload = (await response.json()) as ApiErrorPayload;
+    } catch {
+      // Non-JSON upstream errors are handled by the fallback message.
+    }
+
+    throw new PaymentsApiError(
+      payload.detail || "Abonamentul nu a putut fi anulat.",
+      response.status,
+    );
+  }
+
+  return (await response.json()) as SubscriptionActionResponse;
+}
+
+export async function resumeCurrentSubscription(): Promise<SubscriptionActionResponse> {
+  const response = await fetch("/api/payments/subscription/resume", {
+    method: "POST",
+    credentials: "same-origin",
+    cache: "no-store",
+  });
+
+  if (!response.ok) {
+    let payload: ApiErrorPayload = {};
+    try {
+      payload = (await response.json()) as ApiErrorPayload;
+    } catch {
+      // Non-JSON upstream errors are handled by the fallback message.
+    }
+
+    throw new PaymentsApiError(
+      payload.detail || "Reînnoirea abonamentului nu a putut fi reactivată.",
+      response.status,
+    );
+  }
+
+  return (await response.json()) as SubscriptionActionResponse;
 }

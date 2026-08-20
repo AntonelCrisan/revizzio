@@ -2,10 +2,17 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { AccountStaticShell } from "@/components/account/account-static-shell";
 import { useAuth } from "@/components/auth/auth-provider";
-import { syncCheckoutSession } from "@/lib/payments-api";
+import {
+  cancelCurrentSubscription,
+  getCurrentSubscription,
+  PaymentsApiError,
+  resumeCurrentSubscription,
+  syncCheckoutSession,
+  type CurrentSubscription,
+} from "@/lib/payments-api";
 import type { SubscriptionPlan } from "@/lib/plans-api";
 
 type UpgradePageProps = {
@@ -122,6 +129,24 @@ function wait(milliseconds: number) {
   });
 }
 
+function formatSubscriptionDate(value?: string | null) {
+  if (!value) return "finalul perioadei plătite";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "finalul perioadei plătite";
+
+  return new Intl.DateTimeFormat("ro-RO", {
+    day: "2-digit",
+    month: "long",
+    year: "numeric",
+  }).format(date);
+}
+
+function subscriptionActionError(error: unknown) {
+  if (error instanceof PaymentsApiError) return error.message;
+  if (error instanceof Error) return error.message;
+  return "Abonamentul nu a putut fi actualizat momentan.";
+}
+
 export function UpgradePage({
   plans,
   checkoutSessionId,
@@ -130,8 +155,51 @@ export function UpgradePage({
   const router = useRouter();
   const { user, isLoading, setUser } = useAuth();
   const syncedCheckoutSessionRef = useRef<string | null>(null);
-  const currentPlanSlug = user?.current_plan?.slug ?? "start";
+  const [currentSubscription, setCurrentSubscription] =
+    useState<CurrentSubscription | null>(null);
+  const [subscriptionMessage, setSubscriptionMessage] = useState<string | null>(
+    null,
+  );
+  const [subscriptionError, setSubscriptionError] = useState<string | null>(null);
+  const [isCancelModalOpen, setIsCancelModalOpen] = useState(false);
+  const [isUpdatingSubscription, setIsUpdatingSubscription] = useState(false);
+  const currentUserId = user?.id ?? null;
+  const userPlanSlug = user?.current_plan?.slug ?? "start";
+  const userPlanIsPaid = Number(user?.current_plan?.price_ron ?? 0) > 0;
   const upgradePlans = toUpgradePlans(plans);
+  const activeSubscription = currentSubscription;
+  const currentPlanSlug = activeSubscription?.plan_slug ?? userPlanSlug;
+  const currentPlanName =
+    activeSubscription?.plan_name ?? user?.current_plan?.name ?? "Start";
+  const currentPlanIsPaid = Boolean(activeSubscription) || userPlanIsPaid;
+  const cancellationPending = Boolean(activeSubscription?.cancel_at_period_end);
+  const accessUntilLabel = formatSubscriptionDate(
+    activeSubscription?.current_period_end,
+  );
+
+  useEffect(() => {
+    let isMounted = true;
+
+    if (isLoading || !currentUserId) {
+      return () => {
+        isMounted = false;
+      };
+    }
+
+    getCurrentSubscription()
+      .then((response) => {
+        if (!isMounted) return;
+        setCurrentSubscription(response.subscription);
+      })
+      .catch(() => {
+        if (!isMounted) return;
+        setCurrentSubscription(null);
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [currentUserId, isLoading, userPlanSlug]);
 
   useEffect(() => {
     let isMounted = true;
@@ -159,6 +227,9 @@ export function UpgradePage({
           if (!isMounted) return;
 
           setUser(updatedUser);
+          const subscriptionStatus = await getCurrentSubscription();
+          if (!isMounted) return;
+          setCurrentSubscription(subscriptionStatus.subscription);
           router.refresh();
           return;
         } catch {
@@ -181,8 +252,54 @@ export function UpgradePage({
     };
   }, [checkoutSessionId, checkoutStatus, isLoading, router, setUser, user]);
 
+  async function cancelRenewal() {
+    if (!currentPlanIsPaid || isUpdatingSubscription) return;
+
+    setIsUpdatingSubscription(true);
+    setSubscriptionError(null);
+    setSubscriptionMessage(null);
+
+    try {
+      const response = await cancelCurrentSubscription();
+      setUser(response.user);
+      setCurrentSubscription(response.subscription);
+      setSubscriptionMessage(
+        `Reînnoirea este anulată. Ai acces până la ${formatSubscriptionDate(
+          response.subscription?.current_period_end,
+        )}.`,
+      );
+      setIsCancelModalOpen(false);
+      router.refresh();
+    } catch (error) {
+      setSubscriptionError(subscriptionActionError(error));
+    } finally {
+      setIsUpdatingSubscription(false);
+    }
+  }
+
+  async function resumeRenewal() {
+    if (!currentPlanIsPaid || isUpdatingSubscription) return;
+
+    setIsUpdatingSubscription(true);
+    setSubscriptionError(null);
+    setSubscriptionMessage(null);
+
+    try {
+      const response = await resumeCurrentSubscription();
+      setUser(response.user);
+      setCurrentSubscription(response.subscription);
+      setSubscriptionMessage("Reînnoirea abonamentului este activă din nou.");
+      router.refresh();
+    } catch (error) {
+      setSubscriptionError(subscriptionActionError(error));
+    } finally {
+      setIsUpdatingSubscription(false);
+    }
+  }
+
   return (
-    <AccountStaticShell activePage="upgrade">
+    <>
+      <AccountStaticShell activePage="upgrade">
       <section className="space-y-7">
         <div className="flex flex-col gap-5 border-b border-subtle pb-7 lg:flex-row lg:items-end lg:justify-between">
           <div>
@@ -193,7 +310,7 @@ export function UpgradePage({
               Alege planul potrivit.
             </h1>
             <p className="mt-3 max-w-xl text-sm leading-6 text-muted">
-              Prețuri în RON, plan activ sincronizat prin Stripe.
+              Planuri simple, transparente, cu reînnoire lunară.
             </p>
           </div>
 
@@ -201,18 +318,35 @@ export function UpgradePage({
             <span className="inline-flex items-center gap-2 rounded-full border border-subtle bg-surface px-4 py-2 text-xs font-bold text-muted">
               <span className="h-1.5 w-1.5 rounded-full bg-success" />
               <span className="text-content">
-                {user?.current_plan?.name ?? "Start"}
+                {currentPlanName}
               </span>
               activ
             </span>
+            {cancellationPending ? (
+              <span className="inline-flex items-center rounded-full border border-warning-border bg-warning-soft px-4 py-2 text-xs font-bold text-warning">
+                se oprește la {accessUntilLabel}
+              </span>
+            ) : null}
             <Link
               href="/upgrade/facturi"
-              className="inline-flex items-center rounded-full border border-subtle bg-surface px-4 py-2 text-xs font-bold text-muted transition hover:bg-surface-hover hover:text-content"
+              className="inline-flex cursor-pointer items-center rounded-full border border-subtle bg-surface px-4 py-2 text-xs font-bold text-muted transition hover:bg-surface-hover hover:text-content"
             >
               Facturi
             </Link>
           </div>
         </div>
+
+        {subscriptionMessage || subscriptionError ? (
+          <p
+            className={`rounded-xl border px-4 py-3 text-sm font-bold ${
+              subscriptionError
+                ? "border-danger-border bg-danger-soft text-danger"
+                : "border-success-border bg-success-soft text-success"
+            }`}
+          >
+            {subscriptionError || subscriptionMessage}
+          </p>
+        ) : null}
 
         <div className="grid gap-5 lg:grid-cols-3 lg:items-stretch">
           {upgradePlans.map((plan) => {
@@ -321,22 +455,57 @@ export function UpgradePage({
                   ))}
                 </ul>
 
-                <div className="mt-auto pt-8">
+                <div className="mt-auto space-y-2 pt-8">
                   {isCurrentPlan ? (
-                    <button
-                      type="button"
-                      className={`w-full rounded-full border px-5 py-3 text-sm font-black ${
-                        plan.highlighted
-                          ? "border-on-action/35 bg-on-action text-action"
-                          : "border-subtle bg-surface-hover text-content"
-                      }`}
-                    >
-                      Plan actual
-                    </button>
+                    <>
+                      <button
+                        type="button"
+                        className={`w-full cursor-default rounded-full border px-5 py-3 text-sm font-black ${
+                          plan.highlighted
+                            ? "border-on-action/35 bg-on-action text-action"
+                            : "border-subtle bg-surface-hover text-content"
+                        }`}
+                      >
+                        {cancellationPending
+                          ? `Activ până la ${accessUntilLabel}`
+                          : "Plan actual"}
+                      </button>
+                      {plan.paid ? (
+                        cancellationPending ? (
+                          <button
+                            type="button"
+                            onClick={resumeRenewal}
+                            disabled={isUpdatingSubscription}
+                            className={`w-full cursor-pointer rounded-full border px-5 py-3 text-sm font-black transition disabled:cursor-not-allowed disabled:opacity-60 ${
+                              plan.highlighted
+                                ? "border-on-action/35 text-on-action hover:bg-on-action/10"
+                                : "border-subtle text-content hover:bg-surface-hover"
+                            }`}
+                          >
+                            {isUpdatingSubscription
+                              ? "Se actualizează..."
+                              : "Reactivează reînnoirea"}
+                          </button>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => setIsCancelModalOpen(true)}
+                            disabled={isUpdatingSubscription}
+                            className={`w-full cursor-pointer rounded-full border px-5 py-3 text-sm font-black transition disabled:cursor-not-allowed disabled:opacity-60 ${
+                              plan.highlighted
+                                ? "border-on-action/35 text-on-action hover:bg-on-action/10"
+                                : "border-danger-border text-danger hover:bg-danger-soft"
+                            }`}
+                          >
+                            Anulează reînnoirea
+                          </button>
+                        )
+                      ) : null}
+                    </>
                   ) : plan.paid ? (
                     <Link
                       href={`/checkout/${plan.slug}`}
-                      className={`inline-flex w-full items-center justify-center rounded-full px-5 py-3 text-sm font-black transition ${
+                      className={`inline-flex w-full cursor-pointer items-center justify-center rounded-full px-5 py-3 text-sm font-black transition ${
                         plan.highlighted
                           ? "bg-on-action text-action hover:bg-on-action/90"
                           : "bg-action text-on-action hover:bg-action-hover"
@@ -359,6 +528,67 @@ export function UpgradePage({
           })}
         </div>
       </section>
-    </AccountStaticShell>
+      </AccountStaticShell>
+
+      {isCancelModalOpen ? (
+        <CancelRenewalModal
+          planName={currentPlanName}
+          accessUntilLabel={accessUntilLabel}
+          isSubmitting={isUpdatingSubscription}
+          onCancel={() => setIsCancelModalOpen(false)}
+          onConfirm={cancelRenewal}
+        />
+      ) : null}
+    </>
+  );
+}
+
+function CancelRenewalModal({
+  planName,
+  accessUntilLabel,
+  isSubmitting,
+  onCancel,
+  onConfirm,
+}: {
+  planName: string;
+  accessUntilLabel: string;
+  isSubmitting: boolean;
+  onCancel: () => void;
+  onConfirm: () => void;
+}) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 px-4 py-8">
+      <section className="w-full max-w-xl rounded-xl border border-subtle bg-surface p-6 text-content shadow-2xl shadow-black/20">
+        <p className="inline-flex rounded-full border border-danger-border bg-danger-soft px-3 py-1 text-[10px] font-black uppercase tracking-[0.18em] text-danger">
+          Anulare reînnoire
+        </p>
+        <h2 className="mt-4 font-serif text-4xl font-semibold leading-tight">
+          Oprești plata lunară pentru {planName}?
+        </h2>
+        <p className="mt-4 text-sm leading-7 text-muted">
+          Nu vei mai fi taxat la următoarea reînnoire. Planul rămâne activ până
+          la {accessUntilLabel}, apoi contul trece automat pe planul gratuit.
+        </p>
+
+        <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+          <button
+            type="button"
+            onClick={onCancel}
+            disabled={isSubmitting}
+            className="cursor-pointer rounded-full border border-subtle px-5 py-3 text-sm font-black transition hover:bg-surface-hover disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            Renunță
+          </button>
+          <button
+            type="button"
+            onClick={onConfirm}
+            disabled={isSubmitting}
+            className="cursor-pointer rounded-full bg-danger px-5 py-3 text-sm font-black text-on-action transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {isSubmitting ? "Se anulează..." : "Anulează reînnoirea"}
+          </button>
+        </div>
+      </section>
+    </div>
   );
 }

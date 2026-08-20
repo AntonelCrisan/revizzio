@@ -74,6 +74,11 @@ MAX_JSON_IMPORT_BYTES = 5 * 1024 * 1024
 MAX_FLASHCARD_IMAGE_BYTES = 5 * 1024 * 1024
 ALLOWED_FLASHCARD_IMAGE_EXTENSIONS = {".gif", ".jpeg", ".jpg", ".png", ".webp"}
 ESTIMATED_MARKDOWN_CHARS_PER_PAGE = 2200
+SCANNED_PDF_MIN_TEXT_CHARS = 300
+SCANNED_PDF_MIN_WORDS = 30
+TEXT_WORD_PATTERN = re.compile(
+    r"[A-Za-z0-9ĂÂÎȘȚăâîșț]+(?:[-'][A-Za-z0-9ĂÂÎȘȚăâîșț]+)?"
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -87,6 +92,7 @@ class ProjectPlanLimits:
     initial_flashcards: int
     quiz_groups_per_complexity: int
     quiz_questions_per_quiz: int
+    allow_scanned_documents: bool
 
 
 PLAN_LIMITS: dict[str, ProjectPlanLimits] = {
@@ -100,6 +106,7 @@ PLAN_LIMITS: dict[str, ProjectPlanLimits] = {
         initial_flashcards=20,
         quiz_groups_per_complexity=1,
         quiz_questions_per_quiz=8,
+        allow_scanned_documents=False,
     ),
     "focus": ProjectPlanLimits(
         active_projects=10,
@@ -111,6 +118,7 @@ PLAN_LIMITS: dict[str, ProjectPlanLimits] = {
         initial_flashcards=40,
         quiz_groups_per_complexity=3,
         quiz_questions_per_quiz=12,
+        allow_scanned_documents=False,
     ),
     "pro": ProjectPlanLimits(
         active_projects=50,
@@ -122,6 +130,7 @@ PLAN_LIMITS: dict[str, ProjectPlanLimits] = {
         initial_flashcards=50,
         quiz_groups_per_complexity=4,
         quiz_questions_per_quiz=12,
+        allow_scanned_documents=True,
     ),
 }
 
@@ -181,14 +190,109 @@ def _user_plan_slug(user: User) -> str:
     return "start"
 
 
+def _plan_int_limit(plan: object, field: str, fallback: int, minimum: int) -> int:
+    value = getattr(plan, field, None)
+    if isinstance(value, bool):
+        return fallback
+    try:
+        limit = int(value)
+    except (TypeError, ValueError):
+        return fallback
+    return max(minimum, limit)
+
+
+def _plan_bool_limit(plan: object, field: str, fallback: bool) -> bool:
+    value = getattr(plan, field, None)
+    if isinstance(value, bool):
+        return value
+    return fallback
+
+
 def _limits_for_user(user: User) -> ProjectPlanLimits:
-    return PLAN_LIMITS.get(_user_plan_slug(user), PLAN_LIMITS["start"])
+    fallback = PLAN_LIMITS.get(_user_plan_slug(user), PLAN_LIMITS["start"])
+    plan = getattr(user, "current_plan", None)
+    if plan is None:
+        return fallback
+
+    return ProjectPlanLimits(
+        active_projects=_plan_int_limit(
+            plan,
+            "active_project_limit",
+            fallback.active_projects,
+            0,
+        ),
+        monthly_materials=_plan_int_limit(
+            plan,
+            "monthly_material_limit",
+            fallback.monthly_materials,
+            0,
+        ),
+        files_per_project=_plan_int_limit(
+            plan,
+            "files_per_project_limit",
+            fallback.files_per_project,
+            1,
+        ),
+        file_mb=_plan_int_limit(
+            plan,
+            "file_size_limit_mb",
+            fallback.file_mb,
+            1,
+        ),
+        total_project_mb=_plan_int_limit(
+            plan,
+            "project_size_limit_mb",
+            fallback.total_project_mb,
+            1,
+        ),
+        estimated_pages=_plan_int_limit(
+            plan,
+            "estimated_page_limit",
+            fallback.estimated_pages,
+            1,
+        ),
+        initial_flashcards=_plan_int_limit(
+            plan,
+            "initial_flashcard_limit",
+            fallback.initial_flashcards,
+            1,
+        ),
+        quiz_groups_per_complexity=_plan_int_limit(
+            plan,
+            "quiz_groups_per_complexity",
+            fallback.quiz_groups_per_complexity,
+            1,
+        ),
+        quiz_questions_per_quiz=_plan_int_limit(
+            plan,
+            "quiz_questions_per_quiz",
+            fallback.quiz_questions_per_quiz,
+            3,
+        ),
+        allow_scanned_documents=_plan_bool_limit(
+            plan,
+            "allow_scanned_documents",
+            fallback.allow_scanned_documents,
+        ),
+    )
 
 
 def _estimate_markdown_pages(markdown_char_count: int) -> int:
     if markdown_char_count <= 0:
         return 0
     return max(1, round(markdown_char_count / ESTIMATED_MARKDOWN_CHARS_PER_PAGE))
+
+
+def _looks_like_scanned_pdf(path: Path, markdown: str) -> bool:
+    if path.suffix.lower() != ".pdf":
+        return False
+
+    clean_markdown = markdown.strip()
+    words = TEXT_WORD_PATTERN.findall(clean_markdown)
+    return (
+        len(clean_markdown) < SCANNED_PDF_MIN_TEXT_CHARS
+        or len(words) < SCANNED_PDF_MIN_WORDS
+    )
 
 
 def _truncate_for_openai(markdown: str, max_chars: int) -> str:
@@ -556,6 +660,7 @@ class StudyProjectService:
                 markdown_dir=markdown_dir,
                 max_upload_bytes=max_upload_bytes,
                 max_upload_mb=max_upload_mb,
+                limits=limits,
             )
             if file_model.markdown_path:
                 markdown = Path(file_model.markdown_path).read_text(encoding="utf-8")
@@ -1494,6 +1599,7 @@ class StudyProjectService:
         markdown_dir: Path,
         max_upload_bytes: int,
         max_upload_mb: int,
+        limits: ProjectPlanLimits,
     ) -> StudyProjectFile:
         safe_name = _safe_filename(upload.filename or f"material-{upload_index + 1}")
         _validate_upload_extension(safe_name)
@@ -1558,6 +1664,19 @@ class StudyProjectService:
             raise ProjectConversionError(
                 f"Fisierul {safe_name} nu a putut fi convertit."
             ) from exc
+
+        if (
+            not limits.allow_scanned_documents
+            and _looks_like_scanned_pdf(source_path, markdown)
+        ):
+            file_model.conversion_status = "failed"
+            file_model.conversion_error = (
+                "Documentul pare scanat sau nu are text extractibil."
+            )
+            raise ProjectValidationError(
+                f"Documentul {safe_name} pare scanat sau fara text extractibil. "
+                "Incarcarea documentelor scanate este disponibila doar pe planul Pro."
+            )
 
         markdown_path.write_text(markdown, encoding="utf-8")
         file_model.markdown_path = str(markdown_path)

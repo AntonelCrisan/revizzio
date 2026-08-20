@@ -21,6 +21,17 @@ class UserPlanResponse(BaseModel):
     material_limit: str
     ai_level: str
     storage: str
+    conditions: str
+    active_project_limit: int
+    monthly_material_limit: int
+    files_per_project_limit: int
+    file_size_limit_mb: int
+    project_size_limit_mb: int
+    estimated_page_limit: int
+    initial_flashcard_limit: int
+    quiz_groups_per_complexity: int
+    quiz_questions_per_quiz: int
+    allow_scanned_documents: bool
     is_featured: bool
 
 
