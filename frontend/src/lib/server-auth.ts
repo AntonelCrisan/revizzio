@@ -11,8 +11,10 @@ async function getServerAuthUser(): Promise<AuthUser | null> {
     return null;
   }
 
-  const cookieHeader = (await cookies()).toString();
-  const userAgent = (await headers()).get("user-agent");
+  const requestHeadersFromNext = await headers();
+  const cookieHeader =
+    requestHeadersFromNext.get("cookie") ?? (await cookies()).toString();
+  const userAgent = requestHeadersFromNext.get("user-agent");
   const requestHeaders = new Headers();
 
   if (cookieHeader) {
@@ -44,10 +46,10 @@ export async function requireAdminUser(): Promise<AuthUser> {
   const user = await getServerAuthUser();
 
   if (!user) {
-    redirect("/login");
+    redirect("/login?next=/admin/settings");
   }
 
-  if (user.role !== "admin") {
+  if (user.role.trim().toLowerCase() !== "admin") {
     redirect("/myaccount");
   }
 

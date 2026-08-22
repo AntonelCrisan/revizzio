@@ -168,10 +168,12 @@ export const fallbackSubscriptionPlans: SubscriptionPlan[] = [
 
 async function requestHeaders(includeAuth: boolean) {
   const requestHeaders = new Headers();
-  const userAgent = (await headers()).get("user-agent");
+  const requestHeadersFromNext = await headers();
+  const userAgent = requestHeadersFromNext.get("user-agent");
 
   if (includeAuth) {
-    const cookieHeader = (await cookies()).toString();
+    const cookieHeader =
+      requestHeadersFromNext.get("cookie") ?? (await cookies()).toString();
     if (cookieHeader) {
       requestHeaders.set("cookie", cookieHeader);
     }

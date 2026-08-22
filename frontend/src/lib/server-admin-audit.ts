@@ -31,8 +31,10 @@ export async function getServerAdminAuditLogs(
   }
 
   const requestHeaders = new Headers();
-  const cookieHeader = (await cookies()).toString();
-  const userAgent = (await headers()).get("user-agent");
+  const requestHeadersFromNext = await headers();
+  const cookieHeader =
+    requestHeadersFromNext.get("cookie") ?? (await cookies()).toString();
+  const userAgent = requestHeadersFromNext.get("user-agent");
 
   if (cookieHeader) {
     requestHeaders.set("cookie", cookieHeader);

@@ -7,7 +7,17 @@ export const metadata: Metadata = {
   description: "Intră în contul tău Reviss.",
 };
 
-export default function LoginPage() {
+type LoginPageProps = {
+  searchParams: Promise<{ next?: string | string[] }>;
+};
+
+function firstSearchParam(value: string | string[] | undefined) {
+  return Array.isArray(value) ? value[0] : value;
+}
+
+export default async function LoginPage({ searchParams }: LoginPageProps) {
+  const { next } = await searchParams;
+
   return (
     <AuthShell
       eyebrow="Bine ai revenit"
@@ -24,7 +34,7 @@ export default function LoginPage() {
         "Recapitulări programate inteligent",
       ]}
     >
-      <AuthForm mode="login" />
+      <AuthForm mode="login" redirectTo={firstSearchParam(next)} />
     </AuthShell>
   );
 }

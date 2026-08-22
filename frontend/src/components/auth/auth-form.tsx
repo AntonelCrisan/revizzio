@@ -13,6 +13,7 @@ import {
 
 type AuthFormProps = {
   mode: "login" | "register" | "forgot-password";
+  redirectTo?: string;
 };
 
 type SuccessDialog = {
@@ -63,9 +64,22 @@ function ArrowIcon() {
   );
 }
 
-export function AuthForm({ mode }: AuthFormProps) {
+function safeRedirectPath(value: string | undefined) {
+  if (!value || !value.startsWith("/") || value.startsWith("//")) {
+    return "/myaccount";
+  }
+
+  if (value.startsWith("/api/")) {
+    return "/myaccount";
+  }
+
+  return value;
+}
+
+export function AuthForm({ mode, redirectTo }: AuthFormProps) {
   const router = useRouter();
   const { setUser } = useAuth();
+  const afterLoginPath = safeRedirectPath(redirectTo);
   const resetRequestLockRef = useRef(false);
   const isRegister = mode === "register";
   const isForgotPassword = mode === "forgot-password";
@@ -152,7 +166,7 @@ export function AuthForm({ mode }: AuthFormProps) {
       });
 
       setUser(user);
-      router.replace("/myaccount");
+      router.replace(afterLoginPath);
     } catch (error) {
       if (isForgotPassword && !hasRequestedReset) {
         resetRequestLockRef.current = false;

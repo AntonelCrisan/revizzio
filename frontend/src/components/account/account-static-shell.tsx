@@ -115,6 +115,10 @@ function initials(name: string) {
   );
 }
 
+function isAdminRole(role: string | undefined) {
+  return role?.trim().toLowerCase() === "admin";
+}
+
 function PageIcon({ page }: { page: AccountPageId }) {
   return (
     <Icon className="h-[18px] w-[18px]">
@@ -356,7 +360,7 @@ export function AccountStaticShell({
               </div>
             </div>
 
-            {user.role === "admin" ? (
+            {isAdminRole(user.role) ? (
               <Link
                 href={adminNavigationItem.href}
                 className={`flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold transition ${

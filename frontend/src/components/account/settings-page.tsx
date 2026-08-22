@@ -658,7 +658,11 @@ export function SettingsPage() {
                   />
                   <AccountDetail
                     label="Rol"
-                    value={user?.role === "admin" ? "Admin" : "Utilizator"}
+                    value={
+                      user?.role.trim().toLowerCase() === "admin"
+                        ? "Admin"
+                        : "Utilizator"
+                    }
                   />
                 </div>
               </div>
@@ -1023,7 +1027,11 @@ export function SettingsPage() {
               />
               <SettingsMetric
                 label="Rol acces"
-                value={user?.role === "admin" ? "Admin" : "Utilizator"}
+                value={
+                  user?.role.trim().toLowerCase() === "admin"
+                    ? "Admin"
+                    : "Utilizator"
+                }
                 detail="Permisiuni active în aplicație"
               />
             </div>

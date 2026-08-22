@@ -173,7 +173,7 @@ export type StudyProjectChatResponse = {
 };
 
 type ApiErrorPayload = {
-  detail?: string | Array<{ msg?: string }>;
+  detail?: string | Array<{ loc?: Array<string | number>; msg?: string }>;
 };
 
 export class ProjectsApiError extends Error {
@@ -189,8 +189,11 @@ export class ProjectsApiError extends Error {
 function extractErrorMessage(payload: ApiErrorPayload): string {
   if (typeof payload.detail === "string") return payload.detail;
   if (Array.isArray(payload.detail)) {
-    const firstMessage = payload.detail.find((item) => item.msg)?.msg;
-    if (firstMessage) return firstMessage;
+    const firstError = payload.detail.find((item) => item.msg);
+    if (firstError?.msg) {
+      const field = firstError.loc?.at(-1);
+      return field ? `${String(field)}: ${firstError.msg}` : firstError.msg;
+    }
   }
   return "A apărut o eroare la proiect. Te rugăm să încerci din nou.";
 }
@@ -301,9 +304,9 @@ export async function prepareStudyProject(payload: {
   materialRightsConfirmed: boolean;
 }, options: { signal?: AbortSignal } = {}): Promise<StudyProjectPrepareResponse> {
   const formData = new FormData();
-  formData.set("name", payload.name);
-  formData.set("subject_name", payload.subjectName);
-  formData.set("institution_name", payload.institutionName);
+  formData.set("name", payload.name.trim());
+  formData.set("subject_name", payload.subjectName.trim());
+  formData.set("institution_name", payload.institutionName.trim());
   formData.set(
     "material_rights_confirmed",
     String(payload.materialRightsConfirmed),

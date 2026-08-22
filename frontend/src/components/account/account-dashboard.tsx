@@ -122,6 +122,10 @@ function hasProAiPlan(plan: AuthUserPlan | null | undefined) {
   return plan?.slug === "pro";
 }
 
+function isAdminRole(role: string | undefined) {
+  return role?.trim().toLowerCase() === "admin";
+}
+
 const tabs: Array<{ id: TabId; label: string }> = [
   { id: "rezumat", label: "Rezumat" },
   { id: "flashcards", label: "Flashcard-uri" },
@@ -164,6 +168,7 @@ const generationSteps = [
 
 const GENERATION_POLL_INTERVAL_MS = 2000;
 const GENERATION_POLL_ATTEMPTS = 180;
+const PROJECT_DETAIL_MIN_LENGTH = 2;
 
 class ProjectGenerationFailedError extends Error {
   constructor(message: string) {
@@ -540,9 +545,9 @@ export function AccountDashboard({
       (file) => file.size <= mbToBytes(uploadPlanLimits.fileSizeMb),
     );
   const canGenerate =
-    projectName.trim().length > 0 &&
-    subjectName.trim().length > 0 &&
-    institutionName.trim().length > 0 &&
+    projectName.trim().length >= PROJECT_DETAIL_MIN_LENGTH &&
+    subjectName.trim().length >= PROJECT_DETAIL_MIN_LENGTH &&
+    institutionName.trim().length >= PROJECT_DETAIL_MIN_LENGTH &&
     uploadedFiles.length > 0 &&
     hasMaterialRights &&
     uploadedFilesAreWithinPlan;
@@ -1388,7 +1393,7 @@ export function AccountDashboard({
                 </div>
               </div>
             </div>
-            {user.role === "admin" ? (
+            {isAdminRole(user.role) ? (
               <Link
                 href="/admin/settings"
                 className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold text-content transition hover:bg-action-soft"
@@ -7836,9 +7841,9 @@ function NewProjectView({
 }) {
   const totalFileSize = files.reduce((total, file) => total + file.size, 0);
   const detailFieldsCompleted =
-    projectName.trim().length > 0 &&
-    subjectName.trim().length > 0 &&
-    institutionName.trim().length > 0;
+    projectName.trim().length >= PROJECT_DETAIL_MIN_LENGTH &&
+    subjectName.trim().length >= PROJECT_DETAIL_MIN_LENGTH &&
+    institutionName.trim().length >= PROJECT_DETAIL_MIN_LENGTH;
   const setupSteps = [
     detailFieldsCompleted,
     files.length > 0,
@@ -7898,6 +7903,8 @@ function NewProjectView({
                       onProjectNameChange(event.target.value)
                     }
                     type="text"
+                    minLength={PROJECT_DETAIL_MIN_LENGTH}
+                    maxLength={160}
                     placeholder="Ex: Farma sem. 2"
                     className="h-11 w-full rounded-lg border border-subtle bg-app px-3 text-sm font-semibold text-content outline-none transition placeholder:text-muted/45 focus:border-action focus:ring-4 focus:ring-action-soft"
                   />
@@ -7918,6 +7925,8 @@ function NewProjectView({
                       onSubjectNameChange(event.target.value)
                     }
                     type="text"
+                    minLength={PROJECT_DETAIL_MIN_LENGTH}
+                    maxLength={160}
                     placeholder="Ex: Imunologie"
                     className="h-11 w-full rounded-lg border border-subtle bg-app px-3 text-sm font-semibold text-content outline-none transition placeholder:text-muted/45 focus:border-action focus:ring-4 focus:ring-action-soft"
                   />
@@ -7938,6 +7947,8 @@ function NewProjectView({
                       onInstitutionNameChange(event.target.value)
                     }
                     type="text"
+                    minLength={PROJECT_DETAIL_MIN_LENGTH}
+                    maxLength={220}
                     placeholder="Ex: UMF / UTCN"
                     className="h-11 w-full rounded-lg border border-subtle bg-app px-3 text-sm font-semibold text-content outline-none transition placeholder:text-muted/45 focus:border-action focus:ring-4 focus:ring-action-soft"
                   />
