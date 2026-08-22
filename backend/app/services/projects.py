@@ -722,10 +722,84 @@ def _convert_legacy_office_file(path: Path) -> Path:
 
 
 def _read_markdown(path: Path) -> str:
-    converter = MarkItDown()
     convertible_path = _convert_legacy_office_file(path)
-    result = converter.convert(convertible_path)
+    try:
+        result = MarkItDown().convert(convertible_path)
+        markdown = _clean_text(result.text_content)
+    except Exception:
+        markdown = ""
+
+    if markdown:
+        return markdown
+
+    fallback_markdown = _read_markdown_fallback(convertible_path)
+    if fallback_markdown:
+        return fallback_markdown
+
+    result = MarkItDown().convert(convertible_path)
     return _clean_text(result.text_content)
+
+
+def _read_markdown_fallback(path: Path) -> str:
+    extension = path.suffix.lower()
+
+    try:
+        if extension in {".txt", ".md", ".csv"}:
+            return _clean_text(path.read_text(encoding="utf-8", errors="ignore"))
+
+        if extension == ".html":
+            from bs4 import BeautifulSoup
+
+            html = path.read_text(encoding="utf-8", errors="ignore")
+            return _clean_text(BeautifulSoup(html, "html.parser").get_text("\n"))
+
+        if extension == ".pdf":
+            from pdfminer.high_level import extract_text
+
+            return _clean_text(extract_text(str(path)))
+
+        if extension == ".docx":
+            import mammoth
+
+            with path.open("rb") as document:
+                return _clean_text(mammoth.convert_to_markdown(document).value)
+
+        if extension == ".pptx":
+            from pptx import Presentation
+
+            presentation = Presentation(path)
+            slides: list[str] = []
+            for slide_index, slide in enumerate(presentation.slides, start=1):
+                slide_text = [
+                    shape.text
+                    for shape in slide.shapes
+                    if hasattr(shape, "text") and shape.text
+                ]
+                if slide_text:
+                    slides.append(
+                        "\n".join([f"## Slide {slide_index}", *slide_text])
+                    )
+            return _clean_text("\n\n".join(slides))
+
+        if extension == ".xlsx":
+            from openpyxl import load_workbook
+
+            workbook = load_workbook(path, read_only=True, data_only=True)
+            sheets: list[str] = []
+            for worksheet in workbook.worksheets:
+                rows: list[str] = []
+                for row in worksheet.iter_rows(values_only=True):
+                    values = [str(value) for value in row if value is not None]
+                    if values:
+                        rows.append(" | ".join(values))
+                if rows:
+                    sheets.append("\n".join([f"## {worksheet.title}", *rows]))
+            workbook.close()
+            return _clean_text("\n\n".join(sheets))
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("Project file fallback conversion failed for %s: %s", path, exc)
+
+    return ""
 
 
 def _string_or_default(value: object, default: str = "") -> str:

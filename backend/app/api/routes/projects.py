@@ -1,3 +1,4 @@
+import logging
 import time
 import uuid
 from collections import defaultdict
@@ -47,6 +48,8 @@ from app.services.projects import (
     schedule_quiz_pack_generation_task,
     schedule_study_pack_generation_task,
 )
+
+logger = logging.getLogger("revizzio.projects")
 
 AI_RATE_LIMIT_WINDOW_SECONDS = 60
 AI_RATE_LIMIT_MAX_REQUESTS = 12
@@ -157,6 +160,7 @@ def _enforce_project_rate_limit(current_user: CurrentUser, action: str) -> None:
 
 
 def _raise_prepare_form_error(field: str, message: str) -> None:
+    logger.warning("Project prepare form validation failed: %s - %s", field, message)
     raise HTTPException(
         status_code=422,
         detail=[{"loc": ["body", field], "msg": message}],
@@ -222,6 +226,11 @@ async def _parse_prepare_project_form(
     try:
         form = await request.form()
     except Exception as exc:
+        logger.warning(
+            "Project prepare multipart parsing failed: content_type=%s error=%s",
+            request.headers.get("content-type"),
+            exc,
+        )
         raise HTTPException(
             status_code=422,
             detail=[
@@ -231,6 +240,20 @@ async def _parse_prepare_project_form(
                 }
             ],
         ) from exc
+
+    form_keys = list(form.keys())
+    upload_names = [
+        value.filename
+        for field in ("files", "file", "files[]")
+        for value in form.getlist(field)
+        if isinstance(value, StarletteUploadFile)
+    ]
+    logger.info(
+        "Project prepare form received: content_type=%s keys=%s files=%s",
+        request.headers.get("content-type"),
+        form_keys,
+        upload_names,
+    )
 
     return (
         _prepare_form_text(form, "name", min_length=2, max_length=160),
@@ -295,12 +318,14 @@ async def prepare_project(
         )
     except ProjectValidationError as exc:
         await session.rollback()
+        logger.warning("Project prepare validation failed: %s", exc)
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=str(exc),
         ) from exc
     except ProjectConversionError as exc:
         await session.rollback()
+        logger.warning("Project prepare conversion failed: %s", exc)
         raise HTTPException(
             status_code=422,
             detail=str(exc),
