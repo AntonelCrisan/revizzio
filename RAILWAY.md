@@ -9,26 +9,32 @@ project:
 
 ## Service settings
 
+Use the root-level config files below. They point Railway to dedicated
+Dockerfiles, so the service can keep the repository root as its source and does
+not need Railpack to auto-detect a monorepo.
+
 ### Backend
 
-- Root Directory: `/backend`
-- Config File Path: `/backend/railway.toml`
+- Source Root Directory: `/`
+- Railway Config File: `/railway.backend.toml`
 - Public Networking: optional; keep it private if only the frontend calls it
-- Start Command: handled by `backend/railway.toml`
+- Dockerfile: `Dockerfile.backend`
+- Start Command: handled by the Dockerfile
 - Pre-deploy Command: `python -m alembic upgrade head`
 - Healthcheck Path: `/api/ready`
 
 ### Frontend
 
-- Root Directory: `/frontend`
-- Config File Path: `/frontend/railway.toml`
+- Source Root Directory: `/`
+- Railway Config File: `/railway.frontend.toml`
 - Public Networking: generate a domain, then attach `reviss.app`
-- Start Command: handled by `frontend/railway.toml`
+- Dockerfile: `Dockerfile.frontend`
+- Start Command: handled by the Dockerfile
 - Healthcheck Path: `/`
 
-Railway notes: for monorepos, set the root directory per service. The config
-file path is absolute from the repo root, so use `/backend/railway.toml` and
-`/frontend/railway.toml`.
+If you instead deploy from a subdirectory root, set root `/backend` or
+`/frontend` manually in Railway. Do not mix subdirectory source roots with the
+root-level config files above.
 
 ## Backend variables
 
@@ -83,15 +89,28 @@ to the backend over Railway private networking.
 
 1. Create the Railway project.
 2. Add PostgreSQL.
-3. Add the backend service from GitHub, with root `/backend`.
+3. Add the backend service from GitHub.
+   - Source root: `/`
+   - Railway Config File: `/railway.backend.toml`
 4. Add backend variables, then deploy it.
-5. Add the frontend service from GitHub, with root `/frontend`.
+5. Add the frontend service from GitHub.
+   - Source root: `/`
+   - Railway Config File: `/railway.frontend.toml`
 6. Add frontend variables, then deploy it.
 7. Attach `reviss.app` to the frontend service.
 8. Configure Stripe webhook to `https://reviss.app/api/payments/stripe/webhook`.
 9. Update backend `CORS_ORIGINS` and `PUBLIC_APP_URL` if the production domain
    changes, then redeploy backend.
 10. In Google Search Console, submit `https://reviss.app/sitemap.xml`.
+
+## Optional persistent uploads
+
+Railway deploy storage is ephemeral. If uploaded project files must survive
+redeploys, add a Railway Volume to the backend service and mount it at:
+
+```text
+/app/backend/storage/projects
+```
 
 ## Useful local checks
 

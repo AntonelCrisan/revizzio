@@ -1,0 +1,16 @@
+FROM python:3.14-slim
+
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONUNBUFFERED=1
+ENV HOST=0.0.0.0
+
+WORKDIR /app/backend
+
+COPY backend/requirements.txt ./
+RUN python -m pip install --upgrade pip \
+    && python -m pip install --no-cache-dir -r requirements.txt
+
+COPY backend ./
+
+EXPOSE 8000
+CMD ["python", "main.py"]
