@@ -5,6 +5,7 @@ const allowedRoutes = new Map([
   ["POST:checkout-session/sync", "/api/payments/checkout-session/sync"],
   ["POST:subscription/cancel", "/api/payments/subscription/cancel"],
   ["POST:subscription/resume", "/api/payments/subscription/resume"],
+  ["POST:stripe/webhook", "/api/payments/stripe/webhook"],
 ]);
 
 type PaymentsRouteContext = {
@@ -35,7 +36,12 @@ async function proxyPaymentsRequest(
   }
 
   const headers = new Headers();
-  for (const headerName of ["content-type", "cookie", "user-agent"]) {
+  for (const headerName of [
+    "content-type",
+    "cookie",
+    "stripe-signature",
+    "user-agent",
+  ]) {
     const value = request.headers.get(headerName);
     if (value) headers.set(headerName, value);
   }
@@ -44,7 +50,7 @@ async function proxyPaymentsRequest(
     const body =
       request.method === "GET" || request.method === "HEAD"
         ? undefined
-        : await request.text();
+        : await request.arrayBuffer();
 
     const backendResponse = await fetch(`${apiUrl}${backendPath}`, {
       method: request.method,

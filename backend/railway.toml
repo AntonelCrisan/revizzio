@@ -1,0 +1,13 @@
+[build]
+builder = "RAILPACK"
+watchPatterns = [
+  "/backend/**"
+]
+
+[deploy]
+preDeployCommand = ["python -m alembic upgrade head"]
+startCommand = "HOST=0.0.0.0 python main.py"
+healthcheckPath = "/api/ready"
+healthcheckTimeout = 300
+restartPolicyType = "ON_FAILURE"
+restartPolicyMaxRetries = 5

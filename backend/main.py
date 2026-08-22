@@ -1,4 +1,5 @@
 import logging
+import os
 
 import uvicorn
 
@@ -10,13 +11,20 @@ if __name__ == "__main__":
         format="%(asctime)s | %(levelname)s | %(name)s | %(message)s",
     )
 
-    logging.getLogger("revizzio").info("Pornesc Reviss API pe http://127.0.0.1:8000")
-    logging.getLogger("revizzio").info("Documentatia API: http://127.0.0.1:8000/docs")
+    host = os.getenv("HOST", "127.0.0.1")
+    port = int(os.getenv("PORT", "8000"))
+
+    logging.getLogger("revizzio").info("Pornesc Reviss API pe http://%s:%s", host, port)
+    logging.getLogger("revizzio").info(
+        "Documentatia API: http://%s:%s/docs",
+        host,
+        port,
+    )
 
     uvicorn.run(
         app,
-        host="127.0.0.1",
-        port=8000,
+        host=host,
+        port=port,
         log_level="info",
         access_log=True,
     )

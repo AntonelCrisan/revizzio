@@ -64,6 +64,17 @@ def test_database_url_rejects_unescaped_at_in_password() -> None:
         )
 
 
+def test_database_url_accepts_railway_postgres_url() -> None:
+    settings = Settings(
+        database_url="postgresql://user:password@postgres.railway.internal:5432/railway",
+        session_secret=BASE_SETTINGS["session_secret"],
+    )
+
+    assert settings.database_url == (
+        "postgresql+asyncpg://user:password@postgres.railway.internal:5432/railway"
+    )
+
+
 def test_email_sender_defaults_to_verified_domain() -> None:
     settings = Settings(**BASE_SETTINGS)
 
