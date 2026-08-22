@@ -5,7 +5,6 @@ import {
   createFallbackLegalDocument,
   getServerAdminLegalDocument,
 } from "@/lib/server-legal";
-import { requireAdminUser } from "@/lib/server-auth";
 
 export const metadata: Metadata = {
   title: "Editare politică de confidențialitate | Reviss",
@@ -13,7 +12,6 @@ export const metadata: Metadata = {
 };
 
 export default async function AdminPrivacyEditorRoute() {
-  await requireAdminUser();
   const document =
     (await getServerAdminLegalDocument("privacy_policy")) ??
     createFallbackLegalDocument(

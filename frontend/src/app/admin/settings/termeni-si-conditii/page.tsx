@@ -5,7 +5,6 @@ import {
   createFallbackLegalDocument,
   getServerAdminLegalDocument,
 } from "@/lib/server-legal";
-import { requireAdminUser } from "@/lib/server-auth";
 
 export const metadata: Metadata = {
   title: "Editare termeni și condiții | Reviss",
@@ -13,7 +12,6 @@ export const metadata: Metadata = {
 };
 
 export default async function AdminTermsEditorRoute() {
-  await requireAdminUser();
   const document =
     (await getServerAdminLegalDocument("terms_conditions")) ??
     createFallbackLegalDocument(
