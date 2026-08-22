@@ -15,6 +15,7 @@ from fastapi import (
     status,
 )
 from fastapi.responses import FileResponse
+from starlette.datastructures import UploadFile as StarletteUploadFile
 
 from app.api.dependencies import AppSettings, CurrentUser, DbSession
 from app.schemas.projects import (
@@ -61,6 +62,8 @@ PROJECT_RATE_LIMIT_POLICIES = {
     "study-actions": 80,
 }
 _project_rate_limit_buckets: dict[str, list[float]] = defaultdict(list)
+_TRUE_FORM_VALUES = {"1", "true", "t", "yes", "y", "on"}
+_FALSE_FORM_VALUES = {"0", "false", "f", "no", "n", "off"}
 
 
 def _request_origin(request: Request) -> str | None:
@@ -153,6 +156,96 @@ def _enforce_project_rate_limit(current_user: CurrentUser, action: str) -> None:
     )
 
 
+def _raise_prepare_form_error(field: str, message: str) -> None:
+    raise HTTPException(
+        status_code=422,
+        detail=[{"loc": ["body", field], "msg": message}],
+    )
+
+
+def _prepare_form_text(
+    form: object,
+    field: str,
+    *,
+    min_length: int,
+    max_length: int,
+) -> str:
+    value = form.get(field)  # type: ignore[attr-defined]
+    if value is None or isinstance(value, StarletteUploadFile):
+        _raise_prepare_form_error(field, "Camp obligatoriu lipsa.")
+
+    text = str(value).strip()
+    if len(text) < min_length:
+        _raise_prepare_form_error(
+            field,
+            f"Trebuie sa contina cel putin {min_length} caractere.",
+        )
+    if len(text) > max_length:
+        _raise_prepare_form_error(
+            field,
+            f"Trebuie sa contina cel mult {max_length} caractere.",
+        )
+    return text
+
+
+def _prepare_form_bool(form: object, field: str) -> bool:
+    value = form.get(field)  # type: ignore[attr-defined]
+    if value is None or isinstance(value, StarletteUploadFile):
+        _raise_prepare_form_error(field, "Camp obligatoriu lipsa.")
+
+    normalized = str(value).strip().lower()
+    if normalized in _TRUE_FORM_VALUES:
+        return True
+    if normalized in _FALSE_FORM_VALUES:
+        return False
+
+    _raise_prepare_form_error(field, "Valoare boolean invalida.")
+    return False
+
+
+def _prepare_form_uploads(form: object) -> list[UploadFile]:
+    uploads: list[UploadFile] = []
+    for field in ("files", "file", "files[]"):
+        for value in form.getlist(field):  # type: ignore[attr-defined]
+            if isinstance(value, StarletteUploadFile) and value.filename:
+                uploads.append(value)  # type: ignore[arg-type]
+
+    if not uploads:
+        _raise_prepare_form_error("files", "Incarca cel putin un fisier.")
+
+    return uploads
+
+
+async def _parse_prepare_project_form(
+    request: Request,
+) -> tuple[str, str, str, bool, list[UploadFile]]:
+    try:
+        form = await request.form()
+    except Exception as exc:
+        raise HTTPException(
+            status_code=422,
+            detail=[
+                {
+                    "loc": ["body", "form"],
+                    "msg": "Formular multipart invalid sau incomplet.",
+                }
+            ],
+        ) from exc
+
+    return (
+        _prepare_form_text(form, "name", min_length=2, max_length=160),
+        _prepare_form_text(form, "subject_name", min_length=2, max_length=160),
+        _prepare_form_text(
+            form,
+            "institution_name",
+            min_length=2,
+            max_length=220,
+        ),
+        _prepare_form_bool(form, "material_rights_confirmed"),
+        _prepare_form_uploads(form),
+    )
+
+
 @router.get("/", response_model=list[StudyProjectResponse])
 async def list_projects(
     current_user: CurrentUser,
@@ -181,12 +274,14 @@ async def prepare_project(
     current_user: CurrentUser,
     session: DbSession,
     settings: AppSettings,
-    name: Annotated[str, Form(min_length=2, max_length=160)],
-    subject_name: Annotated[str, Form(min_length=2, max_length=160)],
-    institution_name: Annotated[str, Form(min_length=2, max_length=220)],
-    material_rights_confirmed: Annotated[bool, Form()],
-    files: Annotated[list[UploadFile], File()],
 ) -> StudyProjectPrepareResponse:
+    (
+        name,
+        subject_name,
+        institution_name,
+        material_rights_confirmed,
+        files,
+    ) = await _parse_prepare_project_form(request)
     _enforce_project_rate_limit(current_user, "prepare")
     service = _service(session, settings)
     try:
@@ -207,7 +302,7 @@ async def prepare_project(
     except ProjectConversionError as exc:
         await session.rollback()
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=422,
             detail=str(exc),
         ) from exc
 

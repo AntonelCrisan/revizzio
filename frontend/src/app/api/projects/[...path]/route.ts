@@ -88,10 +88,16 @@ async function proxyProjectsRequest(
     );
   }
 
+  const contentType = request.headers.get("content-type");
+  const isMultipart =
+    contentType?.toLowerCase().startsWith("multipart/form-data") ?? false;
   const headers = new Headers();
-  for (const headerName of ["content-type", "cookie", "user-agent"]) {
+  for (const headerName of ["cookie", "user-agent"]) {
     const value = request.headers.get(headerName);
     if (value) headers.set(headerName, value);
+  }
+  if (contentType && !isMultipart) {
+    headers.set("content-type", contentType);
   }
 
   try {
@@ -99,7 +105,9 @@ async function proxyProjectsRequest(
     const body =
       request.method === "GET" || request.method === "HEAD"
         ? undefined
-        : await request.arrayBuffer();
+        : isMultipart
+          ? await request.formData()
+          : await request.arrayBuffer();
 
     const backendResponse = await fetch(
       `${apiUrl}/api/projects/${action}${queryString}`,
