@@ -155,8 +155,14 @@ class SubscriptionPlansUpdate(BaseModel):
     plans: list[SubscriptionPlanUpdate] = Field(min_length=1, max_length=12)
 
     @model_validator(mode="after")
-    def validate_unique_slugs(self) -> SubscriptionPlansUpdate:
+    def validate_unique_plan_identifiers(self) -> SubscriptionPlansUpdate:
         slugs = [plan.slug for plan in self.plans]
         if len(slugs) != len(set(slugs)):
             raise ValueError("Slugurile planurilor trebuie sa fie unice.")
+
+        stripe_price_ids = [
+            plan.stripe_price_id for plan in self.plans if plan.stripe_price_id
+        ]
+        if len(stripe_price_ids) != len(set(stripe_price_ids)):
+            raise ValueError("Stripe Price ID trebuie sa fie unic pentru fiecare plan.")
         return self

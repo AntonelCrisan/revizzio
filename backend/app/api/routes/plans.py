@@ -2,8 +2,9 @@ from datetime import UTC, datetime
 from decimal import Decimal
 from uuid import UUID
 
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, HTTPException, Request, status
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import selectinload
 
 from app.api.dependencies import CurrentAdminUser, DbSession
@@ -316,7 +317,17 @@ async def update_admin_plans(
         ip_address=ip_address,
         user_agent=user_agent,
     )
-    await session.commit()
+    try:
+        await session.commit()
+    except IntegrityError as exc:
+        await session.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=(
+                "Stripe Price ID trebuie sa fie unic pentru fiecare plan. "
+                "Sterge duplicatele sau lasa campul gol pana creezi preturile reale."
+            ),
+        ) from exc
 
     plans = await _get_plans(session, include_hidden=True)
     return [_plan_response(plan) for plan in plans]
