@@ -141,7 +141,7 @@ function formatAccountDate(value?: string) {
 function formatThemePreference(value: ThemePreference) {
   if (value === "system") return "Sistem";
   if (value === "dark") return "Dark";
-  return "Light";
+  return "Luminos";
 }
 
 function formatLanguagePreference(value: LanguagePreference) {
@@ -179,7 +179,7 @@ const themeOptions: Array<{
 }> = [
   {
     value: "light",
-    title: "Light",
+    title: "Luminos",
     description: "Interfață clară pentru studiu ziua.",
   },
   {
@@ -197,21 +197,21 @@ const themeOptions: Array<{
 const studyPaceOptions = [
   {
     id: "light",
-    title: "Lejer",
+    title: "Flexibil",
     description: "Pentru zile încărcate, cu recapitulare minimă.",
     minutes: "9 min",
     progress: 38,
   },
   {
     id: "balanced",
-    title: "Echilibrat",
+    title: "Structurat",
     description: "Sesiuni scurte, dar constante, pentru progres zilnic.",
     minutes: "17 min",
     progress: 64,
   },
   {
     id: "exam",
-    title: "Examen",
+    title: "Intensiv",
     description: "Ritm intens, cu quiz-uri mai dese și recapitulare activă.",
     minutes: "32 min",
     progress: 86,
@@ -223,12 +223,12 @@ type StudyPaceId = (typeof studyPaceOptions)[number]["id"];
 const aiFeedbackOptions = [
   {
     id: "short",
-    title: "Concise",
+    title: "Concis",
     description: "Răspunsuri scurte, bune când repeți rapid.",
   },
   {
     id: "guided",
-    title: "Ghidate",
+    title: "Ghidat",
     description: "Explicații pas cu pas, cu exemple simple.",
   },
   {
@@ -1144,10 +1144,10 @@ export function SettingsPage() {
                 <button
                   type="button"
                   onClick={() => setIsArchiveModalOpen(true)}
-                  className="inline-flex w-fit items-center gap-2 rounded-full border border-action px-4 py-2 text-xs font-bold transition hover:bg-action hover:text-on-action"
+                  className="group inline-flex w-fit items-center gap-2 rounded-full border border-action px-4 py-2 text-xs font-bold transition hover:bg-action hover:text-on-action"
                 >
                   Vezi arhiva
-                  <span className="rounded-full bg-surface-hover px-2 py-0.5 text-[10px]">
+                  <span className="rounded-full border border-subtle bg-surface px-2 py-0.5 text-[10px] text-content transition">
                     {archivedProjects.length}
                   </span>
                 </button>
@@ -1715,7 +1715,6 @@ function ColorControl({
         </span>
       </span>
       <span className="flex items-center gap-3 sm:justify-end">
-        <span className="font-mono text-xs text-muted">{value}</span>
         <span className="rounded-full border border-subtle bg-surface px-3 py-1.5 text-xs font-black text-content transition group-hover:border-content">
           Modifică
         </span>

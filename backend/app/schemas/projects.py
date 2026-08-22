@@ -241,7 +241,8 @@ class StudyProjectChatMessage(BaseModel):
 
 class StudyProjectChatRequest(BaseModel):
     message: str = Field(min_length=2, max_length=3000)
-    history: list[StudyProjectChatMessage] = Field(default_factory=list, max_length=12)
+    history: list[StudyProjectChatMessage] = Field(default_factory=list, max_length=20)
+    conversation_summary: str | None = Field(default=None, max_length=6000)
 
 
 class StudyProjectChatResponse(BaseModel):

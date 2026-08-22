@@ -70,8 +70,8 @@ export const uiTranslations: Record<string, UiTranslation> = {
     fr: "Sécurité",
   },
   "Date": {
-    en: "Data",
-    fr: "Données",
+    en: "Date",
+    fr: "Date",
   },
   "Limba": {
     en: "Language",
@@ -553,6 +553,10 @@ export const uiTranslations: Record<string, UiTranslation> = {
     en: "Preparation",
     fr: "Préparation",
   },
+  "Progres pregătire": {
+    en: "Preparation progress",
+    fr: "Progression de la préparation",
+  },
   "Am dreptul să folosesc aceste materiale.": {
     en: "I have the right to use these materials.",
     fr: "J'ai le droit d'utiliser ces supports.",
@@ -593,9 +597,9 @@ export const uiTranslations: Record<string, UiTranslation> = {
     en: "Simple, transparent plans with monthly renewal.",
     fr: "Forfaits simples et transparents avec renouvellement mensuel.",
   },
-  "Start activ": {
-    en: "Start active",
-    fr: "Start actif",
+  "Beginner activ": {
+    en: "Beginner active",
+    fr: "Beginner actif",
   },
   "Plan activ": {
     en: "Active plan",
@@ -706,6 +710,10 @@ export const uiTranslations: Record<string, UiTranslation> = {
     fr: "Choisis le mode d'affichage.",
   },
   "Light": {
+    en: "Light",
+    fr: "Clair",
+  },
+  "Luminos": {
     en: "Light",
     fr: "Clair",
   },
@@ -1233,6 +1241,10 @@ export const uiTranslations: Record<string, UiTranslation> = {
     en: "From “I read it” to “I can answer it”.",
     fr: "De « j'ai lu » à « je sais répondre ».",
   },
+  "De la „am citit” la „pot explica”.": {
+    en: "From “I read it” to “I can explain it”.",
+    fr: "De « j'ai lu » à « je peux l'expliquer ».",
+  },
   "Platforma combină rezumatul cu testarea activă și progresul vizibil. Fiecare sesiune are un scop clar, nu doar încă o pagină de parcurs.": {
     en: "The platform combines summaries with active testing and visible progress. Every session has a clear purpose, not just another page to go through.",
     fr: "La plateforme combine résumé, test actif et progression visible. Chaque session a un objectif clair, pas seulement une page de plus à lire.",
@@ -1361,6 +1373,10 @@ export const uiTranslations: Record<string, UiTranslation> = {
     en: "Less time preparing. More time learning.",
     fr: "Moins de préparation. Plus d'apprentissage.",
   },
+  "Începe simplu. Învață sigur.": {
+    en: "Start simple. Learn with confidence.",
+    fr: "Commence simplement. Apprends avec confiance.",
+  },
   "Creează-ți contul și transformă primul material într-o sesiune de studiu clară și activă.": {
     en: "Create your account and turn your first material into a clear, active study session.",
     fr: "Crée ton compte et transforme ton premier support en session d'étude claire et active.",
@@ -1449,9 +1465,9 @@ export const uiTranslations: Record<string, UiTranslation> = {
     en: "Is there a free plan?",
     fr: "Existe-t-il un plan gratuit ?",
   },
-  "Da. Planul Start este pentru testarea fluxului cu limite mai mici. Planurile plătite adaugă mai multe materiale, documente mai mari, explicații AI și opțiuni avansate pentru studiu.": {
-    en: "Yes. The Start plan lets you test the flow with smaller limits. Paid plans add more materials, larger documents, AI explanations and advanced study options.",
-    fr: "Oui. Le plan Start permet de tester le flux avec des limites plus petites. Les plans payants ajoutent plus de supports, des documents plus volumineux, des explications IA et des options avancées.",
+  "Da. Planul Beginner este pentru testarea fluxului cu limite mai mici. Planurile plătite adaugă mai multe materiale, documente mai mari, explicații AI și opțiuni avansate pentru studiu.": {
+    en: "Yes. The Beginner plan lets you test the flow with smaller limits. Paid plans add more materials, larger documents, AI explanations and advanced study options.",
+    fr: "Oui. Le plan Beginner permet de tester le flux avec des limites plus petites. Les plans payants ajoutent plus de supports, des documents plus volumineux, des explications IA et des options avancées.",
   },
   "Aplicație educațională de quiz-uri.": {
     en: "Educational quiz application.",
@@ -2609,6 +2625,10 @@ export const uiTranslations: Record<string, UiTranslation> = {
     en: "Reviss is preparing the answer",
     fr: "Reviss prépare la réponse",
   },
+  "Chat nou": {
+    en: "New chat",
+    fr: "Nouveau chat",
+  },
   "Mesaj pentru Chat AI": {
     en: "Message for AI Chat",
     fr: "Message pour le chat IA",
@@ -2637,9 +2657,9 @@ export const uiTranslations: Record<string, UiTranslation> = {
     en: "You can continue reviewing and return to the explanation later.",
     fr: "Tu peux continuer la révision et revenir à l'explication plus tard.",
   },
-  "Aplică pe selecție": {
-    en: "Apply to selection",
-    fr: "Appliquer à la sélection",
+  "Aplică": {
+    en: "Apply",
+    fr: "Appliquer",
   },
   "Selectează un fragment, apoi apasă Aplică pe selecție.": {
     en: "Select a fragment, then press Apply to selection.",
@@ -2836,6 +2856,14 @@ export const uiTranslations: Record<string, UiTranslation> = {
   "Nu ai încă greșeli înregistrate la quiz-uri — răspunde la câteva întrebări ca să apară zonele de recapitulat aici.": {
     en: "You do not have recorded quiz mistakes yet — answer a few questions so review areas can appear here.",
     fr: "Tu n'as pas encore d'erreurs enregistrées aux quiz — réponds à quelques questions pour voir les zones à réviser ici.",
+  },
+  "Nu ai încă greșeli înregistrate la quiz-uri — răspunde la câteva întrebări pentru a apărea zonele de recapitulat aici.": {
+    en: "You do not have recorded quiz mistakes yet — answer a few questions so review areas can appear here.",
+    fr: "Tu n'as pas encore d'erreurs enregistrées aux quiz — réponds à quelques questions pour faire apparaître les zones à réviser ici.",
+  },
+  "Mergi la quiz-uri": {
+    en: "Go to quizzes",
+    fr: "Aller aux quiz",
   },
   "Rezolvă un quiz ca să vezi aici evoluția scorurilor tale în timp.": {
     en: "Complete a quiz to see your score evolution here over time.",
@@ -3232,6 +3260,34 @@ export const uiTranslations: Record<string, UiTranslation> = {
   "Valabile pentru orice materie.": {
     en: "Useful for any subject.",
     fr: "Valables pour toute matière.",
+  },
+  "Bune de folosit la orice curs.": {
+    en: "Useful for any course.",
+    fr: "Utiles pour n'importe quel cours.",
+  },
+  "Închide cursul și încearcă să răspunzi": {
+    en: "Close the course and try to answer",
+    fr: "Ferme le cours et essaie de répondre",
+  },
+  "După fiecare secțiune, spune pe scurt ideea principală fără să te uiți în material.": {
+    en: "After each section, briefly say the main idea without looking at the material.",
+    fr: "Après chaque section, reformule brièvement l'idée principale sans regarder le support.",
+  },
+  "Revino mâine peste ideile importante": {
+    en: "Review the important ideas tomorrow",
+    fr: "Reviens demain sur les idées importantes",
+  },
+  "O recapitulare scurtă după o zi te ajută să fixezi conceptele care altfel se uită repede.": {
+    en: "A short review after one day helps you keep concepts that would otherwise fade quickly.",
+    fr: "Une courte révision après une journée t'aide à fixer les concepts qui s'oublient vite.",
+  },
+  "Explică simplu, cu exemple": {
+    en: "Explain simply, with examples",
+    fr: "Explique simplement, avec des exemples",
+  },
+  "Dacă poți lega teoria de un exemplu concret, ai șanse mult mai mari să o reții la examen.": {
+    en: "If you can connect the theory to a concrete example, you are much more likely to remember it in the exam.",
+    fr: "Si tu peux relier la théorie à un exemple concret, tu as beaucoup plus de chances de la retenir à l'examen.",
   },
   "Rata de completare": {
     en: "Completion rate",
@@ -3641,13 +3697,17 @@ export const uiTranslations: Record<string, UiTranslation> = {
     en: "Follows your device preference.",
     fr: "Suit la préférence de ton appareil.",
   },
-  "Lejer": {
-    en: "Light",
-    fr: "Léger",
+  "Flexibil": {
+    en: "Flexible",
+    fr: "Flexible",
   },
   "Pentru zile încărcate, cu recapitulare minimă.": {
     en: "For busy days, with minimal review.",
     fr: "Pour les journées chargées, avec une révision minimale.",
+  },
+  "Structurat": {
+    en: "Structured",
+    fr: "Structuré",
   },
   "Echilibrat": {
     en: "Balanced",
@@ -3657,13 +3717,25 @@ export const uiTranslations: Record<string, UiTranslation> = {
     en: "Short but consistent sessions for daily progress.",
     fr: "Sessions courtes mais régulières pour progresser chaque jour.",
   },
+  "Intensiv": {
+    en: "Intensive",
+    fr: "Intensif",
+  },
   "Examen": {
     en: "Exam",
     fr: "Examen",
   },
+  "Concis": {
+    en: "Concise",
+    fr: "Concis",
+  },
   "Răspunsuri scurte, bune când repeți rapid.": {
     en: "Short answers, useful when reviewing quickly.",
     fr: "Réponses courtes, utiles pour réviser rapidement.",
+  },
+  "Ghidat": {
+    en: "Guided",
+    fr: "Guidé",
   },
   "Ghidate": {
     en: "Guided",
@@ -4177,9 +4249,9 @@ export const uiTranslations: Record<string, UiTranslation> = {
     en: "custom",
     fr: "personnalisé",
   },
-  ". După această dată, planul revine la Start dacă nu reactivezi abonamentul.": {
-    en: ". After this date, the plan returns to Start if you do not reactivate the subscription.",
-    fr: ". Après cette date, le plan revient à Start si tu ne réactives pas l'abonnement.",
+  ". După această dată, planul revine la Beginner dacă nu reactivezi abonamentul.": {
+    en: ". After this date, the plan returns to Beginner if you do not reactivate the subscription.",
+    fr: ". Après cette date, le plan revient à Beginner si tu ne réactives pas l'abonnement.",
   },
 };
 
@@ -4363,9 +4435,11 @@ const uiPatternTranslations: UiPatternTranslation[] = [
   },
 ];
 
+const normalizedUiSourceByText = new Map<string, string>();
 const normalizedSourceByTranslation = new Map<string, string>();
 
 for (const [source, values] of Object.entries(uiTranslations)) {
+  normalizedUiSourceByText.set(normalizeText(source), source);
   normalizedSourceByTranslation.set(normalizeText(source), source);
   normalizedSourceByTranslation.set(normalizeText(values.en), source);
   normalizedSourceByTranslation.set(normalizeText(values.fr), source);
@@ -4377,7 +4451,9 @@ function normalizeText(value: string) {
 
 export function resolveUiTextSource(value: string) {
   const normalizedValue = normalizeText(value);
-  const exactSource = normalizedSourceByTranslation.get(normalizedValue);
+  const exactSource =
+    normalizedUiSourceByText.get(normalizedValue) ??
+    normalizedSourceByTranslation.get(normalizedValue);
 
   if (exactSource) {
     return exactSource;

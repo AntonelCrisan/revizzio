@@ -7,7 +7,7 @@ export const fallbackSubscriptionPlans: SubscriptionPlan[] = [
   {
     id: "fallback-start",
     slug: "start",
-    name: "Start",
+    name: "Beginner",
     price_ron: "0.00",
     old_price_ron: null,
     discount_label: null,

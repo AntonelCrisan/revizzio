@@ -8,41 +8,60 @@ import { ScrollReveal } from "@/components/marketing/scroll-reveal";
 import { TranslatedText } from "@/components/translated-text";
 import type { SubscriptionPlan } from "@/lib/plans-api";
 import {
+  absoluteUrl,
+  defaultLocale,
+  openGraphImagePath,
+  seoKeywords,
+  siteName,
+  siteUrl,
+} from "@/lib/seo";
+import {
   fallbackSubscriptionPlans,
   getServerPublicPlans,
 } from "@/lib/server-plans";
 
+const homepageSeoTitle =
+  "Reviss | Rezumate AI, flashcard-uri și quiz-uri pentru studenți";
+const homepageSeoDescription =
+  "Încarcă PDF-uri, cursuri sau prezentări, iar Reviss le transformă în rezumate AI, flashcard-uri, quiz-uri și planuri clare pentru examen.";
+
 export const metadata: Metadata = {
-  title: "Reviss | Rezumate AI, flashcard-uri și quiz-uri pentru studenți",
-  description:
-    "Încarcă PDF-uri, documente sau prezentări, iar Reviss le transformă în rezumate, flashcard-uri, quiz-uri și strategii de învățare pentru examen.",
+  title: homepageSeoTitle,
+  description: homepageSeoDescription,
   keywords: [
-    "Reviss",
-    "rezumate AI pentru studenți",
+    ...seoKeywords,
+    "rezumate cursuri AI",
     "flashcard-uri din cursuri",
-    "quiz-uri pentru examen",
-    "generator rezumat PDF",
-    "învățare activă cu AI",
-    "pregătire examen facultate",
-    "platformă educațională AI",
-    "aplicație de studiu",
+    "quiz-uri personalizate pentru examen",
+    "rezumate pentru facultate",
+    "AI pentru învățare activă",
     "recapitulare inteligentă",
   ],
   alternates: {
     canonical: "/",
   },
   openGraph: {
-    title: "Reviss | Rezumate AI, flashcard-uri și quiz-uri pentru studenți",
+    title: homepageSeoTitle,
     description:
       "Transformă cursurile în pachete de studiu: rezumate clare, flashcard-uri, quiz-uri și progres măsurabil.",
     url: "/",
+    siteName,
+    locale: defaultLocale,
     type: "website",
+    images: [
+      {
+        url: openGraphImagePath,
+        width: 1200,
+        height: 630,
+        alt: "Reviss - rezumate AI, flashcard-uri și quiz-uri pentru studenți",
+      },
+    ],
   },
   twitter: {
-    card: "summary",
-    title: "Reviss | Rezumate AI, flashcard-uri și quiz-uri pentru studenți",
-    description:
-      "Încarcă materialele de curs și primește rezumate, flashcard-uri și quiz-uri pentru învățare activă.",
+    card: "summary_large_image",
+    title: homepageSeoTitle,
+    description: homepageSeoDescription,
+    images: [openGraphImagePath],
   },
 };
 
@@ -169,9 +188,32 @@ const workflow = [
   },
 ];
 
+const studyUseCases = [
+  {
+    title: "Rezumate AI din PDF-uri și cursuri",
+    description:
+      "Încarci suporturi de curs, documente Word, prezentări sau notițe, iar Reviss le transformă într-un rezumat structurat pentru recapitulare rapidă.",
+  },
+  {
+    title: "Flashcard-uri pentru învățare activă",
+    description:
+      "Conceptele importante devin carduri de repetat, astfel încât să verifici ce știi deja și ce trebuie reluat înainte de examen.",
+  },
+  {
+    title: "Quiz-uri personalizate pentru facultate",
+    description:
+      "Generezi întrebări din materialele tale, cu explicații și feedback, ca să exersezi aplicarea ideilor, nu doar recitirea lor.",
+  },
+  {
+    title: "Plan de recapitulare pentru sesiune",
+    description:
+      "Reviss adună rezumate, cuvinte-cheie, flashcard-uri și progres într-un flux clar pentru colocvii, examene și licență.",
+  },
+] as const;
+
 const fallbackMarketingPricingPlans = [
   {
-    name: "Start",
+    name: "Beginner",
     description: "Pentru primul curs și primele sesiuni de studiu activ.",
     price: "0",
     suffix: "gratuit",
@@ -245,7 +287,7 @@ const homepageFaq = [
   ],
   [
     "Există un plan gratuit?",
-    "Da. Planul Start este pentru testarea fluxului cu limite mai mici. Planurile plătite adaugă mai multe materiale, documente mai mari, explicații AI și opțiuni avansate pentru studiu.",
+    "Da. Planul Beginner este pentru testarea fluxului cu limite mai mici. Planurile plătite adaugă mai multe materiale, documente mai mari, explicații AI și opțiuni avansate pentru studiu.",
   ],
 ] as const;
 
@@ -253,19 +295,41 @@ const homepageStructuredData = {
   "@context": "https://schema.org",
   "@graph": [
     {
+      "@type": "Organization",
+      name: siteName,
+      url: siteUrl,
+      logo: absoluteUrl("/assets/logos/Reviss_logo_dark.svg"),
+    },
+    {
       "@type": "WebSite",
-      name: "Reviss",
-      url: "https://reviss.app",
+      name: siteName,
+      url: siteUrl,
       inLanguage: "ro-RO",
     },
     {
+      "@type": "WebPage",
+      name: homepageSeoTitle,
+      url: siteUrl,
+      description: homepageSeoDescription,
+      inLanguage: "ro-RO",
+      isPartOf: {
+        "@type": "WebSite",
+        name: siteName,
+        url: siteUrl,
+      },
+    },
+    {
       "@type": "SoftwareApplication",
-      name: "Reviss",
+      name: siteName,
       applicationCategory: "EducationalApplication",
       operatingSystem: "Web",
-      url: "https://reviss.app",
+      url: siteUrl,
       description:
         "Platformă AI pentru studenți care transformă cursuri, PDF-uri, documente și prezentări în rezumate, flashcard-uri, quiz-uri și strategii de învățare.",
+      audience: {
+        "@type": "EducationalAudience",
+        educationalRole: "student",
+      },
       offers: {
         "@type": "Offer",
         price: "0",
@@ -528,6 +592,52 @@ export default async function Home() {
       </section>
 
       <section
+        aria-labelledby="study-use-cases-title"
+        className="mx-auto max-w-7xl px-5 py-20 sm:px-8 sm:py-28"
+      >
+        <div className="grid gap-10 lg:grid-cols-[0.9fr_1.1fr] lg:items-start">
+          <div className="lg:sticky lg:top-28">
+            <p className="text-xs font-bold uppercase tracking-[0.2em] text-muted">
+              Pentru facultate, sesiune și examene
+            </p>
+            <h2
+              id="study-use-cases-title"
+              className="mt-4 max-w-xl font-serif text-4xl font-semibold leading-tight sm:text-5xl"
+            >
+              Când cursurile se adună, Reviss le transformă în pași clari.
+            </h2>
+            <p className="mt-5 max-w-lg text-sm leading-7 text-muted sm:text-base">
+              Folosește Reviss când ai nevoie de rezumate AI din PDF-uri,
+              flashcard-uri pentru repetare, quiz-uri personalizate și un mod
+              mai simplu de a pregăti examenele la facultate.
+            </p>
+          </div>
+
+          <div className="grid gap-4 sm:grid-cols-2">
+            {studyUseCases.map((item, index) => (
+              <ScrollReveal
+                key={item.title}
+                direction={index % 2 === 0 ? "left" : "right"}
+                delay={index * 60}
+              >
+                <article className="h-full rounded-[2rem] border border-subtle bg-surface p-5 transition hover:-translate-y-1 hover:border-action/25 sm:p-6">
+                  <span className="flex h-10 w-10 items-center justify-center rounded-2xl border border-action/20 bg-action-soft text-action">
+                    {index % 2 === 0 ? <SparkIcon /> : <CheckIcon />}
+                  </span>
+                  <h3 className="mt-6 font-serif text-2xl font-semibold">
+                    {item.title}
+                  </h3>
+                  <p className="mt-3 text-sm leading-7 text-muted">
+                    {item.description}
+                  </p>
+                </article>
+              </ScrollReveal>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <section
         id="cum-functioneaza"
         className="mx-auto max-w-7xl px-5 py-24 sm:px-8 sm:py-32"
       >
@@ -582,7 +692,7 @@ export default async function Home() {
               O sesiune care știe ce urmează
             </p>
             <h2 className="mt-4 max-w-xl font-serif text-4xl font-semibold leading-tight sm:text-5xl">
-              De la „am citit” la „știu să răspund”.
+              De la „am citit” la „pot explica”.
             </h2>
             <p className="mt-5 max-w-lg text-sm leading-7 text-on-action/70 sm:text-base">
               Platforma combină rezumatul cu testarea activă și progresul
@@ -601,14 +711,14 @@ export default async function Home() {
           <ScrollReveal direction="right">
             <div className="grid gap-3 sm:grid-cols-2">
               {[
-                ["Rezumat esențial", "Ideile importante, fără zgomot."],
-                ["Întrebări explicate", "Nu doar corect sau greșit, ci și de ce."],
-                ["Repetiție inteligentă", "Revii la concepte înainte să le uiți."],
-                ["Progres vizibil", "Știi ce stăpânești și ce mai trebuie lucrat."],
-              ].map(([title, description], index) => (
+                "Rezumat esențial",
+                "Întrebări explicate",
+                "Repetiție inteligentă",
+                "Progres vizibil",
+              ].map((title, index) => (
                 <div
                   key={title}
-                  className={`rounded-3xl border border-on-action/10 bg-on-action/5 p-5 sm:p-6 ${
+                  className={`flex min-h-[12.5rem] flex-col items-center justify-center rounded-3xl border border-on-action/10 bg-on-action/5 p-6 text-center ${
                     index % 2 ? "sm:translate-y-6" : ""
                   }`}
                 >
@@ -618,9 +728,6 @@ export default async function Home() {
                   <h3 className="mt-7 font-serif text-xl font-semibold">
                     {title}
                   </h3>
-                  <p className="mt-2 text-xs leading-6 text-on-action/65">
-                    {description}
-                  </p>
                 </div>
               ))}
             </div>
@@ -887,7 +994,7 @@ export default async function Home() {
                   Începe cu următorul tău curs
                 </p>
                 <h2 className="mt-4 font-serif text-4xl font-semibold leading-tight sm:text-6xl">
-                  Mai puțin timp pregătind. Mai mult timp învățând.
+                  Începe simplu. Învață sigur.
                 </h2>
                 <p className="mx-auto mt-5 max-w-xl text-sm leading-7 text-on-action/70 sm:text-base">
                   Creează-ți contul și transformă primul material într-o sesiune

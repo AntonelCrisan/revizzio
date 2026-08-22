@@ -16,6 +16,7 @@ import { BrandLogo } from "@/components/brand-logo";
 import type { AuthUserPlan } from "@/lib/auth-api";
 import {
   archiveStudyProject,
+  cancelStudyProjectGeneration,
   chatWithStudyProjectAi,
   completeQuiz,
   createManualStudyProjectFlashcard,
@@ -226,8 +227,29 @@ function getProjectUploadPlanLimits(
   };
 }
 
-function delay(ms: number) {
-  return new Promise((resolve) => window.setTimeout(resolve, ms));
+function delay(ms: number, signal?: AbortSignal) {
+  return new Promise<void>((resolve, reject) => {
+    if (signal?.aborted) {
+      reject(new DOMException("Aborted", "AbortError"));
+      return;
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      signal?.removeEventListener("abort", abortDelay);
+      resolve();
+    }, ms);
+
+    function abortDelay() {
+      window.clearTimeout(timeoutId);
+      reject(new DOMException("Aborted", "AbortError"));
+    }
+
+    signal?.addEventListener("abort", abortDelay, { once: true });
+  });
+}
+
+function isAbortError(error: unknown) {
+  return error instanceof Error && error.name === "AbortError";
 }
 
 function toFriendlyGenerationError(message?: string | null) {
@@ -489,6 +511,10 @@ export function AccountDashboard({
   const [preparedProject, setPreparedProject] =
     useState<StudyProjectPrepareResponse | null>(null);
   const [generationError, setGenerationError] = useState<string | null>(null);
+  const [isCancellingGeneration, setIsCancellingGeneration] = useState(false);
+  const generationAbortControllerRef = useRef<AbortController | null>(null);
+  const generationProjectIdRef = useRef<string | null>(null);
+  const generationCancelRequestedRef = useRef(false);
   const [fileSelectionNotice, setFileSelectionNotice] = useState<string | null>(
     null,
   );
@@ -956,6 +982,10 @@ export function AccountDashboard({
   }
 
   function resetNewProject() {
+    generationAbortControllerRef.current?.abort();
+    generationAbortControllerRef.current = null;
+    generationProjectIdRef.current = null;
+    generationCancelRequestedRef.current = false;
     setProjectName("");
     setSubjectName("");
     setInstitutionName("");
@@ -965,6 +995,7 @@ export function AccountDashboard({
     setGenerationState("form");
     setPreparedProject(null);
     setGenerationError(null);
+    setIsCancellingGeneration(false);
     setFileSelectionNotice(null);
   }
 
@@ -1073,10 +1104,10 @@ export function AccountDashboard({
     return mappedProject;
   }
 
-  async function pollProjectUntilReady(projectId: string) {
+  async function pollProjectUntilReady(projectId: string, signal?: AbortSignal) {
     for (let attempt = 0; attempt < GENERATION_POLL_ATTEMPTS; attempt += 1) {
-      await delay(GENERATION_POLL_INTERVAL_MS);
-      const apiProject = await getStudyProject(projectId);
+      await delay(GENERATION_POLL_INTERVAL_MS, signal);
+      const apiProject = await getStudyProject(projectId, { signal });
       const mappedProject = storeApiProject(apiProject);
       setPreparedProject((currentProject) =>
         currentProject
@@ -1119,11 +1150,16 @@ export function AccountDashboard({
     if (!canGenerate) return;
 
     let transientProjectId: string | null = null;
+    const abortController = new AbortController();
+    generationAbortControllerRef.current = abortController;
+    generationProjectIdRef.current = null;
+    generationCancelRequestedRef.current = false;
 
     setGenerationState("generating");
     setCompletedSteps([]);
     setPreparedProject(null);
     setGenerationError(null);
+    setIsCancellingGeneration(false);
 
     try {
       setCompletedSteps(generationSteps.slice(0, 1));
@@ -1133,13 +1169,22 @@ export function AccountDashboard({
         institutionName,
         files: uploadedFiles.map((file) => file.file),
         materialRightsConfirmed: hasMaterialRights,
-      });
+      }, { signal: abortController.signal });
       transientProjectId = response.project.id;
+      generationProjectIdRef.current = response.project.id;
       setPreparedProject(response);
       setCompletedSteps(generationSteps.slice(0, 3));
-      await pollProjectUntilReady(response.project.id);
+      await pollProjectUntilReady(response.project.id, abortController.signal);
       setGenerationState("done");
     } catch (error) {
+      if (isAbortError(error) || generationCancelRequestedRef.current) {
+        setGenerationState("form");
+        setCompletedSteps([]);
+        setPreparedProject(null);
+        setGenerationError(null);
+        return;
+      }
+
       const friendlyError =
         error instanceof Error
           ? toFriendlyGenerationError(error.message)
@@ -1155,7 +1200,57 @@ export function AccountDashboard({
       setCompletedSteps([]);
       setPreparedProject(null);
       setGenerationError(`${friendlyError} Proiectul nu a fost salvat.`);
+    } finally {
+      if (generationAbortControllerRef.current === abortController) {
+        generationAbortControllerRef.current = null;
+      }
+      generationProjectIdRef.current = null;
+      generationCancelRequestedRef.current = false;
+      setIsCancellingGeneration(false);
     }
+  }
+
+  async function cancelActiveGeneration() {
+    if (generationState !== "generating" || isCancellingGeneration) {
+      return;
+    }
+
+    generationCancelRequestedRef.current = true;
+    setIsCancellingGeneration(true);
+
+    const projectId =
+      generationProjectIdRef.current ?? preparedProject?.project.id ?? null;
+    generationAbortControllerRef.current?.abort();
+
+    if (projectId) {
+      try {
+        await cancelStudyProjectGeneration(projectId);
+      } catch {
+        // The abort already stopped the local flow; backend cleanup can be retried.
+      }
+
+      try {
+        await deleteStudyProject(projectId);
+      } catch {
+        // If the backend already removed it, the UI can still return to the form.
+      }
+
+      setProjects((currentProjects) =>
+        currentProjects.filter((project) => project.id !== projectId),
+      );
+      setActiveProjectId((currentProjectId) =>
+        currentProjectId === projectId ? "" : currentProjectId,
+      );
+      setOpenProjectId((currentProjectId) =>
+        currentProjectId === projectId ? null : currentProjectId,
+      );
+    }
+
+    setGenerationState("form");
+    setCompletedSteps([]);
+    setPreparedProject(null);
+    setGenerationError(null);
+    setIsCancellingGeneration(false);
   }
 
   function createGeneratedProject() {
@@ -1539,6 +1634,7 @@ export function AccountDashboard({
               completedSteps={completedSteps}
               preparedProject={preparedProject}
               generationError={generationError}
+              isCancellingGeneration={isCancellingGeneration}
               fileSelectionNotice={fileSelectionNotice}
               planLimits={uploadPlanLimits}
               isDragging={isDragging}
@@ -1553,6 +1649,7 @@ export function AccountDashboard({
               onDrop={handleDrop}
               onDragStateChange={setIsDragging}
               onStartGeneration={startGeneration}
+              onCancelGeneration={cancelActiveGeneration}
               onOpenGeneratedProject={createGeneratedProject}
             />
           ) : null}
@@ -2257,6 +2354,16 @@ type ProjectChatMessage = {
   text: string;
 };
 
+type ProjectChatTextBlock =
+  | { kind: "paragraph"; text: string }
+  | { kind: "unordered-list"; items: string[] }
+  | { kind: "ordered-list"; items: string[] };
+
+const PROJECT_CHAT_STORAGE_PREFIX = "reviss-project-chat";
+const PROJECT_CHAT_MAX_STORED_MESSAGES = 40;
+const PROJECT_CHAT_HISTORY_MESSAGES = 18;
+const PROJECT_CHAT_SUMMARY_MESSAGES = 30;
+
 function ProjectAiLockedPanel() {
   return (
     <section className="rounded-xl border border-subtle bg-surface p-6 sm:p-8">
@@ -2287,15 +2394,317 @@ function createProjectChatIntro(project: StudyProject): ProjectChatMessage {
   };
 }
 
+function projectChatStorageKey(projectId: string) {
+  return `${PROJECT_CHAT_STORAGE_PREFIX}:${projectId}`;
+}
+
+function truncateProjectChatText(value: string, maxLength: number) {
+  const cleanValue = value.replace(/\s+/g, " ").trim();
+
+  if (cleanValue.length <= maxLength) {
+    return cleanValue;
+  }
+
+  return `${cleanValue.slice(0, maxLength).trim()}...`;
+}
+
+function isProjectChatIntro(message: ProjectChatMessage) {
+  return message.id.startsWith("assistant-intro-");
+}
+
+function isProjectChatRole(value: unknown): value is ProjectChatMessage["role"] {
+  return value === "assistant" || value === "user";
+}
+
+function createProjectChatMessageId(
+  role: ProjectChatMessage["role"],
+  projectId: string,
+) {
+  const randomPart =
+    typeof crypto !== "undefined" && "randomUUID" in crypto
+      ? crypto.randomUUID()
+      : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+
+  return `${role}-${projectId}-${randomPart}`;
+}
+
+function loadProjectChatMessages(project: StudyProject): ProjectChatMessage[] {
+  const introMessage = createProjectChatIntro(project);
+
+  if (typeof window === "undefined") {
+    return [introMessage];
+  }
+
+  try {
+    const rawMessages = window.localStorage.getItem(
+      projectChatStorageKey(project.id),
+    );
+
+    if (!rawMessages) {
+      return [introMessage];
+    }
+
+    const parsedMessages: unknown = JSON.parse(rawMessages);
+
+    if (!Array.isArray(parsedMessages)) {
+      return [introMessage];
+    }
+
+    const validMessages = parsedMessages
+      .map((item): ProjectChatMessage | null => {
+        if (!item || typeof item !== "object") {
+          return null;
+        }
+
+        const record = item as Record<string, unknown>;
+        const role = record.role;
+        const text = record.text;
+        const id = record.id;
+
+        if (
+          !isProjectChatRole(role) ||
+          typeof text !== "string" ||
+          !text.trim()
+        ) {
+          return null;
+        }
+
+        return {
+          id:
+            typeof id === "string" && id.trim()
+              ? id
+              : createProjectChatMessageId(role, project.id),
+          role,
+          text: text.trim(),
+        };
+      })
+      .filter((item): item is ProjectChatMessage => item !== null)
+      .filter((item) => !isProjectChatIntro(item))
+      .slice(-(PROJECT_CHAT_MAX_STORED_MESSAGES - 1));
+
+    return [introMessage, ...validMessages];
+  } catch {
+    return [introMessage];
+  }
+}
+
+function saveProjectChatMessages(
+  projectId: string,
+  messages: ProjectChatMessage[],
+) {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  const [introMessage] = messages;
+  const storedMessages = [
+    ...(introMessage ? [introMessage] : []),
+    ...messages
+      .filter((message) => !isProjectChatIntro(message))
+      .filter((message) => message.text.trim())
+      .slice(-(PROJECT_CHAT_MAX_STORED_MESSAGES - 1)),
+  ];
+
+  try {
+    window.localStorage.setItem(
+      projectChatStorageKey(projectId),
+      JSON.stringify(storedMessages),
+    );
+  } catch {
+    // Storage may be unavailable in private browsing; chat still works in memory.
+  }
+}
+
+function removeStoredProjectChatMessages(projectId: string) {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  try {
+    window.localStorage.removeItem(projectChatStorageKey(projectId));
+  } catch {
+    // Ignore storage errors; the visible chat state is reset separately.
+  }
+}
+
+function toProjectChatHistory(messages: ProjectChatMessage[]) {
+  return messages
+    .filter((message) => !isProjectChatIntro(message))
+    .filter((message) => message.text.trim())
+    .slice(-PROJECT_CHAT_HISTORY_MESSAGES)
+    .map((message) => ({
+      role: message.role,
+      text: truncateProjectChatText(message.text, 1200),
+    }));
+}
+
+function buildProjectChatConversationSummary(
+  project: StudyProject,
+  messages: ProjectChatMessage[],
+) {
+  const recentMessages = messages
+    .filter((message) => !isProjectChatIntro(message))
+    .filter((message) => message.text.trim())
+    .slice(-PROJECT_CHAT_SUMMARY_MESSAGES);
+
+  const conversationLines = recentMessages.map((message) => {
+    const speaker = message.role === "user" ? "Student" : "Reviss";
+
+    return `${speaker}: ${truncateProjectChatText(message.text, 700)}`;
+  });
+
+  return [
+    `Proiect: ${project.name}`,
+    `Materie: ${project.subjectName}`,
+    `Institutie/nivel: ${project.institutionName}`,
+    `Status proiect: ${project.status}`,
+    conversationLines.length > 0
+      ? "Fir conversational recent:"
+      : "Nu exista mesaje anterioare in aceasta conversatie.",
+    ...conversationLines,
+  ].join("\n");
+}
+
+function parseProjectChatText(text: string): ProjectChatTextBlock[] {
+  const blocks: ProjectChatTextBlock[] = [];
+  const paragraphLines: string[] = [];
+  let activeList:
+    | { kind: "unordered-list"; items: string[] }
+    | { kind: "ordered-list"; items: string[] }
+    | null = null;
+
+  function flushParagraph() {
+    if (paragraphLines.length === 0) {
+      return;
+    }
+
+    blocks.push({
+      kind: "paragraph",
+      text: paragraphLines.join(" ").trim(),
+    });
+    paragraphLines.length = 0;
+  }
+
+  function flushList() {
+    if (!activeList || activeList.items.length === 0) {
+      activeList = null;
+      return;
+    }
+
+    blocks.push(activeList);
+    activeList = null;
+  }
+
+  for (const rawLine of text.replace(/\r/g, "").split("\n")) {
+    const line = rawLine.trim();
+
+    if (!line) {
+      flushParagraph();
+      flushList();
+      continue;
+    }
+
+    const unorderedMatch = line.match(/^[-*]\s+(.+)$/);
+    const orderedMatch = line.match(/^\d+[.)]\s+(.+)$/);
+
+    if (unorderedMatch) {
+      flushParagraph();
+      if (activeList?.kind !== "unordered-list") {
+        flushList();
+        activeList = { kind: "unordered-list", items: [] };
+      }
+      activeList.items.push(unorderedMatch[1].trim());
+      continue;
+    }
+
+    if (orderedMatch) {
+      flushParagraph();
+      if (activeList?.kind !== "ordered-list") {
+        flushList();
+        activeList = { kind: "ordered-list", items: [] };
+      }
+      activeList.items.push(orderedMatch[1].trim());
+      continue;
+    }
+
+    flushList();
+    paragraphLines.push(line);
+  }
+
+  flushParagraph();
+  flushList();
+
+  return blocks.length > 0 ? blocks : [{ kind: "paragraph", text }];
+}
+
+function renderProjectChatInline(text: string) {
+  return text.split(/(\*\*[^*]+\*\*)/g).map((segment, index) => {
+    if (segment.startsWith("**") && segment.endsWith("**")) {
+      return (
+        <strong key={`${segment}-${index}`} className="font-extrabold">
+          {segment.slice(2, -2)}
+        </strong>
+      );
+    }
+
+    return <span key={`${segment}-${index}`}>{segment}</span>;
+  });
+}
+
+function ProjectChatMessageText({ text }: { text: string }) {
+  const blocks = parseProjectChatText(text);
+
+  return (
+    <div className="space-y-2">
+      {blocks.map((block, index) => {
+        if (block.kind === "unordered-list") {
+          return (
+            <ul
+              key={`${block.kind}-${index}`}
+              className="ml-4 list-disc space-y-1 marker:text-current"
+            >
+              {block.items.map((item, itemIndex) => (
+                <li key={`${item}-${itemIndex}`}>
+                  {renderProjectChatInline(item)}
+                </li>
+              ))}
+            </ul>
+          );
+        }
+
+        if (block.kind === "ordered-list") {
+          return (
+            <ol
+              key={`${block.kind}-${index}`}
+              className="ml-4 list-decimal space-y-1 marker:text-current"
+            >
+              {block.items.map((item, itemIndex) => (
+                <li key={`${item}-${itemIndex}`}>
+                  {renderProjectChatInline(item)}
+                </li>
+              ))}
+            </ol>
+          );
+        }
+
+        return (
+          <p key={`${block.kind}-${index}`}>
+            {renderProjectChatInline(block.text)}
+          </p>
+        );
+      })}
+    </div>
+  );
+}
+
 function ProjectChatPanel({ project }: { project: StudyProject }) {
   const streamTimerRef = useRef<number | null>(null);
   const chatRequestIdRef = useRef(0);
-  const messageIdRef = useRef(0);
   const bottomRef = useRef<HTMLDivElement | null>(null);
   const messageInputRef = useRef<HTMLTextAreaElement | null>(null);
-  const [messages, setMessages] = useState<ProjectChatMessage[]>(() => [
-    createProjectChatIntro(project),
-  ]);
+  const [messages, setMessages] = useState<ProjectChatMessage[]>(() =>
+    loadProjectChatMessages(project),
+  );
   const [draftMessage, setDraftMessage] = useState("");
   const [isGenerating, setIsGenerating] = useState(false);
   const [streamingMessageId, setStreamingMessageId] = useState<string | null>(
@@ -2318,6 +2727,14 @@ function ProjectChatPanel({ project }: { project: StudyProject }) {
   }, [draftMessage]);
 
   useEffect(() => {
+    if (streamingMessageId) {
+      return;
+    }
+
+    saveProjectChatMessages(project.id, messages);
+  }, [messages, project.id, streamingMessageId]);
+
+  useEffect(() => {
     return () => {
       if (streamTimerRef.current) {
         window.clearInterval(streamTimerRef.current);
@@ -2325,6 +2742,24 @@ function ProjectChatPanel({ project }: { project: StudyProject }) {
       chatRequestIdRef.current += 1;
     };
   }, []);
+
+  function startNewChat() {
+    if (streamTimerRef.current) {
+      window.clearInterval(streamTimerRef.current);
+      streamTimerRef.current = null;
+    }
+
+    chatRequestIdRef.current += 1;
+    removeStoredProjectChatMessages(project.id);
+    setMessages([createProjectChatIntro(project)]);
+    setDraftMessage("");
+    setIsGenerating(false);
+    setStreamingMessageId(null);
+
+    window.requestAnimationFrame(() => {
+      messageInputRef.current?.focus();
+    });
+  }
 
   function streamAssistantAnswer(assistantMessageId: string, answer: string) {
     const cleanAnswer =
@@ -2379,20 +2814,22 @@ function ProjectChatPanel({ project }: { project: StudyProject }) {
 
     chatRequestIdRef.current += 1;
     const requestId = chatRequestIdRef.current;
-    const history = messages.slice(-10).map((item) => ({
-      role: item.role,
-      text: item.text,
-    }));
+    const history = toProjectChatHistory(messages);
+    const conversationSummary = buildProjectChatConversationSummary(
+      project,
+      messages,
+    );
 
-    messageIdRef.current += 1;
     const userMessage: ProjectChatMessage = {
-      id: `user-${project.id}-${messageIdRef.current}`,
+      id: createProjectChatMessageId("user", project.id),
       role: "user",
       text,
     };
 
-    messageIdRef.current += 1;
-    const assistantMessageId = `assistant-${project.id}-${messageIdRef.current}`;
+    const assistantMessageId = createProjectChatMessageId(
+      "assistant",
+      project.id,
+    );
 
     setStreamingMessageId(assistantMessageId);
     setMessages((currentMessages) => [
@@ -2415,6 +2852,7 @@ function ProjectChatPanel({ project }: { project: StudyProject }) {
         projectId: project.id,
         message: text,
         history,
+        conversationSummary,
       });
 
       if (requestId !== chatRequestIdRef.current) {
@@ -2438,6 +2876,15 @@ function ProjectChatPanel({ project }: { project: StudyProject }) {
   return (
     <section className="overflow-hidden rounded-xl border border-subtle bg-surface">
       <div className="flex h-[calc(100svh-7.75rem)] min-h-[34rem] max-h-[58rem] flex-col">
+        <div className="flex shrink-0 justify-end border-b border-subtle bg-surface px-4 py-2 sm:px-6 lg:px-8">
+          <button
+            type="button"
+            onClick={startNewChat}
+            className="inline-flex h-8 cursor-pointer items-center justify-center rounded-full border border-subtle bg-app px-3 text-xs font-bold text-content transition hover:bg-surface-hover"
+          >
+            Chat nou
+          </button>
+        </div>
         <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-5 sm:px-6 lg:px-8">
           <div className="mx-auto flex max-w-5xl flex-col gap-4">
             {messages.map((message) => {
@@ -2475,12 +2922,12 @@ function ProjectChatPanel({ project }: { project: StudyProject }) {
                         </span>
                       </div>
                     ) : (
-                      <p>
-                        {message.text}
+                      <div>
+                        <ProjectChatMessageText text={message.text} />
                         {isStreaming ? (
                           <span className="ml-1 inline-block h-4 w-1 translate-y-0.5 animate-pulse rounded-full bg-info align-baseline" />
                         ) : null}
-                      </p>
+                      </div>
                     )}
                   </article>
                 </div>
@@ -3108,7 +3555,7 @@ function SummaryToolsPanel({
               onClick={onApplyCurrentHighlight}
               className="mt-3 flex h-10 w-full cursor-pointer items-center justify-center rounded-full bg-action px-4 text-xs font-bold text-on-action transition hover:bg-action-hover"
             >
-              Aplică pe selecție
+              Aplică
             </button>
           </div>
         ) : null}
@@ -4962,7 +5409,7 @@ function FlashcardDeckPage({
                   type="button"
                   onClick={shuffleDeck}
                   disabled={isAnimating || cards.length <= 1}
-                  className="inline-flex h-10 w-full max-w-[13.5rem] items-center justify-center gap-2 rounded-full border border-subtle bg-app px-4 text-xs font-bold text-content transition hover:-translate-y-0.5 hover:bg-surface-hover disabled:cursor-not-allowed disabled:opacity-55 sm:h-12 sm:w-auto sm:max-w-none sm:px-5 sm:text-sm"
+                  className="inline-flex h-10 w-full max-w-[13.5rem] items-center justify-center gap-2 rounded-full border border-subtle bg-app px-4 text-xs font-bold text-content transition hover:-translate-y-0.5 hover:bg-surface-hover disabled:cursor-not-allowed disabled:opacity-55 sm:h-12 sm:w-[13.5rem] sm:max-w-none sm:px-5 sm:text-sm"
                 >
                   <Icon className="h-4 w-4 sm:h-5 sm:w-5">
                     <path d="M16 3h5v5M4 20l17-17M21 16v5h-5M15 15l6 6M4 4l5 5" />
@@ -4973,7 +5420,7 @@ function FlashcardDeckPage({
                   <button
                     type="button"
                     onClick={toggleReviewOnlyFilter}
-                    className={`inline-flex h-10 w-full max-w-[17.5rem] items-center justify-center gap-2 rounded-full border px-4 text-xs font-bold transition sm:w-auto sm:max-w-none ${
+                    className={`inline-flex h-10 w-full max-w-[13.5rem] items-center justify-center gap-2 rounded-full border px-4 text-xs font-bold transition sm:h-12 sm:w-[13.5rem] sm:max-w-none sm:text-sm ${
                       showReviewOnly
                         ? "border-action bg-action text-on-action"
                         : "border-subtle bg-app text-content hover:bg-surface-hover"
@@ -4984,7 +5431,7 @@ function FlashcardDeckPage({
                       <path d="M9.5 2a2.5 2.5 0 0 0-2.5 2.5v.5a3 3 0 0 0-2 2.83V8a3 3 0 0 0-1 5.83V15a3 3 0 0 0 3 3 2.5 2.5 0 0 0 2.5 2.5h.5a2.5 2.5 0 0 0 2.5-2.5V4.5A2.5 2.5 0 0 0 9.5 2Z" />
                       <path d="M14.5 2a2.5 2.5 0 0 1 2.5 2.5v.5a3 3 0 0 1 2 2.83V8a3 3 0 0 1 1 5.83V15a3 3 0 0 1-3 3 2.5 2.5 0 0 1-2.5 2.5h-.5a2.5 2.5 0 0 1-2.5-2.5V4.5A2.5 2.5 0 0 1 14.5 2Z" />
                     </Icon>
-                    Doar marcate pentru recapitulare
+                    Marcate
                   </button>
                 ) : null}
               </div>
@@ -4996,7 +5443,7 @@ function FlashcardDeckPage({
               <button
                 type="button"
                 onClick={toggleReviewOnlyFilter}
-                className={`inline-flex h-10 w-full max-w-[17.5rem] items-center justify-center gap-2 rounded-full border px-4 text-xs font-bold transition sm:w-auto sm:max-w-none ${
+                className={`inline-flex h-10 w-full max-w-[13.5rem] items-center justify-center gap-2 rounded-full border px-4 text-xs font-bold transition sm:h-12 sm:w-[13.5rem] sm:max-w-none sm:text-sm ${
                   showReviewOnly
                     ? "border-action bg-action text-on-action"
                     : "border-subtle bg-app text-content hover:bg-surface-hover"
@@ -5007,7 +5454,7 @@ function FlashcardDeckPage({
                   <path d="M9.5 2a2.5 2.5 0 0 0-2.5 2.5v.5a3 3 0 0 0-2 2.83V8a3 3 0 0 0-1 5.83V15a3 3 0 0 0 3 3 2.5 2.5 0 0 0 2.5 2.5h.5a2.5 2.5 0 0 0 2.5-2.5V4.5A2.5 2.5 0 0 0 9.5 2Z" />
                   <path d="M14.5 2a2.5 2.5 0 0 1 2.5 2.5v.5a3 3 0 0 1 2 2.83V8a3 3 0 0 1 1 5.83V15a3 3 0 0 1-3 3 2.5 2.5 0 0 1-2.5 2.5h-.5a2.5 2.5 0 0 1-2.5-2.5V4.5A2.5 2.5 0 0 1 14.5 2Z" />
                 </Icon>
-                Doar marcate pentru recapitulare
+                Marcate
               </button>
             </div>
           ) : null}
@@ -6574,16 +7021,16 @@ function StrategiesPanel({ project }: { project: StudyProject }) {
   const strategies = project.strategies;
   const universalStrategies = [
     [
-      "Întreabă materialul, nu doar îl citi",
-      "Transformă fiecare titlu într-o întrebare și răspunde fără să te uiți.",
+      "Închide cursul și încearcă să răspunzi",
+      "După fiecare secțiune, spune pe scurt ideea principală fără să te uiți în material.",
     ],
     [
-      "Revizuire scurtă după 24h",
-      "O sesiune de 5 minute a doua zi fixează mult mai bine conceptele.",
+      "Revino mâine peste ideile importante",
+      "O recapitulare scurtă după o zi te ajută să fixezi conceptele care altfel se uită repede.",
     ],
     [
-      "Explică ideea ca unui coleg",
-      "Dacă poți explica simplu, înseamnă că ai înțeles-o cu adevărat.",
+      "Explică simplu, cu exemple",
+      "Dacă poți lega teoria de un exemplu concret, ai șanse mult mai mari să o reții la examen.",
     ],
   ];
   const readyFlashcards = getGeneratedFlashcards(project.flashcards).length;
@@ -6658,7 +7105,7 @@ function StrategiesPanel({ project }: { project: StudyProject }) {
               Bază
             </span>
             <h3 className="mt-4 font-serif text-2xl font-semibold leading-tight text-content">
-              Valabile pentru orice materie.
+              Bune de folosit la orice curs.
             </h3>
           </div>
           <div className="divide-y divide-subtle">
@@ -6918,10 +7365,21 @@ function ProgressPanel({ project }: { project: StudyProject }) {
               </div>
             </>
           ) : (
-            <p className="mt-3 text-sm leading-7 text-muted">
-              Nu ai încă greșeli înregistrate la quiz-uri — răspunde la câteva
-              întrebări ca să apară zonele de recapitulat aici.
-            </p>
+            <div className="mt-3 space-y-4">
+              <p className="text-sm leading-7 text-muted">
+                Nu ai încă greșeli înregistrate la quiz-uri — răspunde la
+                câteva întrebări pentru a apărea zonele de recapitulat aici.
+              </p>
+              <Link
+                href={getTabHref("quiz", project.id)}
+                className="inline-flex items-center justify-center rounded-full bg-action px-5 py-2.5 text-sm font-bold text-on-action transition hover:-translate-y-0.5 hover:bg-action-hover"
+              >
+                Mergi la quiz-uri
+                <span aria-hidden="true" className="ml-2">
+                  →
+                </span>
+              </Link>
+            </div>
           )}
         </section>
       </div>
@@ -7329,6 +7787,7 @@ function NewProjectView({
   completedSteps,
   preparedProject,
   generationError,
+  isCancellingGeneration,
   fileSelectionNotice,
   planLimits,
   isDragging,
@@ -7343,6 +7802,7 @@ function NewProjectView({
   onDrop,
   onDragStateChange,
   onStartGeneration,
+  onCancelGeneration,
   onOpenGeneratedProject,
 }: {
   projectName: string;
@@ -7356,6 +7816,7 @@ function NewProjectView({
   completedSteps: string[];
   preparedProject: StudyProjectPrepareResponse | null;
   generationError: string | null;
+  isCancellingGeneration: boolean;
   fileSelectionNotice: string | null;
   planLimits: ProjectUploadPlanLimits;
   isDragging: boolean;
@@ -7370,6 +7831,7 @@ function NewProjectView({
   onDrop: (event: DragEvent<HTMLButtonElement>) => void;
   onDragStateChange: (isDragging: boolean) => void;
   onStartGeneration: () => void | Promise<void>;
+  onCancelGeneration: () => void | Promise<void>;
   onOpenGeneratedProject: () => void;
 }) {
   const totalFileSize = files.reduce((total, file) => total + file.size, 0);
@@ -7378,11 +7840,13 @@ function NewProjectView({
     subjectName.trim().length > 0 &&
     institutionName.trim().length > 0;
   const setupSteps = [
-    { label: "Detalii", done: detailFieldsCompleted },
-    { label: "Materiale", done: files.length > 0 },
-    { label: "Drepturi", done: hasMaterialRights },
+    detailFieldsCompleted,
+    files.length > 0,
+    hasMaterialRights,
   ];
-  const completedStepCount = setupSteps.filter((step) => step.done).length;
+  const setupProgress = Math.round(
+    (setupSteps.filter(Boolean).length / setupSteps.length) * 100,
+  );
 
   return (
     <section className="space-y-6">
@@ -7407,11 +7871,6 @@ function NewProjectView({
               <h1 className="mt-3 font-serif text-4xl font-semibold leading-none text-content sm:text-5xl">
                 Încarcă un curs.
               </h1>
-            </div>
-
-            <div className="flex w-fit items-center gap-3 rounded-full border border-subtle bg-surface px-4 py-2 text-xs font-black text-muted">
-              <span className="h-2 w-2 rounded-full bg-success" />
-              {completedStepCount}/3 pași
             </div>
           </header>
 
@@ -7605,22 +8064,21 @@ function NewProjectView({
               <p className="text-[11px] font-black uppercase tracking-[0.16em] text-muted">
                 Pregătire
               </p>
-              <div className="mt-4 divide-y divide-subtle border-y border-subtle">
-                {setupSteps.map((step) => (
+
+              <div className="mt-4 rounded-lg border border-subtle bg-app p-3">
+                <div
+                  role="progressbar"
+                  aria-label="Progres pregătire"
+                  aria-valuemin={0}
+                  aria-valuemax={100}
+                  aria-valuenow={setupProgress}
+                  className="h-2 overflow-hidden rounded-full bg-surface-hover"
+                >
                   <div
-                    key={step.label}
-                    className="flex items-center justify-between gap-4 py-3"
-                  >
-                    <span className="text-sm font-bold">{step.label}</span>
-                    <input
-                      aria-label={`${step.label} completat`}
-                      type="checkbox"
-                      checked={step.done}
-                      readOnly
-                      className="h-5 w-5 cursor-default rounded border-subtle accent-action"
-                    />
-                  </div>
-                ))}
+                    className="h-full rounded-full bg-action transition-all duration-300"
+                    style={{ width: `${setupProgress}%` }}
+                  />
+                </div>
               </div>
 
               <label className="mt-4 flex cursor-pointer items-start gap-3 border-t border-subtle pt-4 text-sm font-semibold leading-6">
@@ -7668,6 +8126,8 @@ function NewProjectView({
             completedSteps={completedSteps}
             preparedProject={preparedProject}
             generationError={generationError}
+            isCancellingGeneration={isCancellingGeneration}
+            onCancelGeneration={onCancelGeneration}
             onOpenGeneratedProject={onOpenGeneratedProject}
           />
       )}
@@ -7682,6 +8142,8 @@ function GenerationView({
   completedSteps,
   preparedProject,
   generationError,
+  isCancellingGeneration,
+  onCancelGeneration,
   onOpenGeneratedProject,
 }: {
   projectName: string;
@@ -7690,6 +8152,8 @@ function GenerationView({
   completedSteps: string[];
   preparedProject: StudyProjectPrepareResponse | null;
   generationError: string | null;
+  isCancellingGeneration: boolean;
+  onCancelGeneration: () => void | Promise<void>;
   onOpenGeneratedProject: () => void;
 }) {
   return (
@@ -7716,6 +8180,22 @@ function GenerationView({
           style={{ width: `${progress}%` }}
         />
       </div>
+
+      {state !== "done" ? (
+        <div className="mt-5 flex justify-end">
+          <button
+            type="button"
+            onClick={onCancelGeneration}
+            disabled={isCancellingGeneration}
+            className="inline-flex items-center justify-center gap-2 rounded-full border border-subtle bg-app px-5 py-3 text-sm font-black text-content transition hover:border-danger-border hover:bg-danger-soft hover:text-danger disabled:cursor-not-allowed disabled:bg-subtle disabled:text-muted"
+          >
+            {isCancellingGeneration ? "Se anuleaza..." : "Anulare"}
+            <Icon>
+              <path d="M18 6 6 18M6 6l12 12" />
+            </Icon>
+          </button>
+        </div>
+      ) : null}
 
       <div className="mt-5 divide-y divide-subtle border-y border-subtle">
         {generationSteps.map((step) => {

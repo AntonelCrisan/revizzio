@@ -6,7 +6,6 @@ from urllib.parse import urlparse
 
 from fastapi import (
     APIRouter,
-    BackgroundTasks,
     Depends,
     File,
     Form,
@@ -43,8 +42,9 @@ from app.services.projects import (
     ProjectPlanRestrictionError,
     ProjectValidationError,
     StudyProjectService,
-    run_quiz_pack_generation_task,
-    run_study_pack_generation_task,
+    cancel_generation_task,
+    schedule_quiz_pack_generation_task,
+    schedule_study_pack_generation_task,
 )
 
 AI_RATE_LIMIT_WINDOW_SECONDS = 60
@@ -177,7 +177,7 @@ async def list_archived_projects(
 
 @router.post("/prepare", response_model=StudyProjectPrepareResponse)
 async def prepare_project(
-    background_tasks: BackgroundTasks,
+    request: Request,
     current_user: CurrentUser,
     session: DbSession,
     settings: AppSettings,
@@ -211,8 +211,14 @@ async def prepare_project(
             detail=str(exc),
         ) from exc
 
-    background_tasks.add_task(
-        run_study_pack_generation_task,
+    if await request.is_disconnected():
+        await service.delete_project(user=current_user, project_id=project.id)
+        raise HTTPException(
+            status_code=499,
+            detail="Generarea proiectului a fost anulata.",
+        )
+
+    schedule_study_pack_generation_task(
         user_id=current_user.id,
         project_id=project.id,
         settings=settings,
@@ -239,7 +245,6 @@ async def prepare_project(
 @router.post("/{project_id}/generate-quizzes", response_model=StudyProjectResponse)
 async def generate_project_quizzes(
     project_id: uuid.UUID,
-    background_tasks: BackgroundTasks,
     current_user: CurrentUser,
     session: DbSession,
     settings: AppSettings,
@@ -267,13 +272,37 @@ async def generate_project_quizzes(
         ) from exc
 
     if project.status == "generating_quizzes" and not was_generating:
-        background_tasks.add_task(
-            run_quiz_pack_generation_task,
+        schedule_quiz_pack_generation_task(
             user_id=current_user.id,
             project_id=project.id,
             settings=settings,
         )
 
+    return service.to_response(project)
+
+
+@router.post("/{project_id}/cancel-generation", response_model=StudyProjectResponse)
+async def cancel_project_generation(
+    project_id: uuid.UUID,
+    current_user: CurrentUser,
+    session: DbSession,
+    settings: AppSettings,
+) -> StudyProjectResponse:
+    _enforce_project_rate_limit(current_user, "manage")
+    service = _service(session, settings)
+    try:
+        project = await service.cancel_project_generation(
+            user=current_user,
+            project_id=project_id,
+        )
+    except ProjectNotFoundError as exc:
+        await session.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Proiectul nu a fost gasit.",
+        ) from exc
+
+    cancel_generation_task(project_id)
     return service.to_response(project)
 
 
@@ -343,6 +372,7 @@ async def chat_with_project_ai(
                 {"role": item.role, "text": item.text}
                 for item in payload.history
             ],
+            conversation_summary=payload.conversation_summary,
         )
     except ProjectPlanRestrictionError as exc:
         raise HTTPException(

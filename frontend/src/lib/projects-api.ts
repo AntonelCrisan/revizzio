@@ -217,10 +217,14 @@ export async function listStudyProjects(): Promise<StudyProject[]> {
   return parseProjectResponse<StudyProject[]>(response);
 }
 
-export async function getStudyProject(projectId: string): Promise<StudyProject> {
+export async function getStudyProject(
+  projectId: string,
+  options: { signal?: AbortSignal } = {},
+): Promise<StudyProject> {
   const response = await fetch(`/api/projects/${projectId}`, {
     credentials: "same-origin",
     cache: "no-store",
+    signal: options.signal,
   });
   return parseProjectResponse<StudyProject>(response);
 }
@@ -295,7 +299,7 @@ export async function prepareStudyProject(payload: {
   institutionName: string;
   files: File[];
   materialRightsConfirmed: boolean;
-}): Promise<StudyProjectPrepareResponse> {
+}, options: { signal?: AbortSignal } = {}): Promise<StudyProjectPrepareResponse> {
   const formData = new FormData();
   formData.set("name", payload.name);
   formData.set("subject_name", payload.subjectName);
@@ -313,8 +317,20 @@ export async function prepareStudyProject(payload: {
     credentials: "same-origin",
     body: formData,
     cache: "no-store",
+    signal: options.signal,
   });
   return parseProjectResponse<StudyProjectPrepareResponse>(response);
+}
+
+export async function cancelStudyProjectGeneration(
+  projectId: string,
+): Promise<StudyProject> {
+  const response = await fetch(`/api/projects/${projectId}/cancel-generation`, {
+    method: "POST",
+    credentials: "same-origin",
+    cache: "no-store",
+  });
+  return parseProjectResponse<StudyProject>(response);
 }
 
 export async function importStudyProjectJson(payload: {
@@ -396,6 +412,7 @@ export async function chatWithStudyProjectAi(payload: {
   projectId: string;
   message: string;
   history: StudyProjectChatMessage[];
+  conversationSummary?: string;
 }): Promise<StudyProjectChatResponse> {
   const response = await fetch(`/api/projects/${payload.projectId}/ai/chat`, {
     method: "POST",
@@ -406,6 +423,7 @@ export async function chatWithStudyProjectAi(payload: {
     body: JSON.stringify({
       message: payload.message,
       history: payload.history,
+      conversation_summary: payload.conversationSummary?.trim() || undefined,
     }),
     cache: "no-store",
   });

@@ -151,7 +151,7 @@ AI_CHAT_RESPONSE_SCHEMA: dict[str, Any] = {
     "additionalProperties": False,
     "required": ["answer"],
     "properties": {
-        "answer": {"type": "string", "minLength": 2, "maxLength": 4000},
+        "answer": {"type": "string", "minLength": 80, "maxLength": 4000},
     },
 }
 

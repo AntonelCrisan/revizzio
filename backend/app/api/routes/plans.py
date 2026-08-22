@@ -19,7 +19,7 @@ router = APIRouter(prefix="/api/plans", tags=["plans"])
 DEFAULT_PLANS = [
     {
         "slug": "start",
-        "name": "Start",
+        "name": "Beginner",
         "price_ron": Decimal("0.00"),
         "old_price_ron": None,
         "discount_label": None,
@@ -198,7 +198,12 @@ async def _get_plans(
 
 
 def _plan_response(plan: SubscriptionPlan) -> SubscriptionPlanResponse:
-    return SubscriptionPlanResponse.model_validate(plan)
+    response = SubscriptionPlanResponse.model_validate(plan)
+
+    if response.slug == "start" and response.name == "Start":
+        response.name = "Beginner"
+
+    return response
 
 
 @router.get("/", response_model=list[SubscriptionPlanResponse])

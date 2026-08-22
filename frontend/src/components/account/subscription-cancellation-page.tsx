@@ -106,7 +106,7 @@ export function SubscriptionCancellationPage() {
             <div className="mt-5 rounded-2xl border border-info-border bg-info-soft p-4 text-sm leading-6 text-info">
               Dacă oprești reînnoirea, accesul rămâne activ până la{" "}
               <strong>{state.activeUntil}</strong>. După această dată, planul
-              revine la Start dacă nu reactivezi abonamentul.
+              revine la Beginner dacă nu reactivezi abonamentul.
             </div>
 
             {state.status !== "idle" ? (

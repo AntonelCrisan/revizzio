@@ -6,6 +6,7 @@ const allowedRoutes = [
   { method: "GET", pattern: /^[0-9a-fA-F-]{36}\/prompt$/ },
   { method: "PATCH", pattern: /^[0-9a-fA-F-]{36}$/ },
   { method: "POST", pattern: /^prepare$/ },
+  { method: "POST", pattern: /^[0-9a-fA-F-]{36}\/cancel-generation$/ },
   { method: "POST", pattern: /^[0-9a-fA-F-]{36}\/generate-quizzes$/ },
   { method: "POST", pattern: /^[0-9a-fA-F-]{36}\/ai\/chat$/ },
   { method: "POST", pattern: /^[0-9a-fA-F-]{36}\/ai\/explain-selection$/ },
@@ -107,6 +108,7 @@ async function proxyProjectsRequest(
         headers,
         body,
         cache: "no-store",
+        signal: request.signal,
       },
     );
 

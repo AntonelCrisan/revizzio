@@ -30,7 +30,7 @@ function roleLabel(role: AdminUser["role"]) {
 
 function themeLabel(theme: AdminUser["theme_preference"]) {
   if (theme === "dark") return "Dark";
-  if (theme === "light") return "Light";
+  if (theme === "light") return "Luminos";
   return "Sistem";
 }
 

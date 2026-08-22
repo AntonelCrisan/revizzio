@@ -13,7 +13,7 @@ export function getActivePlan(user: AuthUser | null): AuthUserPlan | null {
 }
 
 export function getActivePlanName(user: AuthUser | null) {
-  return getActivePlan(user)?.name ?? "Start";
+  return getActivePlan(user)?.name ?? "Beginner";
 }
 
 export function getActivePlanBadge(user: AuthUser | null) {
