@@ -32,7 +32,7 @@ export function LegalDocument({ contentHtml, eyebrow, summary }: LegalDocumentPr
           <div className="absolute -right-36 top-1/3 h-96 w-96 rounded-full bg-success-border/20 blur-3xl" />
         </div>
 
-        <header className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-5 py-6 sm:px-8 sm:py-8">
+        <header className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-3 py-5 sm:px-5 sm:py-7 lg:px-8">
           <BrandLogo
             href="/"
             className="text-content transition hover:text-action"
@@ -48,14 +48,14 @@ export function LegalDocument({ contentHtml, eyebrow, summary }: LegalDocumentPr
           </Link>
         </header>
 
-        <section className="mx-auto max-w-6xl px-5 pb-16 pt-4 sm:px-8 lg:pb-24">
-          <div className="mb-7 rounded-[2rem] border border-subtle bg-surface px-5 py-6 theme-shadow-card sm:px-8 sm:py-8">
+        <section className="mx-auto max-w-6xl px-3 pb-14 pt-3 sm:px-5 lg:px-8 lg:pb-24">
+          <div className="mb-6 rounded-[1.5rem] border border-subtle bg-surface px-4 py-6 theme-shadow-card sm:mb-7 sm:rounded-[2rem] sm:px-6 sm:py-8 lg:px-8">
             <p className="text-xs font-bold uppercase tracking-[0.22em] text-muted">{eyebrow}</p>
             <p className="mt-3 max-w-3xl text-sm leading-7 text-muted sm:text-base">{summary}</p>
           </div>
 
           <div
-            className="legal-document rounded-[2rem] border border-subtle bg-surface px-5 py-8 theme-shadow-card sm:px-8 lg:px-12 lg:py-12"
+            className="legal-document rounded-[1.5rem] border border-subtle bg-surface px-4 py-7 theme-shadow-card sm:rounded-[2rem] sm:px-6 lg:px-12 lg:py-12"
             dangerouslySetInnerHTML={{ __html: contentHtml }}
           />
         </section>

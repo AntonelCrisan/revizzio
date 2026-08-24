@@ -18,7 +18,7 @@ export function LegalPageShell({
   return (
     <>
       <main className="min-h-screen bg-app text-content">
-        <header className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-5 py-6 sm:px-8 sm:py-8">
+        <header className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-3 py-5 sm:px-5 sm:py-7 lg:px-8">
           <BrandLogo
             href="/"
             className="text-content transition hover:text-action"
@@ -33,8 +33,8 @@ export function LegalPageShell({
           </Link>
         </header>
 
-        <section className="mx-auto max-w-6xl px-5 pb-16 pt-4 sm:px-8 lg:pb-24">
-          <div className="rounded-[2rem] border border-subtle bg-surface px-5 py-7 theme-shadow-card sm:px-8 sm:py-9">
+        <section className="mx-auto max-w-6xl px-3 pb-14 pt-3 sm:px-5 lg:px-8 lg:pb-24">
+          <div className="rounded-[1.5rem] border border-subtle bg-surface px-4 py-6 theme-shadow-card sm:rounded-[2rem] sm:px-6 sm:py-8 lg:px-8">
             <p className="text-xs font-bold uppercase tracking-[0.22em] text-muted">
               {eyebrow}
             </p>
