@@ -10,6 +10,10 @@ export const metadata: Metadata = {
   description: "Alege planul Reviss potrivit pentru studiul tău.",
 };
 
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+export const fetchCache = "force-no-store";
+
 type UpgradeRouteProps = {
   searchParams: Promise<{
     checkout?: string;

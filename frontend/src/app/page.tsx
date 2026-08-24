@@ -25,6 +25,10 @@ const homepageSeoTitle =
 const homepageSeoDescription =
   "Încarcă PDF-uri, cursuri sau prezentări, iar Reviss le transformă în rezumate AI, flashcard-uri, quiz-uri și planuri clare pentru examen.";
 
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+export const fetchCache = "force-no-store";
+
 export const metadata: Metadata = {
   title: homepageSeoTitle,
   description: homepageSeoDescription,
