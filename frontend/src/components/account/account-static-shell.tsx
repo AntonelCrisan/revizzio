@@ -99,7 +99,7 @@ function Logo() {
     <BrandLogo
       href="/"
       className="text-content transition hover:text-action"
-      logoClassName="h-8 w-32"
+      logoClassName="h-7 w-28"
     />
   );
 }
@@ -142,6 +142,22 @@ function PageIcon({ page }: { page: AccountPageId }) {
       ) : null}
     </Icon>
   );
+}
+
+function primaryNavClass(isActive: boolean) {
+  return `flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-semibold transition ${
+    isActive
+      ? "bg-action-soft text-content"
+      : "text-content hover:bg-action-soft"
+  }`;
+}
+
+function secondaryNavClass(isActive: boolean) {
+  return `flex items-center rounded-xl px-3 py-2 text-sm transition ${
+    isActive
+      ? "bg-action-soft font-semibold text-content"
+      : "font-semibold text-muted hover:bg-action-soft hover:text-content"
+  }`;
 }
 
 export function AccountStaticShell({
@@ -254,7 +270,7 @@ export function AccountStaticShell({
       ) : null}
 
       <aside
-        className={`fixed inset-y-0 left-0 z-50 flex w-[min(84vw,300px)] flex-col border-r border-subtle bg-surface transition-transform duration-300 lg:sticky lg:top-0 lg:h-svh lg:translate-x-0 ${
+        className={`fixed inset-y-0 left-0 z-50 flex w-[min(84vw,300px)] flex-col overflow-hidden border-r border-subtle bg-sidebar transition-transform duration-300 lg:sticky lg:top-0 lg:h-svh lg:translate-x-0 ${
           sidebarOpen ? "translate-x-0" : "-translate-x-full"
         }`}
         aria-label="Meniu principal"
@@ -276,7 +292,7 @@ export function AccountStaticShell({
         <div className="min-h-0 flex-1 overflow-y-auto pb-4">
           <Link
             href="/myaccount"
-            className="mx-4 mb-4 flex items-center justify-center gap-2 rounded-full bg-content px-4 py-3 text-sm font-semibold text-app transition hover:opacity-90"
+            className="mx-4 mb-4 flex w-[calc(100%-2rem)] items-center justify-center gap-2 rounded-full bg-content px-4 py-3 text-sm font-semibold text-app transition hover:opacity-90"
           >
             <Icon>
               <path d="M12 5v14M5 12h14" />
@@ -291,11 +307,7 @@ export function AccountStaticShell({
                 <Link
                   key={item.href}
                   href={item.href}
-                  className={`flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold transition ${
-                    isActive
-                      ? "bg-success-soft text-success"
-                      : "text-content hover:bg-surface-hover"
-                  }`}
+                  className={primaryNavClass(isActive)}
                 >
                   <PageIcon page={item.page} />
                   {item.label}
@@ -311,11 +323,7 @@ export function AccountStaticShell({
                     currentGroup === "settings" ? null : "settings",
                   )
                 }
-                className={`flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-semibold transition ${
-                  activePage === "settings"
-                    ? "bg-success-soft text-success"
-                    : "text-content hover:bg-surface-hover"
-                }`}
+                className={primaryNavClass(activePage === "settings")}
                 aria-expanded={openNavGroup === "settings"}
               >
                 <PageIcon page="settings" />
@@ -346,11 +354,7 @@ export function AccountStaticShell({
                         onClick={(event) =>
                           handleSettingsItemClick(event, item.section)
                         }
-                        className={`flex items-center rounded-xl px-3 py-2 text-sm font-semibold transition ${
-                          isActive
-                            ? "bg-success-soft text-success"
-                            : "text-muted hover:bg-surface-hover hover:text-content"
-                        }`}
+                        className={secondaryNavClass(isActive)}
                       >
                         {item.label}
                       </Link>
@@ -363,11 +367,9 @@ export function AccountStaticShell({
             {isAdminRole(user.role) ? (
               <Link
                 href={adminNavigationItem.href}
-                className={`flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold transition ${
-                  activePage === adminNavigationItem.page
-                    ? "bg-success-soft text-success"
-                    : "text-content hover:bg-surface-hover"
-                }`}
+                className={primaryNavClass(
+                  activePage === adminNavigationItem.page,
+                )}
               >
                 <PageIcon page={adminNavigationItem.page} />
                 {adminNavigationItem.label}
@@ -382,11 +384,10 @@ export function AccountStaticShell({
                     currentGroup === "billing" ? null : "billing",
                   )
                 }
-                className={`flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-semibold transition ${
-                  activePage === "upgrade" || activePage === "billing-invoices"
-                    ? "bg-success-soft text-success"
-                    : "text-content hover:bg-surface-hover"
-                }`}
+                className={primaryNavClass(
+                  activePage === "upgrade" ||
+                    activePage === "billing-invoices",
+                )}
                 aria-expanded={openNavGroup === "billing"}
               >
                 <Icon className="h-[18px] w-[18px]">
@@ -413,11 +414,7 @@ export function AccountStaticShell({
                       <Link
                         key={item.href}
                         href={item.href}
-                        className={`flex items-center rounded-xl px-3 py-2 text-sm font-semibold transition ${
-                          isActive
-                            ? "bg-success-soft text-success"
-                            : "text-muted hover:bg-surface-hover hover:text-content"
-                        }`}
+                        className={secondaryNavClass(isActive)}
                       >
                         {item.label}
                       </Link>
@@ -446,7 +443,7 @@ export function AccountStaticShell({
               type="button"
               onClick={handleLogout}
               disabled={isLoggingOut}
-              className="flex h-9 w-9 items-center justify-center rounded-xl text-muted transition hover:bg-surface-hover hover:text-content disabled:cursor-wait disabled:opacity-60"
+              className="flex h-9 w-9 items-center justify-center rounded-xl text-muted transition hover:bg-action-soft hover:text-content disabled:cursor-wait disabled:opacity-60"
               aria-label="Ieși din cont"
             >
               <Icon>
@@ -471,7 +468,7 @@ export function AccountStaticShell({
           </Icon>
         </button>
 
-        <main className="mx-auto max-w-6xl px-4 pb-6 pt-24 sm:px-6 lg:px-8 lg:py-8">
+        <main className="mx-auto w-full max-w-7xl px-4 pb-6 pt-24 sm:px-6 lg:px-8 lg:py-8">
           {children}
         </main>
       </div>

@@ -1,6 +1,9 @@
 const allowedRoutes = [
   { method: "GET", pattern: /^audit-logs$/ },
   { method: "GET", pattern: /^users$/ },
+  { method: "POST", pattern: /^users\/[^/]+\/verification-email$/ },
+  { method: "PATCH", pattern: /^users\/[^/]+$/ },
+  { method: "DELETE", pattern: /^users\/[^/]+$/ },
 ];
 
 type AdminRouteContext = {
@@ -43,9 +46,14 @@ async function proxyAdminRequest(
 
   try {
     const queryString = new URL(request.url).search;
+    const requestBody =
+      request.method === "GET" || request.method === "HEAD"
+        ? undefined
+        : await request.arrayBuffer();
     const backendResponse = await fetch(`${apiUrl}/api/admin/${action}/${queryString}`, {
       method: request.method,
       headers: requestHeaders,
+      body: requestBody,
       cache: "no-store",
     });
 
@@ -68,6 +76,27 @@ async function proxyAdminRequest(
 }
 
 export function GET(
+  request: Request,
+  context: AdminRouteContext,
+): Promise<Response> {
+  return proxyAdminRequest(request, context);
+}
+
+export function POST(
+  request: Request,
+  context: AdminRouteContext,
+): Promise<Response> {
+  return proxyAdminRequest(request, context);
+}
+
+export function PATCH(
+  request: Request,
+  context: AdminRouteContext,
+): Promise<Response> {
+  return proxyAdminRequest(request, context);
+}
+
+export function DELETE(
   request: Request,
   context: AdminRouteContext,
 ): Promise<Response> {

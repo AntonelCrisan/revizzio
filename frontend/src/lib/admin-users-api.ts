@@ -34,6 +34,11 @@ type ApiErrorPayload = {
   detail?: string;
 };
 
+type AdminUsersRequestOptions = {
+  method?: "GET" | "POST" | "PATCH" | "DELETE";
+  body?: unknown;
+};
+
 export class AdminUsersApiError extends Error {
   constructor(
     message: string,
@@ -44,12 +49,17 @@ export class AdminUsersApiError extends Error {
   }
 }
 
-async function adminUsersRequest<T>(path: string): Promise<T> {
+async function adminUsersRequest<T>(
+  path: string,
+  options: AdminUsersRequestOptions = {},
+): Promise<T> {
   const response = await fetch(`/api/admin/${path}`, {
+    method: options.method ?? "GET",
     credentials: "same-origin",
     headers: {
       "Content-Type": "application/json",
     },
+    body: options.body === undefined ? undefined : JSON.stringify(options.body),
     cache: "no-store",
   });
 
@@ -66,9 +76,37 @@ async function adminUsersRequest<T>(path: string): Promise<T> {
     );
   }
 
+  if (response.status === 204) {
+    return undefined as T;
+  }
+
   return (await response.json()) as T;
 }
 
 export function getAdminUsers(): Promise<AdminUser[]> {
   return adminUsersRequest<AdminUser[]>("users");
+}
+
+export function updateAdminUser(
+  userId: string,
+  payload: Partial<Pick<AdminUser, "role" | "is_active">>,
+): Promise<AdminUser> {
+  return adminUsersRequest<AdminUser>(`users/${userId}`, {
+    method: "PATCH",
+    body: payload,
+  });
+}
+
+export function sendAdminUserVerificationEmail(
+  userId: string,
+): Promise<AdminUser> {
+  return adminUsersRequest<AdminUser>(`users/${userId}/verification-email`, {
+    method: "POST",
+  });
+}
+
+export async function deleteAdminUser(userId: string): Promise<void> {
+  await adminUsersRequest<void>(`users/${userId}`, {
+    method: "DELETE",
+  });
 }

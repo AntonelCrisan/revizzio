@@ -1,16 +1,27 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState, type ReactNode } from "react";
+import { useRouter } from "next/navigation";
+import { useMemo, useRef, useState, type ReactNode } from "react";
 import { AccountStaticShell } from "@/components/account/account-static-shell";
 import { TablePagination } from "@/components/account/table-pagination";
-import type { AdminUser, AdminUserSession } from "@/lib/admin-users-api";
+import { useAuth } from "@/components/auth/auth-provider";
+import {
+  deleteAdminUser,
+  sendAdminUserVerificationEmail,
+  type AdminUser,
+  type AdminUserSession,
+  updateAdminUser,
+} from "@/lib/admin-users-api";
 
 type AdminUserDetailPageProps = {
   user: AdminUser;
 };
 
 const SESSIONS_PAGE_SIZE = 8;
+type VerificationEmailState = "idle" | "sending" | "sent";
+const VERIFICATION_EMAIL_SUCCESS_MESSAGE =
+  "Emailul de verificare a fost trimis.";
 
 function formatDate(value: string | null) {
   if (!value) return "Niciodată";
@@ -108,8 +119,30 @@ function UserMetric({
   );
 }
 
-export function AdminUserDetailPage({ user }: AdminUserDetailPageProps) {
+export function AdminUserDetailPage({
+  user: initialUser,
+}: AdminUserDetailPageProps) {
+  const router = useRouter();
+  const { user: currentUser } = useAuth();
+  const [user, setUser] = useState(initialUser);
   const [currentPage, setCurrentPage] = useState(1);
+  const [isSavingRole, setIsSavingRole] = useState(false);
+  const [isSavingStatus, setIsSavingStatus] = useState(false);
+  const [verificationEmailState, setVerificationEmailState] =
+    useState<VerificationEmailState>("idle");
+  const [isDeletingUser, setIsDeletingUser] = useState(false);
+  const [actionMessage, setActionMessage] = useState("");
+  const [actionError, setActionError] = useState("");
+  const verificationEmailRequestInFlightRef = useRef(false);
+  const isCurrentUser = currentUser?.id === user.id;
+  const hasSentVerificationEmail =
+    verificationEmailState === "sent" ||
+    actionMessage === VERIFICATION_EMAIL_SUCCESS_MESSAGE;
+  const showVerificationEmailSpinner =
+    verificationEmailState === "sending" && !hasSentVerificationEmail;
+  const verificationEmailButtonLabel = hasSentVerificationEmail
+    ? "Trimite din nou email"
+    : "Trimite email verificare";
   const pageCount = Math.max(
     1,
     Math.ceil(user.sessions.length / SESSIONS_PAGE_SIZE),
@@ -119,6 +152,125 @@ export function AdminUserDetailPage({ user }: AdminUserDetailPageProps) {
     const start = (safeCurrentPage - 1) * SESSIONS_PAGE_SIZE;
     return user.sessions.slice(start, start + SESSIONS_PAGE_SIZE);
   }, [safeCurrentPage, user.sessions]);
+
+  async function changeRole(nextRole: AdminUser["role"]) {
+    if (nextRole === user.role || isSavingRole) return;
+
+    setIsSavingRole(true);
+    setActionMessage("");
+    setActionError("");
+
+    try {
+      setUser(await updateAdminUser(user.id, { role: nextRole }));
+      setActionMessage("Rolul utilizatorului a fost actualizat.");
+    } catch (error) {
+      setActionError(
+        error instanceof Error
+          ? error.message
+          : "Rolul nu a putut fi actualizat.",
+      );
+    } finally {
+      setIsSavingRole(false);
+    }
+  }
+
+  async function toggleUserStatus() {
+    if (isSavingStatus) return;
+
+    const nextIsActive = !user.is_active;
+    setIsSavingStatus(true);
+    setActionMessage("");
+    setActionError("");
+
+    try {
+      setUser(await updateAdminUser(user.id, { is_active: nextIsActive }));
+      setActionMessage(
+        nextIsActive
+          ? "Contul utilizatorului a fost reactivat."
+          : "Contul utilizatorului a fost dezactivat.",
+      );
+    } catch (error) {
+      setActionError(
+        error instanceof Error
+          ? error.message
+          : "Statusul contului nu a putut fi actualizat.",
+      );
+    } finally {
+      setIsSavingStatus(false);
+    }
+  }
+
+  async function sendVerificationEmail() {
+    if (verificationEmailRequestInFlightRef.current || user.is_active) return;
+
+    verificationEmailRequestInFlightRef.current = true;
+    setVerificationEmailState("sending");
+    setActionMessage("");
+    setActionError("");
+
+    try {
+      const updatedUser = await sendAdminUserVerificationEmail(user.id);
+      setUser(updatedUser);
+      setVerificationEmailState("sent");
+      setActionMessage(VERIFICATION_EMAIL_SUCCESS_MESSAGE);
+    } catch (error) {
+      setVerificationEmailState("idle");
+      setActionError(
+        error instanceof Error
+          ? error.message
+          : "Emailul de verificare nu a putut fi trimis.",
+      );
+    } finally {
+      verificationEmailRequestInFlightRef.current = false;
+    }
+  }
+
+  async function verifyUserManually() {
+    if (isSavingStatus || user.is_active) return;
+
+    setIsSavingStatus(true);
+    setActionMessage("");
+    setActionError("");
+
+    try {
+      setUser(await updateAdminUser(user.id, { is_active: true }));
+      setVerificationEmailState("idle");
+      setActionMessage("Contul utilizatorului a fost verificat manual.");
+    } catch (error) {
+      setActionError(
+        error instanceof Error
+          ? error.message
+          : "Contul nu a putut fi verificat manual.",
+      );
+    } finally {
+      setIsSavingStatus(false);
+    }
+  }
+
+  async function removeUser() {
+    if (isDeletingUser) return;
+
+    const confirmed = window.confirm(
+      `Stergi definitiv utilizatorul ${user.email}? Aceasta actiune nu poate fi anulata.`,
+    );
+    if (!confirmed) return;
+
+    setIsDeletingUser(true);
+    setActionMessage("");
+    setActionError("");
+
+    try {
+      await deleteAdminUser(user.id);
+      router.push("/admin/settings/utilizatori");
+    } catch (error) {
+      setActionError(
+        error instanceof Error
+          ? error.message
+          : "Utilizatorul nu a putut fi sters.",
+      );
+      setIsDeletingUser(false);
+    }
+  }
 
   return (
     <AccountStaticShell activePage="admin-settings">
@@ -171,6 +323,156 @@ export function AdminUserDetailPage({ user }: AdminUserDetailPageProps) {
             detail={themeLabel(user.theme_preference)}
           />
         </div>
+
+        <section className="rounded-xl border border-subtle bg-surface p-5">
+          <div className="flex flex-col gap-3 border-b border-subtle pb-5 lg:flex-row lg:items-start lg:justify-between">
+            <div>
+              <h2 className="text-xs font-black uppercase tracking-[0.18em] text-muted">
+                Administrare utilizator
+              </h2>
+              <p className="mt-2 max-w-2xl text-sm leading-6 text-muted">
+                Controleaza rolul, verificarea emailului si accesul contului.
+                Schimbarile importante revoca automat sesiunile active.
+              </p>
+            </div>
+            <span
+              className={`inline-flex w-fit rounded-full border px-3 py-1 text-[10px] font-black uppercase tracking-[0.12em] ${
+                user.is_active
+                  ? "border-success-border bg-success-soft text-success"
+                  : "border-warning-border bg-warning-soft text-warning"
+              }`}
+            >
+              {user.is_active ? "Activ / verificat" : "Inactiv / neverificat"}
+            </span>
+          </div>
+
+          {actionMessage ? (
+            <p className="mt-5 rounded-xl border border-success-border bg-success-soft px-4 py-3 text-sm font-bold text-success">
+              {actionMessage}
+            </p>
+          ) : null}
+          {actionError ? (
+            <p className="mt-5 rounded-xl border border-danger-border bg-danger-soft px-4 py-3 text-sm font-bold text-danger">
+              {actionError}
+            </p>
+          ) : null}
+
+          {isCurrentUser ? (
+            <p className="mt-5 rounded-xl border border-warning-border bg-warning-soft px-4 py-3 text-sm font-semibold leading-6 text-warning">
+              Pentru siguranta, nu iti poti sterge contul, dezactiva accesul sau
+              elimina propriul rol de administrator.
+            </p>
+          ) : null}
+
+          <div className="mt-5 grid gap-4 xl:grid-cols-[0.9fr_1.1fr]">
+            <div className="rounded-xl border border-subtle bg-app p-4">
+              <label className="block">
+                <span className="text-[10px] font-black uppercase tracking-[0.16em] text-muted">
+                  Rol utilizator
+                </span>
+                <select
+                  value={user.role}
+                  onChange={(event) =>
+                    void changeRole(event.target.value as AdminUser["role"])
+                  }
+                  disabled={isSavingRole || isCurrentUser}
+                  className="mt-3 h-12 w-full rounded-lg border border-subtle bg-surface px-4 text-sm font-bold text-content outline-none transition focus:border-action disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  <option value="user">Utilizator</option>
+                  <option value="admin">Administrator</option>
+                </select>
+              </label>
+              <p className="mt-3 text-xs leading-5 text-muted">
+                Rolul decide accesul la setarile administrative. La schimbarea
+                rolului, sesiunile utilizatorului sunt revocate.
+              </p>
+            </div>
+
+            <div className="rounded-xl border border-subtle bg-app p-4">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                <div>
+                  <p className="text-[10px] font-black uppercase tracking-[0.16em] text-muted">
+                    Verificare si acces
+                  </p>
+                  <p className="mt-2 text-sm leading-6 text-muted">
+                    {user.is_active
+                      ? "Contul poate accesa aplicatia. Il poti dezactiva daca este nevoie."
+                      : "Trimite un link nou de verificare sau verifica manual contul daca emailul nu ajunge."}
+                  </p>
+                </div>
+                <span className="w-fit rounded-full border border-subtle bg-surface px-3 py-1 text-[10px] font-black uppercase tracking-[0.12em] text-muted">
+                  {user.is_active ? "Acces permis" : "Acces blocat"}
+                </span>
+              </div>
+
+              <div className="mt-4 flex flex-wrap gap-3">
+                {!user.is_active ? (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => void sendVerificationEmail()}
+                      disabled={isCurrentUser}
+                      aria-busy={showVerificationEmailSpinner}
+                      className="inline-flex h-11 items-center justify-center gap-2 rounded-full bg-action px-5 text-sm font-black text-on-action transition hover:bg-action-hover disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      {showVerificationEmailSpinner ? (
+                        <svg
+                          aria-hidden="true"
+                          className="h-4 w-4 animate-spin"
+                          fill="none"
+                          viewBox="0 0 24 24"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                        >
+                          <path d="M20 11a8.1 8.1 0 0 0-15.5-2M4 5v4h4" />
+                          <path d="M4 13a8.1 8.1 0 0 0 15.5 2M20 19v-4h-4" />
+                        </svg>
+                      ) : null}
+                      {verificationEmailButtonLabel}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => void verifyUserManually()}
+                      disabled={isSavingStatus || isCurrentUser}
+                      className="inline-flex h-11 items-center justify-center rounded-full border border-success-border bg-success-soft px-5 text-sm font-black text-success transition hover:opacity-80 disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      {isSavingStatus ? "Se verifica..." : "Verifica manual"}
+                    </button>
+                  </>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => void toggleUserStatus()}
+                    disabled={isSavingStatus || isCurrentUser}
+                    className="inline-flex h-11 items-center justify-center rounded-full border border-warning-border bg-warning-soft px-5 text-sm font-black text-warning transition hover:opacity-80 disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    {isSavingStatus ? "Se salveaza..." : "Dezactiveaza contul"}
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+
+          <div className="mt-4 rounded-xl border border-danger-border bg-danger-soft p-4">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <p className="text-sm font-black text-danger">Stergere cont</p>
+                <p className="mt-1 max-w-2xl text-sm leading-6 text-danger">
+                  Sterge utilizatorul si datele asociate contului. Actiunea este
+                  permanenta.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => void removeUser()}
+                disabled={isDeletingUser || isCurrentUser}
+                className="inline-flex h-11 w-fit items-center justify-center rounded-full bg-danger px-5 text-sm font-black text-danger-soft transition hover:opacity-85 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {isDeletingUser ? "Se sterge..." : "Sterge utilizator"}
+              </button>
+            </div>
+          </div>
+        </section>
 
         <div className="grid gap-5 xl:grid-cols-2">
           <DetailSection title="Date cont">

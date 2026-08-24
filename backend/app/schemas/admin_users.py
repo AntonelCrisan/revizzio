@@ -1,8 +1,10 @@
+from __future__ import annotations
+
 import uuid
 from datetime import datetime
 from typing import Literal
 
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, EmailStr, model_validator
 
 from app.schemas.user import ThemePreference, UserRole
 
@@ -37,3 +39,14 @@ class AdminUserResponse(BaseModel):
     last_session_at: datetime | None
     last_seen_at: datetime | None
     sessions: list[AdminUserSessionResponse]
+
+
+class AdminUserUpdate(BaseModel):
+    role: UserRole | None = None
+    is_active: bool | None = None
+
+    @model_validator(mode="after")
+    def at_least_one_field(self) -> AdminUserUpdate:
+        if self.role is None and self.is_active is None:
+            raise ValueError("Trimite cel putin un camp de actualizat.")
+        return self

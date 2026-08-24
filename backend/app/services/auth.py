@@ -180,10 +180,33 @@ class AuthService:
         if pending is None:
             raise InvalidEmailTokenError
 
-        if await self._users.get_by_email(pending.email) is not None:
+        existing_user = await self._users.get_by_email(pending.email)
+        if existing_user is not None:
+            if existing_user.is_active:
+                pending.used_at = now
+                await self._session.commit()
+                raise EmailAlreadyRegisteredError
+
+            existing_user.is_active = True
             pending.used_at = now
+            result = await self._create_session(
+                user=existing_user,
+                persistent=False,
+                user_agent=user_agent,
+                ip_address=ip_address,
+            )
+            add_audit_log(
+                self._session,
+                action="auth.email_verified_existing_user",
+                actor=existing_user,
+                resource_type="user",
+                resource_id=str(existing_user.id),
+                details={"email": existing_user.email},
+                ip_address=ip_address,
+                user_agent=user_agent,
+            )
             await self._session.commit()
-            raise EmailAlreadyRegisteredError
+            return result
 
         try:
             user = await self._users.add(

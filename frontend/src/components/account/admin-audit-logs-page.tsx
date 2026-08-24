@@ -22,6 +22,43 @@ const statusFilters: Array<{ value: AuditLogStatus | ""; label: string }> = [
   { value: "failure", label: "Erori" },
 ];
 
+const auditActionLabels: Record<string, string> = {
+  "admin.subscription_plans.updated": "Planurile de abonament au fost actualizate",
+  "admin.user.delete": "Utilizator sters",
+  "admin.user.update": "Utilizator actualizat",
+  "admin.user.verification_email_failed": "Email de verificare esuat",
+  "admin.user.verification_email_requested": "Email de verificare trimis",
+  "auth.email_verified_and_registered": "Email verificat si cont creat",
+  "auth.email_verified_existing_user": "Email verificat pentru cont existent",
+  "auth.logged_in": "Autentificare reusita",
+  "auth.logged_out": "Delogare",
+  "auth.login_blocked_pending_email_confirmation":
+    "Autentificare blocata pana la confirmarea emailului",
+  "auth.login_failed": "Autentificare esuata",
+  "auth.logout_failed": "Delogare esuata",
+  "auth.password_reset_completed": "Parola resetata",
+  "auth.password_reset_duplicate_confirm_ignored":
+    "Confirmare duplicata resetare parola ignorata",
+  "auth.password_reset_email_failed": "Email resetare parola esuat",
+  "auth.password_reset_requested": "Resetare parola solicitata",
+  "auth.password_reset_requested_ignored": "Resetare parola ignorata",
+  "auth.password_reset_request_ignored_active_token":
+    "Resetare parola ignorata, token activ",
+  "auth.register_failed": "Inregistrare esuata",
+  "auth.registration_email_failed": "Email de confirmare inregistrare esuat",
+  "auth.registration_verification_requested":
+    "Email de confirmare inregistrare trimis",
+  "stripe.checkout_session.created": "Checkout Stripe creat",
+  "stripe.checkout_session.failed": "Checkout Stripe esuat",
+  "stripe.customer.subscription.created": "Abonament Stripe creat",
+  "stripe.customer.subscription.deleted": "Abonament Stripe anulat",
+  "stripe.customer.subscription.updated": "Abonament Stripe actualizat",
+  "stripe.invoice.paid": "Factura Stripe platita",
+  "stripe.invoice.payment_failed": "Plata factura Stripe esuata",
+  "stripe.webhook.failed": "Webhook Stripe esuat",
+  "user.preferences.updated": "Preferinte utilizator actualizate",
+};
+
 function formatDate(value: string | null) {
   if (!value) return "Niciodată";
 
@@ -49,6 +86,18 @@ function statusClass(status: AuditLogStatus) {
   return status === "success"
     ? "border-success-border bg-success-soft text-success"
     : "border-danger-border bg-danger-soft text-danger";
+}
+
+function fallbackActionLabel(action: string) {
+  return action
+    .replace(/[_:.-]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .replace(/^./, (firstLetter) => firstLetter.toUpperCase());
+}
+
+function actionLabel(action: string) {
+  return auditActionLabels[action] ?? fallbackActionLabel(action);
 }
 
 function resourceLabel(log: AuditLog) {
@@ -89,7 +138,10 @@ export function AdminAuditLogsPage({ initialLogs }: AdminAuditLogsPageProps) {
   const [errorMessage, setErrorMessage] = useState("");
 
   const actions = useMemo(
-    () => Array.from(new Set(logs.map((log) => log.action))).sort(),
+    () =>
+      Array.from(new Set(logs.map((log) => log.action))).sort((first, second) =>
+        actionLabel(first).localeCompare(actionLabel(second), "ro"),
+      ),
     [logs],
   );
   const successCount = logs.filter((log) => log.status === "success").length;
@@ -106,6 +158,7 @@ export function AdminAuditLogsPage({ initialLogs }: AdminAuditLogsPageProps) {
         !normalizedSearch ||
         actorLabel(log).toLowerCase().includes(normalizedSearch) ||
         log.action.toLowerCase().includes(normalizedSearch) ||
+        actionLabel(log.action).toLowerCase().includes(normalizedSearch) ||
         resourceLabel(log).toLowerCase().includes(normalizedSearch) ||
         (log.ip_address ?? "").toLowerCase().includes(normalizedSearch);
 
@@ -168,9 +221,20 @@ export function AdminAuditLogsPage({ initialLogs }: AdminAuditLogsPageProps) {
             type="button"
             onClick={refreshLogs}
             disabled={isRefreshing}
-            className="inline-flex w-fit items-center justify-center rounded-full bg-action px-5 py-3 text-sm font-black text-on-action transition hover:bg-action-hover disabled:cursor-wait disabled:opacity-60"
+            className="inline-flex w-fit items-center justify-center gap-2 rounded-full bg-action px-5 py-3 text-sm font-black text-on-action transition hover:bg-action-hover disabled:cursor-wait disabled:opacity-60"
           >
-            {isRefreshing ? "Se actualizează..." : "Actualizează"}
+            <svg
+              aria-hidden="true"
+              className={`h-4 w-4 ${isRefreshing ? "animate-spin" : ""}`}
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+              strokeWidth="2"
+            >
+              <path d="M20 11a8.1 8.1 0 0 0-15.5-2M4 5v4h4" />
+              <path d="M4 13a8.1 8.1 0 0 0 15.5 2M20 19v-4h-4" />
+            </svg>
+            <span>{isRefreshing ? "Refreshing..." : "Refresh"}</span>
           </button>
         </div>
 
@@ -188,7 +252,9 @@ export function AdminAuditLogsPage({ initialLogs }: AdminAuditLogsPageProps) {
           <LogMetric
             label="Ultimul log"
             value={formatDate(latestLog?.created_at ?? null)}
-            detail={latestLog?.action ?? "fără evenimente"}
+            detail={
+              latestLog ? actionLabel(latestLog.action) : "fără evenimente"
+            }
           />
         </div>
 
@@ -250,7 +316,7 @@ export function AdminAuditLogsPage({ initialLogs }: AdminAuditLogsPageProps) {
                 <option value="">Toate acțiunile</option>
                 {actions.map((currentAction) => (
                   <option key={currentAction} value={currentAction}>
-                    {currentAction}
+                    {actionLabel(currentAction)}
                   </option>
                 ))}
               </select>
@@ -284,8 +350,13 @@ export function AdminAuditLogsPage({ initialLogs }: AdminAuditLogsPageProps) {
                     <td className="max-w-[280px] break-words px-5 py-4 font-bold text-content">
                       {actorLabel(log)}
                     </td>
-                    <td className="whitespace-nowrap px-5 py-4 font-mono text-xs text-content">
-                      {log.action}
+                    <td className="max-w-[300px] px-5 py-4">
+                      <span className="block font-bold text-content">
+                        {actionLabel(log.action)}
+                      </span>
+                      <span className="mt-1 block break-all font-mono text-[11px] text-muted">
+                        {log.action}
+                      </span>
                     </td>
                     <td className="px-5 py-4">
                       <span
