@@ -1646,7 +1646,7 @@ export function AccountDashboard({
           </button>
         ) : null}
 
-        <main className="mx-auto w-full max-w-7xl px-2 pb-5 pt-20 sm:px-4 md:px-5 lg:px-8 lg:py-8">
+        <main className="w-full px-2 pb-5 pt-20 sm:px-4 md:px-5 lg:px-6 lg:py-8 xl:px-8">
           {view === "home" ? (
             <HomeView
               displayName={displayName}
