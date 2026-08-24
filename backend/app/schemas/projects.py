@@ -168,6 +168,7 @@ class StudyProjectResponse(BaseModel):
     slug: str
     status: str
     material_rights_confirmed: bool
+    generation_language: str
     error_message: str | None
     created_at: datetime
     updated_at: datetime
@@ -191,9 +192,7 @@ class StudyProjectResponse(BaseModel):
     summary_highlights: list[StudyProjectSummaryHighlightResponse] = Field(
         default_factory=list
     )
-    summary_notes: list[StudyProjectSummaryNoteResponse] = Field(
-        default_factory=list
-    )
+    summary_notes: list[StudyProjectSummaryNoteResponse] = Field(default_factory=list)
 
 
 class StudyProjectPrepareResponse(BaseModel):

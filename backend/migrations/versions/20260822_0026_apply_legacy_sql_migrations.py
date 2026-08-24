@@ -1,7 +1,7 @@
 """Apply SQL-only migrations.
 
 Revision ID: 20260822_0026
-Revises: 20260627_0006
+Revises: 20260820_0025
 Create Date: 2026-08-22
 """
 
@@ -11,7 +11,7 @@ from pathlib import Path
 from alembic import op
 
 revision: str = "20260822_0026"
-down_revision: str | Sequence[str] | None = "20260627_0006"
+down_revision: str | Sequence[str] | None = "20260820_0025"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
@@ -126,8 +126,30 @@ def _should_skip_statement(statement: str) -> bool:
     return normalized in {"BEGIN", "COMMIT"} or "ALEMBIC_VERSION" in normalized
 
 
+def _legacy_sql_checkpoint_exists() -> bool:
+    connection = op.get_bind()
+    return bool(
+        connection.exec_driver_sql(
+            """
+            SELECT
+                to_regclass('study_project_generation_jobs') IS NOT NULL
+                AND EXISTS (
+                    SELECT 1
+                    FROM information_schema.columns
+                    WHERE table_schema = current_schema()
+                      AND table_name = 'users'
+                      AND column_name = 'language_preference'
+                )
+            """
+        ).scalar()
+    )
+
+
 def upgrade() -> None:
     connection = op.get_bind()
+    if _legacy_sql_checkpoint_exists():
+        return
+
     sql_dir = Path(__file__).resolve().parents[1] / "sql"
 
     for migration_name in SQL_MIGRATIONS:

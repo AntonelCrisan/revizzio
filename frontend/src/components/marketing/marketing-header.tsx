@@ -7,6 +7,10 @@ import { BrandLogo } from "@/components/brand-logo";
 import { LanguageSelect } from "@/components/language-select";
 import { useLanguage } from "@/components/language-provider";
 import { ThemeToggle } from "@/components/theme-toggle";
+import {
+  type LanguagePreference,
+  updateLanguagePreference,
+} from "@/lib/auth-api";
 
 const menuItems = [
   { href: "#cum-functioneaza", labelKey: "marketing.nav.how" },
@@ -37,8 +41,30 @@ function MenuIcon({ open }: { open: boolean }) {
 
 export function MarketingHeader() {
   const [isOpen, setIsOpen] = useState(false);
-  const { user, isLoading } = useAuth();
-  const { t } = useLanguage();
+  const [isSavingLanguage, setIsSavingLanguage] = useState(false);
+  const { user, isLoading, setUser } = useAuth();
+  const { setLanguage, t } = useLanguage();
+
+  async function persistLanguagePreference(nextLanguage: LanguagePreference) {
+    if (!user || user.language_preference === nextLanguage || isSavingLanguage) {
+      return;
+    }
+
+    const previousUser = user;
+    setIsSavingLanguage(true);
+    setUser({ ...user, language_preference: nextLanguage });
+
+    try {
+      const updatedUser = await updateLanguagePreference(nextLanguage);
+      setUser(updatedUser);
+    } catch (error) {
+      console.error("Nu s-a putut salva limba contului.", error);
+      setUser(previousUser);
+      setLanguage(previousUser.language_preference);
+    } finally {
+      setIsSavingLanguage(false);
+    }
+  }
 
   return (
     <header className="sticky top-0 z-50 border-b border-subtle/80 bg-surface/90 backdrop-blur-xl">
@@ -65,7 +91,12 @@ export function MarketingHeader() {
         </nav>
 
         <div className="flex shrink-0 flex-nowrap items-center justify-end gap-2 justify-self-end">
-          <LanguageSelect compact className="hidden shrink-0 sm:inline-flex" />
+          <LanguageSelect
+            compact
+            disabled={isSavingLanguage}
+            onChange={persistLanguagePreference}
+            className="hidden shrink-0 sm:inline-flex"
+          />
           {!isLoading && !user ? <ThemeToggle /> : null}
           {isLoading ? (
             <span className="hidden h-10 w-28 shrink-0 animate-pulse rounded-xl bg-surface-hover sm:block" />
@@ -120,7 +151,11 @@ export function MarketingHeader() {
           aria-label="Navigatie mobila"
           className="mx-auto flex max-w-7xl flex-col gap-1 px-4 py-4 sm:px-6"
         >
-          <LanguageSelect className="mb-2 w-full sm:hidden" />
+          <LanguageSelect
+            disabled={isSavingLanguage}
+            onChange={persistLanguagePreference}
+            className="mb-2 w-full sm:hidden"
+          />
           {menuItems.map((item) => (
             <a
               key={item.href}

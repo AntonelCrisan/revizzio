@@ -1,3 +1,5 @@
+import type { LanguagePreference } from "@/lib/auth-api";
+
 export type StudyProjectFile = {
   id: string;
   original_filename: string;
@@ -120,6 +122,7 @@ export type StudyProject = {
     | "failed"
     | string;
   material_rights_confirmed: boolean;
+  generation_language: LanguagePreference | string;
   error_message: string | null;
   created_at: string;
   updated_at: string;
@@ -296,13 +299,17 @@ export async function deleteStudyProject(projectId: string): Promise<void> {
   }
 }
 
-export async function prepareStudyProject(payload: {
-  name: string;
-  subjectName: string;
-  institutionName: string;
-  files: File[];
-  materialRightsConfirmed: boolean;
-}, options: { signal?: AbortSignal } = {}): Promise<StudyProjectPrepareResponse> {
+export async function prepareStudyProject(
+  payload: {
+    name: string;
+    subjectName: string;
+    institutionName: string;
+    files: File[];
+    materialRightsConfirmed: boolean;
+    generationLanguage?: LanguagePreference;
+  },
+  options: { signal?: AbortSignal } = {},
+): Promise<StudyProjectPrepareResponse> {
   const formData = new FormData();
   formData.set("name", payload.name.trim());
   formData.set("subject_name", payload.subjectName.trim());
@@ -311,6 +318,9 @@ export async function prepareStudyProject(payload: {
     "material_rights_confirmed",
     String(payload.materialRightsConfirmed),
   );
+  if (payload.generationLanguage) {
+    formData.set("generation_language", payload.generationLanguage);
+  }
   for (const file of payload.files) {
     formData.append("files", file);
   }

@@ -15,7 +15,7 @@ from fastapi import (
     UploadFile,
     status,
 )
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, Response
 from starlette.datastructures import UploadFile as StarletteUploadFile
 
 from app.api.dependencies import AppSettings, CurrentUser, DbSession
@@ -67,6 +67,7 @@ PROJECT_RATE_LIMIT_POLICIES = {
 _project_rate_limit_buckets: dict[str, list[float]] = defaultdict(list)
 _TRUE_FORM_VALUES = {"1", "true", "t", "yes", "y", "on"}
 _FALSE_FORM_VALUES = {"0", "false", "f", "no", "n", "off"}
+_GENERATION_LANGUAGE_VALUES = {"ro", "en", "fr"}
 
 
 def _request_origin(request: Request) -> str | None:
@@ -220,9 +221,26 @@ def _prepare_form_uploads(form: object) -> list[UploadFile]:
     return uploads
 
 
+def _prepare_form_optional_generation_language(form: object) -> str | None:
+    value = form.get("generation_language")  # type: ignore[attr-defined]
+    if value is None:
+        value = form.get("language_preference")  # type: ignore[attr-defined]
+    if value is None:
+        return None
+    if isinstance(value, StarletteUploadFile):
+        _raise_prepare_form_error("generation_language", "Valoare invalida.")
+
+    normalized = str(value).strip().lower()
+    if normalized in _GENERATION_LANGUAGE_VALUES:
+        return normalized
+
+    _raise_prepare_form_error("generation_language", "Limba selectata nu este valida.")
+    return None
+
+
 async def _parse_prepare_project_form(
     request: Request,
-) -> tuple[str, str, str, bool, list[UploadFile]]:
+) -> tuple[str, str, str, bool, list[UploadFile], str | None]:
     try:
         form = await request.form()
     except Exception as exc:
@@ -266,6 +284,7 @@ async def _parse_prepare_project_form(
         ),
         _prepare_form_bool(form, "material_rights_confirmed"),
         _prepare_form_uploads(form),
+        _prepare_form_optional_generation_language(form),
     )
 
 
@@ -304,6 +323,7 @@ async def prepare_project(
         institution_name,
         material_rights_confirmed,
         files,
+        generation_language,
     ) = await _parse_prepare_project_form(request)
     _enforce_project_rate_limit(current_user, "prepare")
     service = _service(session, settings)
@@ -315,6 +335,7 @@ async def prepare_project(
             institution_name=institution_name,
             material_rights_confirmed=material_rights_confirmed,
             uploads=files,
+            generation_language=generation_language,
         )
     except ProjectValidationError as exc:
         await session.rollback()
@@ -489,8 +510,7 @@ async def chat_with_project_ai(
             project_id=project_id,
             message=payload.message,
             history=[
-                {"role": item.role, "text": item.text}
-                for item in payload.history
+                {"role": item.role, "text": item.text} for item in payload.history
             ],
             conversation_summary=payload.conversation_summary,
         )
@@ -1091,16 +1111,35 @@ async def download_project_markdown(
     current_user: CurrentUser,
     session: DbSession,
     settings: AppSettings,
-) -> FileResponse:
+) -> Response:
     service = _service(session, settings)
     try:
         project = await service.get_project(current_user, project_id)
-        path = service.download_path(project, "markdown")
     except ProjectNotFoundError as exc:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Fisierul nu a fost gasit.",
         ) from exc
+
+    try:
+        path = service.download_path(project, "markdown")
+    except ProjectNotFoundError as exc:
+        try:
+            content = service.download_content(project, "markdown")
+        except ProjectNotFoundError:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Fisierul nu a fost gasit.",
+            ) from exc
+        return Response(
+            content,
+            media_type="text/markdown; charset=utf-8",
+            headers={
+                "Content-Disposition": (
+                    f'attachment; filename="{project.slug}-material.md"'
+                )
+            },
+        )
 
     return FileResponse(
         path,
@@ -1115,16 +1154,35 @@ async def download_project_prompt(
     current_user: CurrentUser,
     session: DbSession,
     settings: AppSettings,
-) -> FileResponse:
+) -> Response:
     service = _service(session, settings)
     try:
         project = await service.get_project(current_user, project_id)
-        path = service.download_path(project, "prompt")
     except ProjectNotFoundError as exc:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Fisierul nu a fost gasit.",
         ) from exc
+
+    try:
+        path = service.download_path(project, "prompt")
+    except ProjectNotFoundError as exc:
+        try:
+            content = service.download_content(project, "prompt")
+        except ProjectNotFoundError:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Fisierul nu a fost gasit.",
+            ) from exc
+        return Response(
+            content,
+            media_type="text/plain; charset=utf-8",
+            headers={
+                "Content-Disposition": (
+                    f'attachment; filename="{project.slug}-prompt.txt"'
+                )
+            },
+        )
 
     return FileResponse(
         path,

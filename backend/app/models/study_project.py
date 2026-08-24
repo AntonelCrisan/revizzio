@@ -38,6 +38,10 @@ class StudyProject(Base):
             ")",
             name="ck_study_projects_status",
         ),
+        CheckConstraint(
+            "generation_language IN ('ro', 'en', 'fr')",
+            name="ck_study_projects_generation_language",
+        ),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
@@ -63,8 +67,16 @@ class StudyProject(Base):
         default=False,
         server_default="false",
     )
+    generation_language: Mapped[str] = mapped_column(
+        String(8),
+        nullable=False,
+        default="ro",
+        server_default="ro",
+    )
     combined_markdown_path: Mapped[str | None] = mapped_column(Text)
+    combined_markdown_content: Mapped[str | None] = mapped_column(Text)
     prompt_path: Mapped[str | None] = mapped_column(Text)
+    prompt_content: Mapped[str | None] = mapped_column(Text)
     generated_json_path: Mapped[str | None] = mapped_column(Text)
     error_message: Mapped[str | None] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(
@@ -189,6 +201,7 @@ class StudyProjectFile(Base):
     size_bytes: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     source_path: Mapped[str] = mapped_column(Text, nullable=False)
     markdown_path: Mapped[str | None] = mapped_column(Text)
+    markdown_content: Mapped[str | None] = mapped_column(Text)
     markdown_char_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     conversion_status: Mapped[str] = mapped_column(
         String(32),

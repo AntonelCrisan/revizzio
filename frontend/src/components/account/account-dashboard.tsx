@@ -7,13 +7,15 @@ import {
   type DragEvent,
   type ReactNode,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
 } from "react";
 import { useAuth } from "@/components/auth/auth-provider";
 import { BrandLogo } from "@/components/brand-logo";
-import type { AuthUserPlan } from "@/lib/auth-api";
+import { useLanguage } from "@/components/language-provider";
+import type { AuthUserPlan, LanguagePreference } from "@/lib/auth-api";
 import {
   archiveStudyProject,
   cancelStudyProjectGeneration,
@@ -169,6 +171,53 @@ const generationSteps = [
 const GENERATION_POLL_INTERVAL_MS = 2000;
 const GENERATION_POLL_ATTEMPTS = 180;
 const PROJECT_DETAIL_MIN_LENGTH = 2;
+const quizGenerationLoadingCopy: Record<
+  LanguagePreference,
+  {
+    buttonIdle: string;
+    buttonBusy: string;
+    title: string;
+    description: string;
+    steps: [string, string, string];
+  }
+> = {
+  ro: {
+    buttonIdle: "Generează quizuri",
+    buttonBusy: "Se generează...",
+    title: "Construiesc quizurile...",
+    description:
+      "Analizez materialul complet, echilibrez dificultățile și verific variantele corecte. Poate dura câteva minute.",
+    steps: [
+      "Citesc materialul",
+      "Compun întrebările",
+      "Verific răspunsurile",
+    ],
+  },
+  en: {
+    buttonIdle: "Generate quizzes",
+    buttonBusy: "Generating...",
+    title: "Building your quizzes...",
+    description:
+      "Analyzing the full material, balancing difficulty and checking the correct answers. This can take a few minutes.",
+    steps: [
+      "Reading the material",
+      "Writing the questions",
+      "Checking the answers",
+    ],
+  },
+  fr: {
+    buttonIdle: "Générer les quiz",
+    buttonBusy: "Génération...",
+    title: "Création des quiz...",
+    description:
+      "J'analyse tout le contenu, j'équilibre la difficulté et je vérifie les bonnes réponses. Cela peut prendre quelques minutes.",
+    steps: [
+      "Lecture du contenu",
+      "Rédaction des questions",
+      "Vérification des réponses",
+    ],
+  },
+};
 
 class ProjectGenerationFailedError extends Error {
   constructor(message: string) {
@@ -290,13 +339,6 @@ function initials(name: string) {
   return parts.map((part) => part[0]?.toUpperCase()).join("") || "EQ";
 }
 
-function preferredFirstName(fullName?: string | null) {
-  const parts = (fullName ?? "").trim().split(/\s+/).filter(Boolean);
-  if (!parts.length) return "student";
-
-  return parts.length > 1 ? parts[parts.length - 1] : parts[0];
-}
-
 function getProjectById(projects: StudyProject[], projectId?: string) {
   return projects.find((project) => project.id === projectId) ?? projects[0];
 }
@@ -315,6 +357,15 @@ function isVisibleStudyProjectStatus(status: ApiStudyProject["status"]) {
   return status === "ready" || status === "generating_quizzes";
 }
 
+function stripQuizMistakeAnswerPrefix(answer: string) {
+  const cleanAnswer = answer.trim();
+  const strippedAnswer = cleanAnswer
+    .replace(/^R(?:a|\u0103)spuns corect:\s*/i, "")
+    .trim();
+
+  return strippedAnswer || cleanAnswer;
+}
+
 function mapQuizMistakeFlashcards(
   flashcards: ApiStudyProject["flashcards"],
 ): StudyFlashcardCard[] {
@@ -325,7 +376,7 @@ function mapQuizMistakeFlashcards(
       flashcardId: flashcard.id,
       topic: flashcard.category || "Quiz",
       question: flashcard.front,
-      answer: flashcard.back,
+      answer: stripQuizMistakeAnswerPrefix(flashcard.back),
       tone: "danger",
       sourceQuestionId: flashcard.source_quiz_question_id ?? undefined,
       category: flashcard.category ?? undefined,
@@ -477,6 +528,7 @@ export function AccountDashboard({
 }: AccountDashboardProps = {}) {
   const router = useRouter();
   const { user, isLoading, logout } = useAuth();
+  const { language } = useLanguage();
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const [projects, setProjects] = useState(initialProjects);
@@ -528,7 +580,7 @@ export function AccountDashboard({
     [activeProjectId, projects],
   );
 
-  const firstName = preferredFirstName(user?.full_name);
+  const displayName = user?.full_name.trim() || "student";
   const hasProAiAccess = hasProAiPlan(user?.current_plan);
   const uploadPlanLimits = useMemo(
     () => getProjectUploadPlanLimits(user?.current_plan),
@@ -1168,13 +1220,17 @@ export function AccountDashboard({
 
     try {
       setCompletedSteps(generationSteps.slice(0, 1));
-      const response = await prepareStudyProject({
-        name: projectName,
-        subjectName,
-        institutionName,
-        files: uploadedFiles.map((file) => file.file),
-        materialRightsConfirmed: hasMaterialRights,
-      }, { signal: abortController.signal });
+      const response = await prepareStudyProject(
+        {
+          name: projectName,
+          subjectName,
+          institutionName,
+          files: uploadedFiles.map((file) => file.file),
+          materialRightsConfirmed: hasMaterialRights,
+          generationLanguage: language,
+        },
+        { signal: abortController.signal },
+      );
       transientProjectId = response.project.id;
       generationProjectIdRef.current = response.project.id;
       setPreparedProject(response);
@@ -1593,7 +1649,7 @@ export function AccountDashboard({
         <main className="mx-auto w-full max-w-7xl px-4 pb-6 pt-24 sm:px-6 lg:px-8 lg:py-8">
           {view === "home" ? (
             <HomeView
-              firstName={firstName}
+              displayName={displayName}
               projects={projects}
               onOpenProject={openProject}
               onOpenNewProject={openNewProject}
@@ -1695,7 +1751,7 @@ function AccountMetric({
 }
 
 function HomeView({
-  firstName,
+  displayName,
   projects,
   onOpenProject,
   onOpenNewProject,
@@ -1703,7 +1759,7 @@ function HomeView({
   onArchiveProject,
   onDeleteProject,
 }: {
-  firstName: string;
+  displayName: string;
   projects: StudyProject[];
   onOpenProject: (projectId: string, tab?: TabId) => void;
   onOpenNewProject: () => void;
@@ -1812,7 +1868,7 @@ function HomeView({
             Acasă
           </span>
           <h1 className="mt-4 max-w-3xl font-serif text-4xl font-semibold leading-[0.95] text-content sm:text-5xl">
-            Bună, <em className="text-success">{firstName}</em>
+            Bună, <em className="text-success">{displayName}</em>
           </h1>
           <p className="mt-4 max-w-2xl text-base leading-7 text-muted">
             {projectCountLabel}
@@ -4791,11 +4847,81 @@ function AccountFlashcardFaceContent({
   onFlip?: () => void;
   onToggleReview?: () => void;
 }) {
+  const textAreaRef = useRef<HTMLDivElement | null>(null);
+  const textRef = useRef<HTMLHeadingElement | null>(null);
+  const [fitFontSize, setFitFontSize] = useState<number | null>(null);
   const isAnswer = side === "answer";
   const text = isAnswer ? card.answer : card.question;
   const image = isAnswer ? undefined : card.questionImage;
   const textDensity = getFlashcardTextDensity(text);
   const flipLabel = isAnswer ? "Vezi întrebarea" : "Vezi răspunsul";
+  const hasReviewToggle = Boolean(onToggleReview);
+
+  useLayoutEffect(() => {
+    const textArea = textAreaRef.current;
+    const textElement = textRef.current;
+    if (!text || !textArea || !textElement) {
+      setFitFontSize(null);
+      return;
+    }
+
+    let animationFrame = 0;
+
+    function fitTextToCard() {
+      window.cancelAnimationFrame(animationFrame);
+      animationFrame = window.requestAnimationFrame(() => {
+        const currentArea = textAreaRef.current;
+        const currentText = textRef.current;
+        if (!currentArea || !currentText) return;
+
+        currentText.style.fontSize = "";
+        const computedStyle = window.getComputedStyle(currentText);
+        const maxFontSize = Number.parseFloat(computedStyle.fontSize) || 24;
+        const minFontSize = Math.max(10, Math.min(14, maxFontSize * 0.46));
+        const availableHeight = currentArea.clientHeight;
+        const availableWidth = currentArea.clientWidth;
+
+        if (!availableHeight || !availableWidth) return;
+
+        let low = minFontSize;
+        let high = maxFontSize;
+
+        for (let step = 0; step < 8; step += 1) {
+          const candidate = (low + high) / 2;
+          currentText.style.fontSize = `${candidate}px`;
+
+          const fits =
+            currentText.scrollHeight <= availableHeight + 1 &&
+            currentText.scrollWidth <= availableWidth + 1;
+
+          if (fits) {
+            low = candidate;
+          } else {
+            high = candidate;
+          }
+        }
+
+        currentText.style.fontSize = `${low}px`;
+        const roundedSize = Math.max(minFontSize, low);
+        setFitFontSize((currentSize) =>
+          currentSize === null || Math.abs(currentSize - roundedSize) > 0.25
+            ? roundedSize
+            : currentSize,
+        );
+      });
+    }
+
+    fitTextToCard();
+
+    const resizeObserver = new ResizeObserver(fitTextToCard);
+    resizeObserver.observe(textArea);
+    void document.fonts?.ready.then(fitTextToCard);
+
+    return () => {
+      window.cancelAnimationFrame(animationFrame);
+      resizeObserver.disconnect();
+    };
+  }, [text, textDensity, hasReviewToggle]);
 
   return (
     <div className="flashcard-card-content h-full">
@@ -4806,7 +4932,7 @@ function AccountFlashcardFaceContent({
             event.stopPropagation();
             onToggleReview();
           }}
-          className={`absolute right-4 top-4 z-10 flex h-9 w-9 items-center justify-center rounded-full border transition ${
+          className={`absolute right-6 top-6 z-10 flex h-9 w-9 items-center justify-center rounded-full border transition sm:right-8 sm:top-8 ${
             card.review
               ? "border-action bg-action text-on-action"
               : "border-subtle bg-app text-muted hover:bg-surface-hover hover:text-content"
@@ -4824,7 +4950,10 @@ function AccountFlashcardFaceContent({
           </Icon>
         </button>
       ) : null}
-      <div className="flashcard-card-main flex min-h-0 flex-1 flex-col justify-center gap-4 overflow-hidden">
+      <div
+        ref={textAreaRef}
+        className="flashcard-card-main flex min-h-0 flex-1 flex-col justify-center gap-4 overflow-hidden"
+      >
         {image ? (
           <div className="flex min-h-0 flex-1 items-center justify-center overflow-hidden rounded-lg border border-subtle bg-app/60 p-2">
             {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -4837,9 +4966,17 @@ function AccountFlashcardFaceContent({
         ) : null}
         {text ? (
           <h3
+            ref={textRef}
             data-flashcard-text={side}
             data-density={textDensity}
-            className="flashcard-card-question select-text font-serif font-semibold"
+            className={`flashcard-card-question select-text font-serif font-semibold ${
+              hasReviewToggle ? "pr-14 sm:pr-16" : ""
+            }`}
+            style={
+              fitFontSize
+                ? ({ fontSize: `${fitFontSize}px` } as CSSProperties)
+                : undefined
+            }
           >
             {text}
           </h3>
@@ -6165,6 +6302,7 @@ function buildMistakeFlashcardFromQuestion(
   const correctAnswers = question.correctIndexes
     .map((answerIndex) => question.answers[answerIndex])
     .filter(Boolean);
+  const fallbackAnswer = correctAnswers.join("; ") || "vezi explicația";
 
   return {
     id: `quiz-${question.sourceQuestionId ?? question.id}`,
@@ -6172,12 +6310,7 @@ function buildMistakeFlashcardFromQuestion(
     review: false,
     topic: question.concept,
     question: question.question,
-    answer: [
-      `Răspuns corect: ${correctAnswers.join("; ") || "vezi explicația"}.`,
-      question.explanation,
-    ]
-      .filter(Boolean)
-      .join(" "),
+    answer: question.explanation || fallbackAnswer,
     tone: "danger",
     sourceQuestionId: question.sourceQuestionId ?? question.id,
   };
@@ -6797,6 +6930,9 @@ function QuizLibrary({
   onGenerateQuizzes: () => Promise<void>;
   onStartQuiz: (quizId: string) => void;
 }) {
+  const { language } = useLanguage();
+  const loadingCopy = quizGenerationLoadingCopy[language];
+
   if (!quizzes.length) {
     const isBackendGenerating = projectStatus === "generating_quizzes";
     const isButtonBusy = isGenerating || isBackendGenerating;
@@ -6827,11 +6963,60 @@ function QuizLibrary({
           disabled={isButtonBusy}
           className="inline-flex min-w-56 cursor-pointer items-center justify-center gap-2 rounded-full bg-action px-6 py-4 text-sm font-black text-on-action transition hover:bg-action-hover disabled:cursor-wait disabled:bg-subtle disabled:text-muted"
         >
-          {isButtonBusy ? "Se generează..." : "Generează quizuri"}
-          <Icon>
-            <path d="M5 12h14M13 5l7 7-7 7" />
-          </Icon>
+          {isButtonBusy ? loadingCopy.buttonBusy : loadingCopy.buttonIdle}
+          {isButtonBusy ? (
+            <span
+              aria-hidden="true"
+              className="h-4 w-4 animate-spin rounded-full border-2 border-muted border-t-content"
+            />
+          ) : (
+            <Icon>
+              <path d="M5 12h14M13 5l7 7-7 7" />
+            </Icon>
+          )}
         </button>
+
+        {isButtonBusy ? (
+          <div className="border-t border-subtle pt-5 lg:col-span-2">
+            <div className="flex flex-col gap-5 sm:flex-row sm:items-center">
+              <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-info-soft text-info">
+                <span
+                  aria-hidden="true"
+                  className="h-8 w-8 animate-spin rounded-full border-2 border-info-border border-t-info"
+                />
+              </div>
+              <div className="min-w-0">
+                <p className="font-serif text-2xl font-semibold leading-tight text-content">
+                  {loadingCopy.title}
+                </p>
+                <p className="mt-2 max-w-2xl text-sm leading-6 text-muted">
+                  {loadingCopy.description}
+                </p>
+              </div>
+            </div>
+
+            <div className="mt-5 grid gap-3 md:grid-cols-3">
+              {loadingCopy.steps.map((step, index) => (
+                <div
+                  key={step}
+                  className="flex items-center gap-3 text-sm font-semibold text-content/80"
+                >
+                  <span
+                    className="h-2.5 w-2.5 animate-pulse rounded-full bg-info"
+                    style={{ animationDelay: `${index * 140}ms` }}
+                  />
+                  {step}
+                </div>
+              ))}
+            </div>
+
+            <div className="mt-5 max-w-3xl space-y-2">
+              <div className="h-3 animate-pulse rounded-full bg-info-soft" />
+              <div className="h-3 w-5/6 animate-pulse rounded-full bg-info-soft [animation-delay:120ms]" />
+              <div className="h-3 w-2/3 animate-pulse rounded-full bg-info-soft [animation-delay:240ms]" />
+            </div>
+          </div>
+        ) : null}
       </section>
     );
   }
