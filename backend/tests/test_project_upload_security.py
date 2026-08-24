@@ -1,4 +1,6 @@
+import asyncio
 import uuid
+from types import SimpleNamespace
 
 import pytest
 
@@ -12,8 +14,10 @@ from app.models import (
     StudyProjectSummary,
 )
 from app.services.projects import (
+    ProjectPlanLimits,
     ProjectValidationError,
     StudyProjectService,
+    _postgres_advisory_lock_key,
     _quiz_mistake_flashcard_back,
     _safe_filename,
     _validate_flashcard_image_signature,
@@ -26,6 +30,42 @@ BASE_SETTINGS = {
     "database_url": "postgresql+asyncpg://user:password@localhost:5432/revizzio",
     "session_secret": "a-secure-session-secret-with-more-than-32-characters",
 }
+
+
+class _ScalarSession:
+    def __init__(self, values: list[int]) -> None:
+        self.values = values
+        self.statements: list[object] = []
+
+    async def scalar(self, statement: object) -> int:
+        self.statements.append(statement)
+        return self.values.pop(0)
+
+
+def _plan_limits(
+    *,
+    monthly_projects: int = 1,
+    monthly_materials: int = 3,
+) -> ProjectPlanLimits:
+    return ProjectPlanLimits(
+        active_projects=monthly_projects,
+        monthly_materials=monthly_materials,
+        files_per_project=2,
+        file_mb=10,
+        total_project_mb=20,
+        estimated_pages=25,
+        initial_flashcards=20,
+        quiz_groups_per_complexity=1,
+        quiz_questions_per_quiz=8,
+        allow_scanned_documents=False,
+    )
+
+
+def _plan_limit_user() -> SimpleNamespace:
+    return SimpleNamespace(
+        id=uuid.uuid4(),
+        current_plan=SimpleNamespace(name="Beginner", slug="start"),
+    )
 
 
 def test_flashcard_image_signature_accepts_real_png_header() -> None:
@@ -44,6 +84,59 @@ def test_safe_filename_removes_path_parts_and_limits_length() -> None:
     assert "\\" not in filename
     assert filename.endswith(".pdf")
     assert len(filename) <= 180
+
+
+def test_postgres_quota_lock_key_is_stable_bigint() -> None:
+    user_id = uuid.uuid4()
+
+    assert _postgres_advisory_lock_key(user_id) == _postgres_advisory_lock_key(
+        user_id
+    )
+    assert 0 <= _postgres_advisory_lock_key(user_id) < (2**63)
+
+
+def test_monthly_project_limit_counts_archived_projects(tmp_path) -> None:
+    settings = Settings(**BASE_SETTINGS, project_storage_dir=tmp_path)
+    session = _ScalarSession([1])
+    service = StudyProjectService(  # type: ignore[arg-type]
+        session=session,
+        settings=settings,
+    )
+
+    with pytest.raises(ProjectValidationError, match="maximum 1 proiect pe luna"):
+        asyncio.run(
+            service._enforce_upload_plan_limits(
+                user=_plan_limit_user(),  # type: ignore[arg-type]
+                uploads=[object()],  # type: ignore[list-item]
+                limits=_plan_limits(monthly_projects=1),
+            )
+        )
+
+    project_limit_query = str(session.statements[0])
+    assert "study_projects.created_at" in project_limit_query
+    assert "study_project_archives" not in project_limit_query
+
+
+def test_monthly_material_limit_counts_uploaded_files_by_month(tmp_path) -> None:
+    settings = Settings(**BASE_SETTINGS, project_storage_dir=tmp_path)
+    session = _ScalarSession([0, 2])
+    service = StudyProjectService(  # type: ignore[arg-type]
+        session=session,
+        settings=settings,
+    )
+
+    with pytest.raises(ProjectValidationError, match="maximum 3 materiale pe luna"):
+        asyncio.run(
+            service._enforce_upload_plan_limits(
+                user=_plan_limit_user(),  # type: ignore[arg-type]
+                uploads=[object(), object()],  # type: ignore[list-item]
+                limits=_plan_limits(monthly_materials=3),
+            )
+        )
+
+    material_limit_query = str(session.statements[1])
+    assert "study_project_files.created_at" in material_limit_query
+    assert "study_project_archives" not in material_limit_query
 
 
 def test_project_file_signature_accepts_valid_pdf_header() -> None:

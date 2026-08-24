@@ -105,6 +105,7 @@ type UploadedFile = {
 
 type ProjectUploadPlanLimits = {
   planName: string;
+  monthlyProjects: number;
   filesPerProject: number;
   monthlyMaterials: number;
   fileSizeMb: number;
@@ -267,11 +268,16 @@ function mbToBytes(value: number) {
   return value * 1024 * 1024;
 }
 
+function formatCountLabel(count: number, singular: string, plural: string) {
+  return `${count} ${count === 1 ? singular : plural}`;
+}
+
 function getProjectUploadPlanLimits(
   userPlan: AuthUserPlan | null | undefined,
 ): ProjectUploadPlanLimits {
   return {
     planName: userPlan?.name ?? "Start",
+    monthlyProjects: Math.max(0, Number(userPlan?.active_project_limit ?? 1)),
     filesPerProject: Math.max(1, Number(userPlan?.files_per_project_limit ?? 2)),
     monthlyMaterials: Math.max(0, Number(userPlan?.monthly_material_limit ?? 3)),
     fileSizeMb: Math.max(1, Number(userPlan?.file_size_limit_mb ?? 10)),
@@ -8204,7 +8210,14 @@ function NewProjectView({
                       Limite plan {planLimits.planName}
                     </p>
                     <p className="mt-2 text-sm leading-6 text-muted">
-                      Maximum {planLimits.filesPerProject} fișiere/proiect,{" "}
+                      Maximum{" "}
+                      {formatCountLabel(
+                        planLimits.monthlyProjects,
+                        "proiect",
+                        "proiecte",
+                      )}
+                      /lună,{" "}
+                      {planLimits.filesPerProject} fișiere/proiect,{" "}
                       {planLimits.fileSizeMb} MB/fișier,{" "}
                       {planLimits.projectSizeMb} MB/proiect. Cota lunară:{" "}
                       {planLimits.monthlyMaterials} materiale. Documente scanate:{" "}

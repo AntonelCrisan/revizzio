@@ -272,6 +272,41 @@ def _user_plan_slug(user: User) -> str:
     return "start"
 
 
+def _user_plan_name(user: User) -> str:
+    plan = getattr(user, "current_plan", None)
+    name = getattr(plan, "name", None)
+    if isinstance(name, str) and name.strip():
+        return name.strip()
+    return _user_plan_slug(user).title()
+
+
+def _current_month_window(now: datetime | None = None) -> tuple[datetime, datetime]:
+    current = now or datetime.now(UTC)
+    month_start = current.replace(
+        day=1,
+        hour=0,
+        minute=0,
+        second=0,
+        microsecond=0,
+    )
+    if month_start.month == 12:
+        next_month_start = month_start.replace(
+            year=month_start.year + 1,
+            month=1,
+        )
+    else:
+        next_month_start = month_start.replace(month=month_start.month + 1)
+    return month_start, next_month_start
+
+
+def _count_phrase(count: int, singular: str, plural: str) -> str:
+    return f"{count} {singular if count == 1 else plural}"
+
+
+def _postgres_advisory_lock_key(user_id: uuid.UUID) -> int:
+    return user_id.int % ((2**63) - 1)
+
+
 def _plan_int_limit(plan: object, field: str, fallback: int, minimum: int) -> int:
     value = getattr(plan, field, None)
     if isinstance(value, bool):
@@ -863,6 +898,15 @@ class StudyProjectService:
         self.session = session
         self.settings = settings
 
+    async def _lock_user_plan_quota(self, user: User) -> None:
+        bind = self.session.get_bind()
+        if bind.dialect.name != "postgresql":
+            return
+
+        await self.session.execute(
+            select(func.pg_advisory_xact_lock(_postgres_advisory_lock_key(user.id)))
+        )
+
     async def _enforce_upload_plan_limits(
         self,
         *,
@@ -870,43 +914,57 @@ class StudyProjectService:
         uploads: list[UploadFile],
         limits: ProjectPlanLimits,
     ) -> None:
-        active_projects = await self.session.scalar(
+        month_start, next_month_start = _current_month_window()
+        plan_name = _user_plan_name(user)
+        monthly_projects = await self.session.scalar(
             select(func.count(StudyProject.id)).where(
                 StudyProject.user_id == user.id,
-                ~StudyProject.archive.has(),
-                StudyProject.status != "failed",
+                StudyProject.created_at >= month_start,
+                StudyProject.created_at < next_month_start,
             )
         )
-        if int(active_projects or 0) >= limits.active_projects:
+        if int(monthly_projects or 0) >= limits.active_projects:
+            project_limit_label = _count_phrase(
+                limits.active_projects,
+                "proiect",
+                "proiecte",
+            )
             raise ProjectValidationError(
-                "Planul curent nu permite crearea unui proiect activ nou."
+                f"Ai atins limita planului {plan_name}: poti crea maximum "
+                f"{project_limit_label} pe luna. Luna viitoare vei "
+                "putea crea proiecte noi sau poti trece la un plan superior."
             )
 
         if len(uploads) > limits.files_per_project:
+            file_limit_label = _count_phrase(
+                limits.files_per_project,
+                "material",
+                "materiale",
+            )
             raise ProjectValidationError(
-                f"Planul curent permite maximum {limits.files_per_project} "
-                "materiale intr-un proiect."
+                f"Planul {plan_name} permite maximum {file_limit_label} "
+                "intr-un proiect."
             )
 
-        month_start = datetime.now(UTC).replace(
-            day=1,
-            hour=0,
-            minute=0,
-            second=0,
-            microsecond=0,
-        )
         monthly_materials = await self.session.scalar(
             select(func.count(StudyProjectFile.id))
             .join(StudyProject)
             .where(
                 StudyProject.user_id == user.id,
-                StudyProject.status != "failed",
                 StudyProjectFile.created_at >= month_start,
+                StudyProjectFile.created_at < next_month_start,
             )
         )
         if int(monthly_materials or 0) + len(uploads) > limits.monthly_materials:
+            material_limit_label = _count_phrase(
+                limits.monthly_materials,
+                "material",
+                "materiale",
+            )
             raise ProjectValidationError(
-                "Ai atins limita lunara de materiale pentru planul curent."
+                f"Ai atins limita planului {plan_name}: poti incarca maximum "
+                f"{material_limit_label} pe luna. Incearca luna "
+                "viitoare sau treci la un plan superior."
             )
 
     async def _enforce_converted_plan_limits(
@@ -1082,6 +1140,7 @@ class StudyProjectService:
             _validate_upload_extension(upload.filename or "material")
 
         limits = _limits_for_user(user)
+        await self._lock_user_plan_quota(user)
         await self._enforce_upload_plan_limits(
             user=user,
             uploads=uploads,
