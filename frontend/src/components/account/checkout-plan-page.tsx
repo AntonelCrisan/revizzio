@@ -55,8 +55,6 @@ function uniqueFeatures(plan: SubscriptionPlan) {
 
   return [
     plan.material_limit,
-    plan.ai_level,
-    plan.storage,
     ...sortedFeatures.map((feature) => feature.label),
   ].filter((feature) => {
     const normalized = feature.trim();

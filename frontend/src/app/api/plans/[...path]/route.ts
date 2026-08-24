@@ -27,7 +27,9 @@ async function proxyPlansRequest(
     );
   }
 
-  const apiUrl = process.env.API_URL;
+  const apiUrl = (process.env.API_URL ?? process.env.NEXT_PUBLIC_API_URL)
+    ?.trim()
+    .replace(/\/+$/, "");
   if (!apiUrl) {
     return Response.json(
       { detail: "API_URL nu este configurat pe serverul frontend." },

@@ -127,8 +127,8 @@ function toPlanUpdate(
     badge: optionalText(plan.badge),
     description: plan.description,
     material_limit: plan.materialLimit,
-    ai_level: plan.aiLevel,
-    storage: plan.storage,
+    ai_level: plan.aiLevel || "Configurat in optiuni",
+    storage: plan.storage || "Configurat in optiuni",
     conditions: plan.conditions,
     active_project_limit: normalizeInteger(plan.activeProjectLimit, 1, 0),
     monthly_material_limit: normalizeInteger(plan.monthlyMaterialLimit, 3, 0),
@@ -362,7 +362,7 @@ function PlanPreview({ plan }: { plan: AdminPlanDraft }) {
           plan.isFeatured ? "divide-on-action/15" : "divide-subtle"
         } border-y ${plan.isFeatured ? "border-on-action/15" : "border-subtle"}`}
       >
-        {[plan.materialLimit, plan.aiLevel, plan.storage, ...plan.options]
+        {[plan.materialLimit, ...plan.options]
           .filter(Boolean)
           .slice(0, 7)
           .map((option) => (
@@ -668,16 +668,6 @@ export function AdminPlansPage({ initialPlans }: AdminPlansPageProps) {
                   onChange={(value) =>
                     updateSelectedPlan({ materialLimit: value })
                   }
-                />
-                <TextField
-                  label="Nivel AI"
-                  value={selectedPlan.aiLevel}
-                  onChange={(value) => updateSelectedPlan({ aiLevel: value })}
-                />
-                <TextField
-                  label="Stocare / istoric"
-                  value={selectedPlan.storage}
-                  onChange={(value) => updateSelectedPlan({ storage: value })}
                 />
               </div>
 

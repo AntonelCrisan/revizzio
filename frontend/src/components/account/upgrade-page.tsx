@@ -115,8 +115,6 @@ function toUpgradePlans(plans: SubscriptionPlan[]): UpgradePlan[] {
         highlighted: plan.is_featured,
         features: uniqueFeatures([
           plan.material_limit,
-          plan.ai_level,
-          plan.storage,
           ...sortedFeatures.map((feature) => feature.label),
         ]).slice(0, 4),
       };

@@ -190,13 +190,16 @@ async function serverPlansRequest<T>(
   path: string,
   options: { includeAuth?: boolean } = {},
 ): Promise<T | null> {
-  const baseUrl = process.env.API_URL;
+  const baseUrl = (process.env.API_URL ?? process.env.NEXT_PUBLIC_API_URL)
+    ?.trim()
+    .replace(/\/+$/, "");
   if (!baseUrl) {
     return null;
   }
+  const routePath = path ? `/${path}` : "/";
 
   try {
-    const response = await fetch(`${baseUrl}/api/plans/${path}`, {
+    const response = await fetch(`${baseUrl}/api/plans${routePath}`, {
       method: "GET",
       headers: await requestHeaders(Boolean(options.includeAuth)),
       cache: "no-store",

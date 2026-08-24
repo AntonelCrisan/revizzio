@@ -396,8 +396,6 @@ function toPricingPlans(plans: SubscriptionPlan[]) {
         suffix: isFree ? "gratuit" : billingSuffix(plan.billing_interval),
         features: uniqueFeatures([
           plan.material_limit,
-          plan.ai_level,
-          plan.storage,
           ...sortedFeatures.map((feature) => feature.label),
         ]),
         cta: isFree ? "Începe gratuit" : `Alege ${plan.name}`,
