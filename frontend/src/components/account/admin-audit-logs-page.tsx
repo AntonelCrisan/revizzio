@@ -51,6 +51,15 @@ const auditActionLabels: Record<string, string> = {
   "auth.registration_email_failed": "Email de confirmare inregistrare esuat",
   "auth.registration_verification_requested":
     "Email de confirmare inregistrare trimis",
+  "contact_email_failed": "Email contact esuat",
+  "contact_email_sent": "Email contact trimis",
+  "contact_email_skipped": "Email contact omis",
+  "contact_message_created": "Mesaj contact inregistrat",
+  "content_report_created": "Raportare continut inregistrata",
+  "content_report_email_failed": "Email raportare continut esuat",
+  "content_report_email_sent": "Email raportare continut trimis",
+  "content_report_email_skipped": "Email raportare continut omis",
+  "cookie_consent_changed": "Preferinte cookie actualizate",
   "stripe.checkout_session.created": "Checkout Stripe creat",
   "stripe.checkout_session.failed": "Checkout Stripe esuat",
   "stripe.customer.subscription.created": "Abonament Stripe creat",
@@ -59,6 +68,7 @@ const auditActionLabels: Record<string, string> = {
   "stripe.invoice.paid": "Factura Stripe platita",
   "stripe.invoice.payment_failed": "Plata factura Stripe esuata",
   "stripe.webhook.failed": "Webhook Stripe esuat",
+  "withdrawal_request_created": "Cerere retragere inregistrata",
   "user.preferences.updated": "Preferinte utilizator actualizate",
 };
 

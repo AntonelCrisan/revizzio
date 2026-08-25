@@ -4,6 +4,7 @@ from app.models.compliance import (
     ComplianceEvent,
     ContactMessage,
     ContentReport,
+    ContentReportAttachment,
     SubscriptionCancellation,
     WithdrawalRequest,
 )
@@ -42,6 +43,7 @@ __all__ = [
     "ComplianceEvent",
     "ContactMessage",
     "ContentReport",
+    "ContentReportAttachment",
     "LegalDocument",
     "LegalDocumentSection",
     "PasswordResetToken",

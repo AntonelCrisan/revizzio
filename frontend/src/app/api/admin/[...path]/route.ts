@@ -1,6 +1,11 @@
 const allowedRoutes = [
   { method: "GET", pattern: /^audit-logs$/ },
   { method: "GET", pattern: /^contact-messages$/ },
+  { method: "GET", pattern: /^content-reports$/ },
+  {
+    method: "GET",
+    pattern: /^content-reports\/[^/]+\/attachments\/[^/]+\/download$/,
+  },
   { method: "GET", pattern: /^users$/ },
   { method: "POST", pattern: /^users\/[^/]+\/verification-email$/ },
   { method: "PATCH", pattern: /^users\/[^/]+$/ },
@@ -51,17 +56,25 @@ async function proxyAdminRequest(
       request.method === "GET" || request.method === "HEAD"
         ? undefined
         : await request.arrayBuffer();
-    const backendResponse = await fetch(`${apiUrl}/api/admin/${action}/${queryString}`, {
-      method: request.method,
-      headers: requestHeaders,
-      body: requestBody,
-      cache: "no-store",
-    });
+    const backendResponse = await fetch(
+      `${apiUrl}/api/admin/${action}/${queryString}`,
+      {
+        method: request.method,
+        headers: requestHeaders,
+        body: requestBody,
+        cache: "no-store",
+      },
+    );
 
     const responseHeaders = new Headers();
-    const responseContentType = backendResponse.headers.get("content-type");
-    if (responseContentType) {
-      responseHeaders.set("content-type", responseContentType);
+    for (const headerName of [
+      "cache-control",
+      "content-disposition",
+      "content-length",
+      "content-type",
+    ]) {
+      const value = backendResponse.headers.get(headerName);
+      if (value) responseHeaders.set(headerName, value);
     }
 
     return new Response(await backendResponse.arrayBuffer(), {

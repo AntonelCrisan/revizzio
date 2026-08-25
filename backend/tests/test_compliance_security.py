@@ -7,7 +7,7 @@ from starlette.requests import Request
 
 from app.api.routes import compliance
 from app.core.config import Settings
-from app.schemas.compliance import ContactRequest
+from app.schemas.compliance import ContactRequest, ContentReportRequestPayload
 from app.services.email import EmailMessage, EmailService
 
 BASE_SETTINGS = {
@@ -56,16 +56,39 @@ def build_contact_payload() -> ContactRequest:
     )
 
 
+def build_content_report_payload(
+    report_type: str = "continut_incorect",
+) -> ContentReportRequestPayload:
+    return ContentReportRequestPayload(
+        name="Student Test",
+        email="student@example.com",
+        report_type=report_type,
+        content_reference="Proiect Pharma / card 12",
+        description="Conținutul generat pare incorect și trebuie analizat.",
+        rights_evidence="Context suplimentar pentru echipa Reviss.",
+        declaration=True,
+        recaptcha_token="secret-token",
+    )
+
+
 class ContactEmailSession:
-    def __init__(self, company_email: str | None = "support@reviss.test") -> None:
+    def __init__(
+        self,
+        company_email: str | None = "support@reviss.test",
+        privacy_email: str | None = "privacy@reviss.test",
+    ) -> None:
         self.company_email = company_email
+        self.privacy_email = privacy_email
         self.events: list[object] = []
         self.commits = 0
 
     async def scalar(self, _: object) -> object | None:
         if self.company_email is None:
             return None
-        return SimpleNamespace(email=self.company_email)
+        return SimpleNamespace(
+            email=self.company_email,
+            privacy_email=self.privacy_email,
+        )
 
     def add(self, event: object) -> None:
         self.events.append(event)
@@ -125,6 +148,52 @@ def test_contact_payload_does_not_persist_recaptcha_token() -> None:
     assert "recaptcha_token" not in compliance._payload(payload)
 
 
+def test_content_report_payload_does_not_persist_recaptcha_token() -> None:
+    payload = build_content_report_payload()
+
+    assert "recaptcha_token" not in compliance._payload(payload)
+
+
+def test_content_report_rate_limit_uses_forwarded_client_ip() -> None:
+    settings = build_settings(
+        cors_origins="https://www.reviss.app",
+        content_report_rate_limit_window_seconds=600,
+        content_report_rate_limit_max_requests=1,
+    )
+    headers = {
+        "origin": "https://www.reviss.app",
+        "x-reviss-form-intent": "content-report",
+        "x-forwarded-for": "198.51.100.24, 10.0.0.5",
+    }
+    request = build_request(
+        path="/api/compliance/content-report",
+        headers=headers,
+    )
+
+    asyncio.run(compliance.protect_form_request(request, settings))
+
+    with pytest.raises(HTTPException) as exc_info:
+        asyncio.run(compliance.protect_form_request(request, settings))
+
+    assert exc_info.value.status_code == 429
+
+
+def test_content_report_attachment_filename_is_sanitized_and_keeps_extension() -> None:
+    safe_name = compliance._safe_attachment_filename(
+        "../contract<script>" + ("x" * 280) + ".PDF"
+    )
+
+    assert ".." not in safe_name
+    assert "<" not in safe_name
+    assert len(safe_name) <= 255
+    assert safe_name.lower().endswith(".pdf")
+
+
+def test_content_report_attachment_rejects_invalid_pdf_signature() -> None:
+    with pytest.raises(compliance.ContentReportAttachmentError):
+        compliance._validate_attachment_signature("dovada.pdf", b"not-a-pdf")
+
+
 def test_contact_emails_send_confirmation_and_internal_notification(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -163,6 +232,113 @@ def test_contact_emails_send_confirmation_and_internal_notification(
         "contact_email_sent",
     ]
     assert session.commits == 2
+
+
+def test_content_report_emails_send_confirmation_and_internal_notification(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    sent_messages: list[EmailMessage] = []
+
+    async def fake_send(_: EmailService, message: EmailMessage) -> None:
+        sent_messages.append(message)
+
+    monkeypatch.setattr(EmailService, "send", fake_send)
+    session = ContactEmailSession()
+
+    confirmation_sent = asyncio.run(
+        compliance._send_content_report_emails(
+            payload=build_content_report_payload(),
+            reference="RAP-20260825-ABCDEF12",
+            attachments=[],
+            session=session,
+            settings=build_settings(
+                resend_api_key="re_test",
+                public_app_url="https://www.reviss.app",
+            ),
+            ip_address="198.51.100.24",
+            user_agent="pytest",
+        )
+    )
+
+    assert confirmation_sent is True
+    assert [message.to for message in sent_messages] == [
+        "student@example.com",
+        "support@reviss.test",
+    ]
+    assert sent_messages[0].reply_to is None
+    assert sent_messages[1].reply_to == "student@example.com"
+    assert sent_messages[1].subject == (
+        "Raportare conținut Reviss: Proiect Pharma / card 12"
+    )
+    assert [event.event_type for event in session.events] == [
+        "content_report_email_sent",
+        "content_report_email_sent",
+    ]
+    assert session.commits == 2
+
+
+def test_email_subjects_strip_user_control_whitespace(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    sent_messages: list[EmailMessage] = []
+
+    async def fake_send(_: EmailService, message: EmailMessage) -> None:
+        sent_messages.append(message)
+
+    monkeypatch.setattr(EmailService, "send", fake_send)
+    payload = build_content_report_payload()
+    payload.content_reference = "Card 12\r\nBcc: attacker@example.com"
+
+    asyncio.run(
+        compliance._send_content_report_emails(
+            payload=payload,
+            reference="RAP-20260825-ABCDEF12",
+            attachments=[],
+            session=ContactEmailSession(),
+            settings=build_settings(
+                resend_api_key="re_test",
+                public_app_url="https://www.reviss.app",
+            ),
+            ip_address="198.51.100.24",
+            user_agent="pytest",
+        )
+    )
+
+    assert sent_messages[1].subject == (
+        "Raportare conținut Reviss: Card 12 Bcc: attacker@example.com"
+    )
+
+
+def test_content_report_email_notification_uses_privacy_email_for_personal_data(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    sent_messages: list[EmailMessage] = []
+
+    async def fake_send(_: EmailService, message: EmailMessage) -> None:
+        sent_messages.append(message)
+
+    monkeypatch.setattr(EmailService, "send", fake_send)
+    session = ContactEmailSession()
+
+    asyncio.run(
+        compliance._send_content_report_emails(
+            payload=build_content_report_payload(report_type="date_personale"),
+            reference="RAP-20260825-ABCDEF12",
+            attachments=[],
+            session=session,
+            settings=build_settings(
+                resend_api_key="re_test",
+                public_app_url="https://www.reviss.app",
+            ),
+            ip_address="198.51.100.24",
+            user_agent="pytest",
+        )
+    )
+
+    assert [message.to for message in sent_messages] == [
+        "student@example.com",
+        "privacy@reviss.test",
+    ]
 
 
 def test_contact_email_notification_is_skipped_when_company_email_is_placeholder(

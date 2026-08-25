@@ -15,7 +15,8 @@ type SettingsCard = {
     | "card"
     | "users"
     | "logs"
-    | "mail";
+    | "mail"
+    | "flag";
 };
 
 const legalCards: SettingsCard[] = [
@@ -72,6 +73,12 @@ const communicationCards: SettingsCard[] = [
     description: "Solicitări trimise prin formularul public de contact.",
     href: "/admin/settings/mesaje-contact",
     icon: "mail",
+  },
+  {
+    title: "Raportări conținut",
+    description: "Sesizări pentru conținut, drepturi și date personale.",
+    href: "/admin/settings/raportari-continut",
+    icon: "flag",
   },
 ];
 
@@ -168,6 +175,12 @@ function SettingsIcon({ icon }: { icon: SettingsCard["icon"] }) {
         <SvgIcon>
           <path d="M4 6h16v12H4z" />
           <path d="m4 7 8 6 8-6" />
+        </SvgIcon>
+      ) : null}
+      {icon === "flag" ? (
+        <SvgIcon>
+          <path d="M5 21V4" />
+          <path d="M5 5h11l-1 4 1 4H5" />
         </SvgIcon>
       ) : null}
     </span>

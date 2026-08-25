@@ -110,6 +110,7 @@ class ContentReportRequestPayload(BaseModel):
     description: str = Field(min_length=10, max_length=5000)
     rights_evidence: str | None = Field(default=None, max_length=5000)
     declaration: bool
+    recaptcha_token: str = Field(default="", max_length=4096)
 
     @field_validator("name", "content_reference")
     @classmethod
@@ -123,6 +124,11 @@ class ContentReportRequestPayload(BaseModel):
             return None
         normalized = clean_multiline_text(value)
         return normalized or None
+
+    @field_validator("recaptcha_token")
+    @classmethod
+    def normalize_recaptcha_token(cls, value: str) -> str:
+        return value.strip()
 
     @field_validator("declaration")
     @classmethod

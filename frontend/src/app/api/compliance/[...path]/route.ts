@@ -53,7 +53,7 @@ async function proxyComplianceRequest(
     const backendResponse = await fetch(`${apiUrl}${backendPath}`, {
       method: request.method,
       headers,
-      body: await request.text(),
+      body: await request.arrayBuffer(),
       cache: "no-store",
     });
 

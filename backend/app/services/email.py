@@ -421,6 +421,116 @@ def contact_notification_email(
     return html, text
 
 
+def content_report_confirmation_email(
+    *,
+    app_url: str,
+    reference: str,
+    report_type_label: str,
+    content_reference: str,
+    attachment_names: list[str] | None,
+    logo_html: str,
+    app_name: str = "Reviss",
+) -> tuple[str, str]:
+    attachment_count = len(attachment_names or [])
+    attachment_label = (
+        f"{attachment_count} documente"
+        if attachment_count != 1
+        else "1 document"
+    )
+    text = (
+        f"Am primit raportarea ta de conținut către {app_name}.\n\n"
+        f"Număr de înregistrare: {reference}\n"
+        f"Tip raportare: {report_type_label}\n"
+        f"Conținut raportat: {content_reference}\n"
+        f"Documente atașate: {attachment_label}\n\n"
+        "Echipa Reviss va analiza sesizarea și va reveni dacă sunt necesare "
+        "detalii suplimentare."
+    )
+    html = _email_shell(
+        app_name=app_name,
+        eyebrow="Raportare primită",
+        title="Am înregistrat sesizarea ta.",
+        intro=(
+            "Mulțumim că ne-ai trimis detaliile. Raportarea a fost salvată, "
+            "iar echipa Reviss o va analiza conform procedurilor interne."
+        ),
+        logo_html=logo_html,
+        cta_label="Înapoi la Reviss",
+        action_url=app_url,
+        note_title="Ce urmează?",
+        note=(
+            "Păstrează numărul de înregistrare. Dacă avem nevoie de clarificări, "
+            "îți vom scrie pe adresa folosită în formular."
+        ),
+        details=[
+            f"Număr de înregistrare: {reference}",
+            f"Tip raportare: {report_type_label}",
+            f"Conținut raportat: {content_reference}",
+            f"Documente atașate: {attachment_label}",
+        ],
+    )
+    return html, text
+
+
+def content_report_notification_email(
+    *,
+    app_url: str,
+    reference: str,
+    sender_name: str,
+    sender_email: str,
+    report_type_label: str,
+    content_reference: str,
+    description: str,
+    rights_evidence: str | None,
+    attachment_names: list[str] | None,
+    logo_html: str,
+    app_name: str = "Reviss",
+) -> tuple[str, str]:
+    trimmed_description = description.strip()
+    preview_description = (
+        f"{trimmed_description[:700]}..."
+        if len(trimmed_description) > 700
+        else trimmed_description
+    )
+    admin_url = f"{app_url.rstrip('/')}/admin/settings/raportari-continut"
+    evidence_text = rights_evidence.strip() if rights_evidence else "-"
+    attachment_list = ", ".join(attachment_names or []) or "-"
+    text = (
+        "A fost trimisă o raportare nouă de conținut în Reviss.\n\n"
+        f"Număr de înregistrare: {reference}\n"
+        f"Nume: {sender_name}\n"
+        f"Email: {sender_email}\n"
+        f"Tip raportare: {report_type_label}\n"
+        f"Conținut raportat: {content_reference}\n\n"
+        f"Descriere:\n{trimmed_description}\n\n"
+        f"Dovezi / context:\n{evidence_text}\n\n"
+        f"Documente atașate:\n{attachment_list}"
+    )
+    html = _email_shell(
+        app_name=app_name,
+        eyebrow="Raportare conținut",
+        title="Ai o sesizare nouă de conținut.",
+        intro=(
+            "Un utilizator a trimis o raportare prin formularul public. "
+            "Sesizarea completă este salvată și în zona de administrare."
+        ),
+        logo_html=logo_html,
+        cta_label="Vezi raportările",
+        action_url=admin_url,
+        note_title="Descriere",
+        note=preview_description,
+        details=[
+            f"Număr de înregistrare: {reference}",
+            f"Nume: {sender_name}",
+            f"Email: {sender_email}",
+            f"Tip raportare: {report_type_label}",
+            f"Conținut raportat: {content_reference}",
+            f"Documente atașate: {attachment_list}",
+        ],
+    )
+    return html, text
+
+
 def invoice_paid_email(
     *,
     invoice_url: str,

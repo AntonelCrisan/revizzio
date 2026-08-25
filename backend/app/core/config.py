@@ -42,6 +42,15 @@ class Settings(BaseSettings):
     recaptcha_verify_url: str = "https://www.google.com/recaptcha/api/siteverify"
     contact_rate_limit_window_seconds: int = Field(default=600, ge=60, le=86400)
     contact_rate_limit_max_requests: int = Field(default=5, ge=1, le=100)
+    content_report_rate_limit_window_seconds: int = Field(
+        default=600,
+        ge=60,
+        le=86400,
+    )
+    content_report_rate_limit_max_requests: int = Field(default=5, ge=1, le=100)
+    content_report_storage_dir: Path = BACKEND_DIR / "storage" / "content-reports"
+    content_report_attachment_max_files: int = Field(default=5, ge=0, le=10)
+    content_report_attachment_max_mb: int = Field(default=10, ge=1, le=25)
 
     stripe_secret_key: SecretStr | None = None
     stripe_webhook_secret: SecretStr | None = None
@@ -159,6 +168,14 @@ class Settings(BaseSettings):
     def normalize_project_storage_dir(cls, value: object) -> Path:
         if value is None or value == "":
             return BACKEND_DIR / "storage" / "projects"
+        path = Path(str(value))
+        return path if path.is_absolute() else BACKEND_DIR / path
+
+    @field_validator("content_report_storage_dir", mode="before")
+    @classmethod
+    def normalize_content_report_storage_dir(cls, value: object) -> Path:
+        if value is None or value == "":
+            return BACKEND_DIR / "storage" / "content-reports"
         path = Path(str(value))
         return path if path.is_absolute() else BACKEND_DIR / path
 
