@@ -103,3 +103,7 @@ class LegalDocumentSectionUpdate(BaseModel):
     @classmethod
     def normalize_content(cls, value: str) -> str:
         return clean_html_text(value)
+
+
+class LegalDocumentSectionCreate(LegalDocumentSectionUpdate):
+    pass

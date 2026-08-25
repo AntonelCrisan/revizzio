@@ -8,7 +8,16 @@ export const metadata: Metadata = {
 };
 
 export default async function AdminCompanyRoute() {
-  const companyData = (await getServerCompanyData()) ?? getFallbackCompanyData();
+  const companyData = await getServerCompanyData();
+  const initialLoadError = companyData
+    ? null
+    : "Datele firmei nu au putut fi încărcate de pe server. Sunt afișate valorile de rezervă până când conexiunea revine.";
 
-  return <AdminCompanyPage initialCompanyData={companyData} />;
+  return (
+    <AdminCompanyPage
+      key={companyData?.last_date_modified ?? "fallback-company-data"}
+      initialCompanyData={companyData ?? getFallbackCompanyData()}
+      initialLoadError={initialLoadError}
+    />
+  );
 }

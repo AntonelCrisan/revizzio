@@ -1,4 +1,6 @@
 import re
+import unicodedata
+import uuid
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -12,6 +14,7 @@ from app.schemas.legal import (
     CompanyDataResponse,
     CompanyDataUpdate,
     LegalDocumentResponse,
+    LegalDocumentSectionCreate,
     LegalDocumentSectionResponse,
     LegalDocumentSectionUpdate,
 )
@@ -99,6 +102,56 @@ def _split_seed_sections(content: str) -> list[LegalDocumentSection]:
         )
 
     return sections
+
+
+def _section_key_base(title: str) -> str:
+    ascii_title = (
+        unicodedata.normalize("NFKD", title)
+        .encode("ascii", "ignore")
+        .decode("ascii")
+    )
+    key = re.sub(r"[^a-z0-9]+", "_", ascii_title.lower()).strip("_")
+    return (key or "sectiune")[:48]
+
+
+def _unique_section_key(document: LegalDocument, title: str) -> str:
+    existing_keys = {section.section_key for section in document.sections}
+    base_key = _section_key_base(title)
+    if base_key not in existing_keys:
+        return base_key
+
+    for index in range(2, 1000):
+        suffix = f"_{index}"
+        key = f"{base_key[: 80 - len(suffix)]}{suffix}"
+        if key not in existing_keys:
+            return key
+
+    return f"{base_key[:39]}_{uuid.uuid4().hex[:8]}"
+
+
+def _next_section_sort_order(document: LegalDocument) -> int:
+    if not document.sections:
+        return 0
+    return max(section.sort_order for section in document.sections) + 1
+
+
+def _normalize_section_sort_order(sections: list[LegalDocumentSection]) -> None:
+    for index, section in enumerate(sorted(sections, key=lambda item: item.sort_order)):
+        section.sort_order = index
+
+
+def _find_document_section(
+    document: LegalDocument,
+    section_key: str,
+) -> LegalDocumentSection | None:
+    return next(
+        (
+            current_section
+            for current_section in document.sections
+            if current_section.section_key == section_key
+        ),
+        None,
+    )
 
 
 async def _get_company_data(session: DbSession) -> CompanyData:
@@ -256,6 +309,54 @@ async def get_admin_legal_document(
     return _document_response(document, company_data)
 
 
+@router.post(
+    "/admin/documents/{slug}/sections",
+    response_model=LegalDocumentResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+async def create_admin_legal_document_section(
+    slug: str,
+    payload: LegalDocumentSectionCreate,
+    request: Request,
+    admin_user: CurrentAdminUser,
+    session: DbSession,
+) -> LegalDocumentResponse:
+    document = await _get_document(session, slug)
+    now = datetime.now(UTC)
+    section_id = uuid.uuid4()
+    section = LegalDocumentSection(
+        id=section_id,
+        section_key=_unique_section_key(document, payload.title),
+        title=payload.title,
+        content=payload.content,
+        sort_order=_next_section_sort_order(document),
+        last_date_modified=now,
+    )
+    document.sections.append(section)
+    document.last_date_modified = now
+
+    user_agent, ip_address = _client_context(request)
+    add_audit_log(
+        session,
+        action="admin.legal_document_section.created",
+        actor=admin_user,
+        resource_type="legal_document_section",
+        resource_id=str(section_id),
+        details={
+            "document_slug": slug,
+            "section_key": section.section_key,
+            "section_title": payload.title,
+        },
+        ip_address=ip_address,
+        user_agent=user_agent,
+    )
+    await session.commit()
+
+    document = await _get_document(session, slug)
+    company_data = await _get_company_data(session)
+    return _document_response(document, company_data)
+
+
 @router.patch(
     "/admin/documents/{slug}/sections/{section_key}",
     response_model=LegalDocumentResponse,
@@ -269,14 +370,7 @@ async def update_admin_legal_document_section(
     session: DbSession,
 ) -> LegalDocumentResponse:
     document = await _get_document(session, slug)
-    section = next(
-        (
-            current_section
-            for current_section in document.sections
-            if current_section.section_key == section_key
-        ),
-        None,
-    )
+    section = _find_document_section(document, section_key)
     if section is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -304,6 +398,57 @@ async def update_admin_legal_document_section(
     )
     await session.commit()
     await session.refresh(document)
+
+    document = await _get_document(session, slug)
+    company_data = await _get_company_data(session)
+    return _document_response(document, company_data)
+
+
+@router.delete(
+    "/admin/documents/{slug}/sections/{section_key}",
+    response_model=LegalDocumentResponse,
+)
+async def delete_admin_legal_document_section(
+    slug: str,
+    section_key: str,
+    request: Request,
+    admin_user: CurrentAdminUser,
+    session: DbSession,
+) -> LegalDocumentResponse:
+    document = await _get_document(session, slug)
+    section = _find_document_section(document, section_key)
+    if section is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Sectiunea legala nu exista.",
+        )
+    if len(document.sections) <= 1:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Documentul trebuie sa pastreze cel putin o sectiune.",
+        )
+
+    document.sections.remove(section)
+    _normalize_section_sort_order(document.sections)
+    now = datetime.now(UTC)
+    document.last_date_modified = now
+
+    user_agent, ip_address = _client_context(request)
+    add_audit_log(
+        session,
+        action="admin.legal_document_section.deleted",
+        actor=admin_user,
+        resource_type="legal_document_section",
+        resource_id=str(section.id),
+        details={
+            "document_slug": slug,
+            "section_key": section.section_key,
+            "section_title": section.title,
+        },
+        ip_address=ip_address,
+        user_agent=user_agent,
+    )
+    await session.commit()
 
     document = await _get_document(session, slug)
     company_data = await _get_company_data(session)

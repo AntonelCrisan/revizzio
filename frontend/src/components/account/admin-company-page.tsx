@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { AccountStaticShell } from "@/components/account/account-static-shell";
 import {
   type CompanyData,
@@ -11,6 +12,7 @@ import {
 
 type AdminCompanyPageProps = {
   initialCompanyData: CompanyData;
+  initialLoadError?: string | null;
 };
 
 type CompanyField = {
@@ -103,28 +105,72 @@ function CompanyMetric({
   detail: string;
 }) {
   return (
-    <article className="rounded-xl border border-subtle bg-surface p-5">
-      <p className="text-[10px] font-black uppercase tracking-[0.16em] text-muted">
+    <article className="min-w-0 rounded-xl border border-subtle bg-surface p-5">
+      <p className="break-words text-[10px] font-black uppercase tracking-[0.16em] text-muted">
         {label}
       </p>
-      <p className="mt-4 font-serif text-2xl font-semibold leading-tight text-content">
+      <p className="mt-4 min-w-0 break-words font-serif text-xl font-semibold leading-tight text-content sm:text-2xl">
         {value}
       </p>
-      <p className="mt-2 text-sm leading-6 text-muted">{detail}</p>
+      <p className="mt-2 min-w-0 break-words text-sm leading-6 text-muted">
+        {detail}
+      </p>
     </article>
   );
 }
 
 function PreviewRow({ label, value }: { label: string; value: string }) {
   return (
-    <div className="grid gap-1 py-3 text-sm sm:grid-cols-[7rem_1fr]">
-      <dt className="font-bold text-content">{label}</dt>
+    <div className="grid min-w-0 gap-1 py-3 text-sm sm:grid-cols-[7rem_minmax(0,1fr)]">
+      <dt className="min-w-0 break-words font-bold text-content">{label}</dt>
       <dd className="min-w-0 break-words text-muted">{value || "necompletat"}</dd>
     </div>
   );
 }
 
-export function AdminCompanyPage({ initialCompanyData }: AdminCompanyPageProps) {
+type CompanyFormNotice = {
+  tone: "success" | "error";
+  message: string;
+};
+
+type CompanySaveState = "idle" | "saving" | "saved";
+
+function noticeClassName(tone: CompanyFormNotice["tone"]) {
+  return tone === "error"
+    ? "border-danger-border bg-danger-soft text-danger"
+    : "border-info-border bg-info-soft text-info";
+}
+
+function saveButtonText(
+  saveState: CompanySaveState,
+  hasChanges: boolean,
+  justSaved: boolean,
+) {
+  if (saveState === "saving") return "Se salvează...";
+  if (justSaved || !hasChanges) return "Salvat";
+  return "Salvează datele";
+}
+
+function saveButtonClassName(
+  hasChanges: boolean,
+  isSaving: boolean,
+  justSaved: boolean,
+) {
+  const baseClassName =
+    "inline-flex min-h-12 w-full min-w-0 items-center justify-center rounded-full px-5 py-3 text-center text-sm font-black leading-tight transition disabled:cursor-not-allowed sm:w-auto";
+
+  if ((justSaved || !hasChanges) && !isSaving) {
+    return `${baseClassName} border border-success-border bg-success-soft text-success disabled:opacity-100`;
+  }
+
+  return `${baseClassName} bg-action text-on-action hover:bg-action-hover disabled:opacity-60`;
+}
+
+export function AdminCompanyPage({
+  initialCompanyData,
+  initialLoadError = null,
+}: AdminCompanyPageProps) {
+  const router = useRouter();
   const initialFormData = toCompanyUpdate(initialCompanyData);
   const [savedFormData, setSavedFormData] =
     useState<CompanyDataUpdate>(initialFormData);
@@ -132,28 +178,59 @@ export function AdminCompanyPage({ initialCompanyData }: AdminCompanyPageProps) 
   const [lastModified, setLastModified] = useState(
     initialCompanyData.last_date_modified,
   );
-  const [statusMessage, setStatusMessage] = useState<string | null>(null);
-  const [isSaving, setIsSaving] = useState(false);
+  const [formNotice, setFormNotice] = useState<CompanyFormNotice | null>(
+    initialLoadError ? { tone: "error", message: initialLoadError } : null,
+  );
+  const [saveState, setSaveState] = useState<CompanySaveState>("idle");
+  const [justSaved, setJustSaved] = useState(false);
+  const isSaving = saveState === "saving";
   const hasChanges = JSON.stringify(formData) !== JSON.stringify(savedFormData);
+  const isSubmitDisabled = !hasChanges || isSaving || justSaved;
+  const saveButtonLabel = saveButtonText(saveState, hasChanges, justSaved);
+  const saveButtonStyles = saveButtonClassName(hasChanges, isSaving, justSaved);
+
+  function updateField(name: keyof CompanyDataUpdate, value: string) {
+    setFormData((current) => ({
+      ...current,
+      [name]: value,
+    }));
+    if (formNotice) {
+      setFormNotice(null);
+    }
+    if (saveState === "saved") {
+      setSaveState("idle");
+    }
+    if (justSaved) {
+      setJustSaved(false);
+    }
+  }
 
   async function saveCompanyData() {
-    setIsSaving(true);
-    setStatusMessage(null);
+    setSaveState("saving");
+    setFormNotice(null);
     try {
       const updatedCompanyData = await updateAdminCompanyData(formData);
       const updatedFormData = toCompanyUpdate(updatedCompanyData);
       setFormData(updatedFormData);
       setSavedFormData(updatedFormData);
       setLastModified(updatedCompanyData.last_date_modified);
-      setStatusMessage("Datele firmei au fost salvate.");
+      setFormNotice({
+        tone: "success",
+        message: "Datele firmei au fost salvate.",
+      });
+      setSaveState("saved");
+      setJustSaved(true);
+      router.refresh();
     } catch (error) {
-      setStatusMessage(
-        error instanceof Error
-          ? error.message
-          : "Datele firmei nu au putut fi salvate.",
-      );
-    } finally {
-      setIsSaving(false);
+      setFormNotice({
+        tone: "error",
+        message:
+          error instanceof Error
+            ? error.message
+            : "Datele firmei nu au putut fi salvate.",
+      });
+      setSaveState("idle");
+      setJustSaved(false);
     }
   }
 
@@ -161,26 +238,26 @@ export function AdminCompanyPage({ initialCompanyData }: AdminCompanyPageProps) 
     <AccountStaticShell activePage="admin-settings">
       <section className="space-y-7">
         <div className="flex flex-col gap-5 border-b border-subtle pb-7 lg:flex-row lg:items-end lg:justify-between">
-          <div>
+          <div className="min-w-0">
             <Link
               href="/admin/settings"
-              className="mb-5 flex w-fit items-center rounded-full border border-subtle bg-surface px-4 py-2 text-sm font-semibold text-muted transition hover:bg-surface-hover hover:text-content"
+              className="mb-5 flex w-fit max-w-full items-center rounded-full border border-subtle bg-surface px-4 py-2 text-sm font-semibold text-muted transition hover:bg-surface-hover hover:text-content"
             >
               ← Setări admin
             </Link>
-            <p className="inline-flex rounded-full border border-subtle bg-action-soft px-3 py-1 text-[10px] font-black uppercase tracking-[0.18em] text-muted">
+            <p className="inline-flex max-w-full rounded-full border border-subtle bg-action-soft px-3 py-1 text-[10px] font-black uppercase tracking-[0.18em] text-muted">
               Date firmă
             </p>
-            <h1 className="mt-3 max-w-3xl font-serif text-4xl font-semibold leading-[0.95] text-content sm:text-5xl">
+            <h1 className="mt-3 max-w-3xl break-words font-serif text-4xl font-semibold leading-[0.95] text-content sm:text-5xl">
               Datele firmei.
             </h1>
-            <p className="mt-3 max-w-2xl text-sm leading-6 text-muted">
+            <p className="mt-3 max-w-2xl break-words text-sm leading-6 text-muted">
               Completează informațiile folosite în footer, termeni și politica
               de confidențialitate.
             </p>
           </div>
 
-          <span className="inline-flex w-fit rounded-full border border-subtle bg-surface px-5 py-3 text-sm font-bold text-content">
+          <span className="inline-flex w-fit max-w-full rounded-full border border-subtle bg-surface px-5 py-3 text-sm font-bold leading-tight text-content">
             Ultima modificare: {formatDate(lastModified)}
           </span>
         </div>
@@ -203,18 +280,25 @@ export function AdminCompanyPage({ initialCompanyData }: AdminCompanyPageProps) 
           />
         </div>
 
-        {statusMessage ? (
-          <div className="rounded-xl border border-info-border bg-info-soft px-5 py-4 text-sm font-bold text-info">
-            {statusMessage}
+        {formNotice ? (
+          <div
+            role={formNotice.tone === "error" ? "alert" : "status"}
+            aria-live="polite"
+            className={`rounded-xl border px-5 py-4 text-sm font-bold ${noticeClassName(formNotice.tone)}`}
+          >
+            <p className="break-words text-[10px] font-black uppercase tracking-[0.16em]">
+              {formNotice.tone === "error" ? "Eroare" : "Succes"}
+            </p>
+            <p className="mt-1 break-words leading-6">{formNotice.message}</p>
           </div>
         ) : null}
 
-        <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_22rem]">
+        <div className="grid min-w-0 gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(18rem,22rem)]">
           <form
-            className="rounded-xl border border-subtle bg-surface"
+            className="min-w-0 overflow-hidden rounded-xl border border-subtle bg-surface"
             onSubmit={(event) => {
               event.preventDefault();
-              if (!hasChanges || isSaving) return;
+              if (isSubmitDisabled) return;
               void saveCompanyData();
             }}
           >
@@ -223,19 +307,19 @@ export function AdminCompanyPage({ initialCompanyData }: AdminCompanyPageProps) 
                 key={group.title}
                 className={`${index > 0 ? "border-t border-subtle" : ""} p-5`}
               >
-                <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
-                  <h2 className="text-xs font-black uppercase tracking-[0.18em] text-muted">
+                <div className="flex min-w-0 flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+                  <h2 className="min-w-0 break-words text-xs font-black uppercase tracking-[0.18em] text-muted">
                     {group.title}
                   </h2>
-                  <span className="text-xs font-bold text-muted">
+                  <span className="min-w-0 break-words text-xs font-bold text-muted sm:text-right">
                     {group.detail}
                   </span>
                 </div>
 
-                <div className="mt-4 grid gap-4 md:grid-cols-2">
+                <div className="mt-4 grid min-w-0 gap-4 md:grid-cols-2">
                   {group.fields.map((field) => (
-                    <label key={field.name} className="block">
-                      <span className="text-sm font-bold text-content">
+                    <label key={field.name} className="block min-w-0">
+                      <span className="block min-w-0 break-words text-sm font-bold text-content">
                         {field.label}
                       </span>
                       <input
@@ -243,12 +327,9 @@ export function AdminCompanyPage({ initialCompanyData }: AdminCompanyPageProps) 
                         value={formData[field.name]}
                         placeholder={field.placeholder}
                         onChange={(event) =>
-                          setFormData((current) => ({
-                            ...current,
-                            [field.name]: event.target.value,
-                          }))
+                          updateField(field.name, event.target.value)
                         }
-                        className="mt-2 h-12 w-full rounded-lg border border-subtle bg-app px-4 text-sm text-content outline-none transition placeholder:text-muted focus:border-action"
+                        className="mt-2 h-12 w-full min-w-0 rounded-lg border border-subtle bg-app px-4 text-sm text-content outline-none transition placeholder:text-muted focus:border-action"
                       />
                     </label>
                   ))}
@@ -256,31 +337,33 @@ export function AdminCompanyPage({ initialCompanyData }: AdminCompanyPageProps) 
               </section>
             ))}
 
-            <div className="flex flex-col gap-3 border-t border-subtle p-5 sm:flex-row sm:justify-end">
+            <div className="flex min-w-0 flex-col gap-3 border-t border-subtle p-5 sm:flex-row sm:justify-end">
               <button
                 type="button"
                 onClick={() => {
                   setFormData(savedFormData);
-                  setStatusMessage(null);
+                  setFormNotice(null);
+                  setSaveState("idle");
+                  setJustSaved(false);
                 }}
                 disabled={!hasChanges || isSaving}
-                className="rounded-full border border-subtle bg-app px-5 py-3 text-sm font-bold text-content transition hover:bg-surface-hover disabled:cursor-not-allowed disabled:opacity-50"
+                className="inline-flex min-h-12 w-full min-w-0 items-center justify-center rounded-full border border-subtle bg-app px-5 py-3 text-center text-sm font-bold leading-tight text-content transition hover:bg-surface-hover disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
               >
                 Resetează
               </button>
               <button
                 type="submit"
-                disabled={!hasChanges || isSaving}
-                className="rounded-full bg-action px-5 py-3 text-sm font-black text-on-action transition hover:bg-action-hover disabled:cursor-wait disabled:opacity-60"
+                disabled={isSubmitDisabled}
+                className={saveButtonStyles}
               >
-                {isSaving ? "Se salvează..." : "Salvează datele"}
+                {saveButtonLabel}
               </button>
             </div>
           </form>
 
-          <aside className="space-y-4 xl:sticky xl:top-6 xl:self-start">
-            <section className="rounded-xl border border-subtle bg-surface p-5">
-              <p className="text-xs font-black uppercase tracking-[0.16em] text-muted">
+          <aside className="min-w-0 space-y-4 xl:sticky xl:top-6 xl:self-start">
+            <section className="min-w-0 rounded-xl border border-subtle bg-surface p-5">
+              <p className="break-words text-xs font-black uppercase tracking-[0.16em] text-muted">
                 Preview footer
               </p>
               <dl className="mt-4 divide-y divide-subtle border-y border-subtle">
@@ -293,15 +376,15 @@ export function AdminCompanyPage({ initialCompanyData }: AdminCompanyPageProps) 
               </dl>
             </section>
 
-            <section className="rounded-xl border border-subtle bg-surface p-5">
-              <p className="text-xs font-black uppercase tracking-[0.16em] text-muted">
+            <section className="min-w-0 rounded-xl border border-subtle bg-surface p-5">
+              <p className="break-words text-xs font-black uppercase tracking-[0.16em] text-muted">
                 Variabile legale
               </p>
-              <div className="mt-4 flex flex-wrap gap-2">
+              <div className="mt-4 flex min-w-0 flex-wrap gap-2">
                 {["{name}", "{email}", "{phone}", "{cui}"].map((variable) => (
                   <code
                     key={variable}
-                    className="rounded-full border border-subtle bg-app px-3 py-1 text-xs font-bold text-muted"
+                    className="max-w-full break-all rounded-full border border-subtle bg-app px-3 py-1 text-xs font-bold text-muted"
                   >
                     {variable}
                   </code>

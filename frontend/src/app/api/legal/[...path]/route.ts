@@ -4,7 +4,9 @@ const allowedRoutes = [
   { method: "GET", pattern: /^admin\/company-data$/ },
   { method: "PUT", pattern: /^admin\/company-data$/ },
   { method: "GET", pattern: /^admin\/documents\/[^/]+$/ },
+  { method: "POST", pattern: /^admin\/documents\/[^/]+\/sections$/ },
   { method: "PATCH", pattern: /^admin\/documents\/[^/]+\/sections\/[^/]+$/ },
+  { method: "DELETE", pattern: /^admin\/documents\/[^/]+\/sections\/[^/]+$/ },
 ];
 
 type LegalRouteContext = {
@@ -85,7 +87,21 @@ export function PUT(
   return proxyLegalRequest(request, context);
 }
 
+export function POST(
+  request: Request,
+  context: LegalRouteContext,
+): Promise<Response> {
+  return proxyLegalRequest(request, context);
+}
+
 export function PATCH(
+  request: Request,
+  context: LegalRouteContext,
+): Promise<Response> {
+  return proxyLegalRequest(request, context);
+}
+
+export function DELETE(
   request: Request,
   context: LegalRouteContext,
 ): Promise<Response> {

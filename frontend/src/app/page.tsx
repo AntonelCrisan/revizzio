@@ -842,7 +842,7 @@ export default async function Home() {
             <p className="text-xs font-bold uppercase tracking-[0.2em] text-muted">
               Abonamente simple, fără surprize
             </p>
-            <h2 className="mt-4 font-serif text-4xl font-semibold leading-tight sm:text-5xl">
+            <h2 className="mt-4 text-balance font-serif text-4xl font-semibold leading-tight sm:text-5xl">
               Alege cât de intens vrei să înveți.
             </h2>
             <p className="mx-auto mt-5 max-w-2xl text-sm leading-7 text-muted sm:text-base">
@@ -995,7 +995,7 @@ export default async function Home() {
                 <p className="text-xs font-bold uppercase tracking-[0.2em] text-on-action/60">
                   Începe cu următorul tău curs
                 </p>
-                <h2 className="mt-4 font-serif text-4xl font-semibold leading-tight sm:text-6xl">
+                <h2 className="mt-4 text-balance font-serif text-4xl font-semibold leading-tight sm:text-6xl">
                   Începe simplu. Învață sigur.
                 </h2>
                 <p className="mx-auto mt-5 max-w-xl text-sm leading-7 text-on-action/70 sm:text-base">

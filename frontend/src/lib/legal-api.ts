@@ -42,10 +42,32 @@ export type LegalSectionUpdate = {
   content: string;
 };
 
+export type LegalSectionCreate = LegalSectionUpdate;
+
 export type CompanyDataUpdate = Omit<CompanyData, "id" | "last_date_modified">;
 
 type ApiErrorPayload = {
-  detail?: string;
+  detail?: unknown;
+};
+
+type ApiValidationIssue = {
+  loc?: Array<string | number>;
+  msg?: string;
+  type?: string;
+};
+
+const legalFieldLabels: Record<string, string> = {
+  name: "Denumire firmă",
+  social_location: "Sediu social",
+  cui: "CUI",
+  register_number: "Nr. Registrul Comerțului",
+  social_capital: "Capital social",
+  email: "E-mail contact",
+  privacy_email: "E-mail confidențialitate",
+  phone: "Telefon",
+  ai_provider: "Furnizor AI",
+  payment_provider: "Furnizor plăți",
+  hosting_provider: "Furnizor hosting",
 };
 
 export class LegalApiError extends Error {
@@ -56,6 +78,79 @@ export class LegalApiError extends Error {
     super(message);
     this.name = "LegalApiError";
   }
+}
+
+function isApiValidationIssue(value: unknown): value is ApiValidationIssue {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    ("msg" in value || "loc" in value)
+  );
+}
+
+function issueFieldLabel(issue: ApiValidationIssue) {
+  const fieldName = issue.loc
+    ?.map(String)
+    .filter((part) => !["body", "query", "path"].includes(part))
+    .at(-1);
+
+  return fieldName ? legalFieldLabels[fieldName] || fieldName : "Formular";
+}
+
+function friendlyValidationMessage(issue: ApiValidationIssue) {
+  const rawMessage = issue.msg || "valoarea nu este validă";
+  const normalizedMessage = rawMessage.toLowerCase();
+
+  if (
+    normalizedMessage.includes("field required") ||
+    normalizedMessage.includes("at least 1 character")
+  ) {
+    return `${issueFieldLabel(issue)} este obligatoriu.`;
+  }
+  if (normalizedMessage.includes("valid email address")) {
+    return `${issueFieldLabel(issue)} trebuie să fie o adresă de e-mail validă.`;
+  }
+  if (normalizedMessage.includes("at most")) {
+    return `${issueFieldLabel(issue)} este prea lung.`;
+  }
+
+  return `${issueFieldLabel(issue)}: ${rawMessage}`;
+}
+
+function apiErrorMessage(payload: ApiErrorPayload, status: number) {
+  const { detail } = payload;
+  if (typeof detail === "string" && detail.trim()) {
+    return detail.trim();
+  }
+  if (Array.isArray(detail)) {
+    const issueMessages = detail
+      .filter(isApiValidationIssue)
+      .map(friendlyValidationMessage);
+
+    if (issueMessages.length > 0) {
+      const visibleMessages = issueMessages.slice(0, 4).join(" ");
+      const overflowMessage =
+        issueMessages.length > 4
+          ? ` Mai există ${issueMessages.length - 4} erori în formular.`
+          : "";
+      return `Verifică formularul. ${visibleMessages}${overflowMessage}`;
+    }
+  }
+  if (
+    typeof detail === "object" &&
+    detail !== null &&
+    "message" in detail &&
+    typeof detail.message === "string" &&
+    detail.message.trim()
+  ) {
+    return detail.message.trim();
+  }
+
+  if (status === 401) return "Sesiunea a expirat. Autentifică-te din nou.";
+  if (status === 403) return "Nu ai acces să modifici datele firmei.";
+  if (status === 422) return "Verifică formularul. Unele câmpuri nu sunt valide.";
+  if (status >= 500) return "Serverul nu a putut procesa salvarea momentan.";
+  return "Solicitarea nu a putut fi procesată.";
 }
 
 async function legalRequest<T>(path: string, init?: RequestInit): Promise<T> {
@@ -72,14 +167,18 @@ async function legalRequest<T>(path: string, init?: RequestInit): Promise<T> {
   if (!response.ok) {
     let payload: ApiErrorPayload = {};
     try {
-      payload = (await response.json()) as ApiErrorPayload;
+      payload = (await response.clone().json()) as ApiErrorPayload;
     } catch {
-      // The fallback below handles non-JSON upstream errors.
+      try {
+        const text = await response.text();
+        if (text.trim()) {
+          throw new LegalApiError(text.trim().slice(0, 300), response.status);
+        }
+      } catch (error) {
+        if (error instanceof LegalApiError) throw error;
+      }
     }
-    throw new LegalApiError(
-      payload.detail || "Solicitarea nu a putut fi procesata.",
-      response.status,
-    );
+    throw new LegalApiError(apiErrorMessage(payload, response.status), response.status);
   }
 
   return (await response.json()) as T;
@@ -101,6 +200,28 @@ export function updateAdminLegalDocumentSection(
     {
       method: "PATCH",
       body: JSON.stringify(payload),
+    },
+  );
+}
+
+export function createAdminLegalDocumentSection(
+  slug: LegalDocumentSlug,
+  payload: LegalSectionCreate,
+): Promise<LegalDocument> {
+  return legalRequest<LegalDocument>(`admin/documents/${slug}/sections`, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export function deleteAdminLegalDocumentSection(
+  slug: LegalDocumentSlug,
+  sectionKey: string,
+): Promise<LegalDocument> {
+  return legalRequest<LegalDocument>(
+    `admin/documents/${slug}/sections/${sectionKey}`,
+    {
+      method: "DELETE",
     },
   );
 }

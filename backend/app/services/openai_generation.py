@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import hashlib
 import json
+import re
 from dataclasses import dataclass
 from typing import Any
 
@@ -17,6 +19,12 @@ from app.core.config import Settings
 
 class OpenAIGenerationError(Exception):
     pass
+
+
+def _prompt_cache_key(job_type: str, project_id: str) -> str:
+    safe_job_type = re.sub(r"[^a-z0-9_-]+", "_", job_type.lower())[:32]
+    digest = hashlib.sha256(f"{job_type}:{project_id}".encode()).hexdigest()
+    return f"reviss:{safe_job_type}:{digest[:16]}"
 
 
 @dataclass(slots=True)
@@ -54,7 +62,22 @@ class OpenAIStudyGenerator:
         user_id: str,
         project_id: str,
         job_type: str,
+        prompt_cache_key: str | None = None,
+        text_verbosity: str | None = None,
     ) -> OpenAIGenerationResult:
+        text_config: dict[str, Any] = {
+            "format": {
+                "type": "json_schema",
+                "name": schema_name,
+                "strict": True,
+                "schema": schema,
+            }
+        }
+        if text_verbosity:
+            text_config["verbosity"] = text_verbosity
+
+        cache_key = prompt_cache_key or _prompt_cache_key(job_type, project_id)
+
         try:
             response = await self._client.responses.create(
                 model=model,
@@ -62,21 +85,15 @@ class OpenAIStudyGenerator:
                 input=prompt,
                 max_output_tokens=max_output_tokens,
                 reasoning={"effort": reasoning_effort},
-                text={
-                    "format": {
-                        "type": "json_schema",
-                        "name": schema_name,
-                        "strict": True,
-                        "schema": schema,
-                    }
-                },
+                text=text_config,
                 store=False,
                 metadata={
                     "app": "reviss",
                     "project_id": project_id,
                     "job_type": job_type,
                 },
-                user=user_id,
+                prompt_cache_key=cache_key[:64],
+                safety_identifier=user_id[:64],
             )
         except (APIConnectionError, APITimeoutError) as exc:
             raise OpenAIGenerationError(
@@ -151,7 +168,7 @@ AI_CHAT_RESPONSE_SCHEMA: dict[str, Any] = {
     "additionalProperties": False,
     "required": ["answer"],
     "properties": {
-        "answer": {"type": "string", "minLength": 80, "maxLength": 4000},
+        "answer": {"type": "string", "minLength": 20, "maxLength": 1800},
     },
 }
 
