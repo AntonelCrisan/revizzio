@@ -218,6 +218,7 @@ export function ContactForm({ recaptchaSiteKey }: ContactFormProps) {
   const isRecaptchaMissing =
     hasCheckedRuntimeRecaptchaConfig && !effectiveRecaptchaSiteKey;
   const [state, setState] = useState<FormState>(initialState);
+  const [isContactSubmitting, setIsContactSubmitting] = useState(false);
   const [isRecaptchaReady, setIsRecaptchaReady] = useState(
     !effectiveRecaptchaSiteKey,
   );
@@ -225,7 +226,7 @@ export function ContactForm({ recaptchaSiteKey }: ContactFormProps) {
   const recaptchaContainerRef = useRef<HTMLDivElement | null>(null);
   const recaptchaWidgetIdRef = useRef<number | null>(null);
   const isSubmitButtonDisabled =
-    state.status === "submitting" ||
+    isContactSubmitting ||
     isRecaptchaMissing ||
     Boolean(effectiveRecaptchaSiteKey && recaptchaError);
 
@@ -339,13 +340,14 @@ export function ContactForm({ recaptchaSiteKey }: ContactFormProps) {
   }
 
   function handleAnotherMessage() {
+    setIsContactSubmitting(false);
     setState(initialState);
     resetRecaptcha();
   }
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (state.status === "submitting") return;
+    if (isContactSubmitting) return;
 
     const form = event.currentTarget;
     const formData = new FormData(form);
@@ -389,6 +391,7 @@ export function ContactForm({ recaptchaSiteKey }: ContactFormProps) {
       return;
     }
 
+    setIsContactSubmitting(true);
     setState({ status: "submitting", message: null });
     try {
       const response = await postComplianceForm("contact", {
@@ -417,6 +420,8 @@ export function ContactForm({ recaptchaSiteKey }: ContactFormProps) {
             : "Mesajul nu a putut fi trimis.",
       });
       resetRecaptcha();
+    } finally {
+      setIsContactSubmitting(false);
     }
   }
 
@@ -506,6 +511,7 @@ export function ContactForm({ recaptchaSiteKey }: ContactFormProps) {
       <FormStatus state={state} />
       {state.status === "success" ? (
         <button
+          key="contact-success-action"
           type="button"
           onClick={handleAnotherMessage}
           className="inline-flex min-h-12 w-full items-center justify-center rounded-full bg-action px-5 py-3 text-sm font-black text-on-action transition hover:bg-action-hover sm:w-fit"
@@ -514,11 +520,12 @@ export function ContactForm({ recaptchaSiteKey }: ContactFormProps) {
         </button>
       ) : (
         <button
+          key="contact-submit-action"
           type="submit"
           disabled={isSubmitButtonDisabled}
           className="inline-flex min-h-12 w-full items-center justify-center rounded-full bg-action px-5 py-3 text-sm font-black text-on-action transition hover:bg-action-hover disabled:cursor-wait disabled:opacity-60 sm:w-fit"
         >
-          {state.status === "submitting" ? "Se trimite..." : "Trimite mesajul"}
+          {isContactSubmitting ? "Se trimite..." : "Trimite mesajul"}
         </button>
       )}
     </form>

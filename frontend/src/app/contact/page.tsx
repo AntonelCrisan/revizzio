@@ -12,6 +12,9 @@ export const metadata: Metadata = {
     "Trimite o solicitare către Reviss pentru suport, facturare, confidențialitate sau raportare conținut.",
 };
 
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
 export default async function ContactPage() {
   const companyData = (await getServerCompanyData()) ?? getFallbackCompanyData();
   const recaptchaSiteKey =
