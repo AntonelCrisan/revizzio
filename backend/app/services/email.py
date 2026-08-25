@@ -35,6 +35,7 @@ class EmailMessage:
     subject: str
     html: str
     text: str
+    reply_to: str | None = None
 
 
 class EmailService:
@@ -55,6 +56,8 @@ class EmailService:
             "html": message.html,
             "text": message.text,
         }
+        if message.reply_to:
+            payload["reply_to"] = message.reply_to
         body = json.dumps(payload).encode("utf-8")
         request = urllib.request.Request(
             RESEND_EMAILS_URL,
@@ -321,6 +324,98 @@ def password_reset_email(
             "Linkul este valabil pentru o perioadă limitată.",
             "Poate fi folosit o singură dată.",
             "După schimbarea parolei, sesiunile vechi sunt revocate.",
+        ],
+    )
+    return html, text
+
+
+def contact_confirmation_email(
+    *,
+    app_url: str,
+    reference: str,
+    category_label: str,
+    subject: str,
+    logo_html: str,
+    app_name: str = "Reviss",
+) -> tuple[str, str]:
+    text = (
+        f"Am primit mesajul tău către {app_name}.\n\n"
+        f"Referință: {reference}\n"
+        f"Categorie: {category_label}\n"
+        f"Subiect: {subject}\n\n"
+        "Îți vom răspunde pe email după ce analizăm solicitarea."
+    )
+    html = _email_shell(
+        app_name=app_name,
+        eyebrow="Mesaj primit",
+        title="Am primit mesajul tău.",
+        intro=(
+            "Mulțumim că ne-ai scris. Solicitarea ta a fost înregistrată, "
+            "iar echipa Reviss o va analiza cât de curând."
+        ),
+        logo_html=logo_html,
+        cta_label="Înapoi la Reviss",
+        action_url=app_url,
+        note_title="Ce urmează?",
+        note=(
+            "Răspundem pe adresa de email folosită în formular. Păstrează "
+            "numărul de referință dacă revii cu detalii suplimentare."
+        ),
+        details=[
+            f"Referință: {reference}",
+            f"Categorie: {category_label}",
+            f"Subiect: {subject}",
+        ],
+    )
+    return html, text
+
+
+def contact_notification_email(
+    *,
+    app_url: str,
+    reference: str,
+    sender_name: str,
+    sender_email: str,
+    category_label: str,
+    subject: str,
+    message: str,
+    logo_html: str,
+    app_name: str = "Reviss",
+) -> tuple[str, str]:
+    trimmed_message = message.strip()
+    preview_message = (
+        f"{trimmed_message[:700]}..."
+        if len(trimmed_message) > 700
+        else trimmed_message
+    )
+    text = (
+        "A fost trimis un mesaj nou din formularul de contact Reviss.\n\n"
+        f"Referință: {reference}\n"
+        f"Nume: {sender_name}\n"
+        f"Email: {sender_email}\n"
+        f"Categorie: {category_label}\n"
+        f"Subiect: {subject}\n\n"
+        f"Mesaj:\n{trimmed_message}"
+    )
+    html = _email_shell(
+        app_name=app_name,
+        eyebrow="Contact nou",
+        title="Ai un mesaj nou în Reviss.",
+        intro=(
+            "Un utilizator a trimis o solicitare prin formularul public de "
+            "contact. Mesajul complet este salvat și în baza de date."
+        ),
+        logo_html=logo_html,
+        cta_label="Deschide Reviss",
+        action_url=app_url,
+        note_title="Mesaj",
+        note=preview_message,
+        details=[
+            f"Referință: {reference}",
+            f"Nume: {sender_name}",
+            f"Email: {sender_email}",
+            f"Categorie: {category_label}",
+            f"Subiect: {subject}",
         ],
     )
     return html, text

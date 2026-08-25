@@ -155,9 +155,7 @@ def _find_document_section(
 
 
 async def _get_company_data(session: DbSession) -> CompanyData:
-    company_data = await session.scalar(
-        select(CompanyData).order_by(CompanyData.last_date_modified.desc())
-    )
+    company_data = await session.scalar(select(CompanyData).order_by(CompanyData.id))
     if company_data is not None:
         return company_data
 

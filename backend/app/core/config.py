@@ -38,6 +38,10 @@ class Settings(BaseSettings):
     resend_from_email: str = "Reviss <noreply@reviss.app>"
     email_verification_ttl_minutes: int = Field(default=30, ge=5, le=1440)
     password_reset_ttl_minutes: int = Field(default=30, ge=5, le=1440)
+    recaptcha_secret_key: SecretStr | None = None
+    recaptcha_verify_url: str = "https://www.google.com/recaptcha/api/siteverify"
+    contact_rate_limit_window_seconds: int = Field(default=600, ge=60, le=86400)
+    contact_rate_limit_max_requests: int = Field(default=5, ge=1, le=100)
 
     stripe_secret_key: SecretStr | None = None
     stripe_webhook_secret: SecretStr | None = None
@@ -112,6 +116,19 @@ class Settings(BaseSettings):
     @classmethod
     def empty_email_logo_url_is_none(cls, value: object) -> object:
         return None if value == "" else value
+
+    @field_validator("recaptcha_secret_key", mode="before")
+    @classmethod
+    def empty_recaptcha_secret_key_is_none(cls, value: object) -> object:
+        return None if value == "" else value
+
+    @field_validator("recaptcha_verify_url")
+    @classmethod
+    def validate_recaptcha_verify_url(cls, value: str) -> str:
+        verify_url = value.strip()
+        if not verify_url.startswith("https://"):
+            raise ValueError("RECAPTCHA_VERIFY_URL must use HTTPS.")
+        return verify_url
 
     @field_validator("resend_from_email")
     @classmethod

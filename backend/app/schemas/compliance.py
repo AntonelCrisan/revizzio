@@ -52,6 +52,7 @@ class ContactRequest(BaseModel):
     category: ContactCategory
     subject: str = Field(min_length=3, max_length=160)
     message: str = Field(min_length=10, max_length=5000)
+    recaptcha_token: str = Field(default="", max_length=4096)
 
     @field_validator("name", "subject")
     @classmethod
@@ -62,6 +63,11 @@ class ContactRequest(BaseModel):
     @classmethod
     def normalize_message(cls, value: str) -> str:
         return clean_multiline_text(value)
+
+    @field_validator("recaptcha_token")
+    @classmethod
+    def normalize_recaptcha_token(cls, value: str) -> str:
+        return value.strip()
 
 
 class WithdrawalRequestPayload(BaseModel):

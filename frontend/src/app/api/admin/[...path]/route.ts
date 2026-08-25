@@ -1,5 +1,6 @@
 const allowedRoutes = [
   { method: "GET", pattern: /^audit-logs$/ },
+  { method: "GET", pattern: /^contact-messages$/ },
   { method: "GET", pattern: /^users$/ },
   { method: "POST", pattern: /^users\/[^/]+\/verification-email$/ },
   { method: "PATCH", pattern: /^users\/[^/]+$/ },

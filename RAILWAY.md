@@ -49,8 +49,11 @@ SESSION_COOKIE_SECURE=true
 SESSION_COOKIE_SAMESITE=lax
 PUBLIC_APP_URL=https://reviss.app
 EMAIL_LOGO_URL=https://reviss.app/assets/logos/Reviss_logo_dark.svg
+RECAPTCHA_SECRET_KEY=<google-recaptcha-v2-secret-key>
+CONTACT_RATE_LIMIT_WINDOW_SECONDS=600
+CONTACT_RATE_LIMIT_MAX_REQUESTS=5
 PROJECT_UPLOAD_MAX_MB=100
-CORS_ORIGINS=https://reviss.app,https://${{frontend.RAILWAY_PUBLIC_DOMAIN}}
+CORS_ORIGINS=https://reviss.app,https://www.reviss.app,https://${{frontend.RAILWAY_PUBLIC_DOMAIN}}
 OPENAI_API_KEY=<openai-api-key>
 RESEND_API_KEY=<resend-api-key>
 RESEND_FROM_EMAIL=Reviss <noreply@reviss.app>
@@ -71,10 +74,23 @@ Set these on the `frontend` service:
 ```env
 API_URL=http://${{backend.RAILWAY_PRIVATE_DOMAIN}}:${{backend.PORT}}
 NEXT_PUBLIC_SITE_URL=https://reviss.app
+NEXT_PUBLIC_RECAPTCHA_SITE_KEY=<google-recaptcha-v2-site-key>
 ```
 
 If you rename Railway services, update the reference-variable namespaces above
 to match the actual service names.
+
+For Google reCAPTCHA, create a reCAPTCHA v2 Checkbox key and add `reviss.app`,
+`www.reviss.app`, `localhost`, and `127.0.0.1` as allowed domains. Put the
+public site key on the frontend service as `NEXT_PUBLIC_RECAPTCHA_SITE_KEY` and
+the secret key on the backend service as `RECAPTCHA_SECRET_KEY`. The contact
+page also accepts `RECAPTCHA_SITE_KEY` on the frontend service as a runtime
+fallback, but the `NEXT_PUBLIC_` variable is the safest Next.js convention for
+frontend widgets.
+
+After deploying the frontend, open `/api/public-config` on the production
+domain. `recaptcha_configured` must be `true`; if it is `false`, the site key is
+not available inside the frontend service.
 
 Stripe webhook URL:
 

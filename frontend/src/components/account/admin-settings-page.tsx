@@ -8,7 +8,14 @@ type SettingsCard = {
   title: string;
   description: string;
   href: string;
-  icon: "document" | "shield" | "building" | "card" | "users" | "logs";
+  icon:
+    | "document"
+    | "shield"
+    | "building"
+    | "card"
+    | "users"
+    | "logs"
+    | "mail";
 };
 
 const legalCards: SettingsCard[] = [
@@ -59,6 +66,15 @@ const monitoringCards: SettingsCard[] = [
   },
 ];
 
+const communicationCards: SettingsCard[] = [
+  {
+    title: "Mesaje contact",
+    description: "Solicitări trimise prin formularul public de contact.",
+    href: "/admin/settings/mesaje-contact",
+    icon: "mail",
+  },
+];
+
 const adminGroups = [
   {
     title: "Aplicație și firmă",
@@ -79,6 +95,11 @@ const adminGroups = [
     title: "Monitorizare",
     detail: "Audit și diagnostic.",
     cards: monitoringCards,
+  },
+  {
+    title: "Comunicare",
+    detail: "Mesaje primite.",
+    cards: communicationCards,
   },
 ];
 
@@ -141,6 +162,12 @@ function SettingsIcon({ icon }: { icon: SettingsCard["icon"] }) {
         <SvgIcon>
           <path d="M5 4h14v16H5z" />
           <path d="M8 8h8M8 12h8M8 16h5" />
+        </SvgIcon>
+      ) : null}
+      {icon === "mail" ? (
+        <SvgIcon>
+          <path d="M4 6h16v12H4z" />
+          <path d="m4 7 8 6 8-6" />
         </SvgIcon>
       ) : null}
     </span>
@@ -229,7 +256,11 @@ export function AdminSettingsPage() {
         <div className="grid gap-5 md:grid-cols-3">
           <AdminMetric label="Zone globale" value="3" detail="Legal și firmă" />
           <AdminMetric label="Planuri" value="1" detail="Catalog abonamente" />
-          <AdminMetric label="Audit" value="Activ" detail="Jurnal platformă" />
+          <AdminMetric
+            label="Comunicare"
+            value="Contact"
+            detail="Mesaje publice"
+          />
         </div>
 
         <div className="grid gap-5 xl:grid-cols-2">
