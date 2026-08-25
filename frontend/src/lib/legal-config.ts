@@ -35,7 +35,6 @@ export const legalLinks = [
 
 export const supportLinks = [
   { href: "/contact", label: "Contact și suport" },
-  { href: "/anulare-abonament", label: "Anulare abonament" },
   { href: "/retragere-din-contract", label: "Retragere din contract" },
   { href: "/raporteaza-continut", label: "Raportează conținut" },
 ] as const;

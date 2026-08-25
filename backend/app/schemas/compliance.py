@@ -77,6 +77,7 @@ class WithdrawalRequestPayload(BaseModel):
     order_number: str | None = Field(default=None, max_length=80)
     reason: str | None = Field(default=None, max_length=5000)
     confirmation: bool
+    recaptcha_token: str = Field(default="", max_length=4096)
 
     @field_validator("full_name", "subscription_or_order", "order_number")
     @classmethod
@@ -93,6 +94,11 @@ class WithdrawalRequestPayload(BaseModel):
             return None
         normalized = clean_multiline_text(value)
         return normalized or None
+
+    @field_validator("recaptcha_token")
+    @classmethod
+    def normalize_recaptcha_token(cls, value: str) -> str:
+        return value.strip()
 
     @field_validator("confirmation")
     @classmethod

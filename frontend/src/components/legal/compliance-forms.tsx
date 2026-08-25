@@ -14,12 +14,6 @@ type FormFieldErrors = Partial<Record<string, string>>;
 
 const initialState: FormState = { status: "idle", message: null };
 
-const inputClassName =
-  "mt-2 h-12 w-full rounded-xl border border-subtle bg-app px-4 text-sm font-semibold text-content outline-none transition placeholder:text-muted/60 focus:border-action focus:ring-4 focus:ring-action-soft";
-
-const textareaClassName =
-  "mt-2 min-h-36 w-full resize-y rounded-xl border border-subtle bg-app px-4 py-3 text-sm font-semibold leading-6 text-content outline-none transition placeholder:text-muted/60 focus:border-action focus:ring-4 focus:ring-action-soft";
-
 const contactFieldInputClassName =
   "h-11 w-full rounded-lg border border-subtle bg-app px-3 text-sm font-semibold text-content outline-none transition placeholder:text-muted/45 focus:border-action focus:ring-4 focus:ring-action-soft";
 
@@ -140,13 +134,17 @@ const apiErrorFieldLabels: Record<string, string> = {
   declaration: "Declarație",
   description: "Descriere",
   email: "E-mail",
+  full_name: "Nume complet",
   form: "Formular",
   message: "Mesaj",
   name: "Nume",
+  order_number: "Numărul comenzii",
   recaptcha_token: "Verificare anti-spam",
+  reason: "Motiv",
   report_type: "Tip",
   rights_evidence: "Dovezi",
   subject: "Subiect",
+  subscription_or_order: "Abonament sau comandă",
 };
 
 const apiErrorFieldNames: Record<string, string> = {
@@ -156,11 +154,15 @@ const apiErrorFieldNames: Record<string, string> = {
   declaration: "declaration",
   description: "description",
   email: "email",
+  full_name: "fullName",
   message: "message",
   name: "name",
+  order_number: "orderNumber",
+  reason: "reason",
   report_type: "reportType",
   rights_evidence: "rightsEvidence",
   subject: "subject",
+  subscription_or_order: "subscription",
 };
 
 function readApiError(detail: unknown, statusCode?: number) {
@@ -419,6 +421,49 @@ function validateContactFields(formData: FormData): FormFieldErrors {
   return errors;
 }
 
+function validateWithdrawalFields(formData: FormData): FormFieldErrors {
+  const errors: FormFieldErrors = {};
+  const fullName = formValue(formData, "fullName");
+  const email = formValue(formData, "email");
+  const subscription = formValue(formData, "subscription");
+  const orderNumber = formValue(formData, "orderNumber");
+  const reason = formValue(formData, "reason");
+
+  errors.fullName =
+    validateRequiredText(fullName, {
+      empty: "Introdu numele complet.",
+      minLength: 2,
+      min: "Numele complet trebuie să aibă cel puțin 2 caractere.",
+      maxLength: 120,
+      max: "Numele complet poate avea cel mult 120 de caractere.",
+    }) ?? undefined;
+  errors.email = validateEmail(email) ?? undefined;
+  errors.subscription =
+    validateRequiredText(subscription, {
+      empty: "Introdu abonamentul sau comanda vizată.",
+      minLength: 2,
+      min: "Abonamentul sau comanda trebuie să aibă cel puțin 2 caractere.",
+      maxLength: 160,
+      max: "Abonamentul sau comanda poate avea cel mult 160 de caractere.",
+    }) ?? undefined;
+  errors.orderNumber =
+    validateOptionalText(orderNumber, {
+      maxLength: 80,
+      max: "Numărul comenzii poate avea cel mult 80 de caractere.",
+    }) ?? undefined;
+  errors.reason =
+    validateOptionalText(reason, {
+      maxLength: 5000,
+      max: "Motivul poate avea cel mult 5000 de caractere.",
+    }) ?? undefined;
+  errors.confirmation =
+    formData.get("confirmation") === "on"
+      ? undefined
+      : "Confirmă solicitarea de retragere înainte de trimitere.";
+
+  return errors;
+}
+
 function validateContentReportFields(
   formData: FormData,
   attachmentFiles: File[],
@@ -483,21 +528,6 @@ function FieldError({ id, message }: { id: string; message?: string }) {
     >
       {message}
     </span>
-  );
-}
-
-function Field({
-  label,
-  children,
-}: {
-  label: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <label className="block min-w-0 text-sm font-bold text-content">
-      {label}
-      {children}
-    </label>
   );
 }
 
@@ -1075,25 +1105,81 @@ export function ContactForm({ recaptchaSiteKey }: ContactFormProps) {
   );
 }
 
-export function WithdrawalForm() {
+type WithdrawalFormProps = {
+  recaptchaSiteKey: string;
+};
+
+export function WithdrawalForm({ recaptchaSiteKey }: WithdrawalFormProps) {
+  const recaptcha = useRecaptcha(recaptchaSiteKey);
   const [state, setState] = useState<FormState>(initialState);
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [fieldErrors, setFieldErrors] = useState<FormFieldErrors>({});
+  const [isWithdrawalSubmitting, setIsWithdrawalSubmitting] = useState(false);
+  const isSubmitButtonDisabled =
+    isWithdrawalSubmitting ||
+    recaptcha.isMissing ||
+    Boolean(recaptcha.siteKey && recaptcha.error);
+
+  function handleAnotherWithdrawal() {
+    setIsWithdrawalSubmitting(false);
+    setFieldErrors({});
+    setState(initialState);
+    recaptcha.reset();
+  }
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (isWithdrawalSubmitting) return;
+
     const form = event.currentTarget;
     const formData = new FormData(form);
-
-    if (formData.get("confirmation") !== "on") {
+    const nextFieldErrors = validateWithdrawalFields(formData);
+    if (hasFieldErrors(nextFieldErrors)) {
+      setFieldErrors(nextFieldErrors);
       setState({
         status: "error",
-        message: "Confirmă solicitarea de retragere înainte de trimitere.",
+        message: "Corectează câmpurile marcate înainte de trimitere.",
+      });
+      return;
+    }
+    setFieldErrors({});
+
+    if (recaptcha.isMissing) {
+      setState({
+        status: "error",
+        message:
+          "reCAPTCHA nu este configurat pe frontend. Adaugă cheia publică și repornește aplicația.",
       });
       return;
     }
 
-    setIsSubmitting(true);
-    setState(initialState);
+    if (recaptcha.error) {
+      setState({
+        status: "error",
+        message: recaptcha.error,
+      });
+      return;
+    }
+
+    if (!recaptcha.isReady) {
+      setState({
+        status: "error",
+        message: "Protecția anti-spam încă se încarcă. Încearcă din nou.",
+      });
+      return;
+    }
+
+    const recaptchaToken = recaptcha.siteKey ? recaptcha.getToken() : "";
+
+    if (recaptcha.siteKey && !recaptchaToken) {
+      setState({
+        status: "error",
+        message: "Confirmă verificarea anti-spam înainte de trimitere.",
+      });
+      return;
+    }
+
+    setIsWithdrawalSubmitting(true);
+    setState({ status: "submitting", message: null });
     try {
       const response = await postComplianceForm("withdrawal", {
         full_name: String(formData.get("fullName") ?? ""),
@@ -1102,8 +1188,11 @@ export function WithdrawalForm() {
         order_number: String(formData.get("orderNumber") ?? ""),
         reason: String(formData.get("reason") ?? ""),
         confirmation: true,
+        recaptcha_token: recaptchaToken,
       });
       form.reset();
+      recaptcha.reset();
+      setFieldErrors({});
       setState({
         status: "success",
         message:
@@ -1112,73 +1201,209 @@ export function WithdrawalForm() {
         registrationNumber: response.registration_number,
       });
     } catch (error) {
+      const serverFieldErrors =
+        error instanceof ComplianceRequestError ? error.fieldErrors : {};
+      if (hasFieldErrors(serverFieldErrors)) {
+        setFieldErrors(serverFieldErrors);
+      }
       setState({
         status: "error",
         message:
-          error instanceof Error
-            ? error.message
-            : "Solicitarea nu a putut fi trimisă.",
+          hasFieldErrors(serverFieldErrors)
+            ? "Corectează câmpurile marcate înainte de trimitere."
+            : error instanceof Error
+              ? error.message
+              : "Solicitarea nu a putut fi trimisă.",
       });
+      recaptcha.reset();
     } finally {
-      setIsSubmitting(false);
+      setIsWithdrawalSubmitting(false);
     }
   }
 
   return (
-    <form onSubmit={handleSubmit} className="grid gap-4">
-      <div className="grid gap-4 sm:grid-cols-2">
-        <Field label="Nume complet">
+    <form onSubmit={handleSubmit} className="grid gap-5" noValidate>
+      <div className="rounded-xl border border-subtle bg-surface">
+        <ContactFormRow
+          label="Nume complet"
+          description="Cum apare în cont sau comandă."
+        >
           <input
             name="fullName"
             required
             minLength={2}
-            className={inputClassName}
+            maxLength={120}
+            placeholder="Numele tău complet"
+            aria-invalid={Boolean(fieldErrors.fullName)}
+            aria-describedby={
+              fieldErrors.fullName ? "withdrawal-full-name-error" : undefined
+            }
+            onInput={() => clearFieldError(setFieldErrors, "fullName")}
+            className={fieldClassName(
+              contactFieldInputClassName,
+              fieldErrors.fullName,
+            )}
           />
-        </Field>
-        <Field label="E-mail asociat contului">
+          <FieldError
+            id="withdrawal-full-name-error"
+            message={fieldErrors.fullName}
+          />
+        </ContactFormRow>
+        <ContactFormRow
+          label="E-mail"
+          description="Adresa asociată contului."
+        >
           <input
             name="email"
             required
             type="email"
-            className={inputClassName}
+            placeholder="nume@email.ro"
+            aria-invalid={Boolean(fieldErrors.email)}
+            aria-describedby={
+              fieldErrors.email ? "withdrawal-email-error" : undefined
+            }
+            onInput={() => clearFieldError(setFieldErrors, "email")}
+            className={fieldClassName(
+              contactFieldInputClassName,
+              fieldErrors.email,
+            )}
           />
-        </Field>
-      </div>
-      <div className="grid gap-4 sm:grid-cols-2">
-        <Field label="Abonamentul sau comanda">
+          <FieldError id="withdrawal-email-error" message={fieldErrors.email} />
+        </ContactFormRow>
+        <ContactFormRow
+          label="Abonament"
+          description="Planul sau comanda vizată."
+        >
           <input
             name="subscription"
             required
             minLength={2}
+            maxLength={160}
             placeholder="Ex: Focus lunar"
-            className={inputClassName}
+            aria-invalid={Boolean(fieldErrors.subscription)}
+            aria-describedby={
+              fieldErrors.subscription
+                ? "withdrawal-subscription-error"
+                : undefined
+            }
+            onInput={() => clearFieldError(setFieldErrors, "subscription")}
+            className={fieldClassName(
+              contactFieldInputClassName,
+              fieldErrors.subscription,
+            )}
           />
-        </Field>
-        <Field label="Numărul comenzii, dacă există">
-          <input name="orderNumber" className={inputClassName} />
-        </Field>
+          <FieldError
+            id="withdrawal-subscription-error"
+            message={fieldErrors.subscription}
+          />
+        </ContactFormRow>
+        <ContactFormRow
+          label="Comandă"
+          description="Opțional, dacă există."
+        >
+          <input
+            name="orderNumber"
+            maxLength={80}
+            placeholder="Număr comandă sau factură"
+            aria-invalid={Boolean(fieldErrors.orderNumber)}
+            aria-describedby={
+              fieldErrors.orderNumber ? "withdrawal-order-error" : undefined
+            }
+            onInput={() => clearFieldError(setFieldErrors, "orderNumber")}
+            className={fieldClassName(
+              contactFieldInputClassName,
+              fieldErrors.orderNumber,
+            )}
+          />
+          <FieldError
+            id="withdrawal-order-error"
+            message={fieldErrors.orderNumber}
+          />
+        </ContactFormRow>
+        <ContactFormRow
+          label="Motiv"
+          description="Opțional, context util."
+        >
+          <textarea
+            name="reason"
+            maxLength={5000}
+            placeholder="Poți adăuga detalii despre solicitare..."
+            aria-invalid={Boolean(fieldErrors.reason)}
+            aria-describedby={
+              fieldErrors.reason ? "withdrawal-reason-error" : undefined
+            }
+            onInput={() => clearFieldError(setFieldErrors, "reason")}
+            className={fieldClassName(
+              contactFieldTextareaClassName,
+              fieldErrors.reason,
+            )}
+          />
+          <FieldError
+            id="withdrawal-reason-error"
+            message={fieldErrors.reason}
+          />
+        </ContactFormRow>
+        <ContactFormRow
+          label="Confirmare"
+          description="Confirmare obligatorie."
+          isLast
+        >
+          <span className="flex min-w-0 items-start gap-3 rounded-lg border border-subtle bg-app px-3 py-3 text-xs leading-5 text-muted">
+            <input
+              name="confirmation"
+              type="checkbox"
+              required
+              aria-invalid={Boolean(fieldErrors.confirmation)}
+              aria-describedby={
+                fieldErrors.confirmation
+                  ? "withdrawal-confirmation-error"
+                  : undefined
+              }
+              onChange={() => clearFieldError(setFieldErrors, "confirmation")}
+              className="mt-0.5 h-4 w-4 shrink-0 accent-action"
+            />
+            <span className="min-w-0 break-words">
+              Confirm că doresc retragerea din contract pentru abonamentul sau
+              comanda indicată.
+            </span>
+          </span>
+          <FieldError
+            id="withdrawal-confirmation-error"
+            message={fieldErrors.confirmation}
+          />
+        </ContactFormRow>
       </div>
-      <Field label="Motiv opțional">
-        <textarea name="reason" className={textareaClassName} />
-      </Field>
-      <label className="flex items-start gap-3 rounded-2xl border border-subtle bg-app p-4 text-xs leading-5 text-muted">
-        <input
-          name="confirmation"
-          type="checkbox"
-          required
-          className="mt-0.5 h-4 w-4 accent-action"
-        />
-        Confirm că doresc retragerea din contract pentru abonamentul sau comanda
-        indicată.
-      </label>
+      <ContactRecaptcha
+        siteKey={recaptcha.siteKey}
+        isResolvingConfig={recaptcha.isResolvingConfig}
+        containerRef={recaptcha.containerRef}
+        isReady={recaptcha.isReady}
+        error={recaptcha.error}
+        onScriptLoad={recaptcha.render}
+        onScriptError={recaptcha.markScriptError}
+      />
       <FormStatus state={state} />
-      <button
-        type="submit"
-        disabled={isSubmitting}
-        className="rounded-full bg-action px-5 py-3 text-sm font-black text-on-action transition hover:bg-action-hover disabled:cursor-wait disabled:opacity-60"
-      >
-        {isSubmitting ? "Se înregistrează..." : "Confirmă retragerea"}
-      </button>
+      {state.status === "success" ? (
+        <button
+          key="withdrawal-success-action"
+          type="button"
+          onClick={handleAnotherWithdrawal}
+          className="inline-flex min-h-12 w-full items-center justify-center rounded-full bg-action px-5 py-3 text-sm font-black text-on-action transition hover:bg-action-hover sm:w-fit"
+        >
+          Trimite altă solicitare
+        </button>
+      ) : (
+        <button
+          key="withdrawal-submit-action"
+          type="submit"
+          disabled={isSubmitButtonDisabled}
+          className="inline-flex min-h-12 w-full items-center justify-center rounded-full bg-action px-5 py-3 text-sm font-black text-on-action transition hover:bg-action-hover disabled:cursor-wait disabled:opacity-60 sm:w-fit"
+        >
+          {isWithdrawalSubmitting
+            ? "Se înregistrează..."
+            : "Confirmă retragerea"}
+        </button>
+      )}
     </form>
   );
 }

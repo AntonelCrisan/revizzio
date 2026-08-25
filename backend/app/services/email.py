@@ -531,6 +531,100 @@ def content_report_notification_email(
     return html, text
 
 
+def withdrawal_confirmation_email(
+    *,
+    app_url: str,
+    reference: str,
+    subscription_or_order: str,
+    order_number: str | None,
+    logo_html: str,
+    app_name: str = "Reviss",
+) -> tuple[str, str]:
+    order_label = order_number.strip() if order_number else "-"
+    text = (
+        f"Am primit solicitarea ta de retragere din contract către {app_name}.\n\n"
+        f"Număr de înregistrare: {reference}\n"
+        f"Abonament sau comandă: {subscription_or_order}\n"
+        f"Număr comandă: {order_label}\n\n"
+        "Echipa Reviss va analiza solicitarea și va reveni pe email dacă sunt "
+        "necesare detalii suplimentare."
+    )
+    html = _email_shell(
+        app_name=app_name,
+        eyebrow="Retragere primită",
+        title="Am primit solicitarea ta.",
+        intro=(
+            "Solicitarea de retragere din contract a fost înregistrată. "
+            "O vom analiza și vom reveni pe email dacă avem nevoie de clarificări."
+        ),
+        logo_html=logo_html,
+        cta_label="Înapoi la Reviss",
+        action_url=app_url,
+        note_title="Ce urmează?",
+        note=(
+            "Păstrează numărul de înregistrare. Acesta ne ajută să identificăm "
+            "rapid solicitarea dacă revii cu detalii suplimentare."
+        ),
+        details=[
+            f"Număr de înregistrare: {reference}",
+            f"Abonament sau comandă: {subscription_or_order}",
+            f"Număr comandă: {order_label}",
+        ],
+    )
+    return html, text
+
+
+def withdrawal_notification_email(
+    *,
+    app_url: str,
+    reference: str,
+    full_name: str,
+    sender_email: str,
+    subscription_or_order: str,
+    order_number: str | None,
+    reason: str | None,
+    logo_html: str,
+    app_name: str = "Reviss",
+) -> tuple[str, str]:
+    admin_url = f"{app_url.rstrip('/')}/admin/settings/retrageri-contract"
+    order_label = order_number.strip() if order_number else "-"
+    reason_text = reason.strip() if reason else "-"
+    preview_reason = (
+        f"{reason_text[:700]}..." if len(reason_text) > 700 else reason_text
+    )
+    text = (
+        "A fost trimisă o solicitare nouă de retragere din contract în Reviss.\n\n"
+        f"Număr de înregistrare: {reference}\n"
+        f"Nume: {full_name}\n"
+        f"Email: {sender_email}\n"
+        f"Abonament sau comandă: {subscription_or_order}\n"
+        f"Număr comandă: {order_label}\n\n"
+        f"Motiv:\n{reason_text}"
+    )
+    html = _email_shell(
+        app_name=app_name,
+        eyebrow="Retragere contract",
+        title="Ai o solicitare nouă de retragere.",
+        intro=(
+            "Un utilizator a trimis formularul public de retragere din contract. "
+            "Solicitarea completă este salvată și în zona de administrare."
+        ),
+        logo_html=logo_html,
+        cta_label="Vezi retragerile",
+        action_url=admin_url,
+        note_title="Motiv",
+        note=preview_reason,
+        details=[
+            f"Număr de înregistrare: {reference}",
+            f"Nume: {full_name}",
+            f"Email: {sender_email}",
+            f"Abonament sau comandă: {subscription_or_order}",
+            f"Număr comandă: {order_label}",
+        ],
+    )
+    return html, text
+
+
 def invoice_paid_email(
     *,
     invoice_url: str,

@@ -7,7 +7,11 @@ from starlette.requests import Request
 
 from app.api.routes import compliance
 from app.core.config import Settings
-from app.schemas.compliance import ContactRequest, ContentReportRequestPayload
+from app.schemas.compliance import (
+    ContactRequest,
+    ContentReportRequestPayload,
+    WithdrawalRequestPayload,
+)
 from app.services.email import EmailMessage, EmailService
 
 BASE_SETTINGS = {
@@ -67,6 +71,18 @@ def build_content_report_payload(
         description="Conținutul generat pare incorect și trebuie analizat.",
         rights_evidence="Context suplimentar pentru echipa Reviss.",
         declaration=True,
+        recaptcha_token="secret-token",
+    )
+
+
+def build_withdrawal_payload() -> WithdrawalRequestPayload:
+    return WithdrawalRequestPayload(
+        full_name="Student Test",
+        email="student@example.com",
+        subscription_or_order="Focus lunar",
+        order_number="INV-123",
+        reason="Solicit retragerea din contract.",
+        confirmation=True,
         recaptcha_token="secret-token",
     )
 
@@ -154,6 +170,12 @@ def test_content_report_payload_does_not_persist_recaptcha_token() -> None:
     assert "recaptcha_token" not in compliance._payload(payload)
 
 
+def test_withdrawal_payload_does_not_persist_recaptcha_token() -> None:
+    payload = build_withdrawal_payload()
+
+    assert "recaptcha_token" not in compliance._payload(payload)
+
+
 def test_content_report_rate_limit_uses_forwarded_client_ip() -> None:
     settings = build_settings(
         cors_origins="https://www.reviss.app",
@@ -167,6 +189,30 @@ def test_content_report_rate_limit_uses_forwarded_client_ip() -> None:
     }
     request = build_request(
         path="/api/compliance/content-report",
+        headers=headers,
+    )
+
+    asyncio.run(compliance.protect_form_request(request, settings))
+
+    with pytest.raises(HTTPException) as exc_info:
+        asyncio.run(compliance.protect_form_request(request, settings))
+
+    assert exc_info.value.status_code == 429
+
+
+def test_withdrawal_rate_limit_uses_forwarded_client_ip() -> None:
+    settings = build_settings(
+        cors_origins="https://www.reviss.app",
+        contact_rate_limit_window_seconds=600,
+        contact_rate_limit_max_requests=1,
+    )
+    headers = {
+        "origin": "https://www.reviss.app",
+        "x-reviss-form-intent": "withdrawal",
+        "x-forwarded-for": "198.51.100.24, 10.0.0.5",
+    }
+    request = build_request(
+        path="/api/compliance/withdrawal",
         headers=headers,
     )
 
@@ -273,6 +319,48 @@ def test_content_report_emails_send_confirmation_and_internal_notification(
     assert [event.event_type for event in session.events] == [
         "content_report_email_sent",
         "content_report_email_sent",
+    ]
+    assert session.commits == 2
+
+
+def test_withdrawal_emails_send_confirmation_and_internal_notification(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    sent_messages: list[EmailMessage] = []
+
+    async def fake_send(_: EmailService, message: EmailMessage) -> None:
+        sent_messages.append(message)
+
+    monkeypatch.setattr(EmailService, "send", fake_send)
+    session = ContactEmailSession()
+
+    confirmation_sent = asyncio.run(
+        compliance._send_withdrawal_emails(
+            payload=build_withdrawal_payload(),
+            reference="RET-20260825-ABCDEF12",
+            session=session,
+            settings=build_settings(
+                resend_api_key="re_test",
+                public_app_url="https://www.reviss.app",
+            ),
+            ip_address="198.51.100.24",
+            user_agent="pytest",
+        )
+    )
+
+    assert confirmation_sent is True
+    assert [message.to for message in sent_messages] == [
+        "student@example.com",
+        "support@reviss.test",
+    ]
+    assert sent_messages[0].reply_to is None
+    assert sent_messages[1].reply_to == "student@example.com"
+    assert sent_messages[1].subject == (
+        "Retragere contract Reviss: RET-20260825-ABCDEF12"
+    )
+    assert [event.event_type for event in session.events] == [
+        "withdrawal_email_sent",
+        "withdrawal_email_sent",
     ]
     assert session.commits == 2
 

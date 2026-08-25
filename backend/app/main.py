@@ -12,6 +12,9 @@ from app.api.routes.admin_content_reports import (
     router as admin_content_reports_router,
 )
 from app.api.routes.admin_users import router as admin_users_router
+from app.api.routes.admin_withdrawal_requests import (
+    router as admin_withdrawal_requests_router,
+)
 from app.api.routes.audit_logs import router as audit_logs_router
 from app.api.routes.auth import router as auth_router
 from app.api.routes.compliance import router as compliance_router
@@ -61,6 +64,7 @@ app.include_router(auth_router)
 app.include_router(admin_contact_messages_router)
 app.include_router(admin_content_reports_router)
 app.include_router(admin_users_router)
+app.include_router(admin_withdrawal_requests_router)
 app.include_router(audit_logs_router)
 app.include_router(compliance_router)
 app.include_router(legal_router)

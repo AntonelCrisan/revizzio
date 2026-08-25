@@ -16,7 +16,8 @@ type SettingsCard = {
     | "users"
     | "logs"
     | "mail"
-    | "flag";
+    | "flag"
+    | "withdrawal";
 };
 
 const legalCards: SettingsCard[] = [
@@ -79,6 +80,12 @@ const communicationCards: SettingsCard[] = [
     description: "Sesizări pentru conținut, drepturi și date personale.",
     href: "/admin/settings/raportari-continut",
     icon: "flag",
+  },
+  {
+    title: "Retrageri contract",
+    description: "Cereri publice pentru exercitarea dreptului de retragere.",
+    href: "/admin/settings/retrageri-contract",
+    icon: "withdrawal",
   },
 ];
 
@@ -183,6 +190,13 @@ function SettingsIcon({ icon }: { icon: SettingsCard["icon"] }) {
           <path d="M5 5h11l-1 4 1 4H5" />
         </SvgIcon>
       ) : null}
+      {icon === "withdrawal" ? (
+        <SvgIcon>
+          <path d="M7 7h10v14H7z" />
+          <path d="M9 3h6v4H9zM10 12h4M10 16h4" />
+          <path d="m4 11 3-3 3 3" />
+        </SvgIcon>
+      ) : null}
     </span>
   );
 }
@@ -271,8 +285,8 @@ export function AdminSettingsPage() {
           <AdminMetric label="Planuri" value="1" detail="Catalog abonamente" />
           <AdminMetric
             label="Comunicare"
-            value="Contact"
-            detail="Mesaje publice"
+            value="3"
+            detail="Mesaje și cereri publice"
           />
         </div>
 

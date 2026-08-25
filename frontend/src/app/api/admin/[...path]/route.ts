@@ -2,6 +2,7 @@ const allowedRoutes = [
   { method: "GET", pattern: /^audit-logs$/ },
   { method: "GET", pattern: /^contact-messages$/ },
   { method: "GET", pattern: /^content-reports$/ },
+  { method: "GET", pattern: /^withdrawal-requests$/ },
   {
     method: "GET",
     pattern: /^content-reports\/[^/]+\/attachments\/[^/]+\/download$/,

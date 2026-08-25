@@ -8,6 +8,13 @@ from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
 LegalDocumentSlug = Literal["terms_conditions", "privacy_policy"]
 
 CONTROL_CHAR_PATTERN = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]")
+DANGEROUS_HTML_PATTERN = re.compile(
+    r"(?is)"
+    r"<\s*(script|iframe|object|embed|link|meta|base|form|input|button|"
+    r"textarea|select|option|style|svg|math)\b"
+    r"|<[^>]+\son[a-z]+\s*="
+    r"|<[^>]+(?:href|src|xlink:href|srcdoc)\s*=\s*['\"]?\s*(?:javascript|data):"
+)
 
 
 def clean_short_text(value: str) -> str:
@@ -15,7 +22,10 @@ def clean_short_text(value: str) -> str:
 
 
 def clean_html_text(value: str) -> str:
-    return CONTROL_CHAR_PATTERN.sub("", value).replace("\r\n", "\n").strip()
+    normalized = CONTROL_CHAR_PATTERN.sub("", value).replace("\r\n", "\n").strip()
+    if DANGEROUS_HTML_PATTERN.search(normalized):
+        raise ValueError("Conținutul secțiunii conține HTML nesigur.")
+    return normalized
 
 
 class CompanyDataResponse(BaseModel):

@@ -1,3 +1,6 @@
+import pytest
+from pydantic import ValidationError
+
 from app.api.routes.legal import (
     _normalize_section_sort_order,
     _unique_section_key,
@@ -62,3 +65,18 @@ def test_section_create_payload_normalizes_text() -> None:
 
     assert payload.title == "Drepturi utilizatori"
     assert payload.content == "<h2>Drepturi</h2><p>Text.</p>"
+
+
+@pytest.mark.parametrize(
+    "content",
+    [
+        '<p onclick="alert(1)">Text</p>',
+        '<a href="javascript:alert(1)">Text</a>',
+        '<img src="data:text/html;base64,PHNjcmlwdD4=">',
+        "<script>alert(1)</script>",
+        "<iframe src='https://example.com'></iframe>",
+    ],
+)
+def test_section_create_payload_rejects_unsafe_html(content: str) -> None:
+    with pytest.raises(ValidationError, match="HTML nesigur"):
+        LegalDocumentSectionCreate(title="Secțiune", content=content)

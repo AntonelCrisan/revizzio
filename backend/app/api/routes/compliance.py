@@ -46,6 +46,8 @@ from app.services.email import (
     content_report_confirmation_email,
     content_report_notification_email,
     email_logo_html,
+    withdrawal_confirmation_email,
+    withdrawal_notification_email,
 )
 
 router = APIRouter(prefix="/api/compliance", tags=["compliance"])
@@ -564,6 +566,51 @@ async def _send_content_report_email(
     return True
 
 
+async def _send_withdrawal_email(
+    *,
+    session: DbSession,
+    settings: Settings,
+    reference: str,
+    email_type: str,
+    message: EmailMessage,
+    ip_address: str | None,
+    user_agent: str | None,
+) -> bool:
+    try:
+        await EmailService(settings).send(message)
+    except EmailDeliveryError as exc:
+        session.add(
+            ComplianceEvent(
+                event_type="withdrawal_email_failed",
+                payload=_email_event_payload(
+                    reference=reference,
+                    email_type=email_type,
+                    recipient=message.to,
+                    error=str(exc),
+                ),
+                ip_address=ip_address,
+                user_agent=user_agent,
+            )
+        )
+        await session.commit()
+        return False
+
+    session.add(
+        ComplianceEvent(
+            event_type="withdrawal_email_sent",
+            payload=_email_event_payload(
+                reference=reference,
+                email_type=email_type,
+                recipient=message.to,
+            ),
+            ip_address=ip_address,
+            user_agent=user_agent,
+        )
+    )
+    await session.commit()
+    return True
+
+
 async def _send_contact_emails(
     *,
     payload: ContactRequest,
@@ -633,6 +680,84 @@ async def _send_contact_emails(
         message=EmailMessage(
             to=notification_recipient,
             subject=_email_subject("Mesaj nou Reviss", payload.subject),
+            html=html,
+            text=text,
+            reply_to=str(payload.email),
+        ),
+        ip_address=ip_address,
+        user_agent=user_agent,
+    )
+    return confirmation_sent
+
+
+async def _send_withdrawal_emails(
+    *,
+    payload: WithdrawalRequestPayload,
+    reference: str,
+    session: DbSession,
+    settings: Settings,
+    ip_address: str | None,
+    user_agent: str | None,
+) -> bool:
+    logo_html = email_logo_html(settings.email_logo_url, app_name="Reviss")
+    html, text = withdrawal_confirmation_email(
+        app_url=settings.public_app_url,
+        reference=reference,
+        subscription_or_order=payload.subscription_or_order,
+        order_number=payload.order_number,
+        logo_html=logo_html,
+    )
+    confirmation_sent = await _send_withdrawal_email(
+        session=session,
+        settings=settings,
+        reference=reference,
+        email_type="confirmation",
+        message=EmailMessage(
+            to=str(payload.email),
+            subject=f"Am primit retragerea ta Reviss ({reference})",
+            html=html,
+            text=text,
+        ),
+        ip_address=ip_address,
+        user_agent=user_agent,
+    )
+
+    notification_recipient = await _contact_notification_recipient(session)
+    if notification_recipient is None:
+        session.add(
+            ComplianceEvent(
+                event_type="withdrawal_email_skipped",
+                payload=_email_event_payload(
+                    reference=reference,
+                    email_type="notification",
+                    recipient=None,
+                    error="company_data.email nu este configurat.",
+                ),
+                ip_address=ip_address,
+                user_agent=user_agent,
+            )
+        )
+        await session.commit()
+        return confirmation_sent
+
+    html, text = withdrawal_notification_email(
+        app_url=settings.public_app_url,
+        reference=reference,
+        full_name=payload.full_name,
+        sender_email=str(payload.email),
+        subscription_or_order=payload.subscription_or_order,
+        order_number=payload.order_number,
+        reason=payload.reason,
+        logo_html=logo_html,
+    )
+    await _send_withdrawal_email(
+        session=session,
+        settings=settings,
+        reference=reference,
+        email_type="notification",
+        message=EmailMessage(
+            to=notification_recipient,
+            subject=_email_subject("Retragere contract Reviss", reference),
             html=html,
             text=text,
             reply_to=str(payload.email),
@@ -744,6 +869,11 @@ def _rate_limit_policy(
     settings: Settings,
 ) -> tuple[int, int]:
     if request.url.path == "/api/compliance/contact":
+        return (
+            settings.contact_rate_limit_window_seconds,
+            settings.contact_rate_limit_max_requests,
+        )
+    if request.url.path == "/api/compliance/withdrawal":
         return (
             settings.contact_rate_limit_window_seconds,
             settings.contact_rate_limit_max_requests,
@@ -974,22 +1104,24 @@ async def create_withdrawal_request(
     payload: WithdrawalRequestPayload,
     request: Request,
     session: DbSession,
+    settings: AppSettings,
 ) -> ComplianceResponse:
+    await verify_contact_recaptcha(payload.recaptcha_token, request, settings)
     user_agent, ip_address = _client_context(request)
     registration_number = _registration_number("RET")
-    session.add(
-        WithdrawalRequest(
-            registration_number=registration_number,
-            full_name=payload.full_name,
-            email=str(payload.email),
-            subscription_or_order=payload.subscription_or_order,
-            order_number=payload.order_number,
-            reason=payload.reason,
-            confirmation=payload.confirmation,
-            ip_address=ip_address,
-            user_agent=user_agent,
-        )
+    withdrawal_request = WithdrawalRequest(
+        registration_number=registration_number,
+        full_name=payload.full_name,
+        email=str(payload.email),
+        subscription_or_order=payload.subscription_or_order,
+        order_number=payload.order_number,
+        reason=payload.reason,
+        confirmation=payload.confirmation,
+        email_confirmation_status="queued",
+        ip_address=ip_address,
+        user_agent=user_agent,
     )
+    session.add(withdrawal_request)
     session.add(
         ComplianceEvent(
             event_type="withdrawal_request_created",
@@ -1003,11 +1135,38 @@ async def create_withdrawal_request(
         )
     )
     await session.commit()
+    confirmation_sent = await _send_withdrawal_emails(
+        payload=payload,
+        reference=registration_number,
+        session=session,
+        settings=settings,
+        ip_address=ip_address,
+        user_agent=user_agent,
+    )
+    withdrawal_request.email_confirmation_status = (
+        "sent" if confirmation_sent else "failed"
+    )
+    session.add(
+        ComplianceEvent(
+            event_type="withdrawal_email_status_updated",
+            payload={
+                "registration_number": registration_number,
+                "email_confirmation_status": (
+                    withdrawal_request.email_confirmation_status
+                ),
+            },
+            ip_address=ip_address,
+            user_agent=user_agent,
+        )
+    )
+    await session.commit()
+    message = "Solicitarea de retragere a fost înregistrată."
+    if confirmation_sent:
+        message += " Ți-am trimis confirmarea pe email."
+    else:
+        message += " Confirmarea pe email nu a putut fi trimisă momentan."
     return ComplianceResponse(
-        message=(
-            "Solicitarea de retragere a fost înregistrată. Confirmarea prin "
-            "e-mail este pusă în coadă pentru trimitere."
-        ),
+        message=message,
         registration_number=registration_number,
     )
 
