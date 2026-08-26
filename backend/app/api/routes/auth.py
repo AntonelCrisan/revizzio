@@ -1,6 +1,5 @@
-from collections import defaultdict
+import hashlib
 from datetime import UTC, datetime
-from time import monotonic
 from urllib.parse import urlparse
 
 from fastapi import APIRouter, HTTPException, Request, Response, status
@@ -10,6 +9,7 @@ from app.api.dependencies import (
     AuthServiceDependency,
     CurrentUser,
 )
+from app.core.rate_limit import _memory_rate_limit_buckets, consume_rate_limit
 from app.schemas.auth import (
     EmailVerificationRequest,
     LoginRequest,
@@ -45,57 +45,58 @@ AUTH_RATE_LIMIT_IP_POLICIES = {
     "password-reset/request": 20,
     "password-reset/confirm": 30,
 }
-_auth_rate_limit_buckets: defaultdict[str, list[float]] = defaultdict(list)
+_auth_rate_limit_buckets = _memory_rate_limit_buckets
+
+
+def _client_ip(request: Request) -> str | None:
+    for header_name in ("x-forwarded-for", "x-real-ip", "cf-connecting-ip"):
+        header_value = request.headers.get(header_name)
+        if not header_value:
+            continue
+        client_ip = header_value.split(",", 1)[0].strip()
+        if client_ip:
+            return client_ip[:64]
+
+    return request.client.host if request.client is not None else None
 
 
 def _client_context(request: Request) -> tuple[str | None, str | None]:
     user_agent = request.headers.get("user-agent")
     if user_agent is not None:
         user_agent = user_agent[:MAX_USER_AGENT_LENGTH]
-    ip_address = request.client.host if request.client is not None else None
+    ip_address = _client_ip(request)
     return user_agent, ip_address
 
 
 def _normalized_rate_limit_value(value: str | None) -> str:
-    return value.strip().lower() if value else "global"
+    normalized = value.strip().lower() if value else "global"
+    return hashlib.sha256(normalized.encode("utf-8")).hexdigest()
 
 
-def _enforce_auth_rate_limit(
+async def _enforce_auth_rate_limit(
     request: Request,
     action: str,
     *,
-    email: str | None = None,
+    identity: str | None = None,
 ) -> None:
-    ip_address = request.client.host if request.client is not None else "unknown"
-    now = monotonic()
-    _consume_rate_limit(
-        key=f"{action}:{ip_address}:ip",
-        max_attempts=AUTH_RATE_LIMIT_IP_POLICIES[action],
-        now=now,
+    ip_address = _client_ip(request) or "unknown"
+    await consume_rate_limit(
+        bucket_key=f"auth:{action}:{ip_address}:ip",
+        max_requests=AUTH_RATE_LIMIT_IP_POLICIES[action],
+        window_seconds=AUTH_RATE_LIMIT_WINDOW_SECONDS,
+        error_message="Prea multe incercari. Incearca din nou peste putin timp.",
     )
-    if email is None:
+    if identity is None or action not in AUTH_RATE_LIMIT_IDENTITY_POLICIES:
         return
 
-    _consume_rate_limit(
-        key=f"{action}:{ip_address}:{_normalized_rate_limit_value(email)}",
-        max_attempts=AUTH_RATE_LIMIT_IDENTITY_POLICIES[action],
-        now=now,
+    await consume_rate_limit(
+        bucket_key=(
+            f"auth:{action}:{ip_address}:{_normalized_rate_limit_value(identity)}"
+        ),
+        max_requests=AUTH_RATE_LIMIT_IDENTITY_POLICIES[action],
+        window_seconds=AUTH_RATE_LIMIT_WINDOW_SECONDS,
+        error_message="Prea multe incercari. Incearca din nou peste putin timp.",
     )
-
-
-def _consume_rate_limit(*, key: str, max_attempts: int, now: float) -> None:
-    bucket = _auth_rate_limit_buckets[key]
-    bucket[:] = [
-        timestamp
-        for timestamp in bucket
-        if timestamp >= now - AUTH_RATE_LIMIT_WINDOW_SECONDS
-    ]
-    if len(bucket) >= max_attempts:
-        raise HTTPException(
-            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-            detail="Prea multe incercari. Incearca din nou peste putin timp.",
-        )
-    bucket.append(now)
 
 
 def _request_origin(request: Request) -> str | None:
@@ -174,7 +175,11 @@ async def register(
     settings: AppSettings,
 ) -> MessageResponse:
     _protect_auth_origin(request, settings)
-    _enforce_auth_rate_limit(request, "register", email=str(payload.email))
+    await _enforce_auth_rate_limit(
+        request,
+        "register",
+        identity=str(payload.email),
+    )
     user_agent, ip_address = _client_context(request)
     try:
         await service.register(
@@ -213,7 +218,7 @@ async def verify_email(
     settings: AppSettings,
 ) -> UserResponse:
     _protect_auth_origin(request, settings)
-    _enforce_auth_rate_limit(request, "verify-email")
+    await _enforce_auth_rate_limit(request, "verify-email")
     user_agent, ip_address = _client_context(request)
     try:
         result = await service.verify_email(
@@ -245,7 +250,11 @@ async def login(
     settings: AppSettings,
 ) -> UserResponse:
     _protect_auth_origin(request, settings)
-    _enforce_auth_rate_limit(request, "login", email=str(payload.email))
+    await _enforce_auth_rate_limit(
+        request,
+        "login",
+        identity=str(payload.email),
+    )
     user_agent, ip_address = _client_context(request)
     try:
         result = await service.login(
@@ -279,10 +288,10 @@ async def request_password_reset(
     settings: AppSettings,
 ) -> MessageResponse:
     _protect_auth_origin(request, settings)
-    _enforce_auth_rate_limit(
+    await _enforce_auth_rate_limit(
         request,
         "password-reset/request",
-        email=str(payload.email),
+        identity=str(payload.email),
     )
     user_agent, ip_address = _client_context(request)
     try:
@@ -317,7 +326,11 @@ async def confirm_password_reset(
     settings: AppSettings,
 ) -> MessageResponse:
     _protect_auth_origin(request, settings)
-    _enforce_auth_rate_limit(request, "password-reset/confirm")
+    await _enforce_auth_rate_limit(
+        request,
+        "password-reset/confirm",
+        identity=payload.token,
+    )
     user_agent, ip_address = _client_context(request)
     try:
         await service.reset_password(

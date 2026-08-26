@@ -37,13 +37,19 @@ async function proxyAuthRequest(
   }
 
   const headers = new Headers();
-  const contentType = request.headers.get("content-type");
-  const cookie = request.headers.get("cookie");
-  const userAgent = request.headers.get("user-agent");
-
-  if (contentType) headers.set("content-type", contentType);
-  if (cookie) headers.set("cookie", cookie);
-  if (userAgent) headers.set("user-agent", userAgent);
+  for (const headerName of [
+    "content-type",
+    "cookie",
+    "user-agent",
+    "origin",
+    "referer",
+    "x-forwarded-for",
+    "x-real-ip",
+    "cf-connecting-ip",
+  ]) {
+    const value = request.headers.get(headerName);
+    if (value) headers.set(headerName, value);
+  }
 
   try {
     const backendResponse = await fetch(`${apiUrl}${backendPath}`, {

@@ -38,6 +38,8 @@ class Settings(BaseSettings):
     resend_from_email: str = "Reviss <noreply@reviss.app>"
     email_verification_ttl_minutes: int = Field(default=30, ge=5, le=1440)
     password_reset_ttl_minutes: int = Field(default=30, ge=5, le=1440)
+    redis_url: str | None = None
+    rate_limit_redis_required: bool = False
     recaptcha_secret_key: SecretStr | None = None
     recaptcha_verify_url: str = "https://www.google.com/recaptcha/api/siteverify"
     contact_rate_limit_window_seconds: int = Field(default=600, ge=60, le=86400)
@@ -124,6 +126,11 @@ class Settings(BaseSettings):
     @field_validator("email_logo_url", mode="before")
     @classmethod
     def empty_email_logo_url_is_none(cls, value: object) -> object:
+        return None if value == "" else value
+
+    @field_validator("redis_url", mode="before")
+    @classmethod
+    def empty_redis_url_is_none(cls, value: object) -> object:
         return None if value == "" else value
 
     @field_validator("recaptcha_secret_key", mode="before")

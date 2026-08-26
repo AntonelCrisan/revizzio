@@ -19,11 +19,20 @@ python -m venv .venv
 python -m pip install -r requirements.txt
 ```
 
-3. Copiază `.env.example` în `.env` și completează:
+3. Pornește Redis pentru rate limiting:
+
+```powershell
+cd ..
+docker compose up -d redis
+cd backend
+```
+
+4. Copiază `.env.example` în `.env` și completează:
 
 ```env
 DATABASE_URL=postgresql+asyncpg://UTILIZATOR:PAROLA@127.0.0.1:5432/revizzio
 SESSION_SECRET=un-secret-aleator-de-cel-putin-32-de-caractere
+REDIS_URL=redis://127.0.0.1:6379/0
 RESEND_API_KEY=<cheia_resend>
 RESEND_FROM_EMAIL="Reviss <noreply@reviss.app>"
 ```
@@ -38,7 +47,7 @@ Caracterele rezervate din parolă trebuie codificate pentru URL. De exemplu,
 DATABASE_URL=postgresql+asyncpg://postgres:parola%40@127.0.0.1:5432/revizzio
 ```
 
-4. Aplică schema:
+5. Aplică schema:
 
 ```powershell
 python -m alembic upgrade head
@@ -48,7 +57,7 @@ Pentru inspectare sau aplicare manuală pe o bază complet goală, SQL-ul
 echivalent este în `migrations/sql/20260611_0001_create_auth_tables.sql`.
 Folosește fie comanda Alembic, fie fișierul SQL, nu ambele.
 
-5. Pornește API-ul:
+6. Pornește API-ul:
 
 ```powershell
 python main.py

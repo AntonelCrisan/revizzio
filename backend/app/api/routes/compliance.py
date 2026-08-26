@@ -2,12 +2,10 @@ import asyncio
 import json
 import logging
 import re
-import time
 import urllib.error
 import urllib.parse
 import urllib.request
 import uuid
-from collections import defaultdict
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -20,6 +18,7 @@ from starlette.datastructures import UploadFile as StarletteUploadFile
 
 from app.api.dependencies import AppSettings, CurrentUser, DbSession
 from app.core.config import Settings
+from app.core.rate_limit import _memory_rate_limit_buckets, consume_rate_limit
 from app.models import (
     CompanyData,
     ComplianceEvent,
@@ -59,7 +58,7 @@ RATE_LIMIT_MAX_REQUESTS = 30
 RECAPTCHA_TIMEOUT_SECONDS = 5
 CONTENT_REPORT_ATTACHMENT_CHUNK_BYTES = 1024 * 1024
 CONTENT_REPORT_ATTACHMENT_SIGNATURE_BYTES = 16
-_rate_limit_buckets: dict[str, list[float]] = defaultdict(list)
+_rate_limit_buckets = _memory_rate_limit_buckets
 CONTACT_CATEGORY_LABELS = {
     "suport": "Suport",
     "facturare": "Facturare",
@@ -995,24 +994,16 @@ async def protect_form_request(
         )
 
     ip_address = _client_ip(request) or "unknown"
-    bucket_key = f"{ip_address}:{request.url.path}"
-    now = time.monotonic()
     rate_limit_window_seconds, rate_limit_max_requests = _rate_limit_policy(
         request,
         settings,
     )
-    bucket = [
-        timestamp
-        for timestamp in _rate_limit_buckets[bucket_key]
-        if now - timestamp < rate_limit_window_seconds
-    ]
-    if len(bucket) >= rate_limit_max_requests:
-        raise HTTPException(
-            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-            detail="Prea multe solicitări. Încearcă din nou mai târziu.",
-        )
-    bucket.append(now)
-    _rate_limit_buckets[bucket_key] = bucket
+    await consume_rate_limit(
+        bucket_key=f"compliance:{ip_address}:{request.url.path}",
+        max_requests=rate_limit_max_requests,
+        window_seconds=rate_limit_window_seconds,
+        error_message="Prea multe solicitări. Încearcă din nou mai târziu.",
+    )
 
 
 FormProtection = Depends(protect_form_request)

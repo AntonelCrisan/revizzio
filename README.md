@@ -2,6 +2,14 @@
 
 Aplicație full-stack cu backend FastAPI, PostgreSQL și frontend Next.js.
 
+## Servicii locale
+
+Redis este folosit pentru rate limiting distribuit. Pornește-l local cu Docker:
+
+```powershell
+docker compose up -d redis
+```
+
 ## Backend
 
 Configurează `backend/.env` pornind de la `.env.example`, apoi:

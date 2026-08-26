@@ -1,7 +1,5 @@
 import logging
-import time
 import uuid
-from collections import defaultdict
 from typing import Annotated
 from urllib.parse import urlparse
 
@@ -19,6 +17,7 @@ from fastapi.responses import FileResponse, Response
 from starlette.datastructures import UploadFile as StarletteUploadFile
 
 from app.api.dependencies import AppSettings, CurrentUser, DbSession
+from app.core.rate_limit import _memory_rate_limit_buckets, consume_rate_limit
 from app.schemas.projects import (
     StudyProjectAiSelectionExplainRequest,
     StudyProjectAiSelectionExplainResponse,
@@ -53,7 +52,7 @@ logger = logging.getLogger("revizzio.projects")
 
 AI_RATE_LIMIT_WINDOW_SECONDS = 60
 AI_RATE_LIMIT_MAX_REQUESTS = 12
-_ai_rate_limit_buckets: dict[str, list[float]] = defaultdict(list)
+_ai_rate_limit_buckets = _memory_rate_limit_buckets
 
 PROJECT_RATE_LIMIT_WINDOW_SECONDS = 60
 PROJECT_RATE_LIMIT_POLICIES = {
@@ -64,7 +63,7 @@ PROJECT_RATE_LIMIT_POLICIES = {
     "flashcards": 20,
     "study-actions": 80,
 }
-_project_rate_limit_buckets: dict[str, list[float]] = defaultdict(list)
+_project_rate_limit_buckets = _memory_rate_limit_buckets
 _TRUE_FORM_VALUES = {"1", "true", "t", "yes", "y", "on"}
 _FALSE_FORM_VALUES = {"0", "false", "f", "no", "n", "off"}
 _GENERATION_LANGUAGE_VALUES = {"ro", "en", "fr"}
@@ -114,33 +113,23 @@ def _service(session: DbSession, settings: AppSettings) -> StudyProjectService:
     return StudyProjectService(session, settings)
 
 
-def _consume_rate_limit_bucket(
+async def _consume_rate_limit_bucket(
     *,
-    buckets: dict[str, list[float]],
     bucket_key: str,
     max_requests: int,
     window_seconds: int,
     error_message: str,
 ) -> None:
-    now = time.monotonic()
-    bucket = [
-        timestamp
-        for timestamp in buckets[bucket_key]
-        if now - timestamp < window_seconds
-    ]
-    if len(bucket) >= max_requests:
-        raise HTTPException(
-            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-            detail=error_message,
-        )
-
-    bucket.append(now)
-    buckets[bucket_key] = bucket
+    await consume_rate_limit(
+        bucket_key=f"projects:{bucket_key}",
+        max_requests=max_requests,
+        window_seconds=window_seconds,
+        error_message=error_message,
+    )
 
 
-def _enforce_ai_rate_limit(current_user: CurrentUser) -> None:
-    _consume_rate_limit_bucket(
-        buckets=_ai_rate_limit_buckets,
+async def _enforce_ai_rate_limit(current_user: CurrentUser) -> None:
+    await _consume_rate_limit_bucket(
         bucket_key=f"{current_user.id}:project-ai",
         max_requests=AI_RATE_LIMIT_MAX_REQUESTS,
         window_seconds=AI_RATE_LIMIT_WINDOW_SECONDS,
@@ -148,9 +137,8 @@ def _enforce_ai_rate_limit(current_user: CurrentUser) -> None:
     )
 
 
-def _enforce_project_rate_limit(current_user: CurrentUser, action: str) -> None:
-    _consume_rate_limit_bucket(
-        buckets=_project_rate_limit_buckets,
+async def _enforce_project_rate_limit(current_user: CurrentUser, action: str) -> None:
+    await _consume_rate_limit_bucket(
         bucket_key=f"{current_user.id}:{action}",
         max_requests=PROJECT_RATE_LIMIT_POLICIES[action],
         window_seconds=PROJECT_RATE_LIMIT_WINDOW_SECONDS,
@@ -325,7 +313,7 @@ async def prepare_project(
         files,
         generation_language,
     ) = await _parse_prepare_project_form(request)
-    _enforce_project_rate_limit(current_user, "prepare")
+    await _enforce_project_rate_limit(current_user, "prepare")
     service = _service(session, settings)
     try:
         project = await service.prepare_project(
@@ -390,7 +378,7 @@ async def generate_project_quizzes(
     session: DbSession,
     settings: AppSettings,
 ) -> StudyProjectResponse:
-    _enforce_project_rate_limit(current_user, "generate-quizzes")
+    await _enforce_project_rate_limit(current_user, "generate-quizzes")
     service = _service(session, settings)
     try:
         existing_project = await service.get_project(current_user, project_id)
@@ -429,7 +417,7 @@ async def cancel_project_generation(
     session: DbSession,
     settings: AppSettings,
 ) -> StudyProjectResponse:
-    _enforce_project_rate_limit(current_user, "manage")
+    await _enforce_project_rate_limit(current_user, "manage")
     service = _service(session, settings)
     try:
         project = await service.cancel_project_generation(
@@ -458,7 +446,7 @@ async def explain_project_summary_selection(
     session: DbSession,
     settings: AppSettings,
 ) -> StudyProjectAiSelectionExplainResponse:
-    _enforce_ai_rate_limit(current_user)
+    await _enforce_ai_rate_limit(current_user)
     service = _service(session, settings)
     try:
         explanation = await service.explain_summary_selection(
@@ -502,7 +490,7 @@ async def chat_with_project_ai(
     session: DbSession,
     settings: AppSettings,
 ) -> StudyProjectChatResponse:
-    _enforce_ai_rate_limit(current_user)
+    await _enforce_ai_rate_limit(current_user)
     service = _service(session, settings)
     try:
         answer = await service.chat_with_project_ai(
@@ -549,7 +537,7 @@ async def explain_project_flashcard_selection(
     session: DbSession,
     settings: AppSettings,
 ) -> StudyProjectAiSelectionExplainResponse:
-    _enforce_ai_rate_limit(current_user)
+    await _enforce_ai_rate_limit(current_user)
     service = _service(session, settings)
     try:
         explanation = await service.explain_flashcard_selection(
@@ -609,7 +597,7 @@ async def rename_project(
     session: DbSession,
     settings: AppSettings,
 ) -> StudyProjectResponse:
-    _enforce_project_rate_limit(current_user, "manage")
+    await _enforce_project_rate_limit(current_user, "manage")
     service = _service(session, settings)
     try:
         project = await service.rename_project(
@@ -640,7 +628,7 @@ async def archive_project(
     session: DbSession,
     settings: AppSettings,
 ) -> StudyProjectResponse:
-    _enforce_project_rate_limit(current_user, "manage")
+    await _enforce_project_rate_limit(current_user, "manage")
     service = _service(session, settings)
     try:
         project = await service.archive_project(
@@ -664,7 +652,7 @@ async def restore_project(
     session: DbSession,
     settings: AppSettings,
 ) -> StudyProjectResponse:
-    _enforce_project_rate_limit(current_user, "manage")
+    await _enforce_project_rate_limit(current_user, "manage")
     service = _service(session, settings)
     try:
         project = await service.restore_project(
@@ -688,7 +676,7 @@ async def delete_project(
     session: DbSession,
     settings: AppSettings,
 ) -> None:
-    _enforce_project_rate_limit(current_user, "manage")
+    await _enforce_project_rate_limit(current_user, "manage")
     service = _service(session, settings)
     try:
         await service.delete_project(
@@ -711,7 +699,7 @@ async def import_project_json(
     settings: AppSettings,
     file: Annotated[UploadFile, File()],
 ) -> StudyProjectImportResponse:
-    _enforce_project_rate_limit(current_user, "import-json")
+    await _enforce_project_rate_limit(current_user, "import-json")
     service = _service(session, settings)
     try:
         project = await service.import_ai_json(
@@ -750,7 +738,7 @@ async def create_quiz_mistake_flashcard(
     session: DbSession,
     settings: AppSettings,
 ) -> StudyProjectResponse:
-    _enforce_project_rate_limit(current_user, "study-actions")
+    await _enforce_project_rate_limit(current_user, "study-actions")
     service = _service(session, settings)
     try:
         project = await service.create_quiz_mistake_flashcard(
@@ -780,7 +768,7 @@ async def complete_quiz(
     session: DbSession,
     settings: AppSettings,
 ) -> StudyProjectResponse:
-    _enforce_project_rate_limit(current_user, "study-actions")
+    await _enforce_project_rate_limit(current_user, "study-actions")
     service = _service(session, settings)
     try:
         project = await service.complete_quiz(
@@ -818,7 +806,7 @@ async def create_manual_flashcard(
     difficulty: Annotated[str | None, Form(max_length=40)] = None,
     front_image: Annotated[UploadFile | None, File()] = None,
 ) -> StudyProjectResponse:
-    _enforce_project_rate_limit(current_user, "flashcards")
+    await _enforce_project_rate_limit(current_user, "flashcards")
     service = _service(session, settings)
     try:
         project = await service.create_manual_flashcard(
@@ -886,7 +874,7 @@ async def update_flashcard_review(
     session: DbSession,
     settings: AppSettings,
 ) -> StudyProjectResponse:
-    _enforce_project_rate_limit(current_user, "study-actions")
+    await _enforce_project_rate_limit(current_user, "study-actions")
     service = _service(session, settings)
     try:
         project = await service.set_flashcard_review(
@@ -916,7 +904,7 @@ async def create_summary_highlight(
     session: DbSession,
     settings: AppSettings,
 ) -> StudyProjectResponse:
-    _enforce_project_rate_limit(current_user, "study-actions")
+    await _enforce_project_rate_limit(current_user, "study-actions")
     service = _service(session, settings)
     try:
         project = await service.add_summary_highlight(
@@ -954,7 +942,7 @@ async def update_summary_highlight(
     session: DbSession,
     settings: AppSettings,
 ) -> StudyProjectResponse:
-    _enforce_project_rate_limit(current_user, "study-actions")
+    await _enforce_project_rate_limit(current_user, "study-actions")
     service = _service(session, settings)
     try:
         project = await service.update_summary_highlight_color(
@@ -984,7 +972,7 @@ async def delete_summary_highlight(
     session: DbSession,
     settings: AppSettings,
 ) -> StudyProjectResponse:
-    _enforce_project_rate_limit(current_user, "study-actions")
+    await _enforce_project_rate_limit(current_user, "study-actions")
     service = _service(session, settings)
     try:
         project = await service.delete_summary_highlight(
@@ -1013,7 +1001,7 @@ async def create_summary_note(
     session: DbSession,
     settings: AppSettings,
 ) -> StudyProjectResponse:
-    _enforce_project_rate_limit(current_user, "study-actions")
+    await _enforce_project_rate_limit(current_user, "study-actions")
     service = _service(session, settings)
     try:
         project = await service.add_summary_note(
@@ -1051,7 +1039,7 @@ async def update_summary_note(
     session: DbSession,
     settings: AppSettings,
 ) -> StudyProjectResponse:
-    _enforce_project_rate_limit(current_user, "study-actions")
+    await _enforce_project_rate_limit(current_user, "study-actions")
     service = _service(session, settings)
     try:
         project = await service.update_summary_note(
@@ -1087,7 +1075,7 @@ async def delete_summary_note(
     session: DbSession,
     settings: AppSettings,
 ) -> StudyProjectResponse:
-    _enforce_project_rate_limit(current_user, "study-actions")
+    await _enforce_project_rate_limit(current_user, "study-actions")
     service = _service(session, settings)
     try:
         project = await service.delete_summary_note(

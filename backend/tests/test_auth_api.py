@@ -40,7 +40,16 @@ class FakeAuthService:
     async def login(self, *_: object, **__: object) -> AuthResult:
         return self._result()
 
-    async def logout(self, _: str | None) -> None:
+    async def verify_email(self, *_: object, **__: object) -> AuthResult:
+        return self._result()
+
+    async def request_password_reset(self, *_: object, **__: object) -> None:
+        return None
+
+    async def reset_password(self, *_: object, **__: object) -> None:
+        return None
+
+    async def logout(self, *_: object, **__: object) -> None:
         return None
 
     async def update_preferences(
@@ -122,6 +131,95 @@ def test_login_rate_limit_blocks_repeated_attempts() -> None:
         app.dependency_overrides.clear()
 
     assert response.status_code == 429
+
+
+@pytest.mark.parametrize(
+    ("endpoint", "payload", "allowed_attempts", "success_status"),
+    [
+        (
+            "/api/auth/register",
+            {
+                "full_name": "Student Test",
+                "email": "student@example.com",
+                "password": "ParolaSigura123",
+                "accepted_terms": True,
+                "newsletter_consent": False,
+            },
+            5,
+            202,
+        ),
+        (
+            "/api/auth/password-reset/request",
+            {"email": "student@example.com"},
+            5,
+            200,
+        ),
+        (
+            "/api/auth/password-reset/confirm",
+            {
+                "token": "reset-token-with-safe-length",
+                "password": "ParolaSigura123",
+            },
+            10,
+            200,
+        ),
+    ],
+)
+def test_auth_sensitive_endpoints_rate_limit_repeated_attempts(
+    endpoint: str,
+    payload: dict[str, object],
+    allowed_attempts: int,
+    success_status: int,
+) -> None:
+    service = FakeAuthService()
+    app.dependency_overrides[get_auth_service] = lambda: service
+
+    try:
+        with TestClient(app) as client:
+            for _ in range(allowed_attempts):
+                assert client.post(endpoint, json=payload).status_code == success_status
+
+            response = client.post(endpoint, json=payload)
+    finally:
+        app.dependency_overrides.clear()
+
+    assert response.status_code == 429
+
+
+def test_login_rate_limit_uses_forwarded_client_ip() -> None:
+    service = FakeAuthService()
+    app.dependency_overrides[get_auth_service] = lambda: service
+
+    try:
+        with TestClient(app) as client:
+            payload = {
+                "email": "student@example.com",
+                "password": "ParolaSigura123",
+            }
+            headers = {"x-forwarded-for": "198.51.100.24, 10.0.0.5"}
+            for _ in range(10):
+                response = client.post(
+                    "/api/auth/login",
+                    json=payload,
+                    headers=headers,
+                )
+                assert response.status_code == 200
+
+            response = client.post(
+                "/api/auth/login",
+                json=payload,
+                headers=headers,
+            )
+            other_ip_response = client.post(
+                "/api/auth/login",
+                json=payload,
+                headers={"x-forwarded-for": "203.0.113.9, 10.0.0.5"},
+            )
+    finally:
+        app.dependency_overrides.clear()
+
+    assert response.status_code == 429
+    assert other_ip_response.status_code == 200
 
 
 def test_login_rejects_untrusted_origin() -> None:

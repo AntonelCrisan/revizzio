@@ -2,6 +2,10 @@ from fastapi import APIRouter, HTTPException, status
 from sqlalchemy import text
 
 from app.api.dependencies import DbSession
+from app.core.rate_limit import (
+    RateLimitBackendUnavailableError,
+    rate_limit_backend_status,
+)
 
 router = APIRouter(prefix="/api", tags=["system"])
 
@@ -23,4 +27,16 @@ async def readiness_check(session: DbSession) -> dict[str, str]:
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Baza de date nu este disponibilă.",
         ) from exc
-    return {"status": "ready", "database": "postgresql"}
+    try:
+        rate_limit_backend = await rate_limit_backend_status()
+    except RateLimitBackendUnavailableError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Redis nu este disponibil pentru rate limiting.",
+        ) from exc
+
+    return {
+        "status": "ready",
+        "database": "postgresql",
+        "rate_limit": rate_limit_backend,
+    }

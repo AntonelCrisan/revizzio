@@ -1,9 +1,10 @@
 # Railway deployment
 
-Reviss is an isolated monorepo. Deploy it in Railway as three services in one
+Reviss is an isolated monorepo. Deploy it in Railway as four services in one
 project:
 
 - `Postgres`: Railway PostgreSQL database.
+- `Redis`: Railway Redis database for shared rate limiting.
 - `backend`: FastAPI service from `/backend`.
 - `frontend`: Next.js service from `/frontend`.
 
@@ -49,6 +50,8 @@ SESSION_COOKIE_SECURE=true
 SESSION_COOKIE_SAMESITE=lax
 PUBLIC_APP_URL=https://reviss.app
 EMAIL_LOGO_URL=https://reviss.app/assets/logos/Reviss_logo_dark.svg
+REDIS_URL=${{Redis.REDIS_URL}}
+RATE_LIMIT_REDIS_REQUIRED=true
 RECAPTCHA_SECRET_KEY=<google-recaptcha-v2-secret-key>
 CONTACT_RATE_LIMIT_WINDOW_SECONDS=600
 CONTACT_RATE_LIMIT_MAX_REQUESTS=5
@@ -105,19 +108,20 @@ to the backend over Railway private networking.
 
 1. Create the Railway project.
 2. Add PostgreSQL.
-3. Add the backend service from GitHub.
+3. Add Redis.
+4. Add the backend service from GitHub.
    - Source root: `/`
    - Railway Config File: `/railway.backend.toml`
-4. Add backend variables, then deploy it.
-5. Add the frontend service from GitHub.
+5. Add backend variables, then deploy it.
+6. Add the frontend service from GitHub.
    - Source root: `/`
    - Railway Config File: `/railway.frontend.toml`
-6. Add frontend variables, then deploy it.
-7. Attach `reviss.app` to the frontend service.
-8. Configure Stripe webhook to `https://reviss.app/api/payments/stripe/webhook`.
-9. Update backend `CORS_ORIGINS` and `PUBLIC_APP_URL` if the production domain
+7. Add frontend variables, then deploy it.
+8. Attach `reviss.app` to the frontend service.
+9. Configure Stripe webhook to `https://reviss.app/api/payments/stripe/webhook`.
+10. Update backend `CORS_ORIGINS` and `PUBLIC_APP_URL` if the production domain
    changes, then redeploy backend.
-10. In Google Search Console, submit `https://reviss.app/sitemap.xml`.
+11. In Google Search Console, submit `https://reviss.app/sitemap.xml`.
 
 ## Optional persistent uploads
 

@@ -24,6 +24,11 @@ from app.api.routes.payments import router as payments_router
 from app.api.routes.plans import router as plans_router
 from app.api.routes.projects import router as projects_router
 from app.core.config import get_settings
+from app.core.rate_limit import (
+    close_rate_limit_backend,
+    configure_rate_limit_backend,
+    rate_limit_backend_name,
+)
 from app.db.session import engine
 
 logger = logging.getLogger("revizzio")
@@ -32,11 +37,22 @@ settings = get_settings()
 
 @asynccontextmanager
 async def lifespan(_: FastAPI) -> AsyncIterator[None]:
+    await configure_rate_limit_backend(
+        settings.redis_url,
+        redis_required=settings.rate_limit_redis_required,
+    )
+    if rate_limit_backend_name() == "redis":
+        logger.info("Redis conectat pentru rate limiting.")
+    else:
+        logger.warning(
+            "Redis nu este conectat; rate limiting foloseste memoria procesului."
+        )
     logger.info(
         "Reviss API rulează în mediul %s și este pregătit.",
         settings.environment,
     )
     yield
+    await close_rate_limit_backend()
     await engine.dispose()
     logger.info("Reviss API a fost oprit.")
 
