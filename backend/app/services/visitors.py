@@ -80,3 +80,16 @@ async def get_visitor_stats(session: AsyncSession) -> VisitorStatsResponse:
         visitors_last_7_days=visitors_last_7_days or 0,
         visitors_last_30_days=visitors_last_30_days or 0,
     )
+
+
+async def list_visitor_visits(
+    session: AsyncSession,
+    *,
+    limit: int,
+) -> list[VisitorVisit]:
+    query = (
+        select(VisitorVisit)
+        .order_by(VisitorVisit.created_at.desc())
+        .limit(limit)
+    )
+    return list((await session.scalars(query)).all())

@@ -1,4 +1,7 @@
-from pydantic import BaseModel, Field
+import uuid
+from datetime import date, datetime
+
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class VisitorPingRequest(BaseModel):
@@ -14,3 +17,13 @@ class VisitorStatsResponse(BaseModel):
     visitors_today: int
     visitors_last_7_days: int
     visitors_last_30_days: int
+
+
+class VisitorVisitResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    visitor_hash: str
+    visit_date: date
+    path: str | None
+    created_at: datetime

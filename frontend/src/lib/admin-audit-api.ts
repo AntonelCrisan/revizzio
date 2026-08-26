@@ -106,3 +106,45 @@ export async function getAdminVisitorStats(): Promise<VisitorStats> {
 
   return (await response.json()) as VisitorStats;
 }
+
+export type VisitorVisit = {
+  id: string;
+  visitor_hash: string;
+  visit_date: string;
+  path: string | null;
+  created_at: string;
+};
+
+export async function getAdminVisitorVisits(
+  filters: { limit?: number } = {},
+): Promise<VisitorVisit[]> {
+  const params = new URLSearchParams();
+  if (filters.limit) params.set("limit", String(filters.limit));
+  const query = params.toString();
+
+  const response = await fetch(
+    `/api/admin/visitor-visits${query ? `?${query}` : ""}`,
+    {
+      credentials: "same-origin",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      cache: "no-store",
+    },
+  );
+
+  if (!response.ok) {
+    let payload: ApiErrorPayload = {};
+    try {
+      payload = (await response.json()) as ApiErrorPayload;
+    } catch {
+      // The fallback below handles non-JSON upstream errors.
+    }
+    throw new AdminAuditApiError(
+      payload.detail || "Vizitele nu au putut fi încărcate.",
+      response.status,
+    );
+  }
+
+  return (await response.json()) as VisitorVisit[];
+}

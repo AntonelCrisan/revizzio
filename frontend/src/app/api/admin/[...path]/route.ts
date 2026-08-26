@@ -12,6 +12,7 @@ const allowedRoutes = [
   { method: "PATCH", pattern: /^users\/[^/]+$/ },
   { method: "DELETE", pattern: /^users\/[^/]+$/ },
   { method: "GET", pattern: /^visitor-stats$/ },
+  { method: "GET", pattern: /^visitor-visits$/ },
 ];
 
 type AdminRouteContext = {

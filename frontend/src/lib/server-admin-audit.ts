@@ -1,11 +1,7 @@
 import "server-only";
 
 import { cookies, headers } from "next/headers";
-import type {
-  AuditLog,
-  AuditLogStatus,
-  VisitorStats,
-} from "@/lib/admin-audit-api";
+import type { AuditLog, AuditLogStatus } from "@/lib/admin-audit-api";
 
 type ServerAuditFilters = {
   action?: string;
@@ -63,43 +59,6 @@ export async function getServerAdminAuditLogs(
     }
 
     return (await response.json()) as AuditLog[];
-  } catch {
-    return null;
-  }
-}
-
-export async function getServerAdminVisitorStats(): Promise<VisitorStats | null> {
-  const apiUrl = process.env.API_URL;
-  if (!apiUrl) {
-    return null;
-  }
-
-  const requestHeaders = new Headers();
-  const requestHeadersFromNext = await headers();
-  const cookieHeader =
-    requestHeadersFromNext.get("cookie") ?? (await cookies()).toString();
-  const userAgent = requestHeadersFromNext.get("user-agent");
-
-  if (cookieHeader) {
-    requestHeaders.set("cookie", cookieHeader);
-  }
-
-  if (userAgent) {
-    requestHeaders.set("user-agent", userAgent);
-  }
-
-  try {
-    const response = await fetch(`${apiUrl}/api/admin/visitor-stats`, {
-      method: "GET",
-      headers: requestHeaders,
-      cache: "no-store",
-    });
-
-    if (!response.ok) {
-      return null;
-    }
-
-    return (await response.json()) as VisitorStats;
   } catch {
     return null;
   }

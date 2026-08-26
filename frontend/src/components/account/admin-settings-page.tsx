@@ -15,6 +15,7 @@ type SettingsCard = {
     | "card"
     | "users"
     | "logs"
+    | "chart"
     | "mail"
     | "flag"
     | "withdrawal";
@@ -65,6 +66,12 @@ const monitoringCards: SettingsCard[] = [
     description: "Evenimente administrative și acțiuni importante.",
     href: "/admin/settings/loguri",
     icon: "logs",
+  },
+  {
+    title: "Vizitatori fără cont",
+    description: "Trafic anonim, vizite pe zi și pagini accesate.",
+    href: "/admin/settings/vizitatori",
+    icon: "chart",
   },
 ];
 
@@ -176,6 +183,12 @@ function SettingsIcon({ icon }: { icon: SettingsCard["icon"] }) {
         <SvgIcon>
           <path d="M5 4h14v16H5z" />
           <path d="M8 8h8M8 12h8M8 16h5" />
+        </SvgIcon>
+      ) : null}
+      {icon === "chart" ? (
+        <SvgIcon>
+          <path d="M4 20V10M11 20V4M18 20v-7" />
+          <path d="M4 20h16" />
         </SvgIcon>
       ) : null}
       {icon === "mail" ? (
