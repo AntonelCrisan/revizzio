@@ -46,6 +46,24 @@ async def get_current_user(
 CurrentUser = Annotated[User, Depends(get_current_user)]
 
 
+async def get_optional_current_user(
+    request: Request,
+    service: AuthServiceDependency,
+    settings: AppSettings,
+) -> User | None:
+    token = request.cookies.get(settings.session_cookie_name)
+    if token is None:
+        return None
+
+    try:
+        return await service.get_user_by_session_token(token)
+    except InvalidSessionError:
+        return None
+
+
+OptionalCurrentUser = Annotated[User | None, Depends(get_optional_current_user)]
+
+
 async def get_current_admin_user(current_user: CurrentUser) -> User:
     if current_user.role.strip().lower() != "admin":
         raise HTTPException(

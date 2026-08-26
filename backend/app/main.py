@@ -12,6 +12,7 @@ from app.api.routes.admin_content_reports import (
     router as admin_content_reports_router,
 )
 from app.api.routes.admin_users import router as admin_users_router
+from app.api.routes.admin_visitors import router as admin_visitors_router
 from app.api.routes.admin_withdrawal_requests import (
     router as admin_withdrawal_requests_router,
 )
@@ -23,6 +24,7 @@ from app.api.routes.legal import router as legal_router
 from app.api.routes.payments import router as payments_router
 from app.api.routes.plans import router as plans_router
 from app.api.routes.projects import router as projects_router
+from app.api.routes.visitors import router as visitors_router
 from app.core.config import get_settings
 from app.core.rate_limit import (
     close_rate_limit_backend,
@@ -46,6 +48,13 @@ async def lifespan(_: FastAPI) -> AsyncIterator[None]:
     else:
         logger.warning(
             "Redis nu este conectat; rate limiting foloseste memoria procesului."
+        )
+    if settings.mistral_api_key is not None:
+        logger.info("Mistral OCR configurat pentru documente scanate pe planul Pro.")
+    else:
+        logger.warning(
+            "Mistral OCR nu este configurat; PDF-urile scanate pe planul Pro "
+            "nu pot fi procesate momentan."
         )
     logger.info(
         "Reviss API rulează în mediul %s și este pregătit.",
@@ -80,6 +89,7 @@ app.include_router(auth_router)
 app.include_router(admin_contact_messages_router)
 app.include_router(admin_content_reports_router)
 app.include_router(admin_users_router)
+app.include_router(admin_visitors_router)
 app.include_router(admin_withdrawal_requests_router)
 app.include_router(audit_logs_router)
 app.include_router(compliance_router)
@@ -87,6 +97,7 @@ app.include_router(legal_router)
 app.include_router(payments_router)
 app.include_router(plans_router)
 app.include_router(projects_router)
+app.include_router(visitors_router)
 
 
 @app.get("/")

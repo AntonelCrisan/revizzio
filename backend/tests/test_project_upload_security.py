@@ -1,8 +1,11 @@
 import asyncio
 import uuid
+from io import BytesIO
+from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
+from starlette.datastructures import UploadFile
 
 from app.core.config import Settings
 from app.models import (
@@ -13,6 +16,7 @@ from app.models import (
     StudyProjectQuizQuestion,
     StudyProjectSummary,
 )
+from app.services import projects as projects_module
 from app.services.projects import (
     ProjectPlanLimits,
     ProjectValidationError,
@@ -51,6 +55,7 @@ def _plan_limits(
     *,
     monthly_projects: int = 1,
     monthly_materials: int = 3,
+    allow_scanned_documents: bool = False,
 ) -> ProjectPlanLimits:
     return ProjectPlanLimits(
         active_projects=monthly_projects,
@@ -62,8 +67,23 @@ def _plan_limits(
         initial_flashcards=20,
         quiz_groups_per_complexity=1,
         quiz_questions_per_quiz=8,
-        allow_scanned_documents=False,
+        allow_scanned_documents=allow_scanned_documents,
     )
+
+
+class _StoreFileSession:
+    def __init__(self) -> None:
+        self.added: list[object] = []
+
+    def add(self, value: object) -> None:
+        self.added.append(value)
+
+    async def flush(self) -> None:
+        return None
+
+
+def _pdf_upload(filename: str = "scan.pdf") -> UploadFile:
+    return UploadFile(BytesIO(b"%PDF-1.7\nfake scanned content"), filename=filename)
 
 
 def _plan_limit_user() -> SimpleNamespace:
@@ -292,6 +312,99 @@ def test_generated_payload_rejects_oversized_flashcard_list() -> None:
             include_study_pack=True,
             include_quizzes=False,
         )
+
+
+def test_non_pro_scanned_pdf_is_rejected_without_mistral_ocr(
+    tmp_path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    settings = Settings(**BASE_SETTINGS, project_storage_dir=tmp_path)
+    session = _StoreFileSession()
+    service = StudyProjectService(  # type: ignore[arg-type]
+        session=session,
+        settings=settings,
+    )
+    project = StudyProject(id=uuid.uuid4(), user_id=uuid.uuid4(), name="Scanat")
+    called = False
+
+    def fake_markdown(_: object) -> str:
+        return ""
+
+    async def fake_ocr(*_: object) -> str:
+        nonlocal called
+        called = True
+        return "Text OCR care nu ar trebui cerut."
+
+    monkeypatch.setattr(projects_module, "_read_markdown", fake_markdown)
+    monkeypatch.setattr(projects_module, "extract_scanned_pdf_markdown", fake_ocr)
+
+    with pytest.raises(ProjectValidationError, match="doar pe planul Pro"):
+        asyncio.run(
+            service._store_and_convert_file(
+                project=project,
+                upload=_pdf_upload(),
+                upload_index=0,
+                source_dir=tmp_path / "source",
+                markdown_dir=tmp_path / "markdown",
+                max_upload_bytes=1024 * 1024,
+                max_upload_mb=1,
+                limits=_plan_limits(allow_scanned_documents=False),
+            )
+        )
+
+    assert called is False
+    assert session.added
+
+
+def test_pro_scanned_pdf_uses_mistral_ocr(
+    tmp_path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    settings = Settings(
+        **BASE_SETTINGS,
+        project_storage_dir=tmp_path,
+        mistral_api_key="mistral-test-key",
+    )
+    session = _StoreFileSession()
+    service = StudyProjectService(  # type: ignore[arg-type]
+        session=session,
+        settings=settings,
+    )
+    project = StudyProject(id=uuid.uuid4(), user_id=uuid.uuid4(), name="Scanat")
+    captured: dict[str, object] = {}
+    ocr_markdown = "Text OCR extras din documentul scanat."
+
+    def fake_markdown(_: object) -> str:
+        return ""
+
+    async def fake_ocr(path: object, received_settings: Settings) -> str:
+        captured["path"] = path
+        captured["settings"] = received_settings
+        return ocr_markdown
+
+    monkeypatch.setattr(projects_module, "_read_markdown", fake_markdown)
+    monkeypatch.setattr(projects_module, "extract_scanned_pdf_markdown", fake_ocr)
+
+    file_model = asyncio.run(
+        service._store_and_convert_file(
+            project=project,
+            upload=_pdf_upload(),
+            upload_index=0,
+            source_dir=tmp_path / "source",
+            markdown_dir=tmp_path / "markdown",
+            max_upload_bytes=1024 * 1024,
+            max_upload_mb=1,
+            limits=_plan_limits(allow_scanned_documents=True),
+        )
+    )
+
+    assert captured["settings"] is settings
+    assert str(captured["path"]).endswith(".pdf")
+    assert file_model.conversion_status == "converted"
+    assert file_model.markdown_content == ocr_markdown
+    assert file_model.markdown_char_count == len(ocr_markdown)
+    assert file_model.markdown_path is not None
+    assert Path(file_model.markdown_path).read_text(encoding="utf-8") == ocr_markdown
 
 
 def test_project_markdown_can_be_read_from_persisted_db_content(tmp_path) -> None:

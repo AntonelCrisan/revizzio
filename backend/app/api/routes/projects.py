@@ -381,8 +381,6 @@ async def generate_project_quizzes(
     await _enforce_project_rate_limit(current_user, "generate-quizzes")
     service = _service(session, settings)
     try:
-        existing_project = await service.get_project(current_user, project_id)
-        was_generating = existing_project.status == "generating_quizzes"
         project = await service.start_quiz_generation(
             user=current_user,
             project_id=project_id,
@@ -400,7 +398,7 @@ async def generate_project_quizzes(
             detail=str(exc),
         ) from exc
 
-    if project.status == "generating_quizzes" and not was_generating:
+    if project.status == "generating_quizzes":
         schedule_quiz_pack_generation_task(
             user_id=current_user.id,
             project_id=project.id,

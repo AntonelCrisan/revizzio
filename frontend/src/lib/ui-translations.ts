@@ -101,13 +101,13 @@ export const uiTranslations: Record<string, UiTranslation> = {
     en: "ACTIVE PROJECTS",
     fr: "PROJETS ACTIFS",
   },
-  "Gata de studiu": {
-    en: "Ready to study",
-    fr: "Prêt à étudier",
+  "Pachete de studiu": {
+    en: "Study packs",
+    fr: "Packs d'étude",
   },
-  "GATA DE STUDIU": {
-    en: "READY TO STUDY",
-    fr: "PRÊT À ÉTUDIER",
+  "PACHETE DE STUDIU": {
+    en: "STUDY PACKS",
+    fr: "PACKS D'ÉTUDE",
   },
   "FLASHCARD-URI": {
     en: "FLASHCARDS",
@@ -457,9 +457,9 @@ export const uiTranslations: Record<string, UiTranslation> = {
     en: "Generating...",
     fr: "Génération...",
   },
-  "Generează testele când ești gata.": {
-    en: "Generate tests when you are ready.",
-    fr: "Génère les tests quand tu es prêt.",
+  "Generează testele când vrei.": {
+    en: "Generate tests when you want.",
+    fr: "Génère les tests quand tu veux.",
   },
   "Zone care necesită atenție": {
     en: "Areas needing attention",
@@ -565,9 +565,9 @@ export const uiTranslations: Record<string, UiTranslation> = {
     en: "Generate pack",
     fr: "Générer le pack",
   },
-  "Pachetul este gata": {
-    en: "The pack is ready",
-    fr: "Le pack est prêt",
+  "Pachetul este pregătit": {
+    en: "The pack is prepared",
+    fr: "Le pack est préparé",
   },
   "Generăm pachetul": {
     en: "Generating pack",
@@ -2689,10 +2689,6 @@ export const uiTranslations: Record<string, UiTranslation> = {
     en: "Close tools",
     fr: "Fermer les outils",
   },
-  "Gata": {
-    en: "Done",
-    fr: "Terminé",
-  },
   "Generez explicația": {
     en: "Generating explanation",
     fr: "Génération de l'explication",
@@ -2957,9 +2953,9 @@ export const uiTranslations: Record<string, UiTranslation> = {
     en: "Generated project",
     fr: "Projet généré",
   },
-  "Când rezumatul, flashcard-urile sau quiz-ul sunt gata.": {
-    en: "When the summary, flashcards or quiz are ready.",
-    fr: "Quand le résumé, les flashcards ou le quiz sont prêts.",
+  "Când rezumatul, flashcard-urile sau quiz-ul au fost generate.": {
+    en: "When the summary, flashcards or quiz have been generated.",
+    fr: "Quand le résumé, les flashcards ou le quiz ont été générés.",
   },
   "Facturi și abonament": {
     en: "Invoices and subscription",
@@ -3597,9 +3593,9 @@ export const uiTranslations: Record<string, UiTranslation> = {
     en: "Average score",
     fr: "Score moyen",
   },
-  "Quiz-uri gata": {
-    en: "Quizzes ready",
-    fr: "Quiz prêts",
+  "Quiz-uri completate": {
+    en: "Completed quizzes",
+    fr: "Quiz terminés",
   },
   "Ultimul scor": {
     en: "Last score",

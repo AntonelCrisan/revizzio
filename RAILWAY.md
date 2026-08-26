@@ -56,6 +56,10 @@ RECAPTCHA_SECRET_KEY=<google-recaptcha-v2-secret-key>
 CONTACT_RATE_LIMIT_WINDOW_SECONDS=600
 CONTACT_RATE_LIMIT_MAX_REQUESTS=5
 PROJECT_UPLOAD_MAX_MB=100
+MISTRAL_API_KEY=<mistral-api-key>
+MISTRAL_OCR_API_URL=https://api.mistral.ai/v1/ocr
+MISTRAL_OCR_MODEL=mistral-ocr-latest
+MISTRAL_OCR_TIMEOUT_SECONDS=120
 CORS_ORIGINS=https://reviss.app,https://www.reviss.app,https://${{frontend.RAILWAY_PUBLIC_DOMAIN}}
 OPENAI_API_KEY=<openai-api-key>
 RESEND_API_KEY=<resend-api-key>
@@ -69,6 +73,9 @@ STRIPE_CHECKOUT_CANCEL_PATH=/upgrade?checkout=cancelled
 
 `DATABASE_URL` can use Railway's default `postgres://` or `postgresql://`
 format. The backend normalizes it to the async SQLAlchemy driver internally.
+
+`MISTRAL_API_KEY` enables OCR only for scanned PDF uploads on the Pro plan.
+Beginner and Focus scanned PDFs are rejected before any OCR call.
 
 ## Frontend variables
 

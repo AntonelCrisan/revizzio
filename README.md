@@ -10,6 +10,10 @@ Redis este folosit pentru rate limiting distribuit. Pornește-l local cu Docker:
 docker compose up -d redis
 ```
 
+Pentru OCR pe documente scanate în planul Pro, configurează `MISTRAL_API_KEY`
+în `backend/.env`. Planurile Beginner și Focus nu trimit PDF-uri scanate către
+OCR.
+
 ## Backend
 
 Configurează `backend/.env` pornind de la `.env.example`, apoi:

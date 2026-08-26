@@ -1,6 +1,9 @@
 import type { Metadata } from "next";
 import { AdminAuditLogsPage } from "@/components/account/admin-audit-logs-page";
-import { getServerAdminAuditLogs } from "@/lib/server-admin-audit";
+import {
+  getServerAdminAuditLogs,
+  getServerAdminVisitorStats,
+} from "@/lib/server-admin-audit";
 
 export const metadata: Metadata = {
   title: "Jurnal activitate | Reviss",
@@ -8,7 +11,15 @@ export const metadata: Metadata = {
 };
 
 export default async function AdminAuditLogsRoute() {
-  const logs = (await getServerAdminAuditLogs({ limit: 200 })) ?? [];
+  const [logs, visitorStats] = await Promise.all([
+    getServerAdminAuditLogs({ limit: 200 }),
+    getServerAdminVisitorStats(),
+  ]);
 
-  return <AdminAuditLogsPage initialLogs={logs} />;
+  return (
+    <AdminAuditLogsPage
+      initialLogs={logs ?? []}
+      initialVisitorStats={visitorStats}
+    />
+  );
 }

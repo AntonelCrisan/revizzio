@@ -7,12 +7,17 @@ import { TablePagination } from "@/components/account/table-pagination";
 import {
   type AuditLog,
   type AuditLogStatus,
+  type VisitorStats,
   getAdminAuditLogs,
+  getAdminVisitorStats,
 } from "@/lib/admin-audit-api";
 
 type AdminAuditLogsPageProps = {
   initialLogs: AuditLog[];
+  initialVisitorStats: VisitorStats | null;
 };
+
+const numberFormatter = new Intl.NumberFormat("ro-RO");
 
 const AUDIT_LOGS_PAGE_SIZE = 10;
 
@@ -141,8 +146,12 @@ function LogMetric({
   );
 }
 
-export function AdminAuditLogsPage({ initialLogs }: AdminAuditLogsPageProps) {
+export function AdminAuditLogsPage({
+  initialLogs,
+  initialVisitorStats,
+}: AdminAuditLogsPageProps) {
   const [logs, setLogs] = useState(initialLogs);
+  const [visitorStats, setVisitorStats] = useState(initialVisitorStats);
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState<AuditLogStatus | "">("");
   const [action, setAction] = useState("");
@@ -194,7 +203,12 @@ export function AdminAuditLogsPage({ initialLogs }: AdminAuditLogsPageProps) {
     setErrorMessage("");
 
     try {
-      setLogs(await getAdminAuditLogs({ limit: 200 }));
+      const [nextLogs, nextVisitorStats] = await Promise.all([
+        getAdminAuditLogs({ limit: 200 }),
+        getAdminVisitorStats().catch(() => null),
+      ]);
+      setLogs(nextLogs);
+      setVisitorStats(nextVisitorStats);
       setCurrentPage(1);
     } catch (error) {
       setErrorMessage(
@@ -251,7 +265,7 @@ export function AdminAuditLogsPage({ initialLogs }: AdminAuditLogsPageProps) {
           </button>
         </div>
 
-        <div className="grid gap-5 md:grid-cols-3">
+        <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-4">
           <LogMetric
             label="Evenimente"
             value={String(logs.length)}
@@ -267,6 +281,19 @@ export function AdminAuditLogsPage({ initialLogs }: AdminAuditLogsPageProps) {
             value={formatDate(latestLog?.created_at ?? null)}
             detail={
               latestLog ? actionLabel(latestLog.action) : "fără evenimente"
+            }
+          />
+          <LogMetric
+            label="Vizitatori fără cont"
+            value={
+              visitorStats
+                ? numberFormatter.format(visitorStats.visitors_today)
+                : "-"
+            }
+            detail={
+              visitorStats
+                ? `${numberFormatter.format(visitorStats.visitors_last_7_days)} în 7 zile · ${numberFormatter.format(visitorStats.total_visitors)} total`
+                : "indisponibil"
             }
           />
         </div>

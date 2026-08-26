@@ -47,6 +47,11 @@ from app.models import (
     User,
 )
 from app.schemas.projects import StudyProjectResponse
+from app.services.mistral_ocr import (
+    MistralOCRConfigurationError,
+    MistralOCRRequestError,
+    extract_scanned_pdf_markdown,
+)
 from app.services.openai_generation import (
     AI_CHAT_RESPONSE_SCHEMA,
     AI_EXPLANATION_SCHEMA,
@@ -2807,17 +2812,38 @@ Rescrie raspunsul pentru intrebarea curenta ca explicatie completa:
                 f"Fisierul {safe_name} nu a putut fi convertit."
             ) from exc
 
-        if not limits.allow_scanned_documents and _looks_like_scanned_pdf(
-            source_path, markdown
-        ):
-            file_model.conversion_status = "failed"
-            file_model.conversion_error = (
-                "Documentul pare scanat sau nu are text extractibil."
+        if _looks_like_scanned_pdf(source_path, markdown):
+            if not limits.allow_scanned_documents:
+                file_model.conversion_status = "failed"
+                file_model.conversion_error = (
+                    "Documentul pare scanat sau nu are text extractibil."
+                )
+                raise ProjectValidationError(
+                    f"Documentul {safe_name} pare scanat sau fara text extractibil. "
+                    "Incarcarea documentelor scanate este disponibila doar pe planul Pro."
+                )
+
+            logger.info(
+                "Documentul %s pare scanat; pornim Mistral OCR pentru planul Pro.",
+                safe_name,
             )
-            raise ProjectValidationError(
-                f"Documentul {safe_name} pare scanat sau fara text extractibil. "
-                "Incarcarea documentelor scanate este disponibila doar pe planul Pro."
-            )
+            try:
+                markdown = await extract_scanned_pdf_markdown(source_path, self.settings)
+            except MistralOCRConfigurationError as exc:
+                file_model.conversion_status = "failed"
+                file_model.conversion_error = str(exc)[:1000]
+                raise ProjectValidationError(
+                    f"Documentul {safe_name} pare scanat, iar procesarea OCR "
+                    "nu este configurata momentan. Incearca din nou mai tarziu."
+                ) from exc
+            except MistralOCRRequestError as exc:
+                file_model.conversion_status = "failed"
+                file_model.conversion_error = str(exc)[:1000]
+                raise ProjectConversionError(
+                    f"Documentul {safe_name} pare scanat si nu a putut fi "
+                    "procesat prin OCR. Incearca din nou sau incarca un PDF "
+                    "cu text selectabil."
+                ) from exc
 
         markdown_path.write_text(markdown, encoding="utf-8")
         file_model.markdown_path = str(markdown_path)

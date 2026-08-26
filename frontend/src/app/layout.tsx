@@ -3,6 +3,7 @@ import { AuthProvider } from "@/components/auth/auth-provider";
 import { LanguageProvider } from "@/components/language-provider";
 import { CookieConsentProvider } from "@/components/legal/cookie-consent";
 import { ThemeProvider } from "@/components/theme-provider";
+import { VisitorPing } from "@/components/visitor-ping";
 import {
   defaultLocale,
   defaultSeoDescription,
@@ -204,6 +205,7 @@ export default function RootLayout({
         <script dangerouslySetInnerHTML={{ __html: languageScript }} />
       </head>
       <body className="flex min-h-full flex-col">
+        <VisitorPing />
         <ThemeProvider>
           <CookieConsentProvider>
             <LanguageProvider>

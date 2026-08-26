@@ -11,6 +11,7 @@ const allowedRoutes = [
   { method: "POST", pattern: /^users\/[^/]+\/verification-email$/ },
   { method: "PATCH", pattern: /^users\/[^/]+$/ },
   { method: "DELETE", pattern: /^users\/[^/]+$/ },
+  { method: "GET", pattern: /^visitor-stats$/ },
 ];
 
 type AdminRouteContext = {

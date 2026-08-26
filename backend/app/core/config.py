@@ -65,6 +65,11 @@ class Settings(BaseSettings):
     project_storage_dir: Path = BACKEND_DIR / "storage" / "projects"
     project_upload_max_mb: int = Field(default=50, ge=1, le=250)
 
+    mistral_api_key: SecretStr | None = None
+    mistral_ocr_api_url: str = "https://api.mistral.ai/v1/ocr"
+    mistral_ocr_model: str = "mistral-ocr-latest"
+    mistral_ocr_timeout_seconds: int = Field(default=120, ge=10, le=600)
+
     openai_api_key: SecretStr | None = None
     openai_study_model: str = "gpt-5.6-luna"
     openai_quiz_model: str = "gpt-5.6-terra"
@@ -132,6 +137,27 @@ class Settings(BaseSettings):
     @classmethod
     def empty_redis_url_is_none(cls, value: object) -> object:
         return None if value == "" else value
+
+    @field_validator("mistral_api_key", mode="before")
+    @classmethod
+    def empty_mistral_api_key_is_none(cls, value: object) -> object:
+        return None if value == "" else value
+
+    @field_validator("mistral_ocr_api_url")
+    @classmethod
+    def validate_mistral_ocr_api_url(cls, value: str) -> str:
+        ocr_url = value.strip().rstrip("/")
+        if not ocr_url.startswith("https://"):
+            raise ValueError("MISTRAL_OCR_API_URL must use HTTPS.")
+        return ocr_url
+
+    @field_validator("mistral_ocr_model")
+    @classmethod
+    def validate_mistral_ocr_model(cls, value: str) -> str:
+        model = value.strip()
+        if not model:
+            raise ValueError("MISTRAL_OCR_MODEL must not be empty.")
+        return model
 
     @field_validator("recaptcha_secret_key", mode="before")
     @classmethod

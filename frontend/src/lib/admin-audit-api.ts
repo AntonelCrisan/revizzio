@@ -74,3 +74,35 @@ export async function getAdminAuditLogs(
 
   return (await response.json()) as AuditLog[];
 }
+
+export type VisitorStats = {
+  total_visitors: number;
+  visitors_today: number;
+  visitors_last_7_days: number;
+  visitors_last_30_days: number;
+};
+
+export async function getAdminVisitorStats(): Promise<VisitorStats> {
+  const response = await fetch("/api/admin/visitor-stats", {
+    credentials: "same-origin",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    cache: "no-store",
+  });
+
+  if (!response.ok) {
+    let payload: ApiErrorPayload = {};
+    try {
+      payload = (await response.json()) as ApiErrorPayload;
+    } catch {
+      // The fallback below handles non-JSON upstream errors.
+    }
+    throw new AdminAuditApiError(
+      payload.detail || "Statisticile vizitatorilor nu au putut fi încărcate.",
+      response.status,
+    );
+  }
+
+  return (await response.json()) as VisitorStats;
+}

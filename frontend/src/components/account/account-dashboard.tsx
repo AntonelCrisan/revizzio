@@ -171,6 +171,7 @@ const generationSteps = [
 
 const GENERATION_POLL_INTERVAL_MS = 2000;
 const GENERATION_POLL_ATTEMPTS = 180;
+const QUIZ_GENERATION_POLL_ATTEMPTS = 450;
 const PROJECT_DETAIL_MIN_LENGTH = 2;
 const quizGenerationLoadingCopy: Record<
   LanguagePreference,
@@ -350,7 +351,7 @@ function getProjectById(projects: StudyProject[], projectId?: string) {
 }
 
 function apiProjectStatusLabel(status: ApiStudyProject["status"]) {
-  if (status === "ready") return "gata";
+  if (status === "ready") return "";
   if (status === "generating_study_pack") return "creează pachet";
   if (status === "generating_quizzes") return "creează quizuri";
   if (status === "awaiting_ai_json") return "în așteptare";
@@ -442,7 +443,7 @@ function mapSummaryNotes(
 function computeProjectQuizProgress(project: ApiStudyProject): number {
   const totalQuizzes = project.quizzes.length;
   if (!totalQuizzes) {
-    return project.status === "ready" ? 100 : 15;
+    return 0;
   }
 
   const completedQuizzes = project.quizzes.filter(
@@ -455,6 +456,11 @@ function mapApiProject(project: ApiStudyProject): StudyProject {
   const generatedFlashcardCount = getGeneratedFlashcards(
     project.flashcards,
   ).length;
+  const metaParts = [
+    project.subject_name,
+    `${project.file_count} materiale`,
+    apiProjectStatusLabel(project.status),
+  ].filter(Boolean);
 
   return {
     id: project.id,
@@ -465,7 +471,7 @@ function mapApiProject(project: ApiStudyProject): StudyProject {
     errorMessage: toFriendlyGenerationError(project.error_message),
     isArchived: project.is_archived,
     archivedAt: project.archived_at,
-    meta: `${project.subject_name} · ${project.file_count} materiale · ${apiProjectStatusLabel(project.status)}`,
+    meta: metaParts.join(" · "),
     flashcardsDue: generatedFlashcardCount,
     flashcardsTotal: generatedFlashcardCount,
     progress: computeProjectQuizProgress(project),
@@ -935,7 +941,11 @@ export function AccountDashboard({
       return mapApiProject(queuedProject);
     }
 
-    for (let attempt = 0; attempt < GENERATION_POLL_ATTEMPTS; attempt += 1) {
+    for (
+      let attempt = 0;
+      attempt < QUIZ_GENERATION_POLL_ATTEMPTS;
+      attempt += 1
+    ) {
       await delay(GENERATION_POLL_INTERVAL_MS);
       const apiProject = await getStudyProject(projectId);
       const mappedProject = storeApiProject(apiProject);
@@ -1785,7 +1795,7 @@ function HomeView({
   const [deleteCandidateProject, setDeleteCandidateProject] =
     useState<StudyProject | null>(null);
   const deletingProjectIdsRef = useRef(new Set<string>());
-  const readyProjects = projects.filter((project) => project.progress >= 100).length;
+  const readyProjects = projects.filter((project) => project.status === "ready").length;
   const activeFlashcards = projects.reduce(
     (total, project) => total + project.flashcardsTotal,
     0,
@@ -1899,7 +1909,7 @@ function HomeView({
           detail="în spațiul tău de studiu"
         />
         <AccountMetric
-          label="Gata de studiu"
+          label="Pachete de studiu"
           value={readyProjects.toString()}
           detail="cu pachet generat"
         />
@@ -4476,7 +4486,7 @@ function SummaryPanel({
                 onClick={() => setIsToolsDialogOpen(false)}
                 className="flex h-11 w-full cursor-pointer items-center justify-center rounded-full bg-action px-5 text-sm font-bold text-on-action transition hover:bg-action-hover"
               >
-                Gata
+                Închide
               </button>
             </div>
 
@@ -6376,6 +6386,7 @@ function QuizPanel({
   );
   const isPersistingCompletionRef = useRef(false);
   const persistedAttemptRef = useRef<number | null>(null);
+  const resumedGenerationProjectRef = useRef<string | null>(null);
 
   const quizData = useMemo(() => buildProjectQuizData(project), [project]);
   const activeQuiz = activeQuizId
@@ -6423,6 +6434,40 @@ function QuizPanel({
     onQuizComplete,
     project.id,
   ]);
+
+  useEffect(() => {
+    if (
+      project.status !== "generating_quizzes" ||
+      isGeneratingQuizzes ||
+      resumedGenerationProjectRef.current === project.id
+    ) {
+      return;
+    }
+
+    let isCancelled = false;
+    resumedGenerationProjectRef.current = project.id;
+    setIsGeneratingQuizzes(true);
+    setQuizGenerationError(null);
+
+    onGenerateQuizzes(project.id)
+      .catch((error) => {
+        if (isCancelled) return;
+        setQuizGenerationError(
+          error instanceof Error
+            ? toFriendlyGenerationError(error.message)
+            : "Quizurile nu au putut fi generate.",
+        );
+      })
+      .finally(() => {
+        if (!isCancelled) {
+          setIsGeneratingQuizzes(false);
+        }
+      });
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [isGeneratingQuizzes, onGenerateQuizzes, project.id, project.status]);
 
   function resetQuiz() {
     setDraftAnswers({});
@@ -6950,7 +6995,7 @@ function QuizLibrary({
             Quiz-uri
           </p>
           <h2 className="mt-4 max-w-2xl font-serif text-3xl font-semibold leading-tight">
-            Generează testele când ești gata.
+            Generează testele când vrei.
           </h2>
           <p className="mt-3 max-w-xl text-sm leading-7 text-muted">
             Quizurile sunt create separat ca să nu consumăm AI înainte să ai
@@ -7475,7 +7520,7 @@ function ProgressPanel({ project }: { project: StudyProject }) {
               value={data.averageScore !== null ? `${data.averageScore}%` : "—"}
             />
             <ProgressHeroMetric
-              label="Quiz-uri gata"
+              label="Quiz-uri completate"
               value={`${data.completedCount}/${data.totalQuizzes}`}
             />
             <ProgressHeroMetric
@@ -8368,7 +8413,7 @@ function GenerationView({
   return (
     <div className="rounded-xl border border-subtle bg-surface p-6 sm:p-8">
       <h1 className="font-serif text-3xl font-semibold leading-tight">
-        {state === "done" ? "Pachetul este gata" : "Generăm pachetul"}
+        {state === "done" ? "Pachetul este pregătit" : "Generăm pachetul"}
         <span className="text-muted"> - {projectName}</span>
       </h1>
       <p className="mt-3 max-w-2xl text-sm leading-6 text-muted">
