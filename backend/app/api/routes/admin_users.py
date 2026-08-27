@@ -18,6 +18,7 @@ from app.services.email import (
     EmailDeliveryError,
     EmailMessage,
     EmailService,
+    account_deleted_email,
     email_logo_html,
     verification_email,
 )
@@ -328,8 +329,10 @@ async def send_admin_user_verification_email(
 @router.delete("/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_admin_user(
     user_id: uuid.UUID,
+    request: Request,
     admin_user: CurrentAdminUser,
     session: DbSession,
+    settings: AppSettings,
 ) -> Response:
     target_user = await _get_user_or_404(session, user_id)
 
@@ -341,20 +344,71 @@ async def delete_admin_user(
 
     await _ensure_not_last_active_admin(session, target_user)
 
+    user_agent, ip_address = _request_context(request)
+    target_snapshot = {
+        "target_user_id": str(target_user.id),
+        "target_email": target_user.email,
+        "target_name": target_user.full_name,
+        "target_role": target_user.role.strip().lower(),
+        "target_is_active": target_user.is_active,
+    }
+    admin_snapshot = {
+        "id": admin_user.id,
+        "email": admin_user.email,
+        "name": admin_user.full_name,
+    }
+
     add_audit_log(
         session,
         action="admin.user.delete",
         actor=admin_user,
         resource_type="user",
         resource_id=str(target_user.id),
-        details={
-            "target_email": target_user.email,
-            "target_name": target_user.full_name,
-            "target_role": target_user.role.strip().lower(),
-            "target_is_active": target_user.is_active,
-        },
+        details=target_snapshot,
+        ip_address=ip_address,
+        user_agent=user_agent,
     )
     await session.delete(target_user)
+    await session.flush()
+
+    html, text = account_deleted_email(
+        app_url=settings.public_app_url,
+        full_name=target_snapshot["target_name"],
+        logo_html=email_logo_html(settings.email_logo_url, app_name="Reviss"),
+    )
+    try:
+        await EmailService(settings).send(
+            EmailMessage(
+                to=target_snapshot["target_email"],
+                subject="Contul Reviss a fost șters",
+                html=html,
+                text=text,
+            )
+        )
+    except EmailDeliveryError as exc:
+        await session.rollback()
+        add_audit_log(
+            session,
+            action="admin.user.delete_email_failed",
+            status="failure",
+            actor_user_id=admin_snapshot["id"],
+            actor_email=admin_snapshot["email"],
+            actor_name=admin_snapshot["name"],
+            resource_type="user",
+            resource_id=str(user_id),
+            details={**target_snapshot, "reason": str(exc)},
+            ip_address=ip_address,
+            user_agent=user_agent,
+        )
+        await session.commit()
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=(
+                "Utilizatorul nu a fost șters deoarece emailul de confirmare "
+                "nu a putut fi trimis."
+            ),
+        ) from exc
+
     await session.commit()
 
     return Response(status_code=status.HTTP_204_NO_CONTENT)

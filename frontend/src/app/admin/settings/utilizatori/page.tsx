@@ -7,8 +7,15 @@ export const metadata: Metadata = {
   description: "Administrare utilizatori Reviss.",
 };
 
-export default async function AdminUsersRoute() {
-  const users = (await getServerAdminUsers()) ?? [];
+type AdminUsersRouteProps = {
+  searchParams: Promise<{ deleted?: string }>;
+};
 
-  return <AdminUsersPage initialUsers={users} />;
+export default async function AdminUsersRoute({
+  searchParams,
+}: AdminUsersRouteProps) {
+  const users = (await getServerAdminUsers()) ?? [];
+  const { deleted } = await searchParams;
+
+  return <AdminUsersPage initialUsers={users} deletedEmail={deleted ?? null} />;
 }

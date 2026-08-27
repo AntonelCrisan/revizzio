@@ -336,6 +336,24 @@ def _quiz_pack_output_token_budget(
     return max(6_000, min(48_000, 1_800 + total_questions * 260))
 
 
+def _build_quiz_pack_retry_prompt(original_prompt: str, validation_error: str) -> str:
+    return f"""{original_prompt}
+
+REGENERARE OBLIGATORIE:
+Raspunsul anterior a fost respins de validatorul serverului:
+{validation_error.strip()}
+
+Genereaza din nou intregul JSON, de la zero. Respecta aceeasi schema si acelasi
+numar de quizuri/intrebari, dar verifica explicit fiecare intrebare inainte sa
+raspunzi:
+- fiecare single_choice are exact o optiune cu "is_correct": true;
+- fiecare multiple_choice are minimum doua optiuni cu "is_correct": true;
+- nicio intrebare nu are toate optiunile false;
+- nu lasa campuri lipsa, liste goale sau chei suplimentare.
+
+Returneaza doar JSON-ul final valid."""
+
+
 def _postgres_advisory_lock_key(user_id: uuid.UUID) -> int:
     return user_id.int % ((2**63) - 1)
 
@@ -1652,36 +1670,83 @@ class StudyProjectService:
                 prompt=prompt,
             )
             job.prompt_path = str(prompt_path)
+            max_output_tokens = _quiz_pack_output_token_budget(
+                limits.quiz_groups_per_complexity,
+                limits.quiz_questions_per_quiz,
+            )
 
-            result = await OpenAIStudyGenerator(self.settings).generate_json(
+            logger.info(
+                "Quiz generation started for project %s: model=%s, input_chars=%s, max_output_tokens=%s, timeout=%ss.",
+                project.id,
+                self.settings.openai_quiz_model,
+                len(prompt),
+                max_output_tokens,
+                self.settings.openai_quiz_request_timeout_seconds,
+            )
+
+            generator = OpenAIStudyGenerator(self.settings)
+            generation_instructions = (
+                "You are the Reviss quiz generator. Return only valid JSON "
+                "matching the schema. Write all user-facing strings in "
+                f"{_generation_language_label(target_language)}."
+            )
+            result = await generator.generate_json(
                 model=self.settings.openai_quiz_model,
-                instructions=(
-                    "You are the Reviss quiz generator. Return only valid JSON "
-                    "matching the schema. Write all user-facing strings in "
-                    f"{_generation_language_label(target_language)}."
-                ),
+                instructions=generation_instructions,
                 prompt=prompt,
                 schema_name="reviss_quiz_pack",
                 schema=QUIZ_PACK_SCHEMA,
-                max_output_tokens=_quiz_pack_output_token_budget(
-                    limits.quiz_groups_per_complexity,
-                    limits.quiz_questions_per_quiz,
-                ),
+                max_output_tokens=max_output_tokens,
                 reasoning_effort="medium",
                 user_id=str(user.id),
                 project_id=str(project.id),
                 job_type="quiz_pack",
+                timeout_seconds=self.settings.openai_quiz_request_timeout_seconds,
             )
 
             await self._ensure_generation_can_continue(
                 project,
                 expected_status="generating_quizzes",
             )
-            _validate_generated_payload(
-                result.payload,
-                include_study_pack=False,
-                include_quizzes=True,
-            )
+            try:
+                _validate_generated_payload(
+                    result.payload,
+                    include_study_pack=False,
+                    include_quizzes=True,
+                )
+            except ProjectValidationError as exc:
+                logger.warning(
+                    "Quiz generation payload failed validation for project %s; retrying once: %s",
+                    project.id,
+                    exc,
+                )
+                await self._ensure_generation_can_continue(
+                    project,
+                    expected_status="generating_quizzes",
+                )
+                retry_prompt = _build_quiz_pack_retry_prompt(prompt, str(exc))
+                result = await generator.generate_json(
+                    model=self.settings.openai_quiz_model,
+                    instructions=generation_instructions,
+                    prompt=retry_prompt,
+                    schema_name="reviss_quiz_pack",
+                    schema=QUIZ_PACK_SCHEMA,
+                    max_output_tokens=max_output_tokens,
+                    reasoning_effort="medium",
+                    user_id=str(user.id),
+                    project_id=str(project.id),
+                    job_type="quiz_pack_retry",
+                    timeout_seconds=self.settings.openai_quiz_request_timeout_seconds,
+                )
+                await self._ensure_generation_can_continue(
+                    project,
+                    expected_status="generating_quizzes",
+                )
+                _validate_generated_payload(
+                    result.payload,
+                    include_study_pack=False,
+                    include_quizzes=True,
+                )
             response_path = self._write_generation_response(
                 user_id=user.id,
                 project_id=project.id,
@@ -1718,6 +1783,12 @@ class StudyProjectService:
                 )
             )
             await self.session.commit()
+            logger.info(
+                "Quiz generation completed for project %s: quizzes=%s, total_tokens=%s.",
+                project.id,
+                len(project.quizzes),
+                result.total_tokens,
+            )
             return await self.get_project(user, project.id)
         except ProjectGenerationCancelledError:
             await self.session.rollback()

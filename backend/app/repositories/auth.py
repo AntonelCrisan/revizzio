@@ -131,3 +131,25 @@ class AuthSessionRepository:
         for auth_session in auth_sessions:
             auth_session.revoked_at = revoked_at
         return len(auth_sessions)
+
+    async def revoke_all_for_user_except_token_hash(
+        self,
+        *,
+        user_id: uuid.UUID,
+        token_hash: str,
+        revoked_at: datetime,
+    ) -> int:
+        auth_sessions = list(
+            (
+                await self._session.scalars(
+                    select(AuthSession).where(
+                        AuthSession.user_id == user_id,
+                        AuthSession.token_hash != token_hash,
+                        AuthSession.revoked_at.is_(None),
+                    )
+                )
+            ).all()
+        )
+        for auth_session in auth_sessions:
+            auth_session.revoked_at = revoked_at
+        return len(auth_sessions)

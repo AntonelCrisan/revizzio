@@ -36,6 +36,7 @@ export type AuthUser = {
   theme_preference: ThemePreference;
   language_preference: LanguagePreference;
   current_plan: AuthUserPlan | null;
+  account_deletion_request_pending: boolean;
 };
 
 type ApiErrorPayload = {
@@ -145,6 +146,23 @@ export function confirmPasswordReset(payload: {
   return authRequest<MessageResponse>("password-reset/confirm", {
     method: "POST",
     body: JSON.stringify(payload),
+  });
+}
+
+export function changePassword(payload: {
+  current_password: string;
+  new_password: string;
+}): Promise<MessageResponse> {
+  return authRequest<MessageResponse>("me/password", {
+    method: "PATCH",
+    body: JSON.stringify(payload),
+  });
+}
+
+export function requestAccountDeletion(): Promise<MessageResponse> {
+  return authRequest<MessageResponse>("me/deletion-request", {
+    method: "POST",
+    body: "{}",
   });
 }
 

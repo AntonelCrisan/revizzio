@@ -62,6 +62,7 @@ class OpenAIStudyGenerator:
         user_id: str,
         project_id: str,
         job_type: str,
+        timeout_seconds: int | None = None,
         prompt_cache_key: str | None = None,
         text_verbosity: str | None = None,
     ) -> OpenAIGenerationResult:
@@ -77,6 +78,9 @@ class OpenAIStudyGenerator:
             text_config["verbosity"] = text_verbosity
 
         cache_key = prompt_cache_key or _prompt_cache_key(job_type, project_id)
+        request_timeout = (
+            timeout_seconds or self._settings.openai_request_timeout_seconds
+        )
 
         try:
             response = await self._client.responses.create(
@@ -94,6 +98,7 @@ class OpenAIStudyGenerator:
                 },
                 prompt_cache_key=cache_key[:64],
                 safety_identifier=user_id[:64],
+                timeout=request_timeout,
             )
         except (APIConnectionError, APITimeoutError) as exc:
             raise OpenAIGenerationError(

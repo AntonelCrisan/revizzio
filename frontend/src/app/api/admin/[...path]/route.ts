@@ -1,4 +1,6 @@
 const allowedRoutes = [
+  { method: "GET", pattern: /^account-deletion-requests$/ },
+  { method: "DELETE", pattern: /^account-deletion-requests\/[^/]+\/user$/ },
   { method: "GET", pattern: /^audit-logs$/ },
   { method: "GET", pattern: /^contact-messages$/ },
   { method: "GET", pattern: /^content-reports$/ },
@@ -24,6 +26,15 @@ function isAllowedRoute(method: string, action: string) {
     (route) => route.method === method && route.pattern.test(action),
   );
 }
+
+const collectionRoutesNeedingTrailingSlash = new Set([
+  "account-deletion-requests",
+  "audit-logs",
+  "contact-messages",
+  "content-reports",
+  "users",
+  "withdrawal-requests",
+]);
 
 async function proxyAdminRequest(
   request: Request,
@@ -59,8 +70,11 @@ async function proxyAdminRequest(
       request.method === "GET" || request.method === "HEAD"
         ? undefined
         : await request.arrayBuffer();
+    const trailingSlash = collectionRoutesNeedingTrailingSlash.has(action)
+      ? "/"
+      : "";
     const backendResponse = await fetch(
-      `${apiUrl}/api/admin/${action}/${queryString}`,
+      `${apiUrl}/api/admin/${action}${trailingSlash}${queryString}`,
       {
         method: request.method,
         headers: requestHeaders,

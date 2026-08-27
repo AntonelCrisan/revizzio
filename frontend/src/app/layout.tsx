@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Script from "next/script";
 import { AuthProvider } from "@/components/auth/auth-provider";
 import { LanguageProvider } from "@/components/language-provider";
 import { CookieConsentProvider } from "@/components/legal/cookie-consent";
@@ -201,8 +202,16 @@ export default function RootLayout({
           type="image/svg+xml"
           media="(prefers-color-scheme: dark)"
         />
-        <script dangerouslySetInnerHTML={{ __html: themeScript }} />
-        <script dangerouslySetInnerHTML={{ __html: languageScript }} />
+        <Script
+          id="reviss-theme-script"
+          strategy="beforeInteractive"
+          dangerouslySetInnerHTML={{ __html: themeScript }}
+        />
+        <Script
+          id="reviss-language-script"
+          strategy="beforeInteractive"
+          dangerouslySetInnerHTML={{ __html: languageScript }}
+        />
       </head>
       <body className="flex min-h-full flex-col">
         <VisitorPing />

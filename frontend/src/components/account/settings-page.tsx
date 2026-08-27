@@ -7,6 +7,7 @@ import {
   useRef,
   useState,
 } from "react";
+import Link from "next/link";
 import { AccountStaticShell } from "@/components/account/account-static-shell";
 import { useAuth } from "@/components/auth/auth-provider";
 import { CookieSettingsButton } from "@/components/legal/cookie-consent";
@@ -16,7 +17,9 @@ import {
 } from "@/components/theme-provider";
 import { useLanguage } from "@/components/language-provider";
 import {
+  AuthApiError,
   type LanguagePreference,
+  requestAccountDeletion,
   updateLanguagePreference,
   updateThemePreference,
 } from "@/lib/auth-api";
@@ -46,6 +49,7 @@ type SettingsTabId =
   | "notifications"
   | "security"
   | "privacy";
+type AccountDeletionRequestState = "idle" | "submitting" | "sent";
 
 const settingsSectionChangeEvent = "revizzio:settings-section-change";
 
@@ -387,6 +391,14 @@ export function SettingsPage() {
     string | null
   >(null);
   const [archiveError, setArchiveError] = useState<string | null>(null);
+  const [securityNotice, setSecurityNotice] = useState<{
+    tone: "success" | "danger";
+    message: string;
+  } | null>(null);
+  const [accountDeletionState, setAccountDeletionState] =
+    useState<AccountDeletionRequestState>("idle");
+  const [isAccountDeletionModalOpen, setIsAccountDeletionModalOpen] =
+    useState(false);
   const [isArchiveModalOpen, setIsArchiveModalOpen] = useState(false);
   const [archiveDeleteCandidate, setArchiveDeleteCandidate] =
     useState<StudyProject | null>(null);
@@ -428,6 +440,10 @@ export function SettingsPage() {
   const selectedStudyPace =
     studyPaceOptions.find((option) => option.id === studyPace) ??
     studyPaceOptions[1];
+  const hasPendingAccountDeletionRequest =
+    accountDeletionState === "sent" ||
+    Boolean(user?.account_deletion_request_pending);
+
   useEffect(() => {
     function syncActiveTab() {
       const hashTab = window.location.hash.replace("#", "");
@@ -443,16 +459,27 @@ export function SettingsPage() {
 
     const frame = window.requestAnimationFrame(syncActiveTab);
     window.addEventListener("hashchange", syncActiveTab);
+    window.addEventListener("popstate", syncActiveTab);
     window.addEventListener(settingsSectionChangeEvent, syncActiveTabFromEvent);
     return () => {
       window.cancelAnimationFrame(frame);
       window.removeEventListener("hashchange", syncActiveTab);
+      window.removeEventListener("popstate", syncActiveTab);
       window.removeEventListener(
         settingsSectionChangeEvent,
         syncActiveTabFromEvent,
       );
     };
   }, []);
+
+  function selectSettingsTab(nextTab: SettingsTabId) {
+    setActiveTab(nextTab);
+
+    const nextHash = `#${nextTab}`;
+    if (window.location.hash !== nextHash) {
+      window.history.replaceState(null, "", nextHash);
+    }
+  }
 
   useEffect(() => {
     if (activeTab !== "privacy" || !user) return;
@@ -532,6 +559,58 @@ export function SettingsPage() {
     } finally {
       deletingArchivedProjectIdsRef.current.delete(projectId);
       setArchiveActionProjectId(null);
+    }
+  }
+
+  function openAccountDeletionModal() {
+    if (hasPendingAccountDeletionRequest) {
+      setAccountDeletionState("sent");
+      setSecurityNotice({
+        tone: "success",
+        message:
+          "Ai deja o solicitare de ștergere înregistrată. Un administrator o va procesa.",
+      });
+      return;
+    }
+
+    setSecurityNotice(null);
+    setIsAccountDeletionModalOpen(true);
+  }
+
+  async function submitAccountDeletionRequest() {
+    if (accountDeletionState === "submitting" || hasPendingAccountDeletionRequest) {
+      return;
+    }
+
+    setSecurityNotice(null);
+    setAccountDeletionState("submitting");
+    setIsAccountDeletionModalOpen(false);
+
+    try {
+      const result = await requestAccountDeletion();
+      setSecurityNotice({ tone: "success", message: result.message });
+      setAccountDeletionState("sent");
+      if (user) {
+        setUser({ ...user, account_deletion_request_pending: true });
+      }
+    } catch (error) {
+      if (error instanceof AuthApiError && error.status === 409) {
+        setSecurityNotice({ tone: "success", message: error.message });
+        setAccountDeletionState("sent");
+        if (user) {
+          setUser({ ...user, account_deletion_request_pending: true });
+        }
+        return;
+      }
+
+      setSecurityNotice({
+        tone: "danger",
+        message:
+          error instanceof Error
+            ? error.message
+            : "Solicitarea de ștergere nu a putut fi trimisă.",
+      });
+      setAccountDeletionState("idle");
     }
   }
 
@@ -1006,49 +1085,47 @@ export function SettingsPage() {
       case "security":
         return (
           <div className="space-y-5">
-            <section className="rounded-xl border border-warning-border bg-warning-soft p-5 text-warning">
-              <SectionLabel>Notă de securitate</SectionLabel>
-              <p className="mt-2 max-w-2xl text-sm leading-6">
-                Sesiunea curentă este protejată prin cookie HttpOnly. Acțiunile
-                avansate vor fi conectate gradual la backend.
+            {securityNotice ? (
+              <p
+                className={`rounded-xl border px-4 py-3 text-sm font-bold leading-6 ${
+                  securityNotice.tone === "danger"
+                    ? "border-danger-border bg-danger-soft text-danger"
+                    : "border-success-border bg-success-soft text-success"
+                }`}
+              >
+                {securityNotice.message}
               </p>
-            </section>
-
-            <div className="grid gap-5 md:grid-cols-3">
-              <SettingsMetric
-                label="Sesiune"
-                value="HttpOnly"
-                detail="Tokenul nu este expus în JavaScript"
-              />
-              <SettingsMetric
-                label="Cont"
-                value={user?.is_active ? "Activ" : "Neverificat"}
-                detail="Statusul curent al autentificării"
-              />
-              <SettingsMetric
-                label="Rol acces"
-                value={
-                  user?.role.trim().toLowerCase() === "admin"
-                    ? "Admin"
-                    : "Utilizator"
-                }
-                detail="Permisiuni active în aplicație"
-              />
-            </div>
+            ) : null}
 
             <SettingsList title="Acțiuni securitate">
-              <SettingsOptionButton
+              <SettingsActionRow
                 title="Schimbă parola"
-                description="Pregătit pentru integrarea backend."
+                description="Actualizează parola contului și revocă celelalte sesiuni active."
               >
-                <ActionPill>Schimbă</ActionPill>
-              </SettingsOptionButton>
+                <Link
+                  href="/settings/schimba-parola"
+                  className="group inline-flex"
+                >
+                  <ActionPill>Schimbă</ActionPill>
+                </Link>
+              </SettingsActionRow>
               <SettingsOptionButton
                 title="Șterge contul"
-                description="Acțiune critică, dezactivată momentan."
+                description="Trimite o solicitare către administratori. Contul nu este șters automat."
+                disabled={
+                  accountDeletionState === "submitting" ||
+                  hasPendingAccountDeletionRequest
+                }
+                onClick={openAccountDeletionModal}
                 tone="danger"
               >
-                <ActionPill tone="danger">Solicită</ActionPill>
+                <ActionPill tone="danger">
+                  {accountDeletionState === "submitting"
+                    ? "Se trimite"
+                    : hasPendingAccountDeletionRequest
+                      ? "Solicitat"
+                      : "Solicită"}
+                </ActionPill>
               </SettingsOptionButton>
             </SettingsList>
           </div>
@@ -1118,25 +1195,43 @@ export function SettingsPage() {
                   "Șterge contul",
                   "Necesită reconfirmarea parolei sau confirmare prin e-mail.",
                 ],
-              ].map(([title, description]) => (
-                <SettingsOptionButton
-                  key={title}
-                  onClick={() =>
-                    setPrivacyNotice(
-                      `${title}: solicitarea va fi validată server-side și jurnalizată înainte de executare.`,
-                    )
-                  }
-                  title={title}
-                  description={description}
-                  tone={title === "Șterge contul" ? "danger" : "default"}
-                >
-                  <ActionPill
-                    tone={title === "Șterge contul" ? "danger" : "default"}
+              ].map(([title, description]) => {
+                const isAccountDeletionAction = title === "Șterge contul";
+                return (
+                  <SettingsOptionButton
+                    key={title}
+                    disabled={
+                      isAccountDeletionAction &&
+                      (accountDeletionState === "submitting" ||
+                        hasPendingAccountDeletionRequest)
+                    }
+                    onClick={() => {
+                      if (isAccountDeletionAction) {
+                        openAccountDeletionModal();
+                        return;
+                      }
+                      setPrivacyNotice(
+                        `${title}: solicitarea va fi validată server-side și jurnalizată înainte de executare.`,
+                      );
+                    }}
+                    title={title}
+                    description={description}
+                    tone={isAccountDeletionAction ? "danger" : "default"}
                   >
-                    {title === "Șterge contul" ? "Solicită" : "Deschide"}
-                  </ActionPill>
-                </SettingsOptionButton>
-              ))}
+                    <ActionPill
+                      tone={isAccountDeletionAction ? "danger" : "default"}
+                    >
+                      {isAccountDeletionAction
+                        ? accountDeletionState === "submitting"
+                          ? "Se trimite"
+                          : hasPendingAccountDeletionRequest
+                            ? "Solicitat"
+                            : "Solicită"
+                        : "Deschide"}
+                    </ActionPill>
+                  </SettingsOptionButton>
+                );
+              })}
 
               <SettingsActionRow
                 title="Setări cookie"
@@ -1201,7 +1296,11 @@ export function SettingsPage() {
   }
 
   return (
-    <AccountStaticShell activePage="settings">
+    <AccountStaticShell
+      activePage="settings"
+      settingsSection={activeTab}
+      onSettingsSectionChange={selectSettingsTab}
+    >
       <section className="space-y-7">
         <div className="flex flex-col gap-5 border-b border-subtle pb-7 lg:flex-row lg:items-end lg:justify-between">
           <div>
@@ -1225,8 +1324,73 @@ export function SettingsPage() {
         </div>
 
         {renderActiveTab()}
+
+        {isAccountDeletionModalOpen ? (
+          <AccountDeletionRequestModal
+            isSubmitting={accountDeletionState === "submitting"}
+            onCancel={() => setIsAccountDeletionModalOpen(false)}
+            onConfirm={() => void submitAccountDeletionRequest()}
+          />
+        ) : null}
       </section>
     </AccountStaticShell>
+  );
+}
+
+function AccountDeletionRequestModal({
+  isSubmitting,
+  onCancel,
+  onConfirm,
+}: {
+  isSubmitting: boolean;
+  onCancel: () => void;
+  onConfirm: () => void;
+}) {
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-content/40 px-4 py-6 backdrop-blur-sm"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="account-deletion-request-title"
+    >
+      <div className="w-full max-w-xl rounded-xl border border-danger-border bg-surface p-6 shadow-2xl shadow-black/20">
+        <p className="text-xs font-black uppercase tracking-[0.16em] text-danger">
+          Solicitare ștergere
+        </p>
+        <h2
+          id="account-deletion-request-title"
+          className="mt-3 font-serif text-3xl font-semibold leading-tight text-content"
+        >
+          Trimiți solicitarea de ștergere a contului?
+        </h2>
+        <p className="mt-3 text-sm leading-6 text-muted">
+          Contul nu va fi șters automat. Un administrator va vedea solicitarea
+          în zona de admin și va procesa acțiunea manual.
+        </p>
+        <div className="mt-5 rounded-xl border border-warning-border bg-warning-soft px-4 py-3 text-sm font-semibold leading-6 text-warning">
+          După trimitere, nu vei putea crea o altă solicitare cât timp aceasta
+          este în așteptare.
+        </div>
+        <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+          <button
+            type="button"
+            onClick={onCancel}
+            disabled={isSubmitting}
+            className="rounded-full border border-subtle px-5 py-3 text-sm font-bold transition hover:bg-surface-hover disabled:cursor-wait disabled:opacity-60"
+          >
+            Renunță
+          </button>
+          <button
+            type="button"
+            onClick={onConfirm}
+            disabled={isSubmitting}
+            className="rounded-full bg-danger px-5 py-3 text-sm font-bold text-on-action transition hover:opacity-90 disabled:cursor-wait disabled:opacity-60"
+          >
+            {isSubmitting ? "Se trimite..." : "Trimite solicitarea"}
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }
 

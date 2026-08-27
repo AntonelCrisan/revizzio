@@ -1,7 +1,11 @@
 import pytest
 from pydantic import ValidationError
 
-from app.schemas.auth import PasswordResetConfirmRequest, RegisterRequest
+from app.schemas.auth import (
+    ChangePasswordRequest,
+    PasswordResetConfirmRequest,
+    RegisterRequest,
+)
 
 
 def test_register_accepts_secure_password() -> None:
@@ -34,4 +38,20 @@ def test_password_reset_reuses_password_policy() -> None:
         PasswordResetConfirmRequest(
             token="x" * 48,
             password="parolafarasifra",
+        )
+
+
+def test_change_password_reuses_password_policy() -> None:
+    with pytest.raises(ValidationError):
+        ChangePasswordRequest(
+            current_password="ParolaVeche123",
+            new_password="parolafarasifra",
+        )
+
+
+def test_change_password_rejects_same_password() -> None:
+    with pytest.raises(ValidationError):
+        ChangePasswordRequest(
+            current_password="ParolaSigura123",
+            new_password="ParolaSigura123",
         )

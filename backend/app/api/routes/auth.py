@@ -10,7 +10,9 @@ from app.api.dependencies import (
     CurrentUser,
 )
 from app.core.rate_limit import _memory_rate_limit_buckets, consume_rate_limit
+from app.models import User
 from app.schemas.auth import (
+    ChangePasswordRequest,
     EmailVerificationRequest,
     LoginRequest,
     MessageResponse,
@@ -20,7 +22,9 @@ from app.schemas.auth import (
 )
 from app.schemas.user import UserPreferencesUpdate, UserResponse
 from app.services.auth import (
+    AccountDeletionRequestAlreadyPendingError,
     AuthResult,
+    AuthService,
     EmailAlreadyRegisteredError,
     EmailDeliveryUnavailableError,
     InvalidCredentialsError,
@@ -35,6 +39,8 @@ AUTH_RATE_LIMIT_WINDOW_SECONDS = 300
 AUTH_RATE_LIMIT_IDENTITY_POLICIES = {
     "register": 5,
     "login": 10,
+    "me/deletion-request": 3,
+    "me/password": 8,
     "password-reset/request": 5,
     "password-reset/confirm": 10,
 }
@@ -42,10 +48,20 @@ AUTH_RATE_LIMIT_IP_POLICIES = {
     "register": 20,
     "verify-email": 60,
     "login": 50,
+    "me/deletion-request": 10,
+    "me/password": 20,
     "password-reset/request": 20,
     "password-reset/confirm": 30,
 }
 _auth_rate_limit_buckets = _memory_rate_limit_buckets
+
+
+async def _user_response(user: User, service: AuthService) -> UserResponse:
+    response = UserResponse.model_validate(user)
+    has_pending_deletion = await service.has_pending_account_deletion_request(user)
+    return response.model_copy(
+        update={"account_deletion_request_pending": has_pending_deletion}
+    )
 
 
 def _client_ip(request: Request) -> str | None:
@@ -238,7 +254,7 @@ async def verify_email(
         ) from exc
 
     _set_session_cookie(response, result, settings)
-    return UserResponse.model_validate(result.user)
+    return await _user_response(result.user, service)
 
 
 @router.post("/login", response_model=UserResponse)
@@ -277,7 +293,7 @@ async def login(
         ) from exc
 
     _set_session_cookie(response, result, settings)
-    return UserResponse.model_validate(result.user)
+    return await _user_response(result.user, service)
 
 
 @router.post("/password-reset/request", response_model=MessageResponse)
@@ -367,8 +383,11 @@ async def logout(
 
 
 @router.get("/me", response_model=UserResponse)
-async def get_me(current_user: CurrentUser) -> UserResponse:
-    return UserResponse.model_validate(current_user)
+async def get_me(
+    current_user: CurrentUser,
+    service: AuthServiceDependency,
+) -> UserResponse:
+    return await _user_response(current_user, service)
 
 
 @router.patch("/me/preferences", response_model=UserResponse)
@@ -382,4 +401,86 @@ async def update_preferences(
         theme_preference=payload.theme_preference,
         language_preference=payload.language_preference,
     )
-    return UserResponse.model_validate(user)
+    return await _user_response(user, service)
+
+
+@router.patch("/me/password", response_model=MessageResponse)
+async def change_password(
+    payload: ChangePasswordRequest,
+    request: Request,
+    current_user: CurrentUser,
+    service: AuthServiceDependency,
+    settings: AppSettings,
+) -> MessageResponse:
+    _protect_auth_origin(request, settings)
+    await _enforce_auth_rate_limit(
+        request,
+        "me/password",
+        identity=str(current_user.id),
+    )
+    current_session_token = request.cookies.get(settings.session_cookie_name)
+    if current_session_token is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Autentificarea este necesară.",
+        )
+
+    user_agent, ip_address = _client_context(request)
+    try:
+        await service.change_password(
+            current_user,
+            current_password=payload.current_password,
+            new_password=payload.new_password,
+            current_session_token=current_session_token,
+            user_agent=user_agent,
+            ip_address=ip_address,
+        )
+    except InvalidCredentialsError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Parola curentă este incorectă.",
+        ) from exc
+
+    return MessageResponse(
+        message="Parola a fost actualizată. Celelalte sesiuni au fost revocate.",
+    )
+
+
+@router.post(
+    "/me/deletion-request",
+    response_model=MessageResponse,
+    status_code=status.HTTP_202_ACCEPTED,
+)
+async def request_account_deletion(
+    request: Request,
+    current_user: CurrentUser,
+    service: AuthServiceDependency,
+    settings: AppSettings,
+) -> MessageResponse:
+    _protect_auth_origin(request, settings)
+    await _enforce_auth_rate_limit(
+        request,
+        "me/deletion-request",
+        identity=str(current_user.id),
+    )
+    user_agent, ip_address = _client_context(request)
+    try:
+        await service.request_account_deletion(
+            current_user,
+            user_agent=user_agent,
+            ip_address=ip_address,
+        )
+    except AccountDeletionRequestAlreadyPendingError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=(
+                "Ai deja o solicitare de ștergere înregistrată. "
+                "Un administrator o va procesa."
+            ),
+        ) from exc
+    return MessageResponse(
+        message=(
+            "Solicitarea de ștergere a contului a fost înregistrată. "
+            "Un administrator o va procesa."
+        ),
+    )

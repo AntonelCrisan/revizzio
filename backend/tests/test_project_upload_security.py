@@ -21,6 +21,7 @@ from app.services.projects import (
     ProjectPlanLimits,
     ProjectValidationError,
     StudyProjectService,
+    _build_quiz_pack_retry_prompt,
     _chat_scope_refusal,
     _focused_summary_context,
     _is_prompt_extraction_request,
@@ -458,6 +459,17 @@ def test_quiz_prompt_keeps_full_material_and_targets_selected_language() -> None
     assert "English" in prompt
     assert "MATERIAL MARKDOWN COMPLET" in prompt
     assert material in prompt
+
+
+def test_quiz_retry_prompt_keeps_original_prompt_and_validation_error() -> None:
+    prompt = "MATERIAL MARKDOWN COMPLET:\nContinut important."
+    validation_error = "Intrebarea 5 trebuie sa aiba cel putin un raspuns corect."
+
+    retry_prompt = _build_quiz_pack_retry_prompt(prompt, validation_error)
+
+    assert prompt in retry_prompt
+    assert validation_error in retry_prompt
+    assert 'nicio intrebare nu are toate optiunile false' in retry_prompt
 
 
 def test_quiz_mistake_flashcard_back_does_not_prefix_correct_answer() -> None:

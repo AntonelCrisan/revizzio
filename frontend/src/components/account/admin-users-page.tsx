@@ -1,13 +1,15 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
+import { useEffect, useMemo, useState } from "react";
 import { AccountStaticShell } from "@/components/account/account-static-shell";
 import { TablePagination } from "@/components/account/table-pagination";
 import { type AdminUser, getAdminUsers } from "@/lib/admin-users-api";
 
 type AdminUsersPageProps = {
   initialUsers: AdminUser[];
+  deletedEmail: string | null;
 };
 
 type UserFilter = "all" | "admin" | "user" | "active" | "inactive";
@@ -94,13 +96,25 @@ function UserMetric({
   );
 }
 
-export function AdminUsersPage({ initialUsers }: AdminUsersPageProps) {
+export function AdminUsersPage({
+  initialUsers,
+  deletedEmail,
+}: AdminUsersPageProps) {
+  const router = useRouter();
   const [users, setUsers] = useState(initialUsers);
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<UserFilter>("all");
   const [currentPage, setCurrentPage] = useState(1);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
+  const [deletedNotice] = useState(() =>
+    deletedEmail ? `Utilizatorul ${deletedEmail} a fost șters definitiv.` : "",
+  );
+
+  useEffect(() => {
+    if (!deletedEmail) return;
+    router.replace("/admin/settings/utilizatori");
+  }, [deletedEmail, router]);
 
   const filteredUsers = useMemo(() => {
     const normalizedSearch = search.trim().toLowerCase();
@@ -215,6 +229,11 @@ export function AdminUsersPage({ initialUsers }: AdminUsersPageProps) {
           />
         </div>
 
+        {deletedNotice ? (
+          <p className="rounded-xl border border-success-border bg-success-soft p-4 text-sm font-bold text-success">
+            {deletedNotice}
+          </p>
+        ) : null}
         {errorMessage ? (
           <p className="rounded-xl border border-danger-border bg-danger-soft p-4 text-sm font-bold text-danger">
             {errorMessage}

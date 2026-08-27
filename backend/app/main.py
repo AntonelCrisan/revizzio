@@ -5,6 +5,9 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from app.api.routes.admin_account_deletion_requests import (
+    router as admin_account_deletion_requests_router,
+)
 from app.api.routes.admin_contact_messages import (
     router as admin_contact_messages_router,
 )
@@ -86,6 +89,7 @@ app.add_middleware(
 
 app.include_router(health_router)
 app.include_router(auth_router)
+app.include_router(admin_account_deletion_requests_router)
 app.include_router(admin_contact_messages_router)
 app.include_router(admin_content_reports_router)
 app.include_router(admin_users_router)

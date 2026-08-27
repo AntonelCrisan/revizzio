@@ -1,4 +1,4 @@
-from pydantic import BaseModel, EmailStr, Field, field_validator
+from pydantic import BaseModel, EmailStr, Field, field_validator, model_validator
 
 PASSWORD_MIN_LENGTH = 10
 COMMON_PASSWORDS = {
@@ -73,6 +73,22 @@ class PasswordResetConfirmRequest(BaseModel):
     @classmethod
     def password_must_be_secure(cls, value: str) -> str:
         return validate_secure_password(value)
+
+
+class ChangePasswordRequest(BaseModel):
+    current_password: str = Field(min_length=1, max_length=128)
+    new_password: str = Field(min_length=PASSWORD_MIN_LENGTH, max_length=128)
+
+    @field_validator("new_password")
+    @classmethod
+    def new_password_must_be_secure(cls, value: str) -> str:
+        return validate_secure_password(value)
+
+    @model_validator(mode="after")
+    def new_password_must_be_different(self) -> ChangePasswordRequest:
+        if self.current_password == self.new_password:
+            raise ValueError("Parola nouă trebuie să fie diferită de parola curentă.")
+        return self
 
 
 class MessageResponse(BaseModel):

@@ -131,6 +131,7 @@ export function AdminUserDetailPage({
   const [verificationEmailState, setVerificationEmailState] =
     useState<VerificationEmailState>("idle");
   const [isDeletingUser, setIsDeletingUser] = useState(false);
+  const [isDeleteUserModalOpen, setIsDeleteUserModalOpen] = useState(false);
   const [actionMessage, setActionMessage] = useState("");
   const [actionError, setActionError] = useState("");
   const verificationEmailRequestInFlightRef = useRef(false);
@@ -250,18 +251,16 @@ export function AdminUserDetailPage({
   async function removeUser() {
     if (isDeletingUser) return;
 
-    const confirmed = window.confirm(
-      `Stergi definitiv utilizatorul ${user.email}? Aceasta actiune nu poate fi anulata.`,
-    );
-    if (!confirmed) return;
-
     setIsDeletingUser(true);
+    setIsDeleteUserModalOpen(false);
     setActionMessage("");
     setActionError("");
 
     try {
       await deleteAdminUser(user.id);
-      router.push("/admin/settings/utilizatori");
+      router.push(
+        `/admin/settings/utilizatori?deleted=${encodeURIComponent(user.email)}`,
+      );
     } catch (error) {
       setActionError(
         error instanceof Error
@@ -464,7 +463,7 @@ export function AdminUserDetailPage({
               </div>
               <button
                 type="button"
-                onClick={() => void removeUser()}
+                onClick={() => setIsDeleteUserModalOpen(true)}
                 disabled={isDeletingUser || isCurrentUser}
                 className="inline-flex h-11 w-fit items-center justify-center rounded-full bg-danger px-5 text-sm font-black text-danger-soft transition hover:opacity-85 disabled:cursor-not-allowed disabled:opacity-60"
               >
@@ -583,7 +582,74 @@ export function AdminUserDetailPage({
             onPageChange={setCurrentPage}
           />
         </section>
+
+        {isDeleteUserModalOpen ? (
+          <DeleteAdminUserModal
+            user={user}
+            isDeleting={isDeletingUser}
+            onCancel={() => setIsDeleteUserModalOpen(false)}
+            onConfirm={() => void removeUser()}
+          />
+        ) : null}
       </section>
     </AccountStaticShell>
+  );
+}
+
+function DeleteAdminUserModal({
+  user,
+  isDeleting,
+  onCancel,
+  onConfirm,
+}: {
+  user: AdminUser;
+  isDeleting: boolean;
+  onCancel: () => void;
+  onConfirm: () => void;
+}) {
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-content/40 px-4 py-6 backdrop-blur-sm"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="delete-admin-user-title"
+    >
+      <div className="w-full max-w-xl rounded-xl border border-danger-border bg-surface p-6 shadow-2xl shadow-black/20">
+        <p className="text-xs font-black uppercase tracking-[0.16em] text-danger">
+          Ștergere utilizator
+        </p>
+        <h2
+          id="delete-admin-user-title"
+          className="mt-3 font-serif text-3xl font-semibold leading-tight text-content"
+        >
+          Ștergi definitiv utilizatorul?
+        </h2>
+        <p className="mt-3 text-sm leading-6 text-muted">
+          Utilizatorul {user.email} și datele asociate contului vor fi șterse.
+          Va primi un email de confirmare dacă operația se finalizează.
+        </p>
+        <div className="mt-5 rounded-xl border border-warning-border bg-warning-soft px-4 py-3 text-sm font-semibold leading-6 text-warning">
+          Această acțiune este permanentă și nu poate fi anulată.
+        </div>
+        <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+          <button
+            type="button"
+            onClick={onCancel}
+            disabled={isDeleting}
+            className="rounded-full border border-subtle px-5 py-3 text-sm font-bold transition hover:bg-surface-hover disabled:cursor-wait disabled:opacity-60"
+          >
+            Renunță
+          </button>
+          <button
+            type="button"
+            onClick={onConfirm}
+            disabled={isDeleting}
+            className="rounded-full bg-danger px-5 py-3 text-sm font-bold text-danger-soft transition hover:opacity-85 disabled:cursor-wait disabled:opacity-60"
+          >
+            {isDeleting ? "Se șterge..." : "Șterge utilizatorul"}
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }

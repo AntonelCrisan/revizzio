@@ -937,6 +937,13 @@ export function AccountDashboard({
     const queuedProject = await generateStudyProjectQuizzes(projectId);
     storeApiProject(queuedProject);
 
+    if (queuedProject.status === "ready" && queuedProject.quizzes.length === 0) {
+      throw new Error(
+        toFriendlyGenerationError(queuedProject.error_message) ||
+          "Quizurile nu au putut fi generate. Încearcă din nou.",
+      );
+    }
+
     if (queuedProject.status !== "generating_quizzes") {
       return mapApiProject(queuedProject);
     }
@@ -959,6 +966,10 @@ export function AccountDashboard({
           toFriendlyGenerationError(apiProject.error_message) ||
             "Quizurile nu au putut fi generate.",
         );
+      }
+
+      if (apiProject.status === "ready" && apiProject.quizzes.length === 0) {
+        throw new Error("Quizurile nu au putut fi generate. Încearcă din nou.");
       }
 
       if (apiProject.status === "failed") {

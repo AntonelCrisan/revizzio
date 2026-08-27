@@ -23,11 +23,17 @@ const statusFilters: Array<{ value: AuditLogStatus | ""; label: string }> = [
 ];
 
 const auditActionLabels: Record<string, string> = {
+  "account.deletion_requested": "Ștergere cont solicitată",
+  "admin.account_deletion_request.completed":
+    "Solicitare ștergere cont rezolvată",
+  "admin.account_deletion_request.email_failed":
+    "Email ștergere cont eșuat",
   "admin.subscription_plans.updated": "Planurile de abonament au fost actualizate",
   "admin.legal_document_section.created": "Secțiune legală adăugată",
   "admin.legal_document_section.deleted": "Secțiune legală ștearsă",
   "admin.legal_document_section.updated": "Secțiune legală actualizată",
   "admin.user.delete": "Utilizator sters",
+  "admin.user.delete_email_failed": "Email ștergere utilizator eșuat",
   "admin.user.update": "Utilizator actualizat",
   "admin.user.verification_email_failed": "Email de verificare esuat",
   "admin.user.verification_email_requested": "Email de verificare trimis",

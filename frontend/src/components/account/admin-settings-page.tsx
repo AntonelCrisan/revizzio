@@ -18,6 +18,7 @@ type SettingsCard = {
     | "chart"
     | "mail"
     | "flag"
+    | "trash"
     | "withdrawal";
 };
 
@@ -57,6 +58,12 @@ const userCards: SettingsCard[] = [
     description: "Listă utilizatori, roluri și detalii de cont.",
     href: "/admin/settings/utilizatori",
     icon: "users",
+  },
+  {
+    title: "Ștergeri conturi",
+    description: "Solicitări de ștergere trimise de utilizatori.",
+    href: "/admin/settings/stergeri-conturi",
+    icon: "trash",
   },
 ];
 
@@ -201,6 +208,13 @@ function SettingsIcon({ icon }: { icon: SettingsCard["icon"] }) {
         <SvgIcon>
           <path d="M5 21V4" />
           <path d="M5 5h11l-1 4 1 4H5" />
+        </SvgIcon>
+      ) : null}
+      {icon === "trash" ? (
+        <SvgIcon>
+          <path d="M4 7h16" />
+          <path d="M10 11v6M14 11v6M6 7l1 14h10l1-14" />
+          <path d="M9 7V4h6v3" />
         </SvgIcon>
       ) : null}
       {icon === "withdrawal" ? (

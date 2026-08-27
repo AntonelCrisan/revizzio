@@ -625,6 +625,46 @@ def withdrawal_notification_email(
     return html, text
 
 
+def account_deleted_email(
+    *,
+    app_url: str,
+    full_name: str,
+    logo_html: str,
+    app_name: str = "Reviss",
+) -> tuple[str, str]:
+    first_name = full_name.strip().split(" ", 1)[0] if full_name.strip() else ""
+    greeting = f"Bună, {first_name}." if first_name else "Bună."
+    text = (
+        f"{greeting}\n\n"
+        f"Contul tău {app_name} a fost șters de un administrator.\n\n"
+        "Nu mai poți accesa contul, proiectele sau materialele asociate lui. "
+        "Dacă ai întrebări, ne poți contacta prin formularul public."
+    )
+    html = _email_shell(
+        app_name=app_name,
+        eyebrow="Cont șters",
+        title="Contul tău a fost șters.",
+        intro=(
+            f"{greeting} Confirmăm că un administrator a șters contul tău "
+            "Reviss."
+        ),
+        logo_html=logo_html,
+        cta_label="Deschide Reviss",
+        action_url=app_url,
+        note_title="Ai nevoie de clarificări?",
+        note=(
+            "Dacă ai întrebări despre această acțiune, ne poți contacta prin "
+            "formularul public de pe site."
+        ),
+        details=[
+            "Contul nu mai poate fi accesat.",
+            "Sesiunile active au fost închise odată cu ștergerea contului.",
+            "Datele care trebuie păstrate legal pot rămâne în evidențele obligatorii.",
+        ],
+    )
+    return html, text
+
+
 def invoice_paid_email(
     *,
     invoice_url: str,

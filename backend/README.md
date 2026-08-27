@@ -45,6 +45,10 @@ comit în Git.
 utilizatorii cu plan Pro. PDF-urile cu text selectabil merg în continuare prin
 MarkItDown.
 
+Pentru proiecte mari, quizurile pot depăși câteva minute. În producție păstrează
+`OPENAI_QUIZ_REQUEST_TIMEOUT_SECONDS=900` ca generarea quizurilor să nu fie
+întreruptă prematur.
+
 Caracterele rezervate din parolă trebuie codificate pentru URL. De exemplu,
 `@` devine `%40`:
 

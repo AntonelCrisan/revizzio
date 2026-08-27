@@ -339,6 +339,13 @@ async def prepare_project(
             status_code=422,
             detail=str(exc),
         ) from exc
+    except Exception as exc:
+        await session.rollback()
+        logger.exception("Project prepare failed with an unexpected error.")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Proiectul nu a putut fi pregatit momentan.",
+        ) from exc
 
     if await request.is_disconnected():
         await service.delete_project(user=current_user, project_id=project.id)

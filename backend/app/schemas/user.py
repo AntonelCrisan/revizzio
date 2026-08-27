@@ -48,6 +48,7 @@ class UserResponse(BaseModel):
     theme_preference: ThemePreference
     language_preference: LanguagePreference
     current_plan: UserPlanResponse | None = None
+    account_deletion_request_pending: bool = False
 
     @field_validator("role", mode="before")
     @classmethod

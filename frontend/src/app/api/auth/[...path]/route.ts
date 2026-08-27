@@ -1,5 +1,6 @@
 const allowedRoutes = new Map([
   ["GET:me", "/api/auth/me"],
+  ["POST:me/deletion-request", "/api/auth/me/deletion-request"],
   ["PATCH:me/preferences", "/api/auth/me/preferences"],
   ["POST:login", "/api/auth/login"],
   ["POST:logout", "/api/auth/logout"],
@@ -7,6 +8,7 @@ const allowedRoutes = new Map([
   ["POST:password-reset/request", "/api/auth/password-reset/request"],
   ["POST:register", "/api/auth/register"],
   ["POST:verify-email", "/api/auth/verify-email"],
+  ["PATCH:me/password", "/api/auth/me/password"],
 ]);
 
 type AuthRouteContext = {

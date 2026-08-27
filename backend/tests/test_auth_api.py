@@ -9,7 +9,11 @@ from app.api.routes.auth import _auth_rate_limit_buckets
 from app.core.config import get_settings
 from app.main import app
 from app.models import User
-from app.services.auth import AuthResult
+from app.services.auth import (
+    AccountDeletionRequestAlreadyPendingError,
+    AuthResult,
+    InvalidCredentialsError,
+)
 
 
 def build_user() -> User:
@@ -30,9 +34,15 @@ def build_user() -> User:
 
 
 class FakeAuthService:
-    def __init__(self, *, persistent: bool = False) -> None:
+    def __init__(
+        self,
+        *,
+        persistent: bool = False,
+        account_deletion_pending: bool = False,
+    ) -> None:
         self.user = build_user()
         self.persistent = persistent
+        self.account_deletion_pending = account_deletion_pending
 
     async def register(self, *_: object, **__: object) -> AuthResult:
         return self._result()
@@ -48,6 +58,19 @@ class FakeAuthService:
 
     async def reset_password(self, *_: object, **__: object) -> None:
         return None
+
+    async def change_password(self, *_: object, **__: object) -> int:
+        return 0
+
+    async def request_account_deletion(self, *_: object, **__: object) -> None:
+        return None
+
+    async def has_pending_account_deletion_request(
+        self,
+        *_: object,
+        **__: object,
+    ) -> bool:
+        return self.account_deletion_pending
 
     async def logout(self, *_: object, **__: object) -> None:
         return None
@@ -300,7 +323,9 @@ def test_remember_me_sets_a_persistent_cookie() -> None:
 
 def test_me_returns_the_authenticated_user() -> None:
     user = build_user()
+    service = FakeAuthService()
     app.dependency_overrides[get_current_user] = lambda: user
+    app.dependency_overrides[get_auth_service] = lambda: service
 
     try:
         with TestClient(app) as client:
@@ -313,12 +338,31 @@ def test_me_returns_the_authenticated_user() -> None:
     assert response.json()["role"] == "user"
     assert response.json()["theme_preference"] == "system"
     assert response.json()["language_preference"] == "ro"
+    assert response.json()["account_deletion_request_pending"] is False
+
+
+def test_me_returns_pending_account_deletion_request_state() -> None:
+    user = build_user()
+    service = FakeAuthService(account_deletion_pending=True)
+    app.dependency_overrides[get_current_user] = lambda: user
+    app.dependency_overrides[get_auth_service] = lambda: service
+
+    try:
+        with TestClient(app) as client:
+            response = client.get("/api/auth/me")
+    finally:
+        app.dependency_overrides.clear()
+
+    assert response.status_code == 200
+    assert response.json()["account_deletion_request_pending"] is True
 
 
 def test_me_normalizes_role_padding_from_database() -> None:
     user = build_user()
     user.role = "admin    "
+    service = FakeAuthService()
     app.dependency_overrides[get_current_user] = lambda: user
+    app.dependency_overrides[get_auth_service] = lambda: service
 
     try:
         with TestClient(app) as client:
@@ -366,6 +410,189 @@ def test_authenticated_user_can_update_language_preference() -> None:
 
     assert response.status_code == 200
     assert response.json()["language_preference"] == "fr"
+
+
+def test_authenticated_user_can_change_password() -> None:
+    class CapturingAuthService(FakeAuthService):
+        payload: dict[str, object] | None = None
+
+        async def change_password(self, user: User, **kwargs: object) -> int:
+            self.payload = {"user": user, **kwargs}
+            return 2
+
+    user = build_user()
+    service = CapturingAuthService()
+    settings = get_settings().model_copy(
+        update={"session_cookie_name": "revizzio_session"}
+    )
+    app.dependency_overrides[get_current_user] = lambda: user
+    app.dependency_overrides[get_auth_service] = lambda: service
+    app.dependency_overrides[get_settings] = lambda: settings
+
+    try:
+        with TestClient(app) as client:
+            response = client.patch(
+                "/api/auth/me/password",
+                cookies={"revizzio_session": "current-session-token"},
+                json={
+                    "current_password": "ParolaVeche123",
+                    "new_password": "ParolaNoua123",
+                },
+            )
+    finally:
+        app.dependency_overrides.clear()
+
+    assert response.status_code == 200
+    assert response.json()["message"] == (
+        "Parola a fost actualizată. Celelalte sesiuni au fost revocate."
+    )
+    assert service.payload is not None
+    assert service.payload["user"] is user
+    assert service.payload["current_password"] == "ParolaVeche123"
+    assert service.payload["new_password"] == "ParolaNoua123"
+    assert service.payload["current_session_token"] == "current-session-token"
+
+
+def test_change_password_rejects_invalid_current_password() -> None:
+    class RejectingAuthService(FakeAuthService):
+        async def change_password(self, *_: object, **__: object) -> int:
+            raise InvalidCredentialsError
+
+    user = build_user()
+    settings = get_settings().model_copy(
+        update={"session_cookie_name": "revizzio_session"}
+    )
+    app.dependency_overrides[get_current_user] = lambda: user
+    app.dependency_overrides[get_auth_service] = lambda: RejectingAuthService()
+    app.dependency_overrides[get_settings] = lambda: settings
+
+    try:
+        with TestClient(app) as client:
+            response = client.patch(
+                "/api/auth/me/password",
+                cookies={"revizzio_session": "current-session-token"},
+                json={
+                    "current_password": "ParolaGresita123",
+                    "new_password": "ParolaNoua123",
+                },
+            )
+    finally:
+        app.dependency_overrides.clear()
+
+    assert response.status_code == 401
+    assert response.json()["detail"] == "Parola curentă este incorectă."
+
+
+def test_change_password_rate_limit_blocks_repeated_attempts() -> None:
+    user = build_user()
+    service = FakeAuthService()
+    settings = get_settings().model_copy(
+        update={"session_cookie_name": "revizzio_session"}
+    )
+    app.dependency_overrides[get_current_user] = lambda: user
+    app.dependency_overrides[get_auth_service] = lambda: service
+    app.dependency_overrides[get_settings] = lambda: settings
+
+    try:
+        with TestClient(app) as client:
+            payload = {
+                "current_password": "ParolaVeche123",
+                "new_password": "ParolaNoua123",
+            }
+            for _ in range(8):
+                response = client.patch(
+                    "/api/auth/me/password",
+                    cookies={"revizzio_session": "current-session-token"},
+                    json=payload,
+                )
+                assert response.status_code == 200
+
+            response = client.patch(
+                "/api/auth/me/password",
+                cookies={"revizzio_session": "current-session-token"},
+                json=payload,
+            )
+    finally:
+        app.dependency_overrides.clear()
+
+    assert response.status_code == 429
+
+
+def test_authenticated_user_can_request_account_deletion() -> None:
+    class CapturingAuthService(FakeAuthService):
+        payload: dict[str, object] | None = None
+
+        async def request_account_deletion(
+            self,
+            user: User,
+            **kwargs: object,
+        ) -> None:
+            self.payload = {"user": user, **kwargs}
+
+    user = build_user()
+    service = CapturingAuthService()
+    app.dependency_overrides[get_current_user] = lambda: user
+    app.dependency_overrides[get_auth_service] = lambda: service
+
+    try:
+        with TestClient(app) as client:
+            response = client.post("/api/auth/me/deletion-request")
+    finally:
+        app.dependency_overrides.clear()
+
+    assert response.status_code == 202
+    assert response.json()["message"] == (
+        "Solicitarea de ștergere a contului a fost înregistrată. "
+        "Un administrator o va procesa."
+    )
+    assert service.payload is not None
+    assert service.payload["user"] is user
+
+
+def test_duplicate_account_deletion_request_returns_conflict() -> None:
+    class RejectingAuthService(FakeAuthService):
+        async def request_account_deletion(
+            self,
+            *_: object,
+            **__: object,
+        ) -> None:
+            raise AccountDeletionRequestAlreadyPendingError
+
+    user = build_user()
+    service = RejectingAuthService()
+    app.dependency_overrides[get_current_user] = lambda: user
+    app.dependency_overrides[get_auth_service] = lambda: service
+
+    try:
+        with TestClient(app) as client:
+            response = client.post("/api/auth/me/deletion-request")
+    finally:
+        app.dependency_overrides.clear()
+
+    assert response.status_code == 409
+    assert response.json()["detail"] == (
+        "Ai deja o solicitare de ștergere înregistrată. "
+        "Un administrator o va procesa."
+    )
+
+
+def test_account_deletion_request_rate_limit_blocks_repeated_attempts() -> None:
+    user = build_user()
+    service = FakeAuthService()
+    app.dependency_overrides[get_current_user] = lambda: user
+    app.dependency_overrides[get_auth_service] = lambda: service
+
+    try:
+        with TestClient(app) as client:
+            for _ in range(3):
+                response = client.post("/api/auth/me/deletion-request")
+                assert response.status_code == 202
+
+            response = client.post("/api/auth/me/deletion-request")
+    finally:
+        app.dependency_overrides.clear()
+
+    assert response.status_code == 429
 
 
 def test_theme_preference_rejects_unknown_values() -> None:

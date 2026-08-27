@@ -15,7 +15,12 @@ from app.core.security import (
     hash_session_token,
     verify_password,
 )
-from app.models import PasswordResetToken, PendingRegistration, User
+from app.models import (
+    AccountDeletionRequest,
+    PasswordResetToken,
+    PendingRegistration,
+    User,
+)
 from app.repositories.auth import AuthSessionRepository, UserRepository
 from app.schemas.auth import LoginRequest, PasswordResetRequest, RegisterRequest
 from app.schemas.user import LanguagePreference, ThemePreference
@@ -51,6 +56,10 @@ class PendingEmailConfirmationError(Exception):
 
 
 class InvalidSessionError(Exception):
+    pass
+
+
+class AccountDeletionRequestAlreadyPendingError(Exception):
     pass
 
 
@@ -448,6 +457,115 @@ class AuthService:
             user_agent=user_agent,
         )
         await self._session.commit()
+
+    async def change_password(
+        self,
+        user: User,
+        *,
+        current_password: str,
+        new_password: str,
+        current_session_token: str,
+        user_agent: str | None = None,
+        ip_address: str | None = None,
+    ) -> int:
+        password_is_valid = await to_thread.run_sync(
+            verify_password,
+            current_password,
+            user.password_hash,
+        )
+        if not password_is_valid:
+            add_audit_log(
+                self._session,
+                action="auth.password_change_failed",
+                status="failure",
+                actor=user,
+                resource_type="user",
+                resource_id=str(user.id),
+                details={"reason": "invalid_current_password"},
+                ip_address=ip_address,
+                user_agent=user_agent,
+            )
+            await self._session.commit()
+            raise InvalidCredentialsError
+
+        now = datetime.now(UTC)
+        user.password_hash = await to_thread.run_sync(hash_password, new_password)
+        user.updated_at = now
+        revoked_sessions = await self._sessions.revoke_all_for_user_except_token_hash(
+            user_id=user.id,
+            token_hash=self._hash_token(current_session_token),
+            revoked_at=now,
+        )
+        add_audit_log(
+            self._session,
+            action="auth.password_changed",
+            actor=user,
+            resource_type="user",
+            resource_id=str(user.id),
+            details={"revoked_sessions": revoked_sessions},
+            ip_address=ip_address,
+            user_agent=user_agent,
+        )
+        await self._session.commit()
+        return revoked_sessions
+
+    async def request_account_deletion(
+        self,
+        user: User,
+        *,
+        user_agent: str | None = None,
+        ip_address: str | None = None,
+    ) -> AccountDeletionRequest:
+        existing_request = await self._pending_account_deletion_request(user.id)
+        if existing_request is not None:
+            raise AccountDeletionRequestAlreadyPendingError
+
+        deletion_request = AccountDeletionRequest(
+            user_id=user.id,
+            full_name=user.full_name,
+            email=user.email,
+            status="pending",
+            ip_address=ip_address,
+            user_agent=user_agent,
+        )
+        try:
+            self._session.add(deletion_request)
+            await self._session.flush()
+            add_audit_log(
+                self._session,
+                action="account.deletion_requested",
+                actor=user,
+                resource_type="account_deletion_request",
+                resource_id=str(deletion_request.id),
+                details={"email": user.email, "full_name": user.full_name},
+                ip_address=ip_address,
+                user_agent=user_agent,
+            )
+            await self._session.commit()
+        except IntegrityError as exc:
+            await self._session.rollback()
+            existing_request = await self._pending_account_deletion_request(user.id)
+            if existing_request is not None:
+                raise AccountDeletionRequestAlreadyPendingError from exc
+            raise
+
+        return deletion_request
+
+    async def has_pending_account_deletion_request(self, user: User) -> bool:
+        return await self._pending_account_deletion_request(user.id) is not None
+
+    async def _pending_account_deletion_request(
+        self,
+        user_id: UUID,
+    ) -> AccountDeletionRequest | None:
+        return await self._session.scalar(
+            select(AccountDeletionRequest)
+            .where(
+                AccountDeletionRequest.user_id == user_id,
+                AccountDeletionRequest.status == "pending",
+            )
+            .order_by(AccountDeletionRequest.created_at.desc())
+        )
 
     async def get_user_by_session_token(self, token: str) -> User:
         auth_session = await self._sessions.get_active_by_token_hash(

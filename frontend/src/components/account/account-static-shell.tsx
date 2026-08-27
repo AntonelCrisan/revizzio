@@ -27,6 +27,8 @@ const settingsSectionChangeEvent = "revizzio:settings-section-change";
 type AccountStaticShellProps = {
   activePage: AccountPageId;
   children: ReactNode;
+  settingsSection?: SettingsSectionId;
+  onSettingsSectionChange?: (section: SettingsSectionId) => void;
 };
 
 type NavigationItem = {
@@ -163,6 +165,8 @@ function secondaryNavClass(isActive: boolean) {
 export function AccountStaticShell({
   activePage,
   children,
+  settingsSection,
+  onSettingsSectionChange,
 }: AccountStaticShellProps) {
   const router = useRouter();
   const { user, isLoading, logout } = useAuth();
@@ -175,6 +179,7 @@ export function AccountStaticShell({
   });
   const [activeSettingsSection, setActiveSettingsSection] =
     useState<SettingsSectionId>("account");
+  const visibleSettingsSection = settingsSection ?? activeSettingsSection;
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
 
@@ -233,8 +238,10 @@ export function AccountStaticShell({
     if (activePage !== "settings") return;
 
     event.preventDefault();
-    window.history.pushState(null, "", `#${section}`);
     setActiveSettingsSection(section);
+    onSettingsSectionChange?.(section);
+    setSidebarOpen(false);
+    router.push(`/settings#${section}`, { scroll: false });
     window.dispatchEvent(
       new CustomEvent(settingsSectionChangeEvent, { detail: section }),
     );
@@ -346,7 +353,7 @@ export function AccountStaticShell({
                   {settingsItems.map((item) => {
                     const isActive =
                       activePage === "settings" &&
-                      item.section === activeSettingsSection;
+                      item.section === visibleSettingsSection;
                     return (
                       <Link
                         key={item.href}

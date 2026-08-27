@@ -1,6 +1,7 @@
 from app.models.audit import AuditLog
 from app.models.auth_session import AuthSession
 from app.models.compliance import (
+    AccountDeletionRequest,
     ComplianceEvent,
     ContactMessage,
     ContentReport,
@@ -39,6 +40,7 @@ from app.models.visitor import VisitorVisit
 
 __all__ = [
     "AuditLog",
+    "AccountDeletionRequest",
     "AuthSession",
     "CompanyData",
     "ComplianceEvent",
