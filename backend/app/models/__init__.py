@@ -15,6 +15,8 @@ from app.models.email_tokens import (
     PendingRegistration,
 )
 from app.models.legal import CompanyData, LegalDocument, LegalDocumentSection
+from app.models.notification import Notification
+from app.models.preferences import UserPreferences
 from app.models.study_project import (
     StudyProject,
     StudyProjectArchive,
@@ -53,6 +55,7 @@ __all__ = [
     "ContentReportAttachment",
     "LegalDocument",
     "LegalDocumentSection",
+    "Notification",
     "PasswordResetToken",
     "PendingEmailChange",
     "PendingRegistration",
@@ -78,6 +81,7 @@ __all__ = [
     "UserSubscription",
     "SubscriptionCancellation",
     "User",
+    "UserPreferences",
     "VisitorVisit",
     "WithdrawalRequest",
 ]

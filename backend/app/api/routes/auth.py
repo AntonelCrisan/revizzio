@@ -8,6 +8,7 @@ from app.api.dependencies import (
     AppSettings,
     AuthServiceDependency,
     CurrentUser,
+    DbSession,
 )
 from app.core.rate_limit import _memory_rate_limit_buckets, consume_rate_limit
 from app.models import User
@@ -23,6 +24,7 @@ from app.schemas.auth import (
     RequestEmailChangeRequest,
     UpdateFullNameRequest,
 )
+from app.schemas.preferences import StudyPreferencesResponse, StudyPreferencesUpdate
 from app.schemas.user import UserPreferencesUpdate, UserResponse
 from app.services.auth import (
     AccountDeletionRequestAlreadyPendingError,
@@ -36,6 +38,7 @@ from app.services.auth import (
     PendingEmailConfirmationError,
 )
 from app.services.pdf_export import account_data_export_pdf
+from app.services.preferences import PreferencesService, StudyPreferences
 
 router = APIRouter(prefix="/api/auth", tags=["authentication"])
 
@@ -51,6 +54,7 @@ AUTH_RATE_LIMIT_IDENTITY_POLICIES = {
     "email/confirm": 10,
     "me/newsletter-consent/withdraw": 10,
     "me/data-export": 10,
+    "me/study-preferences": 20,
     "password-reset/request": 5,
     "password-reset/confirm": 10,
 }
@@ -65,6 +69,7 @@ AUTH_RATE_LIMIT_IP_POLICIES = {
     "email/confirm": 30,
     "me/newsletter-consent/withdraw": 20,
     "me/data-export": 20,
+    "me/study-preferences": 40,
     "password-reset/request": 20,
     "password-reset/confirm": 30,
 }
@@ -417,6 +422,62 @@ async def update_preferences(
         language_preference=payload.language_preference,
     )
     return await _user_response(user, service)
+
+
+def _study_preferences_response(
+    study_preferences: StudyPreferences,
+) -> StudyPreferencesResponse:
+    response = StudyPreferencesResponse.model_validate(study_preferences.preferences)
+    return response.model_copy(
+        update={"newsletter_consent": study_preferences.newsletter_consent}
+    )
+
+
+@router.get("/me/study-preferences", response_model=StudyPreferencesResponse)
+async def get_study_preferences(
+    request: Request,
+    current_user: CurrentUser,
+    session: DbSession,
+) -> StudyPreferencesResponse:
+    await _enforce_auth_rate_limit(
+        request,
+        "me/study-preferences",
+        identity=str(current_user.id),
+    )
+    service = PreferencesService(session)
+    study_preferences = await service.get(current_user)
+    return _study_preferences_response(study_preferences)
+
+
+@router.patch("/me/study-preferences", response_model=StudyPreferencesResponse)
+async def update_study_preferences(
+    payload: StudyPreferencesUpdate,
+    request: Request,
+    current_user: CurrentUser,
+    session: DbSession,
+    settings: AppSettings,
+) -> StudyPreferencesResponse:
+    _protect_auth_origin(request, settings)
+    await _enforce_auth_rate_limit(
+        request,
+        "me/study-preferences",
+        identity=str(current_user.id),
+    )
+    service = PreferencesService(session)
+    study_preferences = await service.update(
+        current_user,
+        study_pace=payload.study_pace,
+        ai_feedback_style=payload.ai_feedback_style,
+        automation_daily_review=payload.automation_daily_review,
+        automation_quiz_after_summary=payload.automation_quiz_after_summary,
+        automation_weak_concept_alerts=payload.automation_weak_concept_alerts,
+        notify_email_enabled=payload.notify_email_enabled,
+        notify_alert_project_ready=payload.notify_alert_project_ready,
+        notify_alert_billing=payload.notify_alert_billing,
+        notify_frequency=payload.notify_frequency,
+        newsletter_consent=payload.newsletter_consent,
+    )
+    return _study_preferences_response(study_preferences)
 
 
 @router.patch("/me/password", response_model=MessageResponse)

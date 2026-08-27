@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Script from "next/script";
 import { AuthProvider } from "@/components/auth/auth-provider";
 import { LanguageProvider } from "@/components/language-provider";
+import { GlobalNotificationBell } from "@/components/global-notification-bell";
 import { CookieConsentProvider } from "@/components/legal/cookie-consent";
 import { ThemeProvider } from "@/components/theme-provider";
 import { VisitorPing } from "@/components/visitor-ping";
@@ -218,7 +219,10 @@ export default function RootLayout({
         <ThemeProvider>
           <CookieConsentProvider>
             <LanguageProvider>
-              <AuthProvider>{children}</AuthProvider>
+              <AuthProvider>
+                <GlobalNotificationBell />
+                {children}
+              </AuthProvider>
             </LanguageProvider>
           </CookieConsentProvider>
         </ThemeProvider>

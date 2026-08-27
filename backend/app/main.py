@@ -23,7 +23,9 @@ from app.api.routes.audit_logs import router as audit_logs_router
 from app.api.routes.auth import router as auth_router
 from app.api.routes.compliance import router as compliance_router
 from app.api.routes.health import router as health_router
+from app.api.routes.internal import router as internal_router
 from app.api.routes.legal import router as legal_router
+from app.api.routes.notifications import router as notifications_router
 from app.api.routes.payments import router as payments_router
 from app.api.routes.plans import router as plans_router
 from app.api.routes.projects import router as projects_router
@@ -88,6 +90,7 @@ app.add_middleware(
 )
 
 app.include_router(health_router)
+app.include_router(internal_router)
 app.include_router(auth_router)
 app.include_router(admin_account_deletion_requests_router)
 app.include_router(admin_contact_messages_router)
@@ -98,6 +101,7 @@ app.include_router(admin_withdrawal_requests_router)
 app.include_router(audit_logs_router)
 app.include_router(compliance_router)
 app.include_router(legal_router)
+app.include_router(notifications_router)
 app.include_router(payments_router)
 app.include_router(plans_router)
 app.include_router(projects_router)

@@ -24,6 +24,7 @@ class Settings(BaseSettings):
     database_max_overflow: int = Field(default=10, ge=0, le=100)
 
     session_secret: SecretStr
+    cron_secret: SecretStr | None = None
     session_cookie_name: str = "revizzio_session"
     session_cookie_secure: bool = False
     session_cookie_samesite: Literal["lax", "strict", "none"] = "lax"

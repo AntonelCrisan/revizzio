@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useState } from "react";
+import { NotificationBell } from "@/components/account/notification-bell";
 import { useAuth } from "@/components/auth/auth-provider";
 import { BrandLogo } from "@/components/brand-logo";
 import { LanguageSelect } from "@/components/language-select";
@@ -126,6 +127,11 @@ export function MarketingHeader() {
               </Link>
             </>
           )}
+          {!isLoading && user ? (
+            <div className="shrink-0">
+              <NotificationBell />
+            </div>
+          ) : null}
           <button
             type="button"
             onClick={() => setIsOpen((open) => !open)}

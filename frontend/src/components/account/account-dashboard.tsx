@@ -16,6 +16,7 @@ import { useAuth } from "@/components/auth/auth-provider";
 import { BrandLogo } from "@/components/brand-logo";
 import { useLanguage } from "@/components/language-provider";
 import type { AuthUserPlan, LanguagePreference } from "@/lib/auth-api";
+import { getStudyPreferences } from "@/lib/preferences-api";
 import {
   archiveStudyProject,
   cancelStudyProjectGeneration,
@@ -581,6 +582,7 @@ export function AccountDashboard({
     useState<StudyProjectPrepareResponse | null>(null);
   const [generationError, setGenerationError] = useState<string | null>(null);
   const [isCancellingGeneration, setIsCancellingGeneration] = useState(false);
+  const [suggestQuizAfterSummary, setSuggestQuizAfterSummary] = useState(false);
   const generationAbortControllerRef = useRef<AbortController | null>(null);
   const generationProjectIdRef = useRef<string | null>(null);
   const generationCancelRequestedRef = useRef(false);
@@ -662,6 +664,25 @@ export function AccountDashboard({
       isMounted = false;
     };
   }, [initialProjectId, isLoading, user]);
+
+  useEffect(() => {
+    if (isLoading || !user) return;
+    let isMounted = true;
+
+    getStudyPreferences()
+      .then((preferences) => {
+        if (isMounted) {
+          setSuggestQuizAfterSummary(preferences.automation_quiz_after_summary);
+        }
+      })
+      .catch(() => {
+        // Keep the default (no nudge) if preferences can't be loaded.
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [isLoading, user]);
 
   function toggleSidebarCollapsed() {
     setIsSidebarCollapsed((current) => {
@@ -1352,6 +1373,17 @@ export function AccountDashboard({
     resetNewProject();
   }
 
+  function openGeneratedProjectAndStartQuiz() {
+    if (!preparedProject) return;
+
+    const apiProject = storeApiProject(preparedProject.project);
+    setActiveProjectId(apiProject.id);
+    setOpenProjectId(apiProject.id);
+    setActiveTab("quiz");
+    setView("project");
+    resetNewProject();
+  }
+
   if (isLoading || !user) {
     return (
       <main className="flex min-h-svh items-center justify-center bg-app text-content">
@@ -1739,6 +1771,8 @@ export function AccountDashboard({
               onStartGeneration={startGeneration}
               onCancelGeneration={cancelActiveGeneration}
               onOpenGeneratedProject={createGeneratedProject}
+              suggestQuizAfterSummary={suggestQuizAfterSummary}
+              onStartQuizAfterSummary={openGeneratedProjectAndStartQuiz}
             />
           ) : null}
         </main>
@@ -8056,6 +8090,8 @@ function NewProjectView({
   onStartGeneration,
   onCancelGeneration,
   onOpenGeneratedProject,
+  suggestQuizAfterSummary,
+  onStartQuizAfterSummary,
 }: {
   projectName: string;
   subjectName: string;
@@ -8085,6 +8121,8 @@ function NewProjectView({
   onStartGeneration: () => void | Promise<void>;
   onCancelGeneration: () => void | Promise<void>;
   onOpenGeneratedProject: () => void;
+  suggestQuizAfterSummary: boolean;
+  onStartQuizAfterSummary: () => void;
 }) {
   const totalFileSize = files.reduce((total, file) => total + file.size, 0);
   const detailFieldsCompleted =
@@ -8394,6 +8432,8 @@ function NewProjectView({
             isCancellingGeneration={isCancellingGeneration}
             onCancelGeneration={onCancelGeneration}
             onOpenGeneratedProject={onOpenGeneratedProject}
+            suggestQuizAfterSummary={suggestQuizAfterSummary}
+            onStartQuizAfterSummary={onStartQuizAfterSummary}
           />
       )}
     </section>
@@ -8410,6 +8450,8 @@ function GenerationView({
   isCancellingGeneration,
   onCancelGeneration,
   onOpenGeneratedProject,
+  suggestQuizAfterSummary,
+  onStartQuizAfterSummary,
 }: {
   projectName: string;
   state: GenerationState;
@@ -8420,6 +8462,8 @@ function GenerationView({
   isCancellingGeneration: boolean;
   onCancelGeneration: () => void | Promise<void>;
   onOpenGeneratedProject: () => void;
+  suggestQuizAfterSummary: boolean;
+  onStartQuizAfterSummary: () => void;
 }) {
   return (
     <div className="rounded-xl border border-subtle bg-surface p-6 sm:p-8">
@@ -8514,6 +8558,29 @@ function GenerationView({
               <path d="M5 12h14M13 5l7 7-7 7" />
             </Icon>
           </button>
+
+          {suggestQuizAfterSummary ? (
+            <div className="mx-auto mt-6 max-w-md rounded-xl border border-subtle bg-app p-4">
+              <p className="text-sm font-semibold text-content">
+                Vrei să testezi ce ai reținut chiar acum?
+              </p>
+              <p className="mt-1 text-xs leading-5 text-muted">
+                Te ducem direct la generarea unui quiz scurt pe baza acestui
+                rezumat.
+              </p>
+              <button
+                type="button"
+                disabled={!preparedProject}
+                onClick={onStartQuizAfterSummary}
+                className="mt-3 inline-flex items-center justify-center gap-2 rounded-full border border-action px-4 py-2 text-xs font-black text-content transition hover:bg-action hover:text-on-action disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                Generează un quiz
+                <Icon className="h-3.5 w-3.5">
+                  <path d="M5 12h14M13 5l7 7-7 7" />
+                </Icon>
+              </button>
+            </div>
+          ) : null}
         </div>
       ) : null}
     </div>

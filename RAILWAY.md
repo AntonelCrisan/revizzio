@@ -45,6 +45,7 @@ Set these on the `backend` service:
 ENVIRONMENT=production
 DATABASE_URL=${{Postgres.DATABASE_URL}}
 SESSION_SECRET=<generate-a-strong-32+-character-secret>
+CRON_SECRET=<generate-a-strong-32+-character-secret>
 SESSION_COOKIE_NAME=revizzio_session
 SESSION_COOKIE_SECURE=true
 SESSION_COOKIE_SAMESITE=lax
@@ -78,6 +79,25 @@ format. The backend normalizes it to the async SQLAlchemy driver internally.
 
 `MISTRAL_API_KEY` enables OCR only for scanned PDF uploads on the Pro plan.
 Beginner and Focus scanned PDFs are rejected before any OCR call.
+
+## Daily notification digest (cron)
+
+The backend does not run its own scheduler — `POST /api/internal/notifications/run-daily`
+sends the daily email digest (and computes the "recapitulare zilnică" nudge)
+when called, and does nothing on its own otherwise. It must be triggered once
+a day by something external, with the `CRON_SECRET` value above sent in an
+`X-Cron-Secret` header:
+
+```bash
+curl -X POST https://api.reviss.app/api/internal/notifications/run-daily \
+  -H "X-Cron-Secret: <same value as CRON_SECRET>"
+```
+
+Any scheduler that can make one daily HTTPS request works — a Railway
+service with a cron schedule running this `curl` command, a GitHub Actions
+scheduled workflow, or an external cron service (e.g. cron-job.org). Without
+`CRON_SECRET` set, the endpoint returns 503 and does nothing; a request with
+the wrong secret returns 401.
 
 ## Frontend variables
 

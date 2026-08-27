@@ -17,7 +17,16 @@ const allowedRoutes = new Map([
     "/api/auth/me/newsletter-consent/withdraw",
   ],
   ["GET:me/data-export", "/api/auth/me/data-export"],
+  ["GET:me/study-preferences", "/api/auth/me/study-preferences"],
+  ["PATCH:me/study-preferences", "/api/auth/me/study-preferences"],
+  ["GET:me/notifications", "/api/auth/me/notifications"],
+  ["POST:me/notifications/read-all", "/api/auth/me/notifications/read-all"],
 ]);
+
+const dynamicRoutes = [
+  { method: "POST", pattern: /^me\/notifications\/[^/]+\/read$/ },
+  { method: "DELETE", pattern: /^me\/notifications\/[^/]+$/ },
+];
 
 type AuthRouteContext = {
   params: Promise<{ path: string[] }>;
@@ -29,7 +38,13 @@ async function proxyAuthRequest(
 ): Promise<Response> {
   const { path } = await context.params;
   const action = path.join("/");
-  const backendPath = allowedRoutes.get(`${request.method}:${action}`);
+  const backendPath =
+    allowedRoutes.get(`${request.method}:${action}`) ??
+    (dynamicRoutes.some(
+      (route) => route.method === request.method && route.pattern.test(action),
+    )
+      ? `/api/auth/${action}`
+      : undefined);
 
   if (!backendPath) {
     return Response.json(
@@ -113,6 +128,13 @@ export function POST(
 }
 
 export function PATCH(
+  request: Request,
+  context: AuthRouteContext,
+): Promise<Response> {
+  return proxyAuthRequest(request, context);
+}
+
+export function DELETE(
   request: Request,
   context: AuthRouteContext,
 ): Promise<Response> {

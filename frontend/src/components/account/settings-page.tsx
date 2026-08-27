@@ -43,6 +43,12 @@ import {
   restoreStudyProject,
   type StudyProject,
 } from "@/lib/projects-api";
+import {
+  getStudyPreferences,
+  updateStudyPreferences,
+  type StudyPreferences,
+  type StudyPreferencesUpdate,
+} from "@/lib/preferences-api";
 
 type SettingsTabId =
   | "account"
@@ -206,26 +212,18 @@ const studyPaceOptions = [
     id: "light",
     title: "Flexibil",
     description: "Pentru zile încărcate, cu recapitulare minimă.",
-    minutes: "9 min",
-    progress: 38,
   },
   {
     id: "balanced",
     title: "Structurat",
     description: "Sesiuni scurte, dar constante, pentru progres zilnic.",
-    minutes: "17 min",
-    progress: 64,
   },
   {
     id: "exam",
     title: "Intensiv",
     description: "Ritm intens, cu quiz-uri mai dese și recapitulare activă.",
-    minutes: "32 min",
-    progress: 86,
   },
 ] as const;
-
-type StudyPaceId = (typeof studyPaceOptions)[number]["id"];
 
 const aiFeedbackOptions = [
   {
@@ -244,8 +242,6 @@ const aiFeedbackOptions = [
     description: "Feedback orientat pe formulări și capcane de test.",
   },
 ] as const;
-
-type AiFeedbackId = (typeof aiFeedbackOptions)[number]["id"];
 
 const studyAutomationOptions = [
   {
@@ -267,16 +263,31 @@ const studyAutomationOptions = [
 
 type StudyAutomationId = (typeof studyAutomationOptions)[number]["id"];
 
+type BooleanPreferenceKey = {
+  [K in keyof StudyPreferences]: StudyPreferences[K] extends boolean ? K : never;
+}[keyof StudyPreferences];
+
+const studyAutomationPreferenceKey: Record<
+  StudyAutomationId,
+  BooleanPreferenceKey
+> = {
+  dailyReview: "automation_daily_review",
+  quizAfterSummary: "automation_quiz_after_summary",
+  weakConceptAlerts: "automation_weak_concept_alerts",
+};
+
 const notificationChannelOptions = [
   {
     id: "email",
     title: "Email",
-    description: "Confirmări, resetare parolă și rapoarte importante.",
+    description:
+      "Reminder-uri și alerte prin email. Confirmările de securitate și facturile ajung mereu, indiferent de acest comutator.",
   },
   {
     id: "study",
     title: "Reminder studiu",
-    description: "Alerte blânde pentru recapitularea zilnică.",
+    description:
+      "Alerte blânde pentru recapitularea zilnică. Aceeași setare ca „Recapitulare zilnică” din tab-ul Studiu.",
   },
   {
     id: "product",
@@ -287,6 +298,15 @@ const notificationChannelOptions = [
 
 type NotificationChannelId = (typeof notificationChannelOptions)[number]["id"];
 
+const notificationChannelPreferenceKey: Record<
+  NotificationChannelId,
+  BooleanPreferenceKey
+> = {
+  email: "notify_email_enabled",
+  study: "automation_daily_review",
+  product: "newsletter_consent",
+};
+
 const notificationAlertOptions = [
   {
     id: "projectReady",
@@ -296,16 +316,27 @@ const notificationAlertOptions = [
   {
     id: "weakConcepts",
     title: "Concepte de repetat",
-    description: "Când Reviss observă zone care scad la retenție.",
+    description:
+      "Când Reviss observă zone care scad la retenție. Aceeași setare ca „Alerte concepte slabe” din tab-ul Studiu.",
   },
   {
     id: "billing",
     title: "Facturi și abonament",
-    description: "Plăți, facturi noi și schimbări de plan.",
+    description:
+      "Confirmarea de plată e mereu trimisă; acest comutator e doar pentru viitoare alerte suplimentare.",
   },
 ] as const;
 
 type NotificationAlertId = (typeof notificationAlertOptions)[number]["id"];
+
+const notificationAlertPreferenceKey: Record<
+  NotificationAlertId,
+  BooleanPreferenceKey
+> = {
+  projectReady: "notify_alert_project_ready",
+  weakConcepts: "automation_weak_concept_alerts",
+  billing: "notify_alert_billing",
+};
 
 function dataExportHref() {
   return "/api/auth/me/data-export";
@@ -416,32 +447,10 @@ export function SettingsPage() {
     "materials" | "flashcards" | null
   >(null);
   const deletingArchivedProjectIdsRef = useRef(new Set<string>());
-  const [studyPace, setStudyPace] = useState<StudyPaceId>("balanced");
-  const [aiFeedback, setAiFeedback] = useState<AiFeedbackId>("guided");
-  const [studyAutomations, setStudyAutomations] = useState<
-    Record<StudyAutomationId, boolean>
-  >({
-    dailyReview: true,
-    quizAfterSummary: true,
-    weakConceptAlerts: true,
-  });
-  const [notificationChannels, setNotificationChannels] = useState<
-    Record<NotificationChannelId, boolean>
-  >({
-    email: true,
-    study: true,
-    product: false,
-  });
-  const [notificationAlerts, setNotificationAlerts] = useState<
-    Record<NotificationAlertId, boolean>
-  >({
-    projectReady: true,
-    weakConcepts: true,
-    billing: true,
-  });
-  const [notificationFrequency, setNotificationFrequency] = useState<
-    "instant" | "daily"
-  >("daily");
+  const [preferences, setPreferences] = useState<StudyPreferences | null>(null);
+  const [isLoadingPreferences, setIsLoadingPreferences] = useState(true);
+  const [preferencesError, setPreferencesError] = useState<string | null>(null);
+  const [isSavingPreferences, setIsSavingPreferences] = useState(false);
   const selectedPreset = getColorThemePreset(colorScheme);
   const selectedColors = {
     ...selectedPreset.colors[resolvedTheme],
@@ -451,11 +460,63 @@ export function SettingsPage() {
   const activeTabMeta =
     settingsTabs.find((tab) => tab.id === activeTab) ?? settingsTabs[0];
   const selectedStudyPace =
-    studyPaceOptions.find((option) => option.id === studyPace) ??
+    studyPaceOptions.find((option) => option.id === preferences?.study_pace) ??
     studyPaceOptions[1];
   const hasPendingAccountDeletionRequest =
     accountDeletionState === "sent" ||
     Boolean(user?.account_deletion_request_pending);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    async function loadPreferences() {
+      setIsLoadingPreferences(true);
+      setPreferencesError(null);
+
+      try {
+        const result = await getStudyPreferences();
+        if (isMounted) setPreferences(result);
+      } catch (error) {
+        if (!isMounted) return;
+        setPreferencesError(
+          error instanceof Error
+            ? error.message
+            : "Preferințele nu au putut fi încărcate.",
+        );
+      } finally {
+        if (isMounted) setIsLoadingPreferences(false);
+      }
+    }
+
+    void loadPreferences();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  async function savePreference(patch: StudyPreferencesUpdate) {
+    if (!preferences || isSavingPreferences) return;
+
+    const previousPreferences = preferences;
+    setPreferences({ ...preferences, ...patch });
+    setIsSavingPreferences(true);
+    setPreferencesError(null);
+
+    try {
+      const result = await updateStudyPreferences(patch);
+      setPreferences(result);
+    } catch (error) {
+      setPreferences(previousPreferences);
+      setPreferencesError(
+        error instanceof Error
+          ? error.message
+          : "Preferința nu a putut fi salvată.",
+      );
+    } finally {
+      setIsSavingPreferences(false);
+    }
+  }
 
   useEffect(() => {
     function syncActiveTab() {
@@ -709,26 +770,6 @@ export function SettingsPage() {
     }
   }
 
-  function toggleStudyAutomation(id: StudyAutomationId) {
-    setStudyAutomations((current) => ({
-      ...current,
-      [id]: !current[id],
-    }));
-  }
-
-  function toggleNotificationChannel(id: NotificationChannelId) {
-    setNotificationChannels((current) => ({
-      ...current,
-      [id]: !current[id],
-    }));
-  }
-
-  function toggleNotificationAlert(id: NotificationAlertId) {
-    setNotificationAlerts((current) => ({
-      ...current,
-      [id]: !current[id],
-    }));
-  }
 
   function renderActiveTab() {
     switch (activeTab) {
@@ -847,46 +888,35 @@ export function SettingsPage() {
       case "study":
         return (
           <div className="space-y-5">
+            {preferencesError ? (
+              <p className="rounded-xl border border-danger-border bg-danger-soft px-4 py-3 text-sm font-bold text-danger">
+                {preferencesError}
+              </p>
+            ) : null}
+
             <section className="rounded-xl border border-subtle bg-surface p-6">
-              <div className="grid gap-5 lg:grid-cols-[1fr_auto] lg:items-end">
-                <div>
-                  <SectionLabel>Ritmul curent</SectionLabel>
-                  <h2 className="mt-3 font-serif text-3xl font-semibold leading-tight text-content">
-                    {selectedStudyPace.title}
-                  </h2>
-                  <p className="mt-2 max-w-xl text-sm leading-6 text-muted">
-                    {selectedStudyPace.description}
-                  </p>
-                </div>
-                <div className="lg:min-w-[280px]">
-                  <div className="flex items-end justify-between gap-4">
-                    <span className="text-xs font-bold uppercase tracking-[0.12em] text-muted">
-                      Azi
-                    </span>
-                    <span className="font-serif text-4xl font-semibold">
-                      {selectedStudyPace.minutes}
-                    </span>
-                  </div>
-                  <div className="mt-3 h-2 overflow-hidden rounded-full bg-app">
-                    <div
-                      className="h-full rounded-full bg-action transition-all duration-300"
-                      style={{ width: `${selectedStudyPace.progress}%` }}
-                    />
-                  </div>
-                </div>
+              <div>
+                <SectionLabel>Ritmul curent</SectionLabel>
+                <h2 className="mt-3 font-serif text-3xl font-semibold leading-tight text-content">
+                  {selectedStudyPace.title}
+                </h2>
+                <p className="mt-2 max-w-xl text-sm leading-6 text-muted">
+                  {selectedStudyPace.description}
+                </p>
               </div>
             </section>
 
             <div className="grid gap-5 lg:grid-cols-2">
               <SettingsList title="Alege ritmul">
                 {studyPaceOptions.map((option) => {
-                  const isSelected = option.id === studyPace;
+                  const isSelected = option.id === preferences?.study_pace;
                   return (
                     <SettingsOptionButton
                       key={option.id}
+                      disabled={isLoadingPreferences || isSavingPreferences}
                       title={option.title}
                       description={option.description}
-                      onClick={() => setStudyPace(option.id)}
+                      onClick={() => void savePreference({ study_pace: option.id })}
                     >
                       <ToggleSwitch checked={isSelected} />
                       <OptionState active={isSelected} activeLabel="activ" />
@@ -897,13 +927,16 @@ export function SettingsPage() {
 
               <SettingsList title="Feedback AI">
                 {aiFeedbackOptions.map((option) => {
-                  const isSelected = option.id === aiFeedback;
+                  const isSelected = option.id === preferences?.ai_feedback_style;
                   return (
                     <SettingsOptionButton
                       key={option.id}
+                      disabled={isLoadingPreferences || isSavingPreferences}
                       title={option.title}
                       description={option.description}
-                      onClick={() => setAiFeedback(option.id)}
+                      onClick={() =>
+                        void savePreference({ ai_feedback_style: option.id })
+                      }
                     >
                       <ToggleSwitch checked={isSelected} />
                       <OptionState active={isSelected} activeLabel="activ" />
@@ -915,13 +948,20 @@ export function SettingsPage() {
 
             <SettingsList title="Automatizări">
               {studyAutomationOptions.map((option) => {
-                const isActive = studyAutomations[option.id];
+                const isActive = Boolean(
+                  preferences?.[studyAutomationPreferenceKey[option.id]],
+                );
                 return (
                   <SettingsOptionButton
                     key={option.id}
+                    disabled={isLoadingPreferences || isSavingPreferences}
                     title={option.title}
                     description={option.description}
-                    onClick={() => toggleStudyAutomation(option.id)}
+                    onClick={() =>
+                      void savePreference({
+                        [studyAutomationPreferenceKey[option.id]]: !isActive,
+                      })
+                    }
                   >
                     <ToggleSwitch checked={isActive} />
                     <OptionState active={isActive} />
@@ -1050,23 +1090,40 @@ export function SettingsPage() {
           </div>
         );
 
-      case "notifications":
+      case "notifications": {
+        const activeChannelCount = notificationChannelOptions.filter(
+          (option) => preferences?.[notificationChannelPreferenceKey[option.id]],
+        ).length;
+        const activeAlertCount = notificationAlertOptions.filter(
+          (option) => preferences?.[notificationAlertPreferenceKey[option.id]],
+        ).length;
+
         return (
           <div className="space-y-5">
+            {preferencesError ? (
+              <p className="rounded-xl border border-danger-border bg-danger-soft px-4 py-3 text-sm font-bold text-danger">
+                {preferencesError}
+              </p>
+            ) : null}
+
             <div className="grid gap-5 md:grid-cols-3">
               <SettingsMetric
                 label="Frecvență"
-                value={notificationFrequency === "daily" ? "Zilnic" : "Instant"}
+                value={
+                  preferences?.notify_frequency === "instant"
+                    ? "Instant"
+                    : "Zilnic"
+                }
                 detail="Cum primești notificările importante"
               />
               <SettingsMetric
                 label="Canale active"
-                value={`${Object.values(notificationChannels).filter(Boolean).length}/3`}
+                value={`${activeChannelCount}/${notificationChannelOptions.length}`}
                 detail="Email, studiu și noutăți produs"
               />
               <SettingsMetric
                 label="Evenimente"
-                value={`${Object.values(notificationAlerts).filter(Boolean).length}/3`}
+                value={`${activeAlertCount}/${notificationAlertOptions.length}`}
                 detail="Tipuri de alerte permise"
               />
             </div>
@@ -1084,13 +1141,16 @@ export function SettingsPage() {
                   description: "Un singur email cu ce contează pentru azi.",
                 },
               ].map((option) => {
-                const isSelected = notificationFrequency === option.id;
+                const isSelected = preferences?.notify_frequency === option.id;
                 return (
                   <SettingsOptionButton
                     key={option.id}
+                    disabled={isLoadingPreferences || isSavingPreferences}
                     title={option.title}
                     description={option.description}
-                    onClick={() => setNotificationFrequency(option.id)}
+                    onClick={() =>
+                      void savePreference({ notify_frequency: option.id })
+                    }
                   >
                     <ToggleSwitch checked={isSelected} />
                     <OptionState active={isSelected} activeLabel="activ" />
@@ -1102,13 +1162,15 @@ export function SettingsPage() {
             <div className="grid gap-5 lg:grid-cols-2">
               <SettingsList title="Canale">
                 {notificationChannelOptions.map((option) => {
-                  const isActive = notificationChannels[option.id];
+                  const key = notificationChannelPreferenceKey[option.id];
+                  const isActive = Boolean(preferences?.[key]);
                   return (
                     <SettingsOptionButton
                       key={option.id}
+                      disabled={isLoadingPreferences || isSavingPreferences}
                       title={option.title}
                       description={option.description}
-                      onClick={() => toggleNotificationChannel(option.id)}
+                      onClick={() => void savePreference({ [key]: !isActive })}
                     >
                       <ToggleSwitch checked={isActive} />
                       <OptionState active={isActive} />
@@ -1119,13 +1181,15 @@ export function SettingsPage() {
 
               <SettingsList title="Evenimente">
                 {notificationAlertOptions.map((option) => {
-                  const isActive = notificationAlerts[option.id];
+                  const key = notificationAlertPreferenceKey[option.id];
+                  const isActive = Boolean(preferences?.[key]);
                   return (
                     <SettingsOptionButton
                       key={option.id}
+                      disabled={isLoadingPreferences || isSavingPreferences}
                       title={option.title}
                       description={option.description}
-                      onClick={() => toggleNotificationAlert(option.id)}
+                      onClick={() => void savePreference({ [key]: !isActive })}
                     >
                       <ToggleSwitch checked={isActive} />
                       <OptionState active={isActive} activeLabel="activ" />
@@ -1136,6 +1200,7 @@ export function SettingsPage() {
             </div>
           </div>
         );
+      }
 
       case "security":
         return (

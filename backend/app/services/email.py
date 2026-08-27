@@ -330,6 +330,43 @@ def email_change_confirmation_email(
     return html, text
 
 
+def notification_digest_email(
+    *,
+    items: list[tuple[str, str]],
+    app_url: str,
+    logo_html: str,
+    app_name: str = "Reviss",
+) -> tuple[str, str]:
+    is_digest = len(items) > 1
+    title = (
+        f"{len(items)} noutăți în contul tău" if is_digest else items[0][0]
+    )
+    intro = (
+        "Iată ce s-a întâmplat de la ultima vizită:"
+        if is_digest
+        else items[0][1]
+    )
+    details = [f"{item_title}: {item_body}" for item_title, item_body in items]
+    text = (
+        f"{title}\n\n{intro}\n\n"
+        + "\n".join(f"- {line}" for line in details)
+        + f"\n\nDeschide Reviss: {app_url}"
+    )
+    html = _email_shell(
+        app_name=app_name,
+        eyebrow="Rezumat" if is_digest else "Notificare",
+        title=title,
+        intro=intro,
+        logo_html=logo_html,
+        cta_label="Deschide Reviss",
+        action_url=app_url,
+        note_title="Vrei mai puține email-uri?",
+        note="Poți opri aceste notificări din Setări → Notificări.",
+        details=details,
+    )
+    return html, text
+
+
 def password_reset_email(
     *, reset_url: str, logo_html: str, app_name: str = "Reviss"
 ) -> tuple[str, str]:
