@@ -203,6 +203,12 @@ export default function RootLayout({
           type="image/svg+xml"
           media="(prefers-color-scheme: dark)"
         />
+        <link
+          rel="icon"
+          href="/favicon-48x48.png"
+          type="image/png"
+          sizes="48x48"
+        />
         <Script
           id="reviss-theme-script"
           strategy="beforeInteractive"
