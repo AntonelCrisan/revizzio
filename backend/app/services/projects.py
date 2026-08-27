@@ -1281,6 +1281,45 @@ class StudyProjectService:
         await self.session.commit()
         self._delete_project_storage(project_dir)
 
+    async def delete_all_materials(self, user: User) -> int:
+        projects = list(
+            (
+                await self.session.scalars(
+                    self._project_query().where(StudyProject.user_id == user.id)
+                )
+            ).all()
+        )
+
+        deleted_count = 0
+        for project in projects:
+            deleted_count += len(project.files)
+            project.files.clear()
+            project_dir = self._project_dir(user.id, project.id)
+            for subdir_name in ("source", "markdown"):
+                shutil.rmtree(project_dir / subdir_name, ignore_errors=True)
+
+        await self.session.commit()
+        return deleted_count
+
+    async def delete_all_flashcards(self, user: User) -> int:
+        projects = list(
+            (
+                await self.session.scalars(
+                    self._project_query().where(StudyProject.user_id == user.id)
+                )
+            ).all()
+        )
+
+        deleted_count = 0
+        for project in projects:
+            deleted_count += len(project.flashcards)
+            project.flashcards.clear()
+            project_dir = self._project_dir(user.id, project.id)
+            shutil.rmtree(project_dir / "flashcard-images", ignore_errors=True)
+
+        await self.session.commit()
+        return deleted_count
+
     async def prepare_project(
         self,
         *,

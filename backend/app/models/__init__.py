@@ -9,7 +9,11 @@ from app.models.compliance import (
     SubscriptionCancellation,
     WithdrawalRequest,
 )
-from app.models.email_tokens import PasswordResetToken, PendingRegistration
+from app.models.email_tokens import (
+    PasswordResetToken,
+    PendingEmailChange,
+    PendingRegistration,
+)
 from app.models.legal import CompanyData, LegalDocument, LegalDocumentSection
 from app.models.study_project import (
     StudyProject,
@@ -50,6 +54,7 @@ __all__ = [
     "LegalDocument",
     "LegalDocumentSection",
     "PasswordResetToken",
+    "PendingEmailChange",
     "PendingRegistration",
     "StripeEvent",
     "StudyProject",

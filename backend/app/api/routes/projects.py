@@ -19,6 +19,7 @@ from starlette.datastructures import UploadFile as StarletteUploadFile
 from app.api.dependencies import AppSettings, CurrentUser, DbSession
 from app.core.rate_limit import _memory_rate_limit_buckets, consume_rate_limit
 from app.schemas.projects import (
+    AccountWipeResponse,
     StudyProjectAiSelectionExplainRequest,
     StudyProjectAiSelectionExplainResponse,
     StudyProjectChatRequest,
@@ -62,6 +63,7 @@ PROJECT_RATE_LIMIT_POLICIES = {
     "manage": 30,
     "flashcards": 20,
     "study-actions": 80,
+    "privacy-wipe": 3,
 }
 _project_rate_limit_buckets = _memory_rate_limit_buckets
 _TRUE_FORM_VALUES = {"1", "true", "t", "yes", "y", "on"}
@@ -296,6 +298,36 @@ async def list_archived_projects(
     service = _service(session, settings)
     projects = await service.list_archived_projects(current_user)
     return [service.to_response(project) for project in projects]
+
+
+@router.post("/materials/delete-all", response_model=AccountWipeResponse)
+async def delete_all_materials(
+    current_user: CurrentUser,
+    session: DbSession,
+    settings: AppSettings,
+) -> AccountWipeResponse:
+    await _enforce_project_rate_limit(current_user, "privacy-wipe")
+    service = _service(session, settings)
+    deleted_count = await service.delete_all_materials(current_user)
+    return AccountWipeResponse(
+        deleted_count=deleted_count,
+        message="Materialele încărcate au fost șterse din toate proiectele.",
+    )
+
+
+@router.post("/flashcards/delete-all", response_model=AccountWipeResponse)
+async def delete_all_flashcards(
+    current_user: CurrentUser,
+    session: DbSession,
+    settings: AppSettings,
+) -> AccountWipeResponse:
+    await _enforce_project_rate_limit(current_user, "privacy-wipe")
+    service = _service(session, settings)
+    deleted_count = await service.delete_all_flashcards(current_user)
+    return AccountWipeResponse(
+        deleted_count=deleted_count,
+        message="Flashcard-urile au fost șterse din toate proiectele.",
+    )
 
 
 @router.post("/prepare", response_model=StudyProjectPrepareResponse)

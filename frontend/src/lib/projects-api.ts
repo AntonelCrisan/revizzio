@@ -243,6 +243,29 @@ export async function listArchivedStudyProjects(): Promise<StudyProject[]> {
   return parseProjectResponse<StudyProject[]>(response);
 }
 
+export type AccountWipeResult = {
+  deleted_count: number;
+  message: string;
+};
+
+export async function deleteAllMaterials(): Promise<AccountWipeResult> {
+  const response = await fetch("/api/projects/materials/delete-all", {
+    method: "POST",
+    credentials: "same-origin",
+    cache: "no-store",
+  });
+  return parseProjectResponse<AccountWipeResult>(response);
+}
+
+export async function deleteAllFlashcards(): Promise<AccountWipeResult> {
+  const response = await fetch("/api/projects/flashcards/delete-all", {
+    method: "POST",
+    credentials: "same-origin",
+    cache: "no-store",
+  });
+  return parseProjectResponse<AccountWipeResult>(response);
+}
+
 export async function renameStudyProject(payload: {
   projectId: string;
   name: string;

@@ -1,6 +1,8 @@
 const allowedRoutes = [
   { method: "GET", pattern: /^$/ },
   { method: "GET", pattern: /^archived$/ },
+  { method: "POST", pattern: /^materials\/delete-all$/ },
+  { method: "POST", pattern: /^flashcards\/delete-all$/ },
   { method: "GET", pattern: /^[0-9a-fA-F-]{36}$/ },
   { method: "GET", pattern: /^[0-9a-fA-F-]{36}\/markdown$/ },
   { method: "GET", pattern: /^[0-9a-fA-F-]{36}\/prompt$/ },

@@ -91,5 +91,26 @@ class ChangePasswordRequest(BaseModel):
         return self
 
 
+class UpdateFullNameRequest(BaseModel):
+    full_name: str = Field(min_length=2, max_length=120)
+
+    @field_validator("full_name")
+    @classmethod
+    def normalize_full_name(cls, value: str) -> str:
+        normalized = " ".join(value.split())
+        if len(normalized) < 2:
+            raise ValueError("Numele complet este obligatoriu.")
+        return normalized
+
+
+class RequestEmailChangeRequest(BaseModel):
+    new_email: EmailStr
+    current_password: str = Field(min_length=1, max_length=128)
+
+
+class ConfirmEmailChangeRequest(BaseModel):
+    token: str = Field(min_length=20, max_length=256)
+
+
 class MessageResponse(BaseModel):
     message: str

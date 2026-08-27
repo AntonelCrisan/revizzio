@@ -44,6 +44,16 @@ class UserRepository:
         await self._session.flush()
         return user
 
+    async def update_full_name(
+        self,
+        user: User,
+        *,
+        full_name: str,
+    ) -> User:
+        user.full_name = full_name
+        await self._session.flush()
+        return user
+
     async def update_preferences(
         self,
         user: User,

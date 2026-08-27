@@ -22,6 +22,7 @@ import {
   requestAccountDeletion,
   updateLanguagePreference,
   updateThemePreference,
+  withdrawNewsletterConsent,
 } from "@/lib/auth-api";
 import {
   getActivePlanBadge,
@@ -35,6 +36,8 @@ import {
   themeColorVariables,
 } from "@/lib/theme-colors";
 import {
+  deleteAllFlashcards,
+  deleteAllMaterials,
   deleteStudyProject,
   listArchivedStudyProjects,
   restoreStudyProject,
@@ -304,6 +307,10 @@ const notificationAlertOptions = [
 
 type NotificationAlertId = (typeof notificationAlertOptions)[number]["id"];
 
+function dataExportHref() {
+  return "/api/auth/me/data-export";
+}
+
 function isSettingsTabId(value: string): value is SettingsTabId {
   return settingsTabs.some((tab) => tab.id === value);
 }
@@ -402,6 +409,12 @@ export function SettingsPage() {
   const [isArchiveModalOpen, setIsArchiveModalOpen] = useState(false);
   const [archiveDeleteCandidate, setArchiveDeleteCandidate] =
     useState<StudyProject | null>(null);
+  const [privacyActionState, setPrivacyActionState] = useState<
+    "idle" | "materials" | "flashcards" | "newsletter"
+  >("idle");
+  const [privacyWipeConfirm, setPrivacyWipeConfirm] = useState<
+    "materials" | "flashcards" | null
+  >(null);
   const deletingArchivedProjectIdsRef = useRef(new Set<string>());
   const [studyPace, setStudyPace] = useState<StudyPaceId>("balanced");
   const [aiFeedback, setAiFeedback] = useState<AiFeedbackId>("guided");
@@ -559,6 +572,48 @@ export function SettingsPage() {
     } finally {
       deletingArchivedProjectIdsRef.current.delete(projectId);
       setArchiveActionProjectId(null);
+    }
+  }
+
+  async function confirmPrivacyWipe(target: "materials" | "flashcards") {
+    setPrivacyWipeConfirm(null);
+    setPrivacyActionState(target);
+    setPrivacyNotice(null);
+
+    try {
+      const result =
+        target === "materials"
+          ? await deleteAllMaterials()
+          : await deleteAllFlashcards();
+      setPrivacyNotice(result.message);
+    } catch (error) {
+      setPrivacyNotice(
+        error instanceof Error
+          ? error.message
+          : "Acțiunea nu a putut fi finalizată momentan.",
+      );
+    } finally {
+      setPrivacyActionState("idle");
+    }
+  }
+
+  async function withdrawNewsletter() {
+    if (privacyActionState !== "idle") return;
+
+    setPrivacyActionState("newsletter");
+    setPrivacyNotice(null);
+
+    try {
+      const result = await withdrawNewsletterConsent();
+      setPrivacyNotice(result.message);
+    } catch (error) {
+      setPrivacyNotice(
+        error instanceof AuthApiError
+          ? error.message
+          : "Consimțământul nu a putut fi retras momentan.",
+      );
+    } finally {
+      setPrivacyActionState("idle");
     }
   }
 
@@ -1099,6 +1154,28 @@ export function SettingsPage() {
 
             <SettingsList title="Acțiuni securitate">
               <SettingsActionRow
+                title="Schimbă numele"
+                description="Actualizează numele afișat pe contul tău."
+              >
+                <Link
+                  href="/settings/schimba-numele"
+                  className="group inline-flex"
+                >
+                  <ActionPill>Schimbă</ActionPill>
+                </Link>
+              </SettingsActionRow>
+              <SettingsActionRow
+                title="Schimbă emailul"
+                description="Adresa nouă trebuie confirmată printr-un email trimis la ea."
+              >
+                <Link
+                  href="/settings/schimba-email"
+                  className="group inline-flex"
+                >
+                  <ActionPill>Schimbă</ActionPill>
+                </Link>
+              </SettingsActionRow>
+              <SettingsActionRow
                 title="Schimbă parola"
                 description="Actualizează parola contului și revocă celelalte sesiuni active."
               >
@@ -1134,104 +1211,51 @@ export function SettingsPage() {
       case "privacy":
         return (
           <div className="space-y-5">
-            <section className="rounded-xl border border-warning-border bg-warning-soft p-5 text-warning">
-              <SectionLabel>Ștergere cont</SectionLabel>
-              <p className="mt-2 max-w-3xl text-sm leading-6">
-                Acțiunile critice cer reconfirmare. Datele fiscale sau cele
-                necesare apărării drepturilor pot fi păstrate cât cere legea.
-              </p>
-            </section>
-
-            <div className="grid gap-5 md:grid-cols-3">
-              <SettingsMetric
-                label="Arhivă"
-                value={`${archivedProjects.length}`}
-                detail="Proiecte ascunse din dashboard"
-              />
-              <SettingsMetric
-                label="Cookie-uri"
-                value="Configurabile"
-                detail="Acordul poate fi modificat oricând"
-              />
-              <SettingsMetric
-                label="Export date"
-                value="La cerere"
-                detail="Pregătit pentru endpoint backend"
-              />
-            </div>
-
             <SettingsList title="Date și confidențialitate">
               <SettingsActionRow
                 title="Descarcă datele contului"
-                description="Include profilul, preferințele, proiectele și istoricul disponibil pentru contul tău."
+                description="Include profilul, preferințele, proiectele, materialele și flashcard-urile contului tău, într-un document PDF."
               >
-                <button
-                  type="button"
-                  onClick={() =>
-                    setPrivacyNotice(
-                      "Exportul datelor va genera o arhivă descărcabilă după conectarea endpointului backend.",
-                    )
-                  }
+                <a
+                  href={dataExportHref()}
                   className="w-fit rounded-full border border-action px-4 py-2 text-xs font-bold transition hover:bg-action hover:text-on-action"
                 >
                   Descarcă datele
-                </button>
+                </a>
               </SettingsActionRow>
 
-              {[
-                [
-                  "Șterge materialele încărcate",
-                  "Elimină fișierele sursă asociate proiectelor tale.",
-                ],
-                [
-                  "Șterge flashcard-urile",
-                  "Elimină cardurile generate automat din proiecte.",
-                ],
-                [
-                  "Retrage consimțământul newsletter",
-                  "Oprește comunicările comerciale prin e-mail.",
-                ],
-                [
-                  "Șterge contul",
-                  "Necesită reconfirmarea parolei sau confirmare prin e-mail.",
-                ],
-              ].map(([title, description]) => {
-                const isAccountDeletionAction = title === "Șterge contul";
-                return (
-                  <SettingsOptionButton
-                    key={title}
-                    disabled={
-                      isAccountDeletionAction &&
-                      (accountDeletionState === "submitting" ||
-                        hasPendingAccountDeletionRequest)
-                    }
-                    onClick={() => {
-                      if (isAccountDeletionAction) {
-                        openAccountDeletionModal();
-                        return;
-                      }
-                      setPrivacyNotice(
-                        `${title}: solicitarea va fi validată server-side și jurnalizată înainte de executare.`,
-                      );
-                    }}
-                    title={title}
-                    description={description}
-                    tone={isAccountDeletionAction ? "danger" : "default"}
-                  >
-                    <ActionPill
-                      tone={isAccountDeletionAction ? "danger" : "default"}
-                    >
-                      {isAccountDeletionAction
-                        ? accountDeletionState === "submitting"
-                          ? "Se trimite"
-                          : hasPendingAccountDeletionRequest
-                            ? "Solicitat"
-                            : "Solicită"
-                        : "Deschide"}
-                    </ActionPill>
-                  </SettingsOptionButton>
-                );
-              })}
+              <SettingsOptionButton
+                title="Șterge materialele încărcate"
+                description="Elimină fișierele sursă asociate tuturor proiectelor tale. Quiz-urile, rezumatele și flashcard-urile rămân neatinse."
+                disabled={privacyActionState !== "idle"}
+                onClick={() => setPrivacyWipeConfirm("materials")}
+              >
+                <ActionPill tone="danger">
+                  {privacyActionState === "materials" ? "Se șterge" : "Șterge"}
+                </ActionPill>
+              </SettingsOptionButton>
+
+              <SettingsOptionButton
+                title="Șterge flashcard-urile"
+                description="Elimină cardurile generate automat din toate proiectele tale."
+                disabled={privacyActionState !== "idle"}
+                onClick={() => setPrivacyWipeConfirm("flashcards")}
+              >
+                <ActionPill tone="danger">
+                  {privacyActionState === "flashcards" ? "Se șterge" : "Șterge"}
+                </ActionPill>
+              </SettingsOptionButton>
+
+              <SettingsOptionButton
+                title="Retrage consimțământul newsletter"
+                description="Oprește comunicările comerciale prin e-mail."
+                disabled={privacyActionState !== "idle"}
+                onClick={() => void withdrawNewsletter()}
+              >
+                <ActionPill>
+                  {privacyActionState === "newsletter" ? "Se retrage" : "Retrage"}
+                </ActionPill>
+              </SettingsOptionButton>
 
               <SettingsActionRow
                 title="Setări cookie"
@@ -1288,6 +1312,15 @@ export function SettingsPage() {
                 onConfirm={() =>
                   void deleteArchivedProject(archiveDeleteCandidate.id)
                 }
+              />
+            ) : null}
+
+            {privacyWipeConfirm ? (
+              <PrivacyWipeConfirmModal
+                target={privacyWipeConfirm}
+                isProcessing={privacyActionState === privacyWipeConfirm}
+                onCancel={() => setPrivacyWipeConfirm(null)}
+                onConfirm={() => void confirmPrivacyWipe(privacyWipeConfirm)}
               />
             ) : null}
           </div>
@@ -1564,6 +1597,76 @@ function ArchiveDeleteModal({
             className="rounded-full bg-danger px-5 py-3 text-sm font-bold text-on-action transition hover:opacity-90 disabled:cursor-wait disabled:opacity-60"
           >
             {isDeleting ? "Se șterge..." : "Șterge definitiv"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function PrivacyWipeConfirmModal({
+  target,
+  isProcessing,
+  onCancel,
+  onConfirm,
+}: {
+  target: "materials" | "flashcards";
+  isProcessing: boolean;
+  onCancel: () => void;
+  onConfirm: () => void;
+}) {
+  const copy =
+    target === "materials"
+      ? {
+          title: "Ștergi toate materialele încărcate?",
+          description:
+            "Fișierele sursă din toate proiectele tale vor fi eliminate definitiv. Quiz-urile, rezumatele și flashcard-urile deja generate rămân neatinse.",
+          confirmLabel: "Șterge materialele",
+        }
+      : {
+          title: "Ștergi toate flashcard-urile?",
+          description:
+            "Cardurile generate din toate proiectele tale vor fi eliminate definitiv.",
+          confirmLabel: "Șterge flashcard-urile",
+        };
+
+  return (
+    <div
+      className="fixed inset-0 z-[60] flex items-center justify-center bg-content/40 px-4 py-6 backdrop-blur-sm"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="privacy-wipe-title"
+    >
+      <div className="w-full max-w-lg rounded-xl border border-subtle bg-surface p-6 shadow-2xl shadow-black/20">
+        <p className="text-xs font-black uppercase tracking-[0.16em] text-danger">
+          Ștergere definitivă
+        </p>
+        <h2
+          id="privacy-wipe-title"
+          className="mt-3 font-serif text-3xl font-semibold leading-tight"
+        >
+          {copy.title}
+        </h2>
+        <p className="mt-3 text-sm leading-6 text-muted">{copy.description}</p>
+        <div className="mt-5 rounded-xl border border-warning-border bg-warning-soft px-4 py-3 text-sm font-semibold leading-6 text-warning">
+          Această acțiune este permanentă și nu poate fi anulată.
+        </div>
+        <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+          <button
+            type="button"
+            onClick={onCancel}
+            disabled={isProcessing}
+            className="rounded-full border border-subtle px-5 py-3 text-sm font-bold transition hover:bg-surface-hover disabled:cursor-wait disabled:opacity-60"
+          >
+            Renunță
+          </button>
+          <button
+            type="button"
+            onClick={onConfirm}
+            disabled={isProcessing}
+            className="rounded-full bg-danger px-5 py-3 text-sm font-bold text-on-action transition hover:opacity-90 disabled:cursor-wait disabled:opacity-60"
+          >
+            {isProcessing ? "Se șterge..." : copy.confirmLabel}
           </button>
         </div>
       </div>

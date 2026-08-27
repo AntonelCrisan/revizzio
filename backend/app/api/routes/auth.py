@@ -13,12 +13,15 @@ from app.core.rate_limit import _memory_rate_limit_buckets, consume_rate_limit
 from app.models import User
 from app.schemas.auth import (
     ChangePasswordRequest,
+    ConfirmEmailChangeRequest,
     EmailVerificationRequest,
     LoginRequest,
     MessageResponse,
     PasswordResetConfirmRequest,
     PasswordResetRequest,
     RegisterRequest,
+    RequestEmailChangeRequest,
+    UpdateFullNameRequest,
 )
 from app.schemas.user import UserPreferencesUpdate, UserResponse
 from app.services.auth import (
@@ -27,10 +30,12 @@ from app.services.auth import (
     AuthService,
     EmailAlreadyRegisteredError,
     EmailDeliveryUnavailableError,
+    EmailUnchangedError,
     InvalidCredentialsError,
     InvalidEmailTokenError,
     PendingEmailConfirmationError,
 )
+from app.services.pdf_export import account_data_export_pdf
 
 router = APIRouter(prefix="/api/auth", tags=["authentication"])
 
@@ -41,6 +46,11 @@ AUTH_RATE_LIMIT_IDENTITY_POLICIES = {
     "login": 10,
     "me/deletion-request": 3,
     "me/password": 8,
+    "me/name": 10,
+    "me/email/request": 5,
+    "email/confirm": 10,
+    "me/newsletter-consent/withdraw": 10,
+    "me/data-export": 10,
     "password-reset/request": 5,
     "password-reset/confirm": 10,
 }
@@ -50,6 +60,11 @@ AUTH_RATE_LIMIT_IP_POLICIES = {
     "login": 50,
     "me/deletion-request": 10,
     "me/password": 20,
+    "me/name": 20,
+    "me/email/request": 20,
+    "email/confirm": 30,
+    "me/newsletter-consent/withdraw": 20,
+    "me/data-export": 20,
     "password-reset/request": 20,
     "password-reset/confirm": 30,
 }
@@ -443,6 +458,150 @@ async def change_password(
 
     return MessageResponse(
         message="Parola a fost actualizată. Celelalte sesiuni au fost revocate.",
+    )
+
+
+@router.patch("/me/name", response_model=UserResponse)
+async def update_full_name(
+    payload: UpdateFullNameRequest,
+    request: Request,
+    current_user: CurrentUser,
+    service: AuthServiceDependency,
+    settings: AppSettings,
+) -> UserResponse:
+    _protect_auth_origin(request, settings)
+    await _enforce_auth_rate_limit(
+        request,
+        "me/name",
+        identity=str(current_user.id),
+    )
+    user = await service.update_full_name(current_user, full_name=payload.full_name)
+    return await _user_response(user, service)
+
+
+@router.post("/me/email/change-request", response_model=MessageResponse)
+async def request_email_change(
+    payload: RequestEmailChangeRequest,
+    request: Request,
+    current_user: CurrentUser,
+    service: AuthServiceDependency,
+    settings: AppSettings,
+) -> MessageResponse:
+    _protect_auth_origin(request, settings)
+    await _enforce_auth_rate_limit(
+        request,
+        "me/email/request",
+        identity=str(current_user.id),
+    )
+    user_agent, ip_address = _client_context(request)
+    try:
+        await service.request_email_change(
+            current_user,
+            new_email=str(payload.new_email),
+            current_password=payload.current_password,
+            user_agent=user_agent,
+            ip_address=ip_address,
+        )
+    except InvalidCredentialsError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Parola curentă este incorectă.",
+        ) from exc
+    except EmailUnchangedError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Adresa introdusă este identică cu cea curentă.",
+        ) from exc
+    except EmailAlreadyRegisteredError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Există deja un cont asociat acestei adrese de email.",
+        ) from exc
+    except EmailDeliveryUnavailableError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=(
+                "Emailul de confirmare nu a putut fi trimis momentan. "
+                "Te rugăm să încerci din nou."
+            ),
+        ) from exc
+
+    return MessageResponse(
+        message=(
+            f"Ți-am trimis un email de confirmare la {payload.new_email}. "
+            "Adresa se schimbă după confirmare."
+        ),
+    )
+
+
+@router.post("/email/confirm", response_model=MessageResponse)
+async def confirm_email_change(
+    payload: ConfirmEmailChangeRequest,
+    request: Request,
+    service: AuthServiceDependency,
+    settings: AppSettings,
+) -> MessageResponse:
+    _protect_auth_origin(request, settings)
+    await _enforce_auth_rate_limit(request, "email/confirm", identity=payload.token)
+    user_agent, ip_address = _client_context(request)
+    try:
+        await service.confirm_email_change(
+            payload.token,
+            user_agent=user_agent,
+            ip_address=ip_address,
+        )
+    except InvalidEmailTokenError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Linkul de confirmare este invalid sau a expirat.",
+        ) from exc
+    except EmailAlreadyRegisteredError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Există deja un cont asociat acestei adrese de email.",
+        ) from exc
+
+    return MessageResponse(message="Adresa de email a fost schimbată.")
+
+
+@router.post("/me/newsletter-consent/withdraw", response_model=MessageResponse)
+async def withdraw_newsletter_consent(
+    request: Request,
+    current_user: CurrentUser,
+    service: AuthServiceDependency,
+    settings: AppSettings,
+) -> MessageResponse:
+    _protect_auth_origin(request, settings)
+    await _enforce_auth_rate_limit(
+        request,
+        "me/newsletter-consent/withdraw",
+        identity=str(current_user.id),
+    )
+    await service.withdraw_newsletter_consent(current_user)
+    return MessageResponse(
+        message="Consimțământul pentru newsletter a fost retras.",
+    )
+
+
+@router.get("/me/data-export")
+async def export_account_data(
+    request: Request,
+    current_user: CurrentUser,
+    service: AuthServiceDependency,
+) -> Response:
+    await _enforce_auth_rate_limit(
+        request,
+        "me/data-export",
+        identity=str(current_user.id),
+    )
+    payload = await service.export_account_data(current_user)
+    body = account_data_export_pdf(payload)
+    return Response(
+        content=body,
+        media_type="application/pdf",
+        headers={
+            "Content-Disposition": 'attachment; filename="reviss-date-cont.pdf"',
+        },
     )
 
 

@@ -9,6 +9,14 @@ const allowedRoutes = new Map([
   ["POST:register", "/api/auth/register"],
   ["POST:verify-email", "/api/auth/verify-email"],
   ["PATCH:me/password", "/api/auth/me/password"],
+  ["PATCH:me/name", "/api/auth/me/name"],
+  ["POST:me/email/change-request", "/api/auth/me/email/change-request"],
+  ["POST:email/confirm", "/api/auth/email/confirm"],
+  [
+    "POST:me/newsletter-consent/withdraw",
+    "/api/auth/me/newsletter-consent/withdraw",
+  ],
+  ["GET:me/data-export", "/api/auth/me/data-export"],
 ]);
 
 type AuthRouteContext = {
@@ -65,6 +73,12 @@ async function proxyAuthRequest(
     const responseContentType = backendResponse.headers.get("content-type");
     if (responseContentType) {
       responseHeaders.set("content-type", responseContentType);
+    }
+    const responseContentDisposition = backendResponse.headers.get(
+      "content-disposition",
+    );
+    if (responseContentDisposition) {
+      responseHeaders.set("content-disposition", responseContentDisposition);
     }
 
     const setCookies = backendResponse.headers.getSetCookie();

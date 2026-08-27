@@ -159,6 +159,37 @@ export function changePassword(payload: {
   });
 }
 
+export function updateFullName(fullName: string): Promise<AuthUser> {
+  return authRequest<AuthUser>("me/name", {
+    method: "PATCH",
+    body: JSON.stringify({ full_name: fullName }),
+  });
+}
+
+export function requestEmailChange(payload: {
+  new_email: string;
+  current_password: string;
+}): Promise<MessageResponse> {
+  return authRequest<MessageResponse>("me/email/change-request", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export function confirmEmailChange(token: string): Promise<MessageResponse> {
+  return authRequest<MessageResponse>("email/confirm", {
+    method: "POST",
+    body: JSON.stringify({ token }),
+  });
+}
+
+export function withdrawNewsletterConsent(): Promise<MessageResponse> {
+  return authRequest<MessageResponse>("me/newsletter-consent/withdraw", {
+    method: "POST",
+    body: "{}",
+  });
+}
+
 export function requestAccountDeletion(): Promise<MessageResponse> {
   return authRequest<MessageResponse>("me/deletion-request", {
     method: "POST",

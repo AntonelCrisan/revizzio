@@ -295,6 +295,41 @@ def verification_email(
     return html, text
 
 
+def email_change_confirmation_email(
+    *, confirmation_url: str, logo_html: str, new_email: str, app_name: str = "Reviss"
+) -> tuple[str, str]:
+    text = (
+        f"Ai cerut schimbarea adresei de email pentru contul {app_name} în "
+        f"{new_email}.\n\n"
+        f"Confirmă noua adresă aici: {confirmation_url}\n\n"
+        "Linkul expiră automat și poate fi folosit o singură dată. "
+        "Dacă nu tu ai cerut schimbarea, ignoră acest email."
+    )
+    html = _email_shell(
+        app_name=app_name,
+        eyebrow="Schimbare email",
+        title="Confirmă noua adresă de email.",
+        intro=(
+            f"Am primit o solicitare de schimbare a adresei de email în "
+            f"{new_email}. Confirmă adresa ca să finalizăm schimbarea."
+        ),
+        logo_html=logo_html,
+        cta_label="Confirmă adresa",
+        action_url=confirmation_url,
+        note_title="Nu ai cerut tu schimbarea?",
+        note=(
+            "Poți ignora acest email. Adresa contului rămâne neschimbată atât "
+            "timp cât nu accesezi linkul de confirmare."
+        ),
+        details=[
+            "Linkul este valabil pentru o perioadă limitată.",
+            "Poate fi folosit o singură dată.",
+            "Adresa se schimbă doar după confirmare.",
+        ],
+    )
+    return html, text
+
+
 def password_reset_email(
     *, reset_url: str, logo_html: str, app_name: str = "Reviss"
 ) -> tuple[str, str]:

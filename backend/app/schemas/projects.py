@@ -57,6 +57,11 @@ class StudyProjectFlashcardReviewUpdate(BaseModel):
     review: bool
 
 
+class AccountWipeResponse(BaseModel):
+    deleted_count: int
+    message: str
+
+
 class StudyProjectSummaryHighlightResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 

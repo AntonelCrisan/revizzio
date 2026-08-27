@@ -6,6 +6,7 @@ from anyio import to_thread
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from app.core.config import Settings
 from app.core.security import (
@@ -18,7 +19,11 @@ from app.core.security import (
 from app.models import (
     AccountDeletionRequest,
     PasswordResetToken,
+    PendingEmailChange,
     PendingRegistration,
+    StudyProject,
+    StudyProjectFile,
+    StudyProjectFlashcard,
     User,
 )
 from app.repositories.auth import AuthSessionRepository, UserRepository
@@ -29,6 +34,7 @@ from app.services.email import (
     EmailDeliveryError,
     EmailMessage,
     EmailService,
+    email_change_confirmation_email,
     email_logo_html,
     password_reset_email,
     verification_email,
@@ -60,6 +66,10 @@ class InvalidSessionError(Exception):
 
 
 class AccountDeletionRequestAlreadyPendingError(Exception):
+    pass
+
+
+class EmailUnchangedError(Exception):
     pass
 
 
@@ -640,6 +650,292 @@ class AuthService:
         await self._session.commit()
         return updated_user
 
+    async def withdraw_newsletter_consent(self, user: User) -> User:
+        if not user.newsletter_consent:
+            return user
+
+        user.newsletter_consent = False
+        add_audit_log(
+            self._session,
+            action="user.newsletter_consent_withdrawn",
+            actor=user,
+            resource_type="user",
+            resource_id=str(user.id),
+            details={},
+        )
+        await self._session.commit()
+        return user
+
+    async def export_account_data(self, user: User) -> dict[str, object]:
+        projects = list(
+            (
+                await self._session.scalars(
+                    select(StudyProject)
+                    .options(
+                        selectinload(StudyProject.files),
+                        selectinload(StudyProject.flashcards),
+                        selectinload(StudyProject.archive),
+                    )
+                    .where(StudyProject.user_id == user.id)
+                    .order_by(StudyProject.created_at.desc())
+                )
+            ).all()
+        )
+
+        def _file_payload(file: StudyProjectFile) -> dict[str, object]:
+            return {
+                "id": str(file.id),
+                "original_filename": file.original_filename,
+                "content_type": file.content_type,
+                "size_bytes": file.size_bytes,
+                "conversion_status": file.conversion_status,
+                "created_at": file.created_at.isoformat(),
+            }
+
+        def _flashcard_payload(flashcard: StudyProjectFlashcard) -> dict[str, object]:
+            return {
+                "id": str(flashcard.id),
+                "front": flashcard.front,
+                "back": flashcard.back,
+                "category": flashcard.category,
+                "difficulty": flashcard.difficulty,
+                "source_type": flashcard.source_type,
+            }
+
+        def _project_payload(project: StudyProject) -> dict[str, object]:
+            return {
+                "id": str(project.id),
+                "name": project.name,
+                "subject_name": project.subject_name,
+                "institution_name": project.institution_name,
+                "status": project.status,
+                "is_archived": project.archive is not None,
+                "created_at": project.created_at.isoformat(),
+                "updated_at": project.updated_at.isoformat(),
+                "materials": [_file_payload(file) for file in project.files],
+                "flashcards": [
+                    _flashcard_payload(flashcard) for flashcard in project.flashcards
+                ],
+            }
+
+        add_audit_log(
+            self._session,
+            action="user.data_export_requested",
+            actor=user,
+            resource_type="user",
+            resource_id=str(user.id),
+            details={"project_count": len(projects)},
+        )
+        await self._session.commit()
+
+        return {
+            "generated_at": datetime.now(UTC).isoformat(),
+            "account": {
+                "id": str(user.id),
+                "email": user.email,
+                "full_name": user.full_name,
+                "role": user.role,
+                "created_at": user.created_at.isoformat(),
+                "theme_preference": user.theme_preference,
+                "language_preference": user.language_preference,
+                "terms_accepted_at": user.terms_accepted_at.isoformat(),
+                "terms_version": user.terms_version,
+                "newsletter_consent": user.newsletter_consent,
+                "newsletter_consent_at": (
+                    user.newsletter_consent_at.isoformat()
+                    if user.newsletter_consent_at
+                    else None
+                ),
+            },
+            "projects": [_project_payload(project) for project in projects],
+        }
+
+    async def update_full_name(
+        self,
+        user: User,
+        *,
+        full_name: str,
+    ) -> User:
+        old_full_name = user.full_name
+        updated_user = await self._users.update_full_name(user, full_name=full_name)
+        add_audit_log(
+            self._session,
+            action="user.full_name.updated",
+            actor=updated_user,
+            resource_type="user",
+            resource_id=str(updated_user.id),
+            details={"previous_full_name": old_full_name, "full_name": full_name},
+        )
+        await self._session.commit()
+        return updated_user
+
+    async def request_email_change(
+        self,
+        user: User,
+        *,
+        new_email: str,
+        current_password: str,
+        user_agent: str | None = None,
+        ip_address: str | None = None,
+    ) -> None:
+        password_is_valid = await to_thread.run_sync(
+            verify_password,
+            current_password,
+            user.password_hash,
+        )
+        if not password_is_valid:
+            add_audit_log(
+                self._session,
+                action="auth.email_change_failed",
+                status="failure",
+                actor=user,
+                resource_type="user",
+                resource_id=str(user.id),
+                details={"reason": "invalid_current_password"},
+                ip_address=ip_address,
+                user_agent=user_agent,
+            )
+            await self._session.commit()
+            raise InvalidCredentialsError
+
+        normalized_email = _normalize_email(new_email)
+        if normalized_email == user.email:
+            raise EmailUnchangedError
+
+        existing_user = await self._users.get_by_email(normalized_email)
+        if existing_user is not None:
+            add_audit_log(
+                self._session,
+                action="auth.email_change_failed",
+                status="failure",
+                actor=user,
+                resource_type="user",
+                resource_id=str(user.id),
+                details={
+                    "reason": "email_already_registered",
+                    "new_email": normalized_email,
+                },
+                ip_address=ip_address,
+                user_agent=user_agent,
+            )
+            await self._session.commit()
+            raise EmailAlreadyRegisteredError
+
+        now = datetime.now(UTC)
+        previous_pending = list(
+            (
+                await self._session.scalars(
+                    select(PendingEmailChange).where(
+                        PendingEmailChange.user_id == user.id,
+                        PendingEmailChange.used_at.is_(None),
+                    )
+                )
+            ).all()
+        )
+        for pending in previous_pending:
+            pending.used_at = now
+
+        token = generate_session_token()
+        pending_change = PendingEmailChange(
+            user_id=user.id,
+            new_email=normalized_email,
+            token_hash=self._hash_token(token),
+            expires_at=now
+            + timedelta(minutes=self._settings.email_verification_ttl_minutes),
+        )
+        self._session.add(pending_change)
+        add_audit_log(
+            self._session,
+            action="auth.email_change_requested",
+            actor=user,
+            resource_type="user",
+            resource_id=str(user.id),
+            details={
+                "new_email": normalized_email,
+                "expires_at": pending_change.expires_at,
+            },
+            ip_address=ip_address,
+            user_agent=user_agent,
+        )
+        await self._session.flush()
+
+        html, text = email_change_confirmation_email(
+            confirmation_url=self._email_change_confirmation_url(token),
+            logo_html=self._email_logo_html(),
+            new_email=normalized_email,
+        )
+        try:
+            await self._email.send(
+                EmailMessage(
+                    to=normalized_email,
+                    subject="Confirmă noua adresă de email Reviss",
+                    html=html,
+                    text=text,
+                )
+            )
+            await self._session.commit()
+        except EmailDeliveryError as exc:
+            await self._session.rollback()
+            await self._audit_email_failure(
+                action="auth.email_change_email_failed",
+                actor_user_id=user.id,
+                actor_email=user.email,
+                actor_name=user.full_name,
+                email=normalized_email,
+                details={"reason": str(exc)},
+                ip_address=ip_address,
+                user_agent=user_agent,
+            )
+            raise EmailDeliveryUnavailableError from exc
+
+    async def confirm_email_change(
+        self,
+        token: str,
+        *,
+        user_agent: str | None = None,
+        ip_address: str | None = None,
+    ) -> User:
+        now = datetime.now(UTC)
+        pending = await self._session.scalar(
+            select(PendingEmailChange).where(
+                PendingEmailChange.token_hash == self._hash_token(token),
+                PendingEmailChange.used_at.is_(None),
+                PendingEmailChange.expires_at > now,
+            )
+        )
+        if pending is None:
+            raise InvalidEmailTokenError
+
+        user = await self._session.get(User, pending.user_id)
+        if user is None:
+            raise InvalidEmailTokenError
+
+        existing_user = await self._users.get_by_email(pending.new_email)
+        if existing_user is not None and existing_user.id != user.id:
+            pending.used_at = now
+            await self._session.commit()
+            raise EmailAlreadyRegisteredError
+
+        old_email = user.email
+        user.email = pending.new_email
+        pending.used_at = now
+        add_audit_log(
+            self._session,
+            action="auth.email_changed",
+            actor=user,
+            resource_type="user",
+            resource_id=str(user.id),
+            details={"previous_email": old_email, "new_email": user.email},
+            ip_address=ip_address,
+            user_agent=user_agent,
+        )
+        try:
+            await self._session.commit()
+        except IntegrityError as exc:
+            await self._session.rollback()
+            raise EmailAlreadyRegisteredError from exc
+        return user
+
     async def _raise_pending_confirmation_if_credentials_match(
         self,
         *,
@@ -743,6 +1039,9 @@ class AuthService:
 
     def _password_reset_url(self, token: str) -> str:
         return f"{self._settings.public_app_url}/reset-password?token={token}"
+
+    def _email_change_confirmation_url(self, token: str) -> str:
+        return f"{self._settings.public_app_url}/confirm-email-change?token={token}"
 
     def _email_logo_html(self) -> str:
         return email_logo_html(self._settings.email_logo_url, app_name="Reviss")
