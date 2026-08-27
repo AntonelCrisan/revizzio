@@ -24,6 +24,11 @@ async def run_daily_notification_digest(
         )
 
     provided_secret = request.headers.get("x-cron-secret", "")
+    if not provided_secret:
+        authorization = request.headers.get("authorization", "")
+        if authorization.lower().startswith("bearer "):
+            provided_secret = authorization[len("Bearer ") :]
+
     if not hmac.compare_digest(provided_secret, expected_secret):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,

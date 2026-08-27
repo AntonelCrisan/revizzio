@@ -85,19 +85,27 @@ Beginner and Focus scanned PDFs are rejected before any OCR call.
 The backend does not run its own scheduler — `POST /api/internal/notifications/run-daily`
 sends the daily email digest (and computes the "recapitulare zilnică" nudge)
 when called, and does nothing on its own otherwise. It must be triggered once
-a day by something external, with the `CRON_SECRET` value above sent in an
-`X-Cron-Secret` header:
+a day by something external, with the `CRON_SECRET` value above sent either
+as an `X-Cron-Secret` header or as an `Authorization: Bearer <secret>` header
+(both are accepted, so templates that only support one or the other both
+work):
 
 ```bash
 curl -X POST https://api.reviss.app/api/internal/notifications/run-daily \
   -H "X-Cron-Secret: <same value as CRON_SECRET>"
+
+# equivalent
+curl -X POST https://api.reviss.app/api/internal/notifications/run-daily \
+  -H "Authorization: Bearer <same value as CRON_SECRET>"
 ```
 
 Any scheduler that can make one daily HTTPS request works — a Railway
-service with a cron schedule running this `curl` command, a GitHub Actions
-scheduled workflow, or an external cron service (e.g. cron-job.org). Without
-`CRON_SECRET` set, the endpoint returns 503 and does nothing; a request with
-the wrong secret returns 401.
+service with a cron schedule running this `curl` command (e.g. the "Cron
+Trigger External Webhook URL" Railway template, which sends the secret as an
+`Authorization: Bearer` header), a GitHub Actions scheduled workflow, or an
+external cron service (e.g. cron-job.org). Without `CRON_SECRET` set, the
+endpoint returns 503 and does nothing; a request with the wrong secret
+returns 401.
 
 ## Frontend variables
 
