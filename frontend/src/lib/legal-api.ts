@@ -13,6 +13,12 @@ export type CompanyData = {
   ai_provider: string;
   payment_provider: string;
   hosting_provider: string;
+  social_facebook_url: string;
+  social_instagram_url: string;
+  social_tiktok_url: string;
+  social_linkedin_url: string;
+  social_youtube_url: string;
+  social_x_url: string;
   last_date_modified: string;
 };
 
@@ -68,6 +74,12 @@ const legalFieldLabels: Record<string, string> = {
   ai_provider: "Furnizor AI",
   payment_provider: "Furnizor plăți",
   hosting_provider: "Furnizor hosting",
+  social_facebook_url: "Facebook",
+  social_instagram_url: "Instagram",
+  social_tiktok_url: "TikTok",
+  social_linkedin_url: "LinkedIn",
+  social_youtube_url: "YouTube",
+  social_x_url: "X (Twitter)",
 };
 
 export class LegalApiError extends Error {

@@ -84,6 +84,12 @@ class CompanyData(Base):
     ai_provider: Mapped[str] = mapped_column(Text, nullable=False)
     payment_provider: Mapped[str] = mapped_column(Text, nullable=False)
     hosting_provider: Mapped[str] = mapped_column(Text, nullable=False)
+    social_facebook_url: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    social_instagram_url: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    social_tiktok_url: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    social_linkedin_url: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    social_youtube_url: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    social_x_url: Mapped[str] = mapped_column(Text, nullable=False, default="")
     last_date_modified: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         nullable=False,

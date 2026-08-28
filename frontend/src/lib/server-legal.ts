@@ -102,6 +102,12 @@ export function getFallbackCompanyData(): CompanyData {
     ai_provider: legalConfig.aiProvider,
     payment_provider: legalConfig.paymentProvider,
     hosting_provider: legalConfig.hostingProvider,
+    social_facebook_url: "",
+    social_instagram_url: "",
+    social_tiktok_url: "",
+    social_linkedin_url: "",
+    social_youtube_url: "",
+    social_x_url: "",
     last_date_modified: new Date(0).toISOString(),
   };
 }

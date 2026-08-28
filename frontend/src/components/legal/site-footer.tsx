@@ -2,6 +2,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { BrandLogo } from "@/components/brand-logo";
 import { CookieSettingsButton } from "@/components/legal/cookie-consent";
+import { socialPlatforms } from "@/components/legal/social-icons";
 import {
   footerGeneratedContentDisclaimer,
   legalConfig,
@@ -13,6 +14,9 @@ import { getFallbackCompanyData, getServerCompanyData } from "@/lib/server-legal
 export async function SiteFooter() {
   const currentYear = new Date().getFullYear();
   const companyData = (await getServerCompanyData()) ?? getFallbackCompanyData();
+  const activeSocialLinks = socialPlatforms.filter(
+    ({ key }) => companyData[key]?.trim(),
+  );
   const anpcLinks = [
     {
       href: legalConfig.anpcSalUrl,
@@ -38,6 +42,22 @@ export async function SiteFooter() {
               className="w-fit text-content transition hover:text-action"
               logoClassName="h-9 w-36"
             />
+            {activeSocialLinks.length > 0 ? (
+              <div className="mt-4 flex flex-wrap items-center gap-2">
+                {activeSocialLinks.map(({ key, label, Icon }) => (
+                  <a
+                    key={key}
+                    href={companyData[key]}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    aria-label={label}
+                    className="flex h-9 w-9 items-center justify-center rounded-full border border-subtle bg-app text-content transition hover:bg-surface-hover hover:text-action"
+                  >
+                    <Icon />
+                  </a>
+                ))}
+              </div>
+            ) : null}
             <p className="mt-5 max-w-sm text-sm leading-7 text-muted">
               Transformă materialele de studiu în flashcard-uri generate automat.
             </p>

@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import {
   CompanyDetailsCard,
   ContactForm,
+  SocialLinksCard,
 } from "@/components/legal/compliance-forms";
 import { LegalPageShell } from "@/components/legal/legal-page-shell";
 import { getFallbackCompanyData, getServerCompanyData } from "@/lib/server-legal";
@@ -32,7 +33,10 @@ export default async function ContactPage() {
         <section className="min-w-0">
           <ContactForm recaptchaSiteKey={recaptchaSiteKey} />
         </section>
-        <CompanyDetailsCard companyData={companyData} />
+        <div className="flex min-w-0 flex-col gap-5">
+          <CompanyDetailsCard companyData={companyData} />
+          <SocialLinksCard companyData={companyData} />
+        </div>
       </div>
     </LegalPageShell>
   );

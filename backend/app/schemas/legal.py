@@ -28,6 +28,25 @@ def clean_html_text(value: str) -> str:
     return normalized
 
 
+def clean_optional_url(value: str) -> str:
+    cleaned = clean_short_text(value)
+    if not cleaned:
+        return ""
+    if not re.match(r"^https?://", cleaned, re.IGNORECASE):
+        raise ValueError("Linkul trebuie sa inceapa cu http:// sau https://.")
+    return cleaned
+
+
+SOCIAL_LINK_FIELDS = (
+    "social_facebook_url",
+    "social_instagram_url",
+    "social_tiktok_url",
+    "social_linkedin_url",
+    "social_youtube_url",
+    "social_x_url",
+)
+
+
 class CompanyDataResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -43,6 +62,12 @@ class CompanyDataResponse(BaseModel):
     ai_provider: str
     payment_provider: str
     hosting_provider: str
+    social_facebook_url: str
+    social_instagram_url: str
+    social_tiktok_url: str
+    social_linkedin_url: str
+    social_youtube_url: str
+    social_x_url: str
     last_date_modified: datetime
 
 
@@ -58,6 +83,12 @@ class CompanyDataUpdate(BaseModel):
     ai_provider: str = Field(min_length=1, max_length=160)
     payment_provider: str = Field(min_length=1, max_length=160)
     hosting_provider: str = Field(min_length=1, max_length=160)
+    social_facebook_url: str = Field(default="", max_length=300)
+    social_instagram_url: str = Field(default="", max_length=300)
+    social_tiktok_url: str = Field(default="", max_length=300)
+    social_linkedin_url: str = Field(default="", max_length=300)
+    social_youtube_url: str = Field(default="", max_length=300)
+    social_x_url: str = Field(default="", max_length=300)
 
     @field_validator(
         "name",
@@ -73,6 +104,11 @@ class CompanyDataUpdate(BaseModel):
     @classmethod
     def normalize_text(cls, value: str) -> str:
         return clean_short_text(value)
+
+    @field_validator(*SOCIAL_LINK_FIELDS)
+    @classmethod
+    def normalize_social_url(cls, value: str) -> str:
+        return clean_optional_url(value)
 
 
 class LegalDocumentSectionResponse(BaseModel):

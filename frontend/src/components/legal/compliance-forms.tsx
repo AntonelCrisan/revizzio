@@ -3,6 +3,7 @@
 import Script from "next/script";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { CompanyData } from "@/lib/legal-api";
+import { socialPlatforms } from "@/components/legal/social-icons";
 
 type FormState =
   | { status: "idle"; message: null; registrationNumber?: never }
@@ -1980,6 +1981,59 @@ export function CompanyDetailsCard({ companyData }: CompanyDetailsCardProps) {
           </div>
         ))}
       </dl>
+    </aside>
+  );
+}
+
+type SocialLinksCardProps = {
+  companyData: CompanyData;
+};
+
+function ExternalLinkIcon() {
+  return (
+    <svg
+      aria-hidden="true"
+      className="h-3.5 w-3.5 shrink-0"
+      fill="none"
+      viewBox="0 0 24 24"
+      stroke="currentColor"
+      strokeWidth="2"
+    >
+      <path strokeLinecap="round" strokeLinejoin="round" d="M7 17 17 7M9 7h8v8" />
+    </svg>
+  );
+}
+
+export function SocialLinksCard({ companyData }: SocialLinksCardProps) {
+  const links = socialPlatforms.filter(({ key }) => companyData[key]?.trim());
+
+  if (links.length === 0) {
+    return null;
+  }
+
+  return (
+    <aside className="h-fit rounded-[2rem] border border-subtle bg-surface p-5 sm:p-6">
+      <p className="text-xs font-bold uppercase tracking-[0.18em] text-muted">
+        Urmărește-ne
+      </p>
+      <ul className="mt-4 flex flex-col gap-2">
+        {links.map(({ key, label, Icon }) => (
+          <li key={key}>
+            <a
+              href={companyData[key]}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center justify-between gap-2 rounded-xl border border-subtle bg-app px-4 py-2.5 text-sm font-bold text-content transition hover:bg-surface-hover"
+            >
+              <span className="flex min-w-0 items-center gap-2.5">
+                <Icon />
+                {label}
+              </span>
+              <ExternalLinkIcon />
+            </a>
+          </li>
+        ))}
+      </ul>
     </aside>
   );
 }

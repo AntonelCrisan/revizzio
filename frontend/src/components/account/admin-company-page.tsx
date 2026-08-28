@@ -67,6 +67,42 @@ const fieldGroups: Array<{
       { name: "hosting_provider", label: "Furnizor hosting", placeholder: "Vercel" },
     ],
   },
+  {
+    title: "Social media",
+    detail: "Linkuri afișate în secțiunea „Urmărește-ne” de pe /contact.",
+    fields: [
+      {
+        name: "social_facebook_url",
+        label: "Facebook",
+        placeholder: "https://facebook.com/reviss",
+      },
+      {
+        name: "social_instagram_url",
+        label: "Instagram",
+        placeholder: "https://instagram.com/reviss",
+      },
+      {
+        name: "social_tiktok_url",
+        label: "TikTok",
+        placeholder: "https://tiktok.com/@reviss",
+      },
+      {
+        name: "social_linkedin_url",
+        label: "LinkedIn",
+        placeholder: "https://linkedin.com/company/reviss",
+      },
+      {
+        name: "social_youtube_url",
+        label: "YouTube",
+        placeholder: "https://youtube.com/@reviss",
+      },
+      {
+        name: "social_x_url",
+        label: "X (Twitter)",
+        placeholder: "https://x.com/reviss",
+      },
+    ],
+  },
 ];
 
 function toCompanyUpdate(companyData: CompanyData): CompanyDataUpdate {
@@ -82,6 +118,12 @@ function toCompanyUpdate(companyData: CompanyData): CompanyDataUpdate {
     ai_provider: companyData.ai_provider,
     payment_provider: companyData.payment_provider,
     hosting_provider: companyData.hosting_provider,
+    social_facebook_url: companyData.social_facebook_url,
+    social_instagram_url: companyData.social_instagram_url,
+    social_tiktok_url: companyData.social_tiktok_url,
+    social_linkedin_url: companyData.social_linkedin_url,
+    social_youtube_url: companyData.social_youtube_url,
+    social_x_url: companyData.social_x_url,
   };
 }
 
