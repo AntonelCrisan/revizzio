@@ -1,11 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   deleteNotification,
   listNotifications,
   markAllNotificationsRead,
+  markNotificationRead,
   type Notification,
   type NotificationType,
 } from "@/lib/notifications-api";
@@ -66,6 +67,8 @@ function formatRelativeTime(value: string) {
   return formatter.format(Math.round(diffSeconds / 86400), "day");
 }
 
+const NOTIFICATION_POLL_INTERVAL_MS = 15_000;
+
 export function NotificationBell() {
   const [isOpen, setIsOpen] = useState(false);
   const [notifications, setNotifications] = useState<Notification[]>([]);
@@ -77,62 +80,76 @@ export function NotificationBell() {
   // started before that mutation can be detected as stale and ignored when
   // it resolves — otherwise its response can clobber the optimistic update.
   const stateVersion = useRef(0);
+  const isRequestInFlightRef = useRef(false);
 
-  async function loadNotifications() {
+  const loadNotifications = useCallback(async (options: { silent?: boolean } = {}) => {
+    if (isRequestInFlightRef.current) return;
+
+    isRequestInFlightRef.current = true;
     const requestVersion = stateVersion.current;
-    setIsLoading(true);
-    setError(null);
+    const isSilent = options.silent === true;
+
+    if (!isSilent) {
+      setIsLoading(true);
+      setError(null);
+    }
 
     try {
       const result = await listNotifications();
       if (stateVersion.current !== requestVersion) return;
       setNotifications(result.items);
       setUnreadCount(result.unread_count);
+      if (!isSilent) setError(null);
     } catch (loadError) {
       if (stateVersion.current !== requestVersion) return;
-      setError(
-        loadError instanceof Error
-          ? loadError.message
-          : "Notificările nu au putut fi încărcate.",
-      );
-    } finally {
-      if (stateVersion.current === requestVersion) setIsLoading(false);
-    }
-  }
-
-  useEffect(() => {
-    let isMounted = true;
-
-    async function loadInitialNotifications() {
-      const requestVersion = stateVersion.current;
-      setIsLoading(true);
-      setError(null);
-
-      try {
-        const result = await listNotifications();
-        if (!isMounted || stateVersion.current !== requestVersion) return;
-        setNotifications(result.items);
-        setUnreadCount(result.unread_count);
-      } catch (loadError) {
-        if (!isMounted || stateVersion.current !== requestVersion) return;
+      if (!isSilent) {
         setError(
           loadError instanceof Error
             ? loadError.message
             : "Notificările nu au putut fi încărcate.",
         );
-      } finally {
-        if (isMounted && stateVersion.current === requestVersion) {
-          setIsLoading(false);
-        }
+      }
+    } finally {
+      isRequestInFlightRef.current = false;
+      if (!isSilent && stateVersion.current === requestVersion) {
+        setIsLoading(false);
+      }
+    }
+  }, []);
+
+  useEffect(() => {
+    const timeoutId = window.setTimeout(() => {
+      void loadNotifications();
+    }, 0);
+
+    return () => {
+      window.clearTimeout(timeoutId);
+    };
+  }, [loadNotifications]);
+
+  useEffect(() => {
+    function refreshIfVisible() {
+      if (document.visibilityState === "visible") {
+        void loadNotifications({ silent: true });
       }
     }
 
-    void loadInitialNotifications();
+    function handleVisibilityChange() {
+      refreshIfVisible();
+    }
 
+    const intervalId = window.setInterval(
+      refreshIfVisible,
+      NOTIFICATION_POLL_INTERVAL_MS,
+    );
+    window.addEventListener("focus", refreshIfVisible);
+    document.addEventListener("visibilitychange", handleVisibilityChange);
     return () => {
-      isMounted = false;
+      window.clearInterval(intervalId);
+      window.removeEventListener("focus", refreshIfVisible);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
-  }, []);
+  }, [loadNotifications]);
 
   async function handleMarkAllRead() {
     stateVersion.current += 1;
@@ -179,6 +196,32 @@ export function NotificationBell() {
           setUnreadCount((current) => current + 1);
         }
       }
+    }
+  }
+
+  async function handleNotificationClick(notification: Notification) {
+    if (notification.read_at) return;
+
+    stateVersion.current += 1;
+    setNotifications((current) =>
+      current.map((item) =>
+        item.id === notification.id
+          ? { ...item, read_at: new Date().toISOString() }
+          : item,
+      ),
+    );
+    setUnreadCount((current) => Math.max(0, current - 1));
+
+    try {
+      await markNotificationRead(notification.id);
+    } catch {
+      stateVersion.current += 1;
+      setNotifications((current) =>
+        current.map((item) =>
+          item.id === notification.id ? { ...item, read_at: null } : item,
+        ),
+      );
+      setUnreadCount((current) => current + 1);
     }
   }
 
@@ -275,14 +318,23 @@ export function NotificationBell() {
                         <div className="min-w-0 flex-1">
                           {notification.project_id ? (
                             <Link
-                              href="/myaccount"
-                              onClick={() => setIsOpen(false)}
+                              href={`/myaccount/rezumat?project=${notification.project_id}`}
+                              onClick={() => {
+                                setIsOpen(false);
+                                void handleNotificationClick(notification);
+                              }}
                               className="block"
                             >
                               {content}
                             </Link>
                           ) : (
-                            content
+                            <button
+                              type="button"
+                              onClick={() => void handleNotificationClick(notification)}
+                              className="block w-full text-left"
+                            >
+                              {content}
+                            </button>
                           )}
                         </div>
                         <button

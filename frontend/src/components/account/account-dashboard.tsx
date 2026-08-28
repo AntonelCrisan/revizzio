@@ -11,6 +11,7 @@ import {
   useMemo,
   useRef,
   useState,
+  useTransition,
 } from "react";
 import { useAuth } from "@/components/auth/auth-provider";
 import { BrandLogo } from "@/components/brand-logo";
@@ -349,7 +350,8 @@ function initials(name: string) {
 }
 
 function getProjectById(projects: StudyProject[], projectId?: string) {
-  return projects.find((project) => project.id === projectId) ?? projects[0];
+  if (!projectId) return projects[0];
+  return projects.find((project) => project.id === projectId);
 }
 
 function apiProjectStatusLabel(status: ApiStudyProject["status"]) {
@@ -541,11 +543,13 @@ export function AccountDashboard({
   useTabPages = false,
 }: AccountDashboardProps = {}) {
   const router = useRouter();
+  const [isTabRoutePending, startTabRouteTransition] = useTransition();
   const { user, isLoading, logout } = useAuth();
   const { language } = useLanguage();
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const [projects, setProjects] = useState(initialProjects);
+  const [isProjectsLoading, setIsProjectsLoading] = useState(true);
   const [view, setView] = useState<ViewId>(initialView);
   const [activeProjectId, setActiveProjectId] = useState(
     initialProjectId ?? "",
@@ -632,6 +636,37 @@ export function AccountDashboard({
   useEffect(() => {
     if (isLoading || !user) return;
     let isMounted = true;
+    let didLoadInitialProject = false;
+
+    const loadingFrame = window.requestAnimationFrame(() => {
+      if (isMounted) setIsProjectsLoading(true);
+    });
+
+    if (initialProjectId) {
+      getStudyProject(initialProjectId)
+        .then((apiProject) => {
+          if (!isMounted || !isVisibleStudyProjectStatus(apiProject.status)) {
+            return;
+          }
+
+          didLoadInitialProject = true;
+          const mappedProject = mapApiProject(apiProject);
+          setProjects((currentProjects) => [
+            mappedProject,
+            ...currentProjects.filter(
+              (project) => project.id !== mappedProject.id,
+            ),
+          ]);
+          setActiveProjectId(mappedProject.id);
+          setOpenProjectId(mappedProject.id);
+          setActiveTab(initialTab);
+          setView("project");
+          setIsProjectsLoading(false);
+        })
+        .catch(() => {
+          // The full list request below still decides the final state.
+        });
+    }
 
     listStudyProjects()
       .then((apiProjects) => {
@@ -646,26 +681,81 @@ export function AccountDashboard({
           setActiveProjectId("");
           setOpenProjectId(null);
           setView("home");
+          setIsProjectsLoading(false);
           return;
         }
 
-        setActiveProjectId((currentProjectId) =>
+        const initialProjectExists = Boolean(
           initialProjectId &&
-          mappedProjects.some((project) => project.id === initialProjectId)
-            ? initialProjectId
-            : mappedProjects.some((project) => project.id === currentProjectId)
-              ? currentProjectId
-              : mappedProjects[0].id,
+            mappedProjects.some((project) => project.id === initialProjectId),
         );
+        const fallbackProjectId = initialProjectExists
+          ? initialProjectId ?? mappedProjects[0].id
+          : mappedProjects[0].id;
+
+        setActiveProjectId((currentProjectId) =>
+          !initialProjectId &&
+          mappedProjects.some((project) => project.id === currentProjectId)
+            ? currentProjectId
+            : fallbackProjectId,
+        );
+
+        if (initialProjectId) {
+          setOpenProjectId(fallbackProjectId);
+          setActiveTab(initialTab);
+          setView("project");
+        }
+        setIsProjectsLoading(false);
       })
       .catch(() => {
-        setProjects([]);
+        if (!didLoadInitialProject) {
+          setProjects([]);
+        }
+        setIsProjectsLoading(false);
       });
 
     return () => {
       isMounted = false;
+      window.cancelAnimationFrame(loadingFrame);
     };
-  }, [initialProjectId, isLoading, user]);
+  }, [initialProjectId, initialTab, isLoading, user]);
+
+  useEffect(() => {
+    if (!useTabPages) return;
+
+    const frame = window.requestAnimationFrame(() => {
+      if (!initialProjectId) {
+        setView(initialView);
+        setActiveTab(initialTab);
+        return;
+      }
+
+      setActiveProjectId(initialProjectId);
+      setOpenProjectId(initialProjectId);
+      setActiveTab(initialTab);
+      setView("project");
+
+      if (isChatBackTab(initialChatBackTab)) {
+        setChatBackTab(initialChatBackTab);
+      }
+    });
+
+    return () => window.cancelAnimationFrame(frame);
+  }, [initialChatBackTab, initialProjectId, initialTab, initialView, useTabPages]);
+
+  useEffect(() => {
+    if (!useTabPages || !activeProjectId) return;
+
+    for (const tab of tabs) {
+      if (tab.id === "chat" && !hasProAiAccess) continue;
+
+      router.prefetch(
+        getTabHref(tab.id, activeProjectId, {
+          from: tab.id === "chat" ? chatBackTab : undefined,
+        }),
+      );
+    }
+  }, [activeProjectId, chatBackTab, hasProAiAccess, router, useTabPages]);
 
   useEffect(() => {
     if (isLoading || !user) return;
@@ -760,7 +850,9 @@ export function AccountDashboard({
     setSidebarOpen(false);
 
     if (useTabPages) {
-      router.push(getTabHref(tab, projectId));
+      startTabRouteTransition(() => {
+        router.push(getTabHref(tab, projectId));
+      });
       return;
     }
 
@@ -1087,11 +1179,13 @@ export function AccountDashboard({
     setActiveTab(tab);
 
     if (useTabPages) {
-      router.push(
-        getTabHref(tab, activeProjectId, {
-          from: tab === "chat" ? nextChatBackTab : undefined,
-        }),
-      );
+      startTabRouteTransition(() => {
+        router.push(
+          getTabHref(tab, activeProjectId, {
+            from: tab === "chat" ? nextChatBackTab : undefined,
+          }),
+        );
+      });
       return;
     }
 
@@ -1738,13 +1832,18 @@ export function AccountDashboard({
             />
           ) : null}
 
-          {view === "project" && activeProject ? (
+          {view === "project" && (isProjectsLoading || !activeProject) ? (
+            <ProjectViewSkeleton />
+          ) : null}
+
+          {view === "project" && !isProjectsLoading && activeProject ? (
             <ProjectView
               project={activeProject}
               activeTab={activeTab}
               chatBackTab={chatBackTab}
               flashcardMode={initialFlashcardMode}
               hasProAiAccess={hasProAiAccess}
+              isTabContentLoading={isTabRoutePending}
               onBack={showHome}
               onTabChange={changeProjectTab}
               onQuizMistake={saveQuizMistakeFlashcard}
@@ -1806,6 +1905,71 @@ function SectionLabel({ children }: { children: ReactNode }) {
     <p className="px-0.5 text-[11px] font-bold uppercase tracking-[0.14em] text-muted">
       {children}
     </p>
+  );
+}
+
+function SkeletonBlock({ className = "" }: { className?: string }) {
+  return (
+    <div
+      className={`animate-pulse rounded-full bg-surface-hover ${className}`}
+    />
+  );
+}
+
+function ProjectTabContentSkeleton() {
+  return (
+    <div
+      aria-hidden="true"
+      className="rounded-xl border border-subtle bg-surface p-5 sm:p-7"
+    >
+      <div className="flex flex-wrap items-center justify-between gap-4 border-b border-subtle pb-5">
+        <div className="space-y-3">
+          <SkeletonBlock className="h-5 w-24" />
+          <SkeletonBlock className="h-9 w-64 max-w-[70vw]" />
+        </div>
+        <SkeletonBlock className="h-12 w-40" />
+      </div>
+      <div className="grid gap-4 pt-6 lg:grid-cols-[1.4fr_0.8fr]">
+        <div className="space-y-3">
+          <SkeletonBlock className="h-4 w-full" />
+          <SkeletonBlock className="h-4 w-11/12" />
+          <SkeletonBlock className="h-4 w-4/5" />
+          <SkeletonBlock className="mt-6 h-4 w-10/12" />
+          <SkeletonBlock className="h-4 w-3/5" />
+        </div>
+        <div className="space-y-3 rounded-xl border border-subtle bg-app p-4">
+          <SkeletonBlock className="h-4 w-24" />
+          <SkeletonBlock className="h-8 w-4/5" />
+          <SkeletonBlock className="h-4 w-full" />
+          <SkeletonBlock className="h-4 w-2/3" />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ProjectViewSkeleton() {
+  return (
+    <section aria-busy="true" className="space-y-5">
+      <div className="border-b border-subtle pb-5">
+        <SkeletonBlock className="h-10 w-44" />
+        <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2">
+          <SkeletonBlock className="h-7 w-32" />
+          <SkeletonBlock className="h-12 w-72 max-w-[80vw]" />
+        </div>
+      </div>
+      <div className="border-b border-subtle px-2">
+        <div className="mx-auto flex min-w-max max-w-3xl items-center gap-6 overflow-hidden py-4">
+          {tabs.map((tab, index) => (
+            <SkeletonBlock
+              key={tab.id}
+              className={`h-5 ${index % 2 === 0 ? "w-20" : "w-28"}`}
+            />
+          ))}
+        </div>
+      </div>
+      <ProjectTabContentSkeleton />
+    </section>
   );
 }
 
@@ -2411,6 +2575,7 @@ function ProjectView({
   chatBackTab,
   flashcardMode,
   hasProAiAccess,
+  isTabContentLoading,
   onBack,
   onTabChange,
   onQuizMistake,
@@ -2430,6 +2595,7 @@ function ProjectView({
   chatBackTab: TabId;
   flashcardMode: FlashcardPanelMode;
   hasProAiAccess: boolean;
+  isTabContentLoading: boolean;
   onBack: () => void;
   onTabChange: (tab: TabId) => void;
   onQuizMistake: (
@@ -2524,7 +2690,9 @@ function ProjectView({
           Înapoi la {chatBackLabel}
         </button>
 
-        {hasProAiAccess ? (
+        {isTabContentLoading ? (
+          <ProjectTabContentSkeleton />
+        ) : hasProAiAccess ? (
           <ProjectChatPanel key={project.id} project={project} />
         ) : (
           <ProjectAiLockedPanel />
@@ -2594,40 +2762,46 @@ function ProjectView({
         </div>
       </div>
 
-      <div>
-        {activeTab === "rezumat" ? (
-          <SummaryPanel
-            project={project}
-            hasProAiAccess={hasProAiAccess}
-            onHighlightCreate={onHighlightCreate}
-            onHighlightColorChange={onHighlightColorChange}
-            onHighlightRemove={onHighlightRemove}
-            onNoteCreate={onNoteCreate}
-            onNoteUpdate={onNoteUpdate}
-            onNoteRemove={onNoteRemove}
-          />
-        ) : null}
-        {activeTab === "flashcards" ? (
-          <FlashcardsPanel
-            project={project}
-            mode={flashcardMode}
-            hasProAiAccess={hasProAiAccess}
-            onManualFlashcardCreate={onManualFlashcardCreate}
-            onToggleFlashcardReview={onToggleFlashcardReview}
-          />
-        ) : null}
-        {activeTab === "quiz" ? (
-          <QuizPanel
-            project={project}
-            onQuizMistake={onQuizMistake}
-            onQuizComplete={onQuizComplete}
-            onGenerateQuizzes={onGenerateQuizzes}
-          />
-        ) : null}
-        {activeTab === "strategii" ? (
-          <StrategiesPanel project={project} />
-        ) : null}
-        {activeTab === "progres" ? <ProgressPanel project={project} /> : null}
+      <div aria-busy={isTabContentLoading}>
+        {isTabContentLoading ? (
+          <ProjectTabContentSkeleton />
+        ) : (
+          <>
+            {activeTab === "rezumat" ? (
+              <SummaryPanel
+                project={project}
+                hasProAiAccess={hasProAiAccess}
+                onHighlightCreate={onHighlightCreate}
+                onHighlightColorChange={onHighlightColorChange}
+                onHighlightRemove={onHighlightRemove}
+                onNoteCreate={onNoteCreate}
+                onNoteUpdate={onNoteUpdate}
+                onNoteRemove={onNoteRemove}
+              />
+            ) : null}
+            {activeTab === "flashcards" ? (
+              <FlashcardsPanel
+                project={project}
+                mode={flashcardMode}
+                hasProAiAccess={hasProAiAccess}
+                onManualFlashcardCreate={onManualFlashcardCreate}
+                onToggleFlashcardReview={onToggleFlashcardReview}
+              />
+            ) : null}
+            {activeTab === "quiz" ? (
+              <QuizPanel
+                project={project}
+                onQuizMistake={onQuizMistake}
+                onQuizComplete={onQuizComplete}
+                onGenerateQuizzes={onGenerateQuizzes}
+              />
+            ) : null}
+            {activeTab === "strategii" ? (
+              <StrategiesPanel project={project} />
+            ) : null}
+            {activeTab === "progres" ? <ProgressPanel project={project} /> : null}
+          </>
+        )}
       </div>
     </section>
   );

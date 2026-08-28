@@ -81,6 +81,15 @@ export function markAllNotificationsRead(): Promise<NotificationListResult> {
   );
 }
 
+export function markNotificationRead(
+  notificationId: string,
+): Promise<Notification> {
+  return notificationsRequest<Notification>(
+    `me/notifications/${notificationId}/read`,
+    { method: "POST", body: "{}" },
+  );
+}
+
 export async function deleteNotification(notificationId: string): Promise<void> {
   const response = await fetch(`/api/auth/me/notifications/${notificationId}`, {
     method: "DELETE",
