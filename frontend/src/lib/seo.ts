@@ -1,10 +1,14 @@
 import type { Metadata } from "next";
 
-const fallbackSiteUrl = "https://reviss.app";
+const fallbackSiteUrl = "https://www.reviss.app";
 
 function normalizeSiteUrl(value: string) {
   try {
-    return new URL(value).origin;
+    const url = new URL(value);
+    if (url.hostname === "0.0.0.0") {
+      return fallbackSiteUrl;
+    }
+    return url.origin;
   } catch {
     return fallbackSiteUrl;
   }

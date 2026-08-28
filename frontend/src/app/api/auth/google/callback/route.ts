@@ -1,5 +1,6 @@
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
+import { siteUrl } from "@/lib/seo";
 
 const STATE_COOKIE = "google_oauth_state";
 const NEXT_COOKIE = "google_oauth_next";
@@ -20,7 +21,7 @@ export async function GET(request: Request): Promise<Response> {
   const url = new URL(request.url);
   const code = url.searchParams.get("code");
   const state = url.searchParams.get("state");
-  const failureUrl = new URL("/login?error=google_oauth", url.origin);
+  const failureUrl = new URL("/login?error=google_oauth", siteUrl);
 
   const cookieStore = await cookies();
   const storedState = cookieStore.get(STATE_COOKIE)?.value;
@@ -58,7 +59,7 @@ export async function GET(request: Request): Promise<Response> {
     return redirectAndClear(failureUrl);
   }
 
-  const response = redirectAndClear(new URL(nextPath, url.origin));
+  const response = redirectAndClear(new URL(nextPath, siteUrl));
   for (const setCookie of backendResponse.headers.getSetCookie()) {
     response.headers.append("set-cookie", setCookie);
   }
