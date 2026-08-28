@@ -13,6 +13,7 @@ import {
   useState,
   useTransition,
 } from "react";
+import { AccountSkeleton } from "@/components/account/account-skeleton";
 import { useAuth } from "@/components/auth/auth-provider";
 import { BrandLogo } from "@/components/brand-logo";
 import { useLanguage } from "@/components/language-provider";
@@ -1498,11 +1499,7 @@ export function AccountDashboard({
   }
 
   if (isLoading || !user) {
-    return (
-      <main className="flex min-h-svh items-center justify-center bg-app text-content">
-        <div className="h-10 w-10 animate-spin rounded-full border-2 border-subtle border-t-action" />
-      </main>
-    );
+    return <AccountSkeleton />;
   }
 
   return (

@@ -81,9 +81,16 @@ export function NotificationBell() {
   // it resolves — otherwise its response can clobber the optimistic update.
   const stateVersion = useRef(0);
   const isRequestInFlightRef = useRef(false);
+  // Counts in-flight mutations. A background poll started *after* a mutation's
+  // optimistic update (so it isn't caught by the stateVersion check above) can
+  // still resolve before the mutation's own request lands server-side and
+  // bring the just-deleted/just-read item back — so silent polls are skipped
+  // entirely while a mutation is pending.
+  const pendingMutationsRef = useRef(0);
 
   const loadNotifications = useCallback(async (options: { silent?: boolean } = {}) => {
     if (isRequestInFlightRef.current) return;
+    if (options.silent && pendingMutationsRef.current > 0) return;
 
     isRequestInFlightRef.current = true;
     const requestVersion = stateVersion.current;
@@ -161,11 +168,14 @@ export function NotificationBell() {
       })),
     );
 
+    pendingMutationsRef.current += 1;
     try {
       await markAllNotificationsRead();
     } catch {
       // The bell stays interactive; a failed mark-all-read is low-stakes and
       // will simply be retried on the next open.
+    } finally {
+      pendingMutationsRef.current -= 1;
     }
   }
 
@@ -181,6 +191,7 @@ export function NotificationBell() {
       setUnreadCount((current) => Math.max(0, current - 1));
     }
 
+    pendingMutationsRef.current += 1;
     try {
       await deleteNotification(notificationId);
     } catch {
@@ -196,6 +207,8 @@ export function NotificationBell() {
           setUnreadCount((current) => current + 1);
         }
       }
+    } finally {
+      pendingMutationsRef.current -= 1;
     }
   }
 
@@ -212,6 +225,7 @@ export function NotificationBell() {
     );
     setUnreadCount((current) => Math.max(0, current - 1));
 
+    pendingMutationsRef.current += 1;
     try {
       await markNotificationRead(notification.id);
     } catch {
@@ -222,6 +236,8 @@ export function NotificationBell() {
         ),
       );
       setUnreadCount((current) => current + 1);
+    } finally {
+      pendingMutationsRef.current -= 1;
     }
   }
 
