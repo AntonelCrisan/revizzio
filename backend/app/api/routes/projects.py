@@ -38,10 +38,10 @@ from app.schemas.projects import (
     StudyProjectSummaryNoteUpdate,
 )
 from app.services.openai_generation import OpenAIGenerationError
+from app.services.plan_errors import PlanLimitError
 from app.services.projects import (
     ProjectConversionError,
     ProjectNotFoundError,
-    ProjectPlanRestrictionError,
     ProjectValidationError,
     StudyProjectService,
     cancel_generation_task,
@@ -357,6 +357,13 @@ async def prepare_project(
             uploads=files,
             generation_language=generation_language,
         )
+    except PlanLimitError as exc:
+        await session.rollback()
+        logger.warning("Project prepare plan limit reached: %s", exc)
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={"code": exc.code, "message": str(exc)},
+        ) from exc
     except ProjectValidationError as exc:
         await session.rollback()
         logger.warning("Project prepare validation failed: %s", exc)
@@ -492,10 +499,10 @@ async def explain_project_summary_selection(
             paragraph_index=payload.paragraph_index,
             selected_text=payload.selected_text,
         )
-    except ProjectPlanRestrictionError as exc:
+    except PlanLimitError as exc:
         raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail=str(exc),
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={"code": exc.code, "message": str(exc)},
         ) from exc
     except ProjectNotFoundError as exc:
         raise HTTPException(
@@ -539,10 +546,10 @@ async def chat_with_project_ai(
             ],
             conversation_summary=payload.conversation_summary,
         )
-    except ProjectPlanRestrictionError as exc:
+    except PlanLimitError as exc:
         raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail=str(exc),
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={"code": exc.code, "message": str(exc)},
         ) from exc
     except ProjectNotFoundError as exc:
         raise HTTPException(
@@ -584,10 +591,10 @@ async def explain_project_flashcard_selection(
             side=payload.side,
             selected_text=payload.selected_text,
         )
-    except ProjectPlanRestrictionError as exc:
+    except PlanLimitError as exc:
         raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail=str(exc),
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={"code": exc.code, "message": str(exc)},
         ) from exc
     except ProjectNotFoundError as exc:
         raise HTTPException(

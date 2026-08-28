@@ -112,5 +112,9 @@ class ConfirmEmailChangeRequest(BaseModel):
     token: str = Field(min_length=20, max_length=256)
 
 
+class GoogleCallbackRequest(BaseModel):
+    code: str = Field(min_length=1, max_length=2048)
+
+
 class MessageResponse(BaseModel):
     message: str

@@ -19,6 +19,7 @@ from app.api.routes.admin_visitors import router as admin_visitors_router
 from app.api.routes.admin_withdrawal_requests import (
     router as admin_withdrawal_requests_router,
 )
+from app.api.routes.ai_rates import router as ai_rates_router
 from app.api.routes.audit_logs import router as audit_logs_router
 from app.api.routes.auth import router as auth_router
 from app.api.routes.compliance import router as compliance_router
@@ -98,6 +99,7 @@ app.include_router(admin_content_reports_router)
 app.include_router(admin_users_router)
 app.include_router(admin_visitors_router)
 app.include_router(admin_withdrawal_requests_router)
+app.include_router(ai_rates_router)
 app.include_router(audit_logs_router)
 app.include_router(compliance_router)
 app.include_router(legal_router)

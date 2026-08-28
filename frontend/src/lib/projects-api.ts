@@ -176,13 +176,17 @@ export type StudyProjectChatResponse = {
 };
 
 type ApiErrorPayload = {
-  detail?: string | Array<{ loc?: Array<string | number>; msg?: string }>;
+  detail?:
+    | string
+    | Array<{ loc?: Array<string | number>; msg?: string }>
+    | { code?: string; message?: string };
 };
 
 export class ProjectsApiError extends Error {
   constructor(
     message: string,
     readonly status: number,
+    readonly code?: string,
   ) {
     super(message);
     this.name = "ProjectsApiError";
@@ -198,7 +202,27 @@ function extractErrorMessage(payload: ApiErrorPayload): string {
       return field ? `${String(field)}: ${firstError.msg}` : firstError.msg;
     }
   }
+  if (
+    payload.detail &&
+    typeof payload.detail === "object" &&
+    !Array.isArray(payload.detail) &&
+    typeof payload.detail.message === "string"
+  ) {
+    return payload.detail.message;
+  }
   return "A apărut o eroare la proiect. Te rugăm să încerci din nou.";
+}
+
+function extractErrorCode(payload: ApiErrorPayload): string | undefined {
+  if (
+    payload.detail &&
+    typeof payload.detail === "object" &&
+    !Array.isArray(payload.detail) &&
+    typeof payload.detail.code === "string"
+  ) {
+    return payload.detail.code;
+  }
+  return undefined;
 }
 
 async function parseProjectResponse<T>(response: Response): Promise<T> {
@@ -209,7 +233,11 @@ async function parseProjectResponse<T>(response: Response): Promise<T> {
     } catch {
       // Non-JSON upstream errors are handled by the fallback.
     }
-    throw new ProjectsApiError(extractErrorMessage(payload), response.status);
+    throw new ProjectsApiError(
+      extractErrorMessage(payload),
+      response.status,
+      extractErrorCode(payload),
+    );
   }
 
   return (await response.json()) as T;
@@ -318,7 +346,11 @@ export async function deleteStudyProject(projectId: string): Promise<void> {
     } catch {
       // Non-JSON upstream errors are handled by the fallback.
     }
-    throw new ProjectsApiError(extractErrorMessage(payload), response.status);
+    throw new ProjectsApiError(
+      extractErrorMessage(payload),
+      response.status,
+      extractErrorCode(payload),
+    );
   }
 }
 

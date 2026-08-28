@@ -8,15 +8,22 @@ export const metadata: Metadata = {
 };
 
 type LoginPageProps = {
-  searchParams: Promise<{ next?: string | string[] }>;
+  searchParams: Promise<{ next?: string | string[]; error?: string | string[] }>;
 };
 
 function firstSearchParam(value: string | string[] | undefined) {
   return Array.isArray(value) ? value[0] : value;
 }
 
+function googleErrorMessage(error: string | undefined) {
+  if (error === "google_oauth") {
+    return "Autentificarea prin Google a eșuat. Încearcă din nou.";
+  }
+  return undefined;
+}
+
 export default async function LoginPage({ searchParams }: LoginPageProps) {
-  const { next } = await searchParams;
+  const { next, error } = await searchParams;
 
   return (
     <AuthShell
@@ -34,7 +41,11 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
         "Recapitulări programate inteligent",
       ]}
     >
-      <AuthForm mode="login" redirectTo={firstSearchParam(next)} />
+      <AuthForm
+        mode="login"
+        redirectTo={firstSearchParam(next)}
+        initialError={googleErrorMessage(firstSearchParam(error))}
+      />
     </AuthShell>
   );
 }

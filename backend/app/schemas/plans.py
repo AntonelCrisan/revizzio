@@ -51,6 +51,11 @@ class SubscriptionPlanResponse(BaseModel):
     quiz_groups_per_complexity: int
     quiz_questions_per_quiz: int
     allow_scanned_documents: bool
+    monthly_ai_credits: int
+    monthly_ocr_pages: int
+    monthly_page_limit: int
+    ai_chat_enabled: bool
+    max_openai_cost_usd_per_cycle: Decimal
     stripe_product_id: str | None = None
     stripe_price_id: str | None = None
     is_visible: bool
@@ -96,6 +101,11 @@ class SubscriptionPlanUpdate(BaseModel):
     quiz_groups_per_complexity: int = Field(ge=1, le=12)
     quiz_questions_per_quiz: int = Field(ge=3, le=50)
     allow_scanned_documents: bool
+    monthly_ai_credits: int = Field(ge=0, le=100000)
+    monthly_ocr_pages: int = Field(ge=0, le=100000)
+    monthly_page_limit: int = Field(ge=0, le=1000000)
+    ai_chat_enabled: bool
+    max_openai_cost_usd_per_cycle: Decimal = Field(ge=0, decimal_places=2)
     stripe_product_id: str | None = Field(default=None, max_length=120)
     stripe_price_id: str | None = Field(default=None, max_length=120)
     is_visible: bool

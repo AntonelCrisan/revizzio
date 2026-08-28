@@ -62,7 +62,7 @@ def test_mistral_ocr_sends_base64_pdf_and_combines_markdown(
 
     monkeypatch.setattr(urllib.request, "urlopen", fake_urlopen)
 
-    markdown = asyncio.run(extract_scanned_pdf_markdown(pdf_path, settings))
+    markdown, page_count = asyncio.run(extract_scanned_pdf_markdown(pdf_path, settings))
 
     payload = captured["payload"]
     assert captured["timeout"] == 42
@@ -76,6 +76,7 @@ def test_mistral_ocr_sends_base64_pdf_and_combines_markdown(
     assert payload["include_image_base64"] is False
     assert "# Pagina 1" in markdown
     assert "# Pagina 2" in markdown
+    assert page_count == 2
 
 
 def test_mistral_ocr_requires_api_key(tmp_path) -> None:

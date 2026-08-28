@@ -21,6 +21,7 @@ from typing import Any
 from fastapi import UploadFile
 from markitdown import MarkItDown
 from markitdown._markitdown import UnsupportedFormatException
+from pdfminer.pdfpage import PDFPage
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -48,6 +49,10 @@ from app.models import (
     User,
 )
 from app.schemas.projects import StudyProjectResponse
+from app.services.ai_credits import AiCreditsService
+from app.services.billing_window import (
+    current_billing_window as _current_billing_window,
+)
 from app.services.mistral_ocr import (
     MistralOCRConfigurationError,
     MistralOCRRequestError,
@@ -61,6 +66,11 @@ from app.services.openai_generation import (
     STUDY_PACK_SCHEMA,
     OpenAIGenerationError,
     OpenAIStudyGenerator,
+)
+from app.services.plan_errors import (
+    MaterialLimitReachedError,
+    MaxPagesPerMaterialExceededError,
+    PageLimitReachedError,
 )
 from app.services.preferences import PreferencesService
 
@@ -183,6 +193,7 @@ class ProjectPlanLimits:
     file_mb: int
     total_project_mb: int
     estimated_pages: int
+    monthly_page_limit: int
     initial_flashcards: int
     quiz_groups_per_complexity: int
     quiz_questions_per_quiz: int
@@ -197,6 +208,7 @@ PLAN_LIMITS: dict[str, ProjectPlanLimits] = {
         file_mb=10,
         total_project_mb=20,
         estimated_pages=25,
+        monthly_page_limit=40,
         initial_flashcards=20,
         quiz_groups_per_complexity=1,
         quiz_questions_per_quiz=8,
@@ -209,6 +221,7 @@ PLAN_LIMITS: dict[str, ProjectPlanLimits] = {
         file_mb=50,
         total_project_mb=200,
         estimated_pages=200,
+        monthly_page_limit=1000,
         initial_flashcards=40,
         quiz_groups_per_complexity=3,
         quiz_questions_per_quiz=12,
@@ -221,6 +234,7 @@ PLAN_LIMITS: dict[str, ProjectPlanLimits] = {
         file_mb=150,
         total_project_mb=500,
         estimated_pages=500,
+        monthly_page_limit=2500,
         initial_flashcards=50,
         quiz_groups_per_complexity=4,
         quiz_questions_per_quiz=12,
@@ -234,10 +248,6 @@ class ProjectError(Exception):
 
 
 class ProjectValidationError(ProjectError):
-    pass
-
-
-class ProjectPlanRestrictionError(ProjectError):
     pass
 
 
@@ -301,23 +311,6 @@ def _user_plan_name(user: User) -> str:
     return _user_plan_slug(user).title()
 
 
-def _current_month_window(now: datetime | None = None) -> tuple[datetime, datetime]:
-    current = now or datetime.now(UTC)
-    month_start = current.replace(
-        day=1,
-        hour=0,
-        minute=0,
-        second=0,
-        microsecond=0,
-    )
-    if month_start.month == 12:
-        next_month_start = month_start.replace(
-            year=month_start.year + 1,
-            month=1,
-        )
-    else:
-        next_month_start = month_start.replace(month=month_start.month + 1)
-    return month_start, next_month_start
 
 
 def _count_phrase(count: int, singular: str, plural: str) -> str:
@@ -379,7 +372,7 @@ def _plan_bool_limit(plan: object, field: str, fallback: bool) -> bool:
     return fallback
 
 
-def _limits_for_user(user: User) -> ProjectPlanLimits:
+def limits_for_user(user: User) -> ProjectPlanLimits:
     fallback = PLAN_LIMITS.get(_user_plan_slug(user), PLAN_LIMITS["start"])
     plan = getattr(user, "current_plan", None)
     if plan is None:
@@ -420,6 +413,12 @@ def _limits_for_user(user: User) -> ProjectPlanLimits:
             plan,
             "estimated_page_limit",
             fallback.estimated_pages,
+            1,
+        ),
+        monthly_page_limit=_plan_int_limit(
+            plan,
+            "monthly_page_limit",
+            fallback.monthly_page_limit,
             1,
         ),
         initial_flashcards=_plan_int_limit(
@@ -464,6 +463,15 @@ def _looks_like_scanned_pdf(path: Path, markdown: str) -> bool:
         len(clean_markdown) < SCANNED_PDF_MIN_TEXT_CHARS
         or len(words) < SCANNED_PDF_MIN_WORDS
     )
+
+
+def _count_pdf_pages(path: Path) -> int:
+    """Cheap local page count, used to pre-check the OCR budget before
+    spending a paid Mistral OCR call. Walks the page tree only - does not
+    attempt text extraction, so it works fine on scanned/image-only PDFs.
+    """
+    with path.open("rb") as pdf_file:
+        return sum(1 for _ in PDFPage.get_pages(pdf_file))
 
 
 def _validate_flashcard_image_signature(extension: str, signature: bytes) -> None:
@@ -1214,7 +1222,9 @@ class StudyProjectService:
         uploads: list[UploadFile],
         limits: ProjectPlanLimits,
     ) -> None:
-        month_start, next_month_start = _current_month_window()
+        month_start, next_month_start = await _current_billing_window(
+            self.session, user
+        )
         plan_name = _user_plan_name(user)
         monthly_projects = await self.session.scalar(
             select(func.count(StudyProject.id)).where(
@@ -1261,7 +1271,7 @@ class StudyProjectService:
                 "material",
                 "materiale",
             )
-            raise ProjectValidationError(
+            raise MaterialLimitReachedError(
                 f"Ai atins limita planului {plan_name}: poti incarca maximum "
                 f"{material_limit_label} pe luna. Incearca luna "
                 "viitoare sau treci la un plan superior."
@@ -1270,6 +1280,7 @@ class StudyProjectService:
     async def _enforce_converted_plan_limits(
         self,
         *,
+        user: User,
         project: StudyProject,
         limits: ProjectPlanLimits,
     ) -> None:
@@ -1290,16 +1301,77 @@ class StudyProjectService:
                 f"{limits.total_project_mb}MB pentru planul curent."
             )
 
-        estimated_pages = sum(
+        converted_files = [
+            file for file in files if file.conversion_status == "converted"
+        ]
+        for file in converted_files:
+            file_pages = _estimate_markdown_pages(file.markdown_char_count)
+            if file_pages > limits.estimated_pages:
+                raise MaxPagesPerMaterialExceededError(
+                    f"Materialul {file.original_filename} are aproximativ "
+                    f"{file_pages} pagini. Planul curent permite maximum "
+                    f"{limits.estimated_pages} pagini per material."
+                )
+
+        this_project_pages = sum(
             _estimate_markdown_pages(file.markdown_char_count)
-            for file in files
-            if file.conversion_status == "converted"
+            for file in converted_files
         )
-        if estimated_pages > limits.estimated_pages:
-            raise ProjectValidationError(
-                f"Materialele par sa aiba aproximativ {estimated_pages} pagini. "
-                f"Planul curent permite maximum {limits.estimated_pages} pagini."
+        window_start, window_end = await _current_billing_window(self.session, user)
+        other_projects_pages_result = await self.session.scalars(
+            select(StudyProjectFile.markdown_char_count)
+            .join(StudyProject)
+            .where(
+                StudyProject.user_id == user.id,
+                StudyProject.id != project.id,
+                StudyProjectFile.conversion_status == "converted",
+                StudyProjectFile.created_at >= window_start,
+                StudyProjectFile.created_at < window_end,
             )
+        )
+        monthly_pages = this_project_pages + sum(
+            _estimate_markdown_pages(char_count or 0)
+            for char_count in other_projects_pages_result.all()
+        )
+        if monthly_pages > limits.monthly_page_limit:
+            raise PageLimitReachedError(
+                f"Ai procesat deja aproximativ {monthly_pages} pagini in acest "
+                f"ciclu de facturare. Planul curent permite maximum "
+                f"{limits.monthly_page_limit} pagini pe ciclu."
+            )
+
+    async def get_monthly_usage(self, user: User) -> tuple[int, int]:
+        """Return (materials_used, pages_processed) for the user's current
+        billing cycle, across all of their projects. Used by the usage
+        dashboard - not an enforcement check.
+        """
+        window_start, window_end = await _current_billing_window(self.session, user)
+
+        materials_used = await self.session.scalar(
+            select(func.count(StudyProjectFile.id))
+            .join(StudyProject)
+            .where(
+                StudyProject.user_id == user.id,
+                StudyProjectFile.created_at >= window_start,
+                StudyProjectFile.created_at < window_end,
+            )
+        )
+
+        char_counts = await self.session.scalars(
+            select(StudyProjectFile.markdown_char_count)
+            .join(StudyProject)
+            .where(
+                StudyProject.user_id == user.id,
+                StudyProjectFile.conversion_status == "converted",
+                StudyProjectFile.created_at >= window_start,
+                StudyProjectFile.created_at < window_end,
+            )
+        )
+        pages_processed = sum(
+            _estimate_markdown_pages(char_count or 0)
+            for char_count in char_counts.all()
+        )
+        return int(materials_used or 0), pages_processed
 
     async def list_projects(self, user: User) -> list[StudyProject]:
         result = await self.session.scalars(
@@ -1478,7 +1550,7 @@ class StudyProjectService:
         for upload in uploads:
             _validate_upload_extension(upload.filename or "material")
 
-        limits = _limits_for_user(user)
+        limits = limits_for_user(user)
         await self._lock_user_plan_quota(user)
         await self._enforce_upload_plan_limits(
             user=user,
@@ -1512,6 +1584,7 @@ class StudyProjectService:
 
             for upload_index, upload in enumerate(uploads):
                 file_model = await self._store_and_convert_file(
+                    user=user,
                     project=project,
                     upload=upload,
                     upload_index=upload_index,
@@ -1533,7 +1606,9 @@ class StudyProjectService:
             if not markdown_parts:
                 raise ProjectConversionError("Niciun fisier nu a putut fi convertit.")
 
-            await self._enforce_converted_plan_limits(project=project, limits=limits)
+            await self._enforce_converted_plan_limits(
+                user=user, project=project, limits=limits
+            )
 
             combined_markdown = "\n\n---\n\n".join(markdown_parts)
             combined_path = project_dir / "reviss-material.md"
@@ -1695,7 +1770,15 @@ class StudyProjectService:
                 expected_status="generating_study_pack",
             )
             markdown = self._read_project_markdown(project)
-            limits = _limits_for_user(user)
+            limits = limits_for_user(user)
+            credits_service = AiCreditsService(self.session)
+            window = await _current_billing_window(self.session, user)
+            summary_tier = await credits_service.determine_tier(
+                "summary", _estimate_markdown_pages(len(markdown))
+            )
+            credits_needed = await credits_service.ensure_can_consume(
+                user=user, feature="summary", tier=summary_tier, window=window
+            )
             target_language = _generation_language_for_project(project, user)
             prompt = self._build_study_pack_prompt(
                 project_name=project.name,
@@ -1782,6 +1865,15 @@ class StudyProjectService:
             await self._notify_project_ready(
                 user=user, project=project, job_type="study_pack"
             )
+            await credits_service.charge(
+                user=user,
+                feature="summary",
+                tier=summary_tier,
+                credits=credits_needed,
+                model=self.settings.openai_study_model,
+                input_tokens=result.input_tokens,
+                output_tokens=result.output_tokens,
+            )
             return await self.get_project(user, project.id)
         except ProjectGenerationCancelledError:
             await self.session.rollback()
@@ -1814,7 +1906,16 @@ class StudyProjectService:
                 expected_status="generating_quizzes",
             )
             markdown = self._read_project_markdown(project)
-            limits = _limits_for_user(user)
+            limits = limits_for_user(user)
+            credits_service = AiCreditsService(self.session)
+            window = await _current_billing_window(self.session, user)
+            total_questions = (
+                limits.quiz_groups_per_complexity * 3 * limits.quiz_questions_per_quiz
+            )
+            quiz_tier = await credits_service.determine_tier("quiz", total_questions)
+            credits_needed = await credits_service.ensure_can_consume(
+                user=user, feature="quiz", tier=quiz_tier, window=window
+            )
             target_language = _generation_language_for_project(project, user)
             prompt = self._build_quiz_pack_prompt(
                 project=project,
@@ -1864,6 +1965,8 @@ class StudyProjectService:
                 job_type="quiz_pack",
                 timeout_seconds=self.settings.openai_quiz_request_timeout_seconds,
             )
+            total_input_tokens = result.input_tokens
+            total_output_tokens = result.output_tokens
 
             await self._ensure_generation_can_continue(
                 project,
@@ -1899,6 +2002,8 @@ class StudyProjectService:
                     job_type="quiz_pack_retry",
                     timeout_seconds=self.settings.openai_quiz_request_timeout_seconds,
                 )
+                total_input_tokens += result.input_tokens
+                total_output_tokens += result.output_tokens
                 await self._ensure_generation_can_continue(
                     project,
                     expected_status="generating_quizzes",
@@ -1953,6 +2058,15 @@ class StudyProjectService:
             await self._notify_project_ready(
                 user=user, project=project, job_type="quiz_pack"
             )
+            await credits_service.charge(
+                user=user,
+                feature="quiz",
+                tier=quiz_tier,
+                credits=credits_needed,
+                model=self.settings.openai_quiz_model,
+                input_tokens=total_input_tokens,
+                output_tokens=total_output_tokens,
+            )
             return await self.get_project(user, project.id)
         except ProjectGenerationCancelledError:
             await self.session.rollback()
@@ -1974,10 +2088,6 @@ class StudyProjectService:
         paragraph_index: int,
         selected_text: str,
     ) -> dict[str, Any]:
-        if _user_plan_slug(user) != "pro":
-            raise ProjectPlanRestrictionError(
-                "Funcționalitatea AI este disponibilă doar pentru planul Pro."
-            )
         if self.settings.openai_api_key is None:
             raise ProjectValidationError(
                 "Generarea nu este disponibila momentan. Incearca din nou mai tarziu."
@@ -2027,6 +2137,12 @@ class StudyProjectService:
             target_language=target_language,
         )
 
+        credits_service = AiCreditsService(self.session)
+        window = await _current_billing_window(self.session, user)
+        credits_needed = await credits_service.ensure_can_consume(
+            user=user, feature="explanation", tier="small", window=window
+        )
+
         feedback_style_instruction = await self._ai_feedback_style_instruction(user)
         result = await OpenAIStudyGenerator(self.settings).generate_json(
             model=self.settings.openai_study_model,
@@ -2046,6 +2162,15 @@ class StudyProjectService:
             job_type="summary_selection_explanation",
             text_verbosity="low",
         )
+        await credits_service.charge(
+            user=user,
+            feature="explanation",
+            tier="small",
+            credits=credits_needed,
+            model=self.settings.openai_study_model,
+            input_tokens=result.input_tokens,
+            output_tokens=result.output_tokens,
+        )
         return result.payload
 
     async def explain_flashcard_selection(
@@ -2057,10 +2182,6 @@ class StudyProjectService:
         side: str,
         selected_text: str,
     ) -> dict[str, Any]:
-        if _user_plan_slug(user) != "pro":
-            raise ProjectPlanRestrictionError(
-                "Functionalitatea AI este disponibila doar pentru planul Pro."
-            )
         if self.settings.openai_api_key is None:
             raise ProjectValidationError(
                 "Generarea nu este disponibila momentan. Incearca din nou mai tarziu."
@@ -2111,6 +2232,12 @@ class StudyProjectService:
             target_language=target_language,
         )
 
+        credits_service = AiCreditsService(self.session)
+        window = await _current_billing_window(self.session, user)
+        credits_needed = await credits_service.ensure_can_consume(
+            user=user, feature="explanation", tier="small", window=window
+        )
+
         feedback_style_instruction = await self._ai_feedback_style_instruction(user)
         result = await OpenAIStudyGenerator(self.settings).generate_json(
             model=self.settings.openai_study_model,
@@ -2130,6 +2257,15 @@ class StudyProjectService:
             job_type="flashcard_selection_explanation",
             text_verbosity="low",
         )
+        await credits_service.charge(
+            user=user,
+            feature="explanation",
+            tier="small",
+            credits=credits_needed,
+            model=self.settings.openai_study_model,
+            input_tokens=result.input_tokens,
+            output_tokens=result.output_tokens,
+        )
         return result.payload
 
     async def chat_with_project_ai(
@@ -2141,10 +2277,6 @@ class StudyProjectService:
         history: list[dict[str, str]],
         conversation_summary: str | None = None,
     ) -> str:
-        if _user_plan_slug(user) != "pro":
-            raise ProjectPlanRestrictionError(
-                "Functionalitatea AI este disponibila doar pentru planul Pro."
-            )
         if self.settings.openai_api_key is None:
             raise ProjectValidationError(
                 "Generarea nu este disponibila momentan. Incearca din nou mai tarziu."
@@ -2182,6 +2314,16 @@ class StudyProjectService:
             CHAT_CONVERSATION_SUMMARY_CHARS,
         )
 
+        credits_service = AiCreditsService(self.session)
+        window = await _current_billing_window(self.session, user)
+        context_size_signal = len(clean_message) + len(clean_conversation_summary) + sum(
+            len(item["text"]) for item in clean_history
+        )
+        chat_tier = await credits_service.determine_tier("chat", context_size_signal)
+        credits_needed = await credits_service.ensure_can_consume(
+            user=user, feature="chat", tier=chat_tier, window=window
+        )
+
         prompt = self._build_project_chat_prompt(
             project=project,
             message=clean_message,
@@ -2214,6 +2356,8 @@ class StudyProjectService:
             text_verbosity="low",
         )
 
+        total_input_tokens = result.input_tokens
+        total_output_tokens = result.output_tokens
         answer = _clean_text(str(result.payload.get("answer", "")))
         if _is_low_quality_chat_answer(answer, clean_message):
             repair_prompt = f"""
@@ -2242,10 +2386,22 @@ Rescrie raspunsul pentru intrebarea curenta ca explicatie completa:
                 job_type="project_chat_repair",
                 text_verbosity="low",
             )
+            total_input_tokens += result.input_tokens
+            total_output_tokens += result.output_tokens
             answer = _clean_text(str(result.payload.get("answer", "")))
 
         if not answer:
             raise OpenAIGenerationError("Raspunsul nu a putut fi generat momentan.")
+
+        await credits_service.charge(
+            user=user,
+            feature="chat",
+            tier=chat_tier,
+            credits=credits_needed,
+            model=self.settings.openai_study_model,
+            input_tokens=total_input_tokens,
+            output_tokens=total_output_tokens,
+        )
         return answer
 
     async def create_quiz_mistake_flashcard(
@@ -2973,6 +3129,7 @@ Rescrie raspunsul pentru intrebarea curenta ca explicatie completa:
     async def _store_and_convert_file(
         self,
         *,
+        user: User,
         project: StudyProject,
         upload: UploadFile,
         upload_index: int,
@@ -3070,8 +3227,27 @@ Rescrie raspunsul pentru intrebarea curenta ca explicatie completa:
                 "Documentul %s pare scanat; pornim Mistral OCR pentru planul Pro.",
                 safe_name,
             )
+            credits_service = AiCreditsService(self.session)
+            window = await _current_billing_window(self.session, user)
             try:
-                markdown = await extract_scanned_pdf_markdown(source_path, self.settings)
+                local_page_estimate = await run_in_threadpool(
+                    _count_pdf_pages, source_path
+                )
+            except Exception:  # noqa: BLE001
+                logger.warning(
+                    "Nu am putut estima local numarul de pagini pentru %s; "
+                    "sar peste verificarea prealabila a bugetului OCR.",
+                    safe_name,
+                )
+                local_page_estimate = 0
+            if local_page_estimate > 0:
+                await credits_service.ensure_ocr_budget(
+                    user=user, pages_needed=local_page_estimate, window=window
+                )
+            try:
+                markdown, ocr_page_count = await extract_scanned_pdf_markdown(
+                    source_path, self.settings
+                )
             except MistralOCRConfigurationError as exc:
                 file_model.conversion_status = "failed"
                 file_model.conversion_error = str(exc)[:1000]
@@ -3087,6 +3263,15 @@ Rescrie raspunsul pentru intrebarea curenta ca explicatie completa:
                     "procesat prin OCR. Incearca din nou sau incarca un PDF "
                     "cu text selectabil."
                 ) from exc
+
+            await credits_service.charge(
+                user=user,
+                feature="ocr",
+                tier=None,
+                credits=0,
+                model=self.settings.mistral_ocr_model,
+                ocr_pages=ocr_page_count,
+            )
 
         markdown_path.write_text(markdown, encoding="utf-8")
         file_model.markdown_path = str(markdown_path)

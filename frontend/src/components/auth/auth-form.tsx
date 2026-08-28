@@ -14,6 +14,7 @@ import {
 type AuthFormProps = {
   mode: "login" | "register" | "forgot-password";
   redirectTo?: string;
+  initialError?: string;
 };
 
 type SuccessDialog = {
@@ -49,6 +50,29 @@ function EyeIcon({ crossed }: { crossed: boolean }) {
   );
 }
 
+function GoogleIcon() {
+  return (
+    <svg aria-hidden="true" className="h-4 w-4" viewBox="0 0 24 24">
+      <path
+        fill="#4285F4"
+        d="M23.52 12.27c0-.85-.08-1.67-.22-2.45H12v4.64h6.47a5.53 5.53 0 0 1-2.4 3.63v3h3.88c2.27-2.09 3.57-5.17 3.57-8.82Z"
+      />
+      <path
+        fill="#34A853"
+        d="M12 24c3.24 0 5.96-1.07 7.95-2.91l-3.88-3c-1.08.72-2.46 1.15-4.07 1.15-3.13 0-5.78-2.11-6.73-4.95H1.26v3.11A12 12 0 0 0 12 24Z"
+      />
+      <path
+        fill="#FBBC05"
+        d="M5.27 14.29a7.2 7.2 0 0 1 0-4.58V6.6H1.26a12 12 0 0 0 0 10.8l4.01-3.11Z"
+      />
+      <path
+        fill="#EA4335"
+        d="M12 4.75c1.76 0 3.35.61 4.6 1.8l3.44-3.44C17.95 1.19 15.24 0 12 0A12 12 0 0 0 1.26 6.6l4.01 3.11C6.22 6.86 8.87 4.75 12 4.75Z"
+      />
+    </svg>
+  );
+}
+
 function ArrowIcon() {
   return (
     <svg
@@ -76,7 +100,7 @@ function safeRedirectPath(value: string | undefined) {
   return value;
 }
 
-export function AuthForm({ mode, redirectTo }: AuthFormProps) {
+export function AuthForm({ mode, redirectTo, initialError }: AuthFormProps) {
   const router = useRouter();
   const { setUser } = useAuth();
   const afterLoginPath = safeRedirectPath(redirectTo);
@@ -85,10 +109,10 @@ export function AuthForm({ mode, redirectTo }: AuthFormProps) {
   const isForgotPassword = mode === "forgot-password";
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmation, setShowConfirmation] = useState(false);
-  const [message, setMessage] = useState<string | null>(null);
+  const [message, setMessage] = useState<string | null>(initialError ?? null);
   const [successDialog, setSuccessDialog] = useState<SuccessDialog | null>(null);
   const [hasRequestedReset, setHasRequestedReset] = useState(false);
-  const [isError, setIsError] = useState(false);
+  const [isError, setIsError] = useState(Boolean(initialError));
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
@@ -184,6 +208,39 @@ export function AuthForm({ mode, redirectTo }: AuthFormProps) {
 
   return (
     <>
+    {!isForgotPassword ? (
+      <div className="mb-4 space-y-3">
+        <a
+          href={`/api/auth/google/authorize?next=${encodeURIComponent(afterLoginPath)}`}
+          className="flex h-11 w-full items-center justify-center gap-2.5 rounded-xl border border-subtle bg-surface px-5 text-sm font-bold text-content transition hover:-translate-y-0.5 hover:bg-app"
+        >
+          <GoogleIcon />
+          Continuă cu Google
+        </a>
+        <p className="text-center text-[11px] leading-4 text-muted">
+          Continuând, ești de acord cu{" "}
+          <Link
+            href="/termeni-si-conditii"
+            className="font-semibold underline decoration-subtle underline-offset-2"
+          >
+            Termenii
+          </Link>{" "}
+          și{" "}
+          <Link
+            href="/politica-de-confidentialitate"
+            className="font-semibold underline decoration-subtle underline-offset-2"
+          >
+            Politica de confidențialitate
+          </Link>
+          .
+        </p>
+        <div className="flex items-center gap-3">
+          <span className="h-px flex-1 bg-subtle" />
+          <span className="text-xs font-semibold text-muted">sau</span>
+          <span className="h-px flex-1 bg-subtle" />
+        </div>
+      </div>
+    ) : null}
     <form onSubmit={handleSubmit} className="space-y-4">
       {isRegister ? (
         <div>

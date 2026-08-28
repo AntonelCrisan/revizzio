@@ -1,3 +1,4 @@
+from app.models.ai_usage import AiCreditRate, AiModelRate, AiUsageLog
 from app.models.audit import AuditLog
 from app.models.auth_session import AuthSession
 from app.models.compliance import (
@@ -45,6 +46,9 @@ from app.models.user import User
 from app.models.visitor import VisitorVisit
 
 __all__ = [
+    "AiCreditRate",
+    "AiModelRate",
+    "AiUsageLog",
     "AuditLog",
     "AccountDeletionRequest",
     "AuthSession",

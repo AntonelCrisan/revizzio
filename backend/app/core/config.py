@@ -71,6 +71,9 @@ class Settings(BaseSettings):
     mistral_ocr_model: str = "mistral-ocr-latest"
     mistral_ocr_timeout_seconds: int = Field(default=120, ge=10, le=600)
 
+    google_client_id: str | None = None
+    google_client_secret: SecretStr | None = None
+
     openai_api_key: SecretStr | None = None
     openai_study_model: str = "gpt-5.6-luna"
     openai_quiz_model: str = "gpt-5.6-terra"
@@ -143,6 +146,16 @@ class Settings(BaseSettings):
     @field_validator("mistral_api_key", mode="before")
     @classmethod
     def empty_mistral_api_key_is_none(cls, value: object) -> object:
+        return None if value == "" else value
+
+    @field_validator("google_client_id", mode="before")
+    @classmethod
+    def empty_google_client_id_is_none(cls, value: object) -> object:
+        return None if value == "" else value
+
+    @field_validator("google_client_secret", mode="before")
+    @classmethod
+    def empty_google_client_secret_is_none(cls, value: object) -> object:
         return None if value == "" else value
 
     @field_validator("mistral_ocr_api_url")

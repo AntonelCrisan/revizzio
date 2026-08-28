@@ -21,6 +21,7 @@ const allowedRoutes = new Map([
   ["PATCH:me/study-preferences", "/api/auth/me/study-preferences"],
   ["GET:me/notifications", "/api/auth/me/notifications"],
   ["POST:me/notifications/read-all", "/api/auth/me/notifications/read-all"],
+  ["GET:me/usage", "/api/auth/me/usage"],
 ]);
 
 const dynamicRoutes = [

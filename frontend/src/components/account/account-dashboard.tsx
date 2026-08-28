@@ -17,6 +17,7 @@ import { BrandLogo } from "@/components/brand-logo";
 import { useLanguage } from "@/components/language-provider";
 import type { AuthUserPlan, LanguagePreference } from "@/lib/auth-api";
 import { getStudyPreferences } from "@/lib/preferences-api";
+import { getUsage, type Usage } from "@/lib/usage-api";
 import {
   archiveStudyProject,
   cancelStudyProjectGeneration,
@@ -583,6 +584,7 @@ export function AccountDashboard({
   const [generationError, setGenerationError] = useState<string | null>(null);
   const [isCancellingGeneration, setIsCancellingGeneration] = useState(false);
   const [suggestQuizAfterSummary, setSuggestQuizAfterSummary] = useState(false);
+  const [usage, setUsage] = useState<Usage | null>(null);
   const generationAbortControllerRef = useRef<AbortController | null>(null);
   const generationProjectIdRef = useRef<string | null>(null);
   const generationCancelRequestedRef = useRef(false);
@@ -677,6 +679,23 @@ export function AccountDashboard({
       })
       .catch(() => {
         // Keep the default (no nudge) if preferences can't be loaded.
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [isLoading, user]);
+
+  useEffect(() => {
+    if (isLoading || !user) return;
+    let isMounted = true;
+
+    getUsage()
+      .then((result) => {
+        if (isMounted) setUsage(result);
+      })
+      .catch(() => {
+        // Keep usage null - the section simply doesn't render.
       });
 
     return () => {
@@ -1710,6 +1729,7 @@ export function AccountDashboard({
             <HomeView
               displayName={displayName}
               projects={projects}
+              usage={usage}
               onOpenProject={openProject}
               onOpenNewProject={openNewProject}
               onRenameProject={renameProject}
@@ -1811,9 +1831,149 @@ function AccountMetric({
   );
 }
 
+function UsageMeter({
+  label,
+  used,
+  limit,
+}: {
+  label: string;
+  used: number;
+  limit: number;
+}) {
+  if (limit <= 0) {
+    return (
+      <div className="py-3">
+        <div className="mb-2 flex items-center justify-between gap-3">
+          <p className="text-sm font-bold text-content">{label}</p>
+          <span className="rounded-full bg-app px-2.5 py-1 text-[11px] font-bold text-muted">
+            Indisponibil
+          </span>
+        </div>
+        <div className="h-2.5 overflow-hidden rounded-full bg-app" />
+      </div>
+    );
+  }
+
+  const percent = Math.min(100, Math.round((used / limit) * 100));
+  const barClass =
+    percent >= 90 ? "bg-danger" : percent >= 70 ? "bg-warning" : "bg-success";
+  const badgeClass =
+    percent >= 90
+      ? "bg-danger-soft text-danger"
+      : percent >= 70
+        ? "bg-warning-soft text-warning"
+        : "bg-success-soft text-success";
+
+  return (
+    <div className="py-3">
+      <div className="mb-2 flex items-center justify-between gap-3">
+        <p className="text-sm font-bold text-content">{label}</p>
+        <span
+          className={`rounded-full px-2.5 py-1 text-[11px] font-bold ${badgeClass}`}
+        >
+          {used} / {limit}
+        </span>
+      </div>
+      <div className="h-2.5 overflow-hidden rounded-full bg-app">
+        <div
+          className={`h-full rounded-full ${barClass}`}
+          style={{ width: `${percent}%` }}
+        />
+      </div>
+    </div>
+  );
+}
+
+function UsageSection({ usage }: { usage: Usage | null }) {
+  if (!usage) return null;
+
+  const meters = [
+    {
+      key: "materials",
+      label: "Materiale",
+      used: usage.materials_used,
+      limit: usage.materials_limit,
+    },
+    {
+      key: "pages",
+      label: "Pagini procesate",
+      used: usage.pages_processed,
+      limit: usage.pages_limit,
+    },
+    {
+      key: "credits",
+      label: "AI Credits",
+      used: usage.ai_credits_used,
+      limit: usage.ai_credits_limit,
+    },
+    {
+      key: "ocr",
+      label: "Pagini OCR",
+      used: usage.ocr_pages_used,
+      limit: usage.ocr_pages_limit,
+    },
+  ];
+
+  const withPercent = meters
+    .filter((meter) => meter.limit > 0)
+    .map((meter) => ({
+      ...meter,
+      percent: Math.min(100, Math.round((meter.used / meter.limit) * 100)),
+    }));
+  const mostUsed = withPercent.reduce(
+    (highest, meter) =>
+      !highest || meter.percent > highest.percent ? meter : highest,
+    null as (typeof withPercent)[number] | null,
+  );
+
+  const resetDateLabel = new Intl.DateTimeFormat("ro-RO", {
+    dateStyle: "long",
+  }).format(new Date(usage.reset_date));
+
+  return (
+    <>
+      {mostUsed && mostUsed.percent >= 70 ? (
+        <div
+          className={`rounded-xl border px-4 py-3 text-sm font-semibold ${
+            mostUsed.percent >= 100
+              ? "border-danger-border bg-danger-soft text-danger"
+              : "border-warning-border bg-warning-soft text-warning"
+          }`}
+        >
+          {mostUsed.percent >= 100
+            ? `Ai atins limita planului curent pentru „${mostUsed.label}". Poti face upgrade la un plan superior.`
+            : mostUsed.percent >= 90
+              ? `Te apropii de limita lunară pentru „${mostUsed.label}". Mai ai ${mostUsed.limit - mostUsed.used} disponibile.`
+              : `Ai utilizat ${mostUsed.percent}% din resursele incluse luna aceasta pentru „${mostUsed.label}".`}
+        </div>
+      ) : null}
+
+      <div className="rounded-xl border border-subtle bg-surface p-5">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <SectionLabel>Utilizare luna aceasta</SectionLabel>
+          <p className="text-xs font-semibold text-muted">
+            Resetare pe: {resetDateLabel}
+          </p>
+        </div>
+        <div className="mt-2 divide-y divide-subtle">
+          {meters.map((meter) => (
+            <UsageMeter
+              key={meter.key}
+              label={meter.label}
+              used={meter.used}
+              limit={meter.limit}
+            />
+          ))}
+        </div>
+      </div>
+    </>
+  );
+}
+
 function HomeView({
   displayName,
   projects,
+  usage,
   onOpenProject,
   onOpenNewProject,
   onRenameProject,
@@ -1822,6 +1982,7 @@ function HomeView({
 }: {
   displayName: string;
   projects: StudyProject[];
+  usage: Usage | null;
   onOpenProject: (projectId: string, tab?: TabId) => void;
   onOpenNewProject: () => void;
   onRenameProject: (projectId: string, name: string) => Promise<void> | void;
@@ -1964,6 +2125,8 @@ function HomeView({
           detail="în pachetele generate"
         />
       </div>
+
+      <UsageSection usage={usage} />
 
       <SectionLabel>Proiectele tale</SectionLabel>
       {projectError ? (

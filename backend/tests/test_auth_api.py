@@ -14,6 +14,7 @@ from app.services.auth import (
     AuthResult,
     InvalidCredentialsError,
 )
+from app.services.google_oauth import GoogleOAuthError
 
 
 def build_user() -> User:
@@ -39,15 +40,22 @@ class FakeAuthService:
         *,
         persistent: bool = False,
         account_deletion_pending: bool = False,
+        google_error: Exception | None = None,
     ) -> None:
         self.user = build_user()
         self.persistent = persistent
         self.account_deletion_pending = account_deletion_pending
+        self.google_error = google_error
 
     async def register(self, *_: object, **__: object) -> AuthResult:
         return self._result()
 
     async def login(self, *_: object, **__: object) -> AuthResult:
+        return self._result()
+
+    async def login_with_google(self, *_: object, **__: object) -> AuthResult:
+        if self.google_error is not None:
+            raise self.google_error
         return self._result()
 
     async def verify_email(self, *_: object, **__: object) -> AuthResult:
@@ -133,6 +141,40 @@ def test_register_requests_email_confirmation_without_session_cookie() -> None:
             "validarea adresei de email."
         )
     }
+    assert "set-cookie" not in response.headers
+
+
+def test_google_callback_sets_session_cookie() -> None:
+    service = FakeAuthService()
+    app.dependency_overrides[get_auth_service] = lambda: service
+
+    try:
+        with TestClient(app) as client:
+            response = client.post(
+                "/api/auth/google/callback",
+                json={"code": "test-authorization-code"},
+            )
+    finally:
+        app.dependency_overrides.clear()
+
+    assert response.status_code == 200
+    assert "set-cookie" in response.headers
+
+
+def test_google_callback_invalid_code_returns_400() -> None:
+    service = FakeAuthService(google_error=GoogleOAuthError("bad code"))
+    app.dependency_overrides[get_auth_service] = lambda: service
+
+    try:
+        with TestClient(app) as client:
+            response = client.post(
+                "/api/auth/google/callback",
+                json={"code": "test-authorization-code"},
+            )
+    finally:
+        app.dependency_overrides.clear()
+
+    assert response.status_code == 400
     assert "set-cookie" not in response.headers
 
 

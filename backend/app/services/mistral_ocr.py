@@ -25,11 +25,15 @@ class MistralOCRRequestError(Exception):
     pass
 
 
-async def extract_scanned_pdf_markdown(path: Path, settings: Settings) -> str:
+async def extract_scanned_pdf_markdown(
+    path: Path, settings: Settings
+) -> tuple[str, int]:
     return await to_thread.run_sync(_extract_scanned_pdf_markdown_sync, path, settings)
 
 
-def _extract_scanned_pdf_markdown_sync(path: Path, settings: Settings) -> str:
+def _extract_scanned_pdf_markdown_sync(
+    path: Path, settings: Settings
+) -> tuple[str, int]:
     if settings.mistral_api_key is None:
         raise MistralOCRConfigurationError("MISTRAL_API_KEY nu este configurat.")
 
@@ -89,13 +93,14 @@ def _extract_scanned_pdf_markdown_sync(path: Path, settings: Settings) -> str:
         ) from exc
 
     markdown = _combine_ocr_page_markdown(response_payload)
+    page_count = _ocr_page_count(response_payload)
     logger.info(
         "Mistral OCR finalizat pentru %s: %s pagini, %s caractere markdown.",
         path.name,
-        _ocr_page_count(response_payload),
+        page_count,
         len(markdown),
     )
-    return markdown
+    return markdown, page_count
 
 
 def _combine_ocr_page_markdown(response_payload: dict[str, Any]) -> str:

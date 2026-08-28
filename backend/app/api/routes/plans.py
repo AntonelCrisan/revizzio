@@ -278,6 +278,11 @@ async def update_admin_plans(
         plan.quiz_groups_per_complexity = plan_payload.quiz_groups_per_complexity
         plan.quiz_questions_per_quiz = plan_payload.quiz_questions_per_quiz
         plan.allow_scanned_documents = plan_payload.allow_scanned_documents
+        plan.monthly_ai_credits = plan_payload.monthly_ai_credits
+        plan.monthly_ocr_pages = plan_payload.monthly_ocr_pages
+        plan.monthly_page_limit = plan_payload.monthly_page_limit
+        plan.ai_chat_enabled = plan_payload.ai_chat_enabled
+        plan.max_openai_cost_usd_per_cycle = plan_payload.max_openai_cost_usd_per_cycle
         plan.stripe_product_id = plan_payload.stripe_product_id
         plan.stripe_price_id = plan_payload.stripe_price_id
         plan.is_visible = plan_payload.is_visible

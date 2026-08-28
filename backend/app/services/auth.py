@@ -39,6 +39,7 @@ from app.services.email import (
     password_reset_email,
     verification_email,
 )
+from app.services.google_oauth import exchange_code_for_identity
 
 
 class EmailAlreadyRegisteredError(Exception):
@@ -273,10 +274,13 @@ class AuthService:
     ) -> AuthResult:
         email = _normalize_email(str(payload.email))
         user = await self._users.get_by_email(email)
+        password_hash = (
+            user.password_hash if user is not None and user.password_hash else None
+        )
         password_is_valid = await to_thread.run_sync(
             verify_password,
             payload.password,
-            user.password_hash if user is not None else dummy_password_hash,
+            password_hash or dummy_password_hash,
         )
         if user is None:
             await self._raise_pending_confirmation_if_credentials_match(
@@ -318,6 +322,76 @@ class AuthService:
             resource_type="user",
             resource_id=str(user.id),
             details={"remember_session": payload.remember},
+            ip_address=ip_address,
+            user_agent=user_agent,
+        )
+        await self._session.commit()
+        return result
+
+    async def login_with_google(
+        self,
+        code: str,
+        *,
+        user_agent: str | None,
+        ip_address: str | None,
+    ) -> AuthResult:
+        identity = await exchange_code_for_identity(code, settings=self._settings)
+        now = datetime.now(UTC)
+
+        user = await self._users.get_by_google_sub(identity.sub)
+        if user is None:
+            user = await self._users.get_by_email(identity.email)
+            if user is not None:
+                user.google_sub = identity.sub
+                was_inactive = not user.is_active
+                if was_inactive:
+                    user.is_active = True
+                add_audit_log(
+                    self._session,
+                    action="auth.google_account_linked",
+                    actor=user,
+                    resource_type="user",
+                    resource_id=str(user.id),
+                    details={"email": user.email, "activated": was_inactive},
+                    ip_address=ip_address,
+                    user_agent=user_agent,
+                )
+            else:
+                try:
+                    user = await self._users.add_from_google(
+                        full_name=identity.full_name,
+                        email=identity.email,
+                        google_sub=identity.sub,
+                        terms_accepted_at=now,
+                        terms_version=self._settings.terms_version,
+                    )
+                except IntegrityError as exc:
+                    await self._session.rollback()
+                    raise EmailAlreadyRegisteredError from exc
+                add_audit_log(
+                    self._session,
+                    action="auth.registered_via_google",
+                    actor=user,
+                    resource_type="user",
+                    resource_id=str(user.id),
+                    details={"email": user.email},
+                    ip_address=ip_address,
+                    user_agent=user_agent,
+                )
+
+        result = await self._create_session(
+            user=user,
+            persistent=True,
+            user_agent=user_agent,
+            ip_address=ip_address,
+        )
+        add_audit_log(
+            self._session,
+            action="auth.logged_in",
+            actor=user,
+            resource_type="user",
+            resource_id=str(user.id),
+            details={"provider": "google"},
             ip_address=ip_address,
             user_agent=user_agent,
         )
@@ -481,7 +555,7 @@ class AuthService:
         password_is_valid = await to_thread.run_sync(
             verify_password,
             current_password,
-            user.password_hash,
+            user.password_hash or dummy_password_hash,
         )
         if not password_is_valid:
             add_audit_log(
@@ -781,7 +855,7 @@ class AuthService:
         password_is_valid = await to_thread.run_sync(
             verify_password,
             current_password,
-            user.password_hash,
+            user.password_hash or dummy_password_hash,
         )
         if not password_is_valid:
             add_audit_log(

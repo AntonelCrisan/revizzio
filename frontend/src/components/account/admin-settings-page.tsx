@@ -50,6 +50,12 @@ const planCards: SettingsCard[] = [
     href: "/admin/settings/planuri",
     icon: "card",
   },
+  {
+    title: "AI Credits și cost",
+    description: "Praguri de credite pe mărime și cost estimat per model AI.",
+    href: "/admin/settings/ai-credite",
+    icon: "chart",
+  },
 ];
 
 const userCards: SettingsCard[] = [

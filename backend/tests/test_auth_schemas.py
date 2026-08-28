@@ -3,6 +3,7 @@ from pydantic import ValidationError
 
 from app.schemas.auth import (
     ChangePasswordRequest,
+    GoogleCallbackRequest,
     PasswordResetConfirmRequest,
     RegisterRequest,
 )
@@ -47,6 +48,14 @@ def test_change_password_reuses_password_policy() -> None:
             current_password="ParolaVeche123",
             new_password="parolafarasifra",
         )
+
+
+def test_google_callback_requires_non_empty_code() -> None:
+    with pytest.raises(ValidationError):
+        GoogleCallbackRequest(code="")
+
+    payload = GoogleCallbackRequest(code="valid-authorization-code")
+    assert payload.code == "valid-authorization-code"
 
 
 def test_change_password_rejects_same_password() -> None:

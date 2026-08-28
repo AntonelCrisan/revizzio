@@ -7,7 +7,24 @@ export const metadata: Metadata = {
   description: "Creează un cont Reviss.",
 };
 
-export default function RegisterPage() {
+type RegisterPageProps = {
+  searchParams: Promise<{ error?: string | string[] }>;
+};
+
+function firstSearchParam(value: string | string[] | undefined) {
+  return Array.isArray(value) ? value[0] : value;
+}
+
+function googleErrorMessage(error: string | undefined) {
+  if (error === "google_oauth") {
+    return "Autentificarea prin Google a eșuat. Încearcă din nou.";
+  }
+  return undefined;
+}
+
+export default async function RegisterPage({ searchParams }: RegisterPageProps) {
+  const { error } = await searchParams;
+
   return (
     <AuthShell
       eyebrow="Începe gratuit"
@@ -24,7 +41,10 @@ export default function RegisterPage() {
         "Temă luminoasă și Warm Night",
       ]}
     >
-      <AuthForm mode="register" />
+      <AuthForm
+        mode="register"
+        initialError={googleErrorMessage(firstSearchParam(error))}
+      />
     </AuthShell>
   );
 }

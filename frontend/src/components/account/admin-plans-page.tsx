@@ -33,6 +33,11 @@ type AdminPlanDraft = {
   quizGroupsPerComplexity: string;
   quizQuestionsPerQuiz: string;
   allowScannedDocuments: boolean;
+  monthlyAiCredits: string;
+  monthlyOcrPages: string;
+  monthlyPageLimit: string;
+  aiChatEnabled: boolean;
+  maxOpenaiCostUsdPerCycle: string;
   stripeProductId: string;
   stripePriceId: string;
   isVisible: boolean;
@@ -100,6 +105,11 @@ function toDraftPlan(plan: SubscriptionPlan): AdminPlanDraft {
     quizGroupsPerComplexity: String(plan.quiz_groups_per_complexity),
     quizQuestionsPerQuiz: String(plan.quiz_questions_per_quiz),
     allowScannedDocuments: plan.allow_scanned_documents,
+    monthlyAiCredits: String(plan.monthly_ai_credits),
+    monthlyOcrPages: String(plan.monthly_ocr_pages),
+    monthlyPageLimit: String(plan.monthly_page_limit),
+    aiChatEnabled: plan.ai_chat_enabled,
+    maxOpenaiCostUsdPerCycle: moneyToDraft(plan.max_openai_cost_usd_per_cycle),
     stripeProductId: plan.stripe_product_id ?? "",
     stripePriceId: plan.stripe_price_id ?? "",
     isVisible: plan.is_visible,
@@ -144,6 +154,11 @@ function toPlanUpdate(
     ),
     quiz_questions_per_quiz: normalizeInteger(plan.quizQuestionsPerQuiz, 8, 3),
     allow_scanned_documents: plan.allowScannedDocuments,
+    monthly_ai_credits: normalizeInteger(plan.monthlyAiCredits, 10, 0),
+    monthly_ocr_pages: normalizeInteger(plan.monthlyOcrPages, 0, 0),
+    monthly_page_limit: normalizeInteger(plan.monthlyPageLimit, 40, 0),
+    ai_chat_enabled: plan.aiChatEnabled,
+    max_openai_cost_usd_per_cycle: normalizeMoney(plan.maxOpenaiCostUsdPerCycle),
     stripe_product_id: optionalText(plan.stripeProductId),
     stripe_price_id: optionalText(plan.stripePriceId),
     is_visible: plan.isVisible,
@@ -777,6 +792,56 @@ export function AdminPlansPage({ initialPlans }: AdminPlansPageProps) {
                   checked={selectedPlan.allowScannedDocuments}
                   onChange={(checked) =>
                     updateSelectedPlan({ allowScannedDocuments: checked })
+                  }
+                />
+              </div>
+            </EditorSection>
+
+            <EditorSection
+              title="AI Credits"
+              detail="acces AI, credite lunare și plafon de cost"
+            >
+              <div className="grid gap-4 md:grid-cols-3">
+                <TextField
+                  label="AI Credits / lună"
+                  value={selectedPlan.monthlyAiCredits}
+                  onChange={(value) =>
+                    updateSelectedPlan({ monthlyAiCredits: value })
+                  }
+                  placeholder="60"
+                />
+                <TextField
+                  label="Pagini OCR / lună"
+                  value={selectedPlan.monthlyOcrPages}
+                  onChange={(value) =>
+                    updateSelectedPlan({ monthlyOcrPages: value })
+                  }
+                  placeholder="200"
+                />
+                <TextField
+                  label="Pagini procesate / lună (total)"
+                  value={selectedPlan.monthlyPageLimit}
+                  onChange={(value) =>
+                    updateSelectedPlan({ monthlyPageLimit: value })
+                  }
+                  placeholder="1000"
+                />
+                <TextField
+                  label="Plafon cost AI ($/ciclu)"
+                  value={selectedPlan.maxOpenaiCostUsdPerCycle}
+                  onChange={(value) =>
+                    updateSelectedPlan({ maxOpenaiCostUsdPerCycle: value })
+                  }
+                  placeholder="6.00"
+                />
+              </div>
+              <div className="mt-5 divide-y divide-subtle border-y border-subtle">
+                <Toggle
+                  label="AI Chat și explicații disponibile"
+                  detail="Fără acest comutator, Chat AI și explicațiile AI raspund cu „funcționalitate indisponibilă”, indiferent de credite."
+                  checked={selectedPlan.aiChatEnabled}
+                  onChange={(checked) =>
+                    updateSelectedPlan({ aiChatEnabled: checked })
                   }
                 />
               </div>

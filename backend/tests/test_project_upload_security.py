@@ -17,6 +17,7 @@ from app.models import (
     StudyProjectSummary,
 )
 from app.services import projects as projects_module
+from app.services.plan_errors import MaterialLimitReachedError
 from app.services.projects import (
     ProjectPlanLimits,
     ProjectValidationError,
@@ -65,6 +66,7 @@ def _plan_limits(
         file_mb=10,
         total_project_mb=20,
         estimated_pages=25,
+        monthly_page_limit=1000,
         initial_flashcards=20,
         quiz_groups_per_complexity=1,
         quiz_questions_per_quiz=8,
@@ -80,6 +82,18 @@ class _StoreFileSession:
         self.added.append(value)
 
     async def flush(self) -> None:
+        return None
+
+    async def scalar(self, statement: object) -> None:
+        # No active subscription / no existing AI usage in these tests -
+        # billing-window and credit-budget lookups both fall back to safe
+        # defaults (calendar month, zero usage so far).
+        return None
+
+    async def commit(self) -> None:
+        return None
+
+    async def rollback(self) -> None:
         return None
 
 
@@ -123,7 +137,7 @@ def test_postgres_quota_lock_key_is_stable_bigint() -> None:
 
 def test_monthly_project_limit_counts_archived_projects(tmp_path) -> None:
     settings = Settings(**BASE_SETTINGS, project_storage_dir=tmp_path)
-    session = _ScalarSession([1])
+    session = _ScalarSession([None, 1])
     service = StudyProjectService(  # type: ignore[arg-type]
         session=session,
         settings=settings,
@@ -138,20 +152,20 @@ def test_monthly_project_limit_counts_archived_projects(tmp_path) -> None:
             )
         )
 
-    project_limit_query = str(session.statements[0])
+    project_limit_query = str(session.statements[1])
     assert "study_projects.created_at" in project_limit_query
     assert "study_project_archives" not in project_limit_query
 
 
 def test_monthly_material_limit_counts_uploaded_files_by_month(tmp_path) -> None:
     settings = Settings(**BASE_SETTINGS, project_storage_dir=tmp_path)
-    session = _ScalarSession([0, 2])
+    session = _ScalarSession([None, 0, 2])
     service = StudyProjectService(  # type: ignore[arg-type]
         session=session,
         settings=settings,
     )
 
-    with pytest.raises(ProjectValidationError, match="maximum 3 materiale pe luna"):
+    with pytest.raises(MaterialLimitReachedError, match="maximum 3 materiale pe luna"):
         asyncio.run(
             service._enforce_upload_plan_limits(
                 user=_plan_limit_user(),  # type: ignore[arg-type]
@@ -160,7 +174,7 @@ def test_monthly_material_limit_counts_uploaded_files_by_month(tmp_path) -> None
             )
         )
 
-    material_limit_query = str(session.statements[1])
+    material_limit_query = str(session.statements[2])
     assert "study_project_files.created_at" in material_limit_query
     assert "study_project_archives" not in material_limit_query
 
@@ -331,10 +345,10 @@ def test_non_pro_scanned_pdf_is_rejected_without_mistral_ocr(
     def fake_markdown(_: object) -> str:
         return ""
 
-    async def fake_ocr(*_: object) -> str:
+    async def fake_ocr(*_: object) -> tuple[str, int]:
         nonlocal called
         called = True
-        return "Text OCR care nu ar trebui cerut."
+        return "Text OCR care nu ar trebui cerut.", 1
 
     monkeypatch.setattr(projects_module, "_read_markdown", fake_markdown)
     monkeypatch.setattr(projects_module, "extract_scanned_pdf_markdown", fake_ocr)
@@ -342,6 +356,7 @@ def test_non_pro_scanned_pdf_is_rejected_without_mistral_ocr(
     with pytest.raises(ProjectValidationError, match="doar pe planul Pro"):
         asyncio.run(
             service._store_and_convert_file(
+                user=_plan_limit_user(),  # type: ignore[arg-type]
                 project=project,
                 upload=_pdf_upload(),
                 upload_index=0,
@@ -378,16 +393,17 @@ def test_pro_scanned_pdf_uses_mistral_ocr(
     def fake_markdown(_: object) -> str:
         return ""
 
-    async def fake_ocr(path: object, received_settings: Settings) -> str:
+    async def fake_ocr(path: object, received_settings: Settings) -> tuple[str, int]:
         captured["path"] = path
         captured["settings"] = received_settings
-        return ocr_markdown
+        return ocr_markdown, 3
 
     monkeypatch.setattr(projects_module, "_read_markdown", fake_markdown)
     monkeypatch.setattr(projects_module, "extract_scanned_pdf_markdown", fake_ocr)
 
     file_model = asyncio.run(
         service._store_and_convert_file(
+            user=_plan_limit_user(),  # type: ignore[arg-type]
             project=project,
             upload=_pdf_upload(),
             upload_index=0,

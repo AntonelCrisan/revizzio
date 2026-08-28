@@ -98,6 +98,31 @@ class SubscriptionPlan(Base):
         nullable=False,
         default=False,
     )
+    monthly_ai_credits: Mapped[int] = mapped_column(
+        Integer,
+        nullable=False,
+        default=10,
+    )
+    monthly_ocr_pages: Mapped[int] = mapped_column(
+        Integer,
+        nullable=False,
+        default=0,
+    )
+    monthly_page_limit: Mapped[int] = mapped_column(
+        Integer,
+        nullable=False,
+        default=40,
+    )
+    ai_chat_enabled: Mapped[bool] = mapped_column(
+        Boolean,
+        nullable=False,
+        default=False,
+    )
+    max_openai_cost_usd_per_cycle: Mapped[Decimal] = mapped_column(
+        Numeric(6, 2),
+        nullable=False,
+        default=Decimal("2.00"),
+    )
     stripe_product_id: Mapped[str | None] = mapped_column(String(120), nullable=True)
     stripe_price_id: Mapped[str | None] = mapped_column(
         String(120),

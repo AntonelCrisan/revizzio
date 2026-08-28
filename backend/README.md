@@ -41,6 +41,21 @@ RESEND_FROM_EMAIL="Reviss <noreply@reviss.app>"
 Parola bazei de date și secretul sesiunilor nu se introduc în cod și nu se
 comit în Git.
 
+Pentru autentificarea cu Google, creează un OAuth Client ID (tip "Web
+application") în [Google Cloud Console](https://console.cloud.google.com/apis/credentials),
+adaugă `{PUBLIC_APP_URL}/api/auth/google/callback` la "Authorized redirect
+URIs" (ex. `http://localhost:3000/api/auth/google/callback` local) și
+completează `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET` în `.env`. Frontend-ul
+are nevoie separat de `GOOGLE_CLIENT_ID` în `frontend/.env`. Fără aceste
+variabile, butonul de Google din login/register va afișa o eroare.
+
+Important: `NEXT_PUBLIC_SITE_URL` din `frontend/.env` trebuie să fie
+identic cu `PUBLIC_APP_URL` de aici (ex. amândouă `http://localhost:3000`),
+altfel Google respinge cererea cu `Error 400: invalid_request` — redirect
+URI-ul e construit din `NEXT_PUBLIC_SITE_URL`, nu din hostname-ul din
+browser (accesarea aplicației prin `0.0.0.0:3000` sau prin IP-ul de rețea în
+loc de `localhost:3000` produce exact această eroare).
+
 `MISTRAL_API_KEY` este folosită doar pentru PDF-uri scanate încărcate de
 utilizatorii cu plan Pro. PDF-urile cu text selectabil merg în continuare prin
 MarkItDown.

@@ -19,6 +19,13 @@ class UserRepository:
             .where(User.email == email)
         )
 
+    async def get_by_google_sub(self, google_sub: str) -> User | None:
+        return await self._session.scalar(
+            select(User)
+            .options(selectinload(User.current_plan))
+            .where(User.google_sub == google_sub)
+        )
+
     async def add(
         self,
         *,
@@ -39,6 +46,31 @@ class UserRepository:
             terms_version=terms_version,
             newsletter_consent=newsletter_consent,
             newsletter_consent_at=newsletter_consent_at,
+        )
+        self._session.add(user)
+        await self._session.flush()
+        return user
+
+    async def add_from_google(
+        self,
+        *,
+        full_name: str,
+        email: str,
+        google_sub: str,
+        terms_accepted_at: datetime,
+        terms_version: str,
+    ) -> User:
+        user = User(
+            full_name=full_name,
+            email=email,
+            password_hash=None,
+            google_sub=google_sub,
+            role="user",
+            is_active=True,
+            terms_accepted_at=terms_accepted_at,
+            terms_version=terms_version,
+            newsletter_consent=False,
+            newsletter_consent_at=None,
         )
         self._session.add(user)
         await self._session.flush()

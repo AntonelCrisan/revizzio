@@ -16,6 +16,7 @@ from app.schemas.auth import (
     ChangePasswordRequest,
     ConfirmEmailChangeRequest,
     EmailVerificationRequest,
+    GoogleCallbackRequest,
     LoginRequest,
     MessageResponse,
     PasswordResetConfirmRequest,
@@ -25,7 +26,13 @@ from app.schemas.auth import (
     UpdateFullNameRequest,
 )
 from app.schemas.preferences import StudyPreferencesResponse, StudyPreferencesUpdate
+from app.schemas.usage import UsageResponse
 from app.schemas.user import UserPreferencesUpdate, UserResponse
+from app.services.ai_credits import (
+    AiCreditsService,
+    monthly_ai_credits,
+    monthly_ocr_pages,
+)
 from app.services.auth import (
     AccountDeletionRequestAlreadyPendingError,
     AuthResult,
@@ -37,8 +44,11 @@ from app.services.auth import (
     InvalidEmailTokenError,
     PendingEmailConfirmationError,
 )
+from app.services.billing_window import current_billing_window
+from app.services.google_oauth import GoogleOAuthError
 from app.services.pdf_export import account_data_export_pdf
 from app.services.preferences import PreferencesService, StudyPreferences
+from app.services.projects import StudyProjectService, limits_for_user
 
 router = APIRouter(prefix="/api/auth", tags=["authentication"])
 
@@ -55,6 +65,7 @@ AUTH_RATE_LIMIT_IDENTITY_POLICIES = {
     "me/newsletter-consent/withdraw": 10,
     "me/data-export": 10,
     "me/study-preferences": 20,
+    "me/usage": 30,
     "password-reset/request": 5,
     "password-reset/confirm": 10,
 }
@@ -62,6 +73,7 @@ AUTH_RATE_LIMIT_IP_POLICIES = {
     "register": 20,
     "verify-email": 60,
     "login": 50,
+    "google/callback": 30,
     "me/deletion-request": 10,
     "me/password": 20,
     "me/name": 20,
@@ -70,6 +82,7 @@ AUTH_RATE_LIMIT_IP_POLICIES = {
     "me/newsletter-consent/withdraw": 20,
     "me/data-export": 20,
     "me/study-preferences": 40,
+    "me/usage": 60,
     "password-reset/request": 20,
     "password-reset/confirm": 30,
 }
@@ -316,6 +329,38 @@ async def login(
     return await _user_response(result.user, service)
 
 
+@router.post("/google/callback", response_model=UserResponse)
+async def google_callback(
+    payload: GoogleCallbackRequest,
+    request: Request,
+    response: Response,
+    service: AuthServiceDependency,
+    settings: AppSettings,
+) -> UserResponse:
+    _protect_auth_origin(request, settings)
+    await _enforce_auth_rate_limit(request, "google/callback")
+    user_agent, ip_address = _client_context(request)
+    try:
+        result = await service.login_with_google(
+            payload.code,
+            user_agent=user_agent,
+            ip_address=ip_address,
+        )
+    except GoogleOAuthError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Autentificarea prin Google a eșuat. Încearcă din nou.",
+        ) from exc
+    except EmailAlreadyRegisteredError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Există deja un cont asociat acestei adrese de email.",
+        ) from exc
+
+    _set_session_cookie(response, result, settings)
+    return await _user_response(result.user, service)
+
+
 @router.post("/password-reset/request", response_model=MessageResponse)
 async def request_password_reset(
     payload: PasswordResetRequest,
@@ -478,6 +523,48 @@ async def update_study_preferences(
         newsletter_consent=payload.newsletter_consent,
     )
     return _study_preferences_response(study_preferences)
+
+
+@router.get("/me/usage", response_model=UsageResponse)
+async def get_usage(
+    request: Request,
+    current_user: CurrentUser,
+    session: DbSession,
+    settings: AppSettings,
+) -> UsageResponse:
+    await _enforce_auth_rate_limit(
+        request,
+        "me/usage",
+        identity=str(current_user.id),
+    )
+
+    window_start, window_end = await current_billing_window(session, current_user)
+    limits = limits_for_user(current_user)
+
+    projects_service = StudyProjectService(session, settings)
+    materials_used, pages_processed = await projects_service.get_monthly_usage(
+        current_user
+    )
+
+    credits_service = AiCreditsService(session)
+    ai_credits_used = await credits_service.credits_used_this_cycle(
+        current_user, window_start, window_end
+    )
+    ocr_pages_used = await credits_service.ocr_pages_used_this_cycle(
+        current_user, window_start, window_end
+    )
+
+    return UsageResponse(
+        materials_used=materials_used,
+        materials_limit=limits.monthly_materials,
+        pages_processed=pages_processed,
+        pages_limit=limits.monthly_page_limit,
+        ai_credits_used=ai_credits_used,
+        ai_credits_limit=monthly_ai_credits(current_user),
+        ocr_pages_used=ocr_pages_used,
+        ocr_pages_limit=monthly_ocr_pages(current_user),
+        reset_date=window_end,
+    )
 
 
 @router.patch("/me/password", response_model=MessageResponse)
