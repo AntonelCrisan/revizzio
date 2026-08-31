@@ -7,6 +7,7 @@ import json
 import logging
 import mimetypes
 import os
+import random
 import re
 import shutil
 import subprocess
@@ -3476,9 +3477,14 @@ Rescrie raspunsul pentru intrebarea curenta ca explicatie completa:
                     or None,
                     sort_order=question_index,
                 )
-                for option_index, option_item in enumerate(
-                    _list_value(question_dict.get("options"))
-                ):
+                # Shuffled server-side so the correct answer's position can't
+                # be inferred from a pattern in how the model orders options
+                # (e.g. always first, or always the same slot across a quiz)
+                # — this holds regardless of how well the model follows the
+                # anti-pattern instructions in the generation prompt.
+                shuffled_options = _list_value(question_dict.get("options"))[:]
+                random.shuffle(shuffled_options)
+                for option_index, option_item in enumerate(shuffled_options):
                     option_dict = _dict_value(option_item)
                     label = _string_or_default(
                         option_dict.get("label") or option_dict.get("text")
@@ -4256,9 +4262,26 @@ REGULI PENTRU MULTIPLE_CHOICE:
 REGULI PENTRU OPTIUNI:
 - Distractorii trebuie sa fie greseli realiste din concepte apropiate.
 - Nu folosi optiuni absurde sau complet fara legatura.
-- Raspunsul corect nu trebuie sa fie identificabil prin lungime, detaliu sau vocabular.
 - Optiunile aceleiasi intrebari trebuie sa aiba forma gramaticala si granularitate similare.
 - La multiple_choice, optiunile corecte nu trebuie sa fie ca grup mai lungi sau mai detaliate decat cele gresite.
+
+REGULI STRICTE PRIVIND LUNGIMEA SI FORMA OPTIUNILOR:
+- Raspunsul corect nu trebuie sa fie identificabil prin lungime, precizie, vocabular sau structura.
+- Pentru optiuni de maximum 8 cuvinte, diferenta dintre cea mai lunga si cea mai scurta optiune nu trebuie sa depaseasca 2 cuvinte.
+- Pentru optiuni mai lungi, cea mai lunga optiune nu trebuie sa depaseasca aproximativ 125% din lungimea celei mai scurte.
+- Daca adevarul cere o formulare lunga, extinde distractorii cu detalii relevante si gresite, fara a-i face ambigui.
+- Daca distractorii sunt natural mai scurti, scurteaza raspunsul corect fara pierderea sensului.
+- Raspunsul corect nu trebuie sa contina in mod exclusiv calificari, exceptii, paranteze sau explicatii absente din distractori.
+- Nu utiliza absoluturi precum "intotdeauna", "niciodata", "exclusiv" doar pentru a face distractorii evident falsi, decat daca materialul foloseste explicit acea relatie absoluta.
+
+TESTUL ORB AL OPTIUNILOR — OBLIGATORIU INTERN:
+Inainte de finalizare, ignora marcajele is_correct si verifica fiecare intrebare ca si cum nu ai sti raspunsul. Rescrie optiunile daca raspunsul poate fi ghicit prin:
+- lungime sau nivel de detaliu;
+- formulare mai academica sau mai precisa;
+- acord gramatical cu promptul;
+- repetitia unui cuvant din intrebare;
+- calificari si exceptii prezente numai in raspunsul corect;
+- faptul ca distractorii sunt absurzi sau dintr-o alta categorie.
 
 REGULI PENTRU EXPLICATII:
 - Explica de ce raspunsurile corecte sunt corecte.
@@ -4274,6 +4297,8 @@ AUDIT FINAL INTERN:
 - Fiecare single_choice are 4 optiuni si una corecta.
 - Fiecare multiple_choice are 4-6 optiuni, minimum doua corecte si minimum doua gresite.
 - Pozitiile corecte sunt echilibrate.
+- Optiunile sunt apropiate ca lungime, forma si granularitate.
+- Testul orb al optiunilor este trecut.
 - Nu exista tipare detectabile.
 - Nu exista cunostinte externe.
 
