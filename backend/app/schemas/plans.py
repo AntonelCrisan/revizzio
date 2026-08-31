@@ -92,7 +92,7 @@ class SubscriptionPlanUpdate(BaseModel):
     storage: str = Field(min_length=1, max_length=300)
     conditions: str = Field(min_length=1, max_length=1200)
     active_project_limit: int = Field(ge=0, le=1000)
-    monthly_material_limit: int = Field(ge=0, le=10000)
+    monthly_material_limit: int = Field(ge=0, le=200000)
     files_per_project_limit: int = Field(ge=1, le=200)
     file_size_limit_mb: int = Field(ge=1, le=2048)
     project_size_limit_mb: int = Field(ge=1, le=10240)
@@ -158,6 +158,9 @@ class SubscriptionPlanUpdate(BaseModel):
                 "Limita totala a proiectului trebuie sa fie cel putin egala "
                 "cu limita unui fisier."
             )
+        self.monthly_material_limit = (
+            self.active_project_limit * self.files_per_project_limit
+        )
         return self
 
 

@@ -27,7 +27,7 @@ DEFAULT_PLANS = [
         "billing_interval": "lunar",
         "badge": "gratuit",
         "description": "Pentru primul curs și testarea fluxului Reviss.",
-        "material_limit": "3 materiale procesate lunar",
+        "material_limit": "2 materiale procesate lunar",
         "ai_level": "AI de bază",
         "storage": "Istoric limitat",
         "conditions": (
@@ -35,7 +35,7 @@ DEFAULT_PLANS = [
             "nu sunt incluse in acest plan."
         ),
         "active_project_limit": 1,
-        "monthly_material_limit": 3,
+        "monthly_material_limit": 2,
         "files_per_project_limit": 2,
         "file_size_limit_mb": 10,
         "project_size_limit_mb": 20,
@@ -66,7 +66,7 @@ DEFAULT_PLANS = [
         "billing_interval": "lunar",
         "badge": "recomandat",
         "description": "Cel mai bun raport pentru studenți activi.",
-        "material_limit": "30 materiale procesate lunar",
+        "material_limit": "100 materiale procesate lunar",
         "ai_level": "Repetiție inteligentă și strategii AI",
         "storage": "Istoric complet pe proiecte",
         "conditions": (
@@ -74,7 +74,7 @@ DEFAULT_PLANS = [
             "reseteaza automat."
         ),
         "active_project_limit": 10,
-        "monthly_material_limit": 30,
+        "monthly_material_limit": 100,
         "files_per_project_limit": 10,
         "file_size_limit_mb": 50,
         "project_size_limit_mb": 200,
@@ -106,7 +106,7 @@ DEFAULT_PLANS = [
         "billing_interval": "lunar",
         "badge": "examene",
         "description": "Pentru sesiuni intense și mai multe materii.",
-        "material_limit": "Materiale nelimitate rezonabil",
+        "material_limit": "1500 materiale procesate lunar",
         "ai_level": "Planuri AI pentru examene",
         "storage": "Export și arhivă extinsă",
         "conditions": (
@@ -114,7 +114,7 @@ DEFAULT_PLANS = [
             "trebuie sa ramana educationala si individuala."
         ),
         "active_project_limit": 50,
-        "monthly_material_limit": 100,
+        "monthly_material_limit": 1500,
         "files_per_project_limit": 30,
         "file_size_limit_mb": 150,
         "project_size_limit_mb": 500,

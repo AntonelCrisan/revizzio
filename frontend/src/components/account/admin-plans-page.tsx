@@ -71,6 +71,14 @@ function normalizeInteger(value: string, fallback: number, minimum: number) {
   return Math.max(minimum, parsed);
 }
 
+function deriveMonthlyMaterialLimit(
+  plan: Pick<AdminPlanDraft, "activeProjectLimit" | "filesPerProjectLimit">,
+) {
+  const monthlyProjects = normalizeInteger(plan.activeProjectLimit, 1, 0);
+  const filesPerProject = normalizeInteger(plan.filesPerProjectLimit, 2, 1);
+  return monthlyProjects * filesPerProject;
+}
+
 function optionalUuid(value: string | null) {
   if (!value) return null;
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
@@ -96,7 +104,9 @@ function toDraftPlan(plan: SubscriptionPlan): AdminPlanDraft {
     storage: plan.storage,
     conditions: plan.conditions,
     activeProjectLimit: String(plan.active_project_limit),
-    monthlyMaterialLimit: String(plan.monthly_material_limit),
+    monthlyMaterialLimit: String(
+      plan.active_project_limit * plan.files_per_project_limit,
+    ),
     filesPerProjectLimit: String(plan.files_per_project_limit),
     fileSizeLimitMb: String(plan.file_size_limit_mb),
     projectSizeLimitMb: String(plan.project_size_limit_mb),
@@ -124,6 +134,10 @@ function toPlanUpdate(
   plan: AdminPlanDraft,
   sortOrder: number,
 ): SubscriptionPlanUpdate {
+  const activeProjectLimit = normalizeInteger(plan.activeProjectLimit, 1, 0);
+  const filesPerProjectLimit = normalizeInteger(plan.filesPerProjectLimit, 2, 1);
+  const monthlyMaterialLimit = activeProjectLimit * filesPerProjectLimit;
+
   return {
     id: plan.id,
     slug: plan.slug,
@@ -140,9 +154,9 @@ function toPlanUpdate(
     ai_level: plan.aiLevel || "Configurat in optiuni",
     storage: plan.storage || "Configurat in optiuni",
     conditions: plan.conditions,
-    active_project_limit: normalizeInteger(plan.activeProjectLimit, 1, 0),
-    monthly_material_limit: normalizeInteger(plan.monthlyMaterialLimit, 3, 0),
-    files_per_project_limit: normalizeInteger(plan.filesPerProjectLimit, 2, 1),
+    active_project_limit: activeProjectLimit,
+    monthly_material_limit: monthlyMaterialLimit,
+    files_per_project_limit: filesPerProjectLimit,
     file_size_limit_mb: normalizeInteger(plan.fileSizeLimitMb, 10, 1),
     project_size_limit_mb: normalizeInteger(plan.projectSizeLimitMb, 20, 1),
     estimated_page_limit: normalizeInteger(plan.estimatedPageLimit, 25, 1),
@@ -181,20 +195,37 @@ function planDraftKey(plan: AdminPlanDraft) {
 type TextFieldProps = {
   label: string;
   value: string;
-  onChange: (value: string) => void;
+  onChange?: (value: string) => void;
   placeholder?: string;
+  readOnly?: boolean;
+  detail?: string;
 };
 
-function TextField({ label, value, onChange, placeholder }: TextFieldProps) {
+function TextField({
+  label,
+  value,
+  onChange,
+  placeholder,
+  readOnly = false,
+  detail,
+}: TextFieldProps) {
   return (
     <label className="block">
       <span className="text-sm font-bold text-content">{label}</span>
       <input
         value={value}
         placeholder={placeholder}
-        onChange={(event) => onChange(event.target.value)}
-        className="mt-2 h-12 w-full rounded-lg border border-subtle bg-app px-4 text-sm text-content outline-none transition placeholder:text-muted focus:border-action"
+        readOnly={readOnly}
+        onChange={(event) => onChange?.(event.target.value)}
+        className={`mt-2 h-12 w-full rounded-lg border border-subtle px-4 text-sm outline-none transition placeholder:text-muted focus:border-action ${
+          readOnly
+            ? "cursor-default bg-surface-hover text-muted"
+            : "bg-app text-content"
+        }`}
       />
+      {detail ? (
+        <span className="mt-1 block text-xs leading-5 text-muted">{detail}</span>
+      ) : null}
     </label>
   );
 }
@@ -415,6 +446,9 @@ export function AdminPlansPage({ initialPlans }: AdminPlansPageProps) {
   const visiblePlans = plans.filter((plan) => plan.isVisible).length;
   const featuredPlan = plans.find((plan) => plan.isFeatured);
   const stripeConfiguredPlans = plans.filter((plan) => plan.stripePriceId).length;
+  const selectedMonthlyMaterialLimit = selectedPlan
+    ? deriveMonthlyMaterialLimit(selectedPlan)
+    : 0;
 
   function updateSelectedPlan(update: Partial<AdminPlanDraft>) {
     if (!selectedPlan) return;
@@ -722,11 +756,9 @@ export function AdminPlansPage({ initialPlans }: AdminPlansPageProps) {
                 />
                 <TextField
                   label="Materiale / lună"
-                  value={selectedPlan.monthlyMaterialLimit}
-                  onChange={(value) =>
-                    updateSelectedPlan({ monthlyMaterialLimit: value })
-                  }
-                  placeholder="30"
+                  value={String(selectedMonthlyMaterialLimit)}
+                  readOnly
+                  detail="Calculat din proiecte / lună × fișiere / proiect"
                 />
                 <TextField
                   label="Fișiere / proiect"
