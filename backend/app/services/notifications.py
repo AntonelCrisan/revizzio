@@ -1,9 +1,9 @@
 import asyncio
 import uuid
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Literal
 
-from sqlalchemy import func, or_, select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -12,6 +12,8 @@ from app.models import (
     Notification,
     StudyProject,
     StudyProjectFlashcard,
+    StudyProjectQuiz,
+    StudyProjectQuizAttempt,
     User,
     UserPreferences,
 )
@@ -23,10 +25,43 @@ from app.services.email import (
     notification_digest_email,
 )
 from app.services.preferences import PreferencesService
+from app.services.study_activity import (
+    count_active_days_since,
+    get_current_streak,
+    get_last_activity_date,
+)
 
-NotificationType = Literal["project_ready", "weak_concepts", "daily_review"]
+NotificationType = Literal[
+    "project_ready",
+    "weak_concepts",
+    "daily_review",
+    "weekly_progress",
+    "inactivity_reminder",
+    "streak_milestone",
+]
 
 DAILY_DIGEST_CONCURRENCY = 5
+
+INACTIVITY_REMINDER_THRESHOLD_DAYS = 3
+INACTIVITY_REMINDER_COOLDOWN_DAYS = 7
+STREAK_MILESTONES = (3, 7, 14, 30, 60, 100)
+
+
+def _project_url(app_url: str, project_id: uuid.UUID | None) -> str | None:
+    if project_id is None:
+        return None
+    return f"{app_url.rstrip('/')}/myaccount/rezumat?project={project_id}"
+
+
+def _weekly_progress_closing_line(avg_score: int) -> str:
+    if avg_score >= 80:
+        return "Scor excelent — continuă tot așa!"
+    if avg_score >= 50:
+        return "Ești pe drumul cel bun — mai exersează puțin la conceptele slabe."
+    return (
+        "Sunt încă lucruri de clarificat — o recapitulare țintită te-ar ajuta "
+        "să crești scorul."
+    )
 
 
 class NotificationNotFoundError(Exception):
@@ -154,7 +189,15 @@ class NotificationService:
             return
 
         html, text = notification_digest_email(
-            items=[(notification.title, notification.body)],
+            items=[
+                (
+                    notification.title,
+                    notification.body,
+                    _project_url(
+                        self._settings.public_app_url, notification.project_id
+                    ),
+                )
+            ],
             app_url=self._settings.public_app_url,
             logo_html=email_logo_html(self._settings.email_logo_url, app_name="Reviss"),
         )
@@ -177,9 +220,9 @@ class NotificationService:
         self,
         user: User,
         now: datetime,
+        preferences: UserPreferences,
     ) -> Notification | None:
-        study_preferences = await PreferencesService(self._session).get(user)
-        if not study_preferences.preferences.automation_daily_review:
+        if not preferences.automation_daily_review:
             return None
 
         day_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
@@ -219,6 +262,171 @@ class NotificationService:
         await self._session.flush()
         return notification
 
+    async def _maybe_create_weekly_progress_notification(
+        self,
+        user: User,
+        now: datetime,
+        preferences: UserPreferences,
+    ) -> Notification | None:
+        # There is no separate weekly scheduler — this only runs on the day
+        # the daily cron happens to fall on Monday.
+        if now.weekday() != 0:
+            return None
+
+        if not preferences.automation_weekly_progress:
+            return None
+
+        week_start = now - timedelta(days=7)
+        day_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+        existing = await self._session.scalar(
+            select(Notification).where(
+                Notification.user_id == user.id,
+                Notification.type == "weekly_progress",
+                Notification.created_at >= day_start,
+            )
+        )
+        if existing is not None:
+            return None
+
+        quiz_count = await self._session.scalar(
+            select(func.count())
+            .select_from(StudyProjectQuizAttempt)
+            .join(
+                StudyProjectQuiz,
+                StudyProjectQuiz.id == StudyProjectQuizAttempt.quiz_id,
+            )
+            .join(StudyProject, StudyProject.id == StudyProjectQuiz.project_id)
+            .where(
+                StudyProject.user_id == user.id,
+                StudyProjectQuizAttempt.completed_at >= week_start,
+            )
+        )
+        quiz_count = int(quiz_count or 0)
+
+        avg_score = await self._session.scalar(
+            select(func.avg(StudyProjectQuizAttempt.score_percent))
+            .select_from(StudyProjectQuizAttempt)
+            .join(
+                StudyProjectQuiz,
+                StudyProjectQuiz.id == StudyProjectQuizAttempt.quiz_id,
+            )
+            .join(StudyProject, StudyProject.id == StudyProjectQuiz.project_id)
+            .where(
+                StudyProject.user_id == user.id,
+                StudyProjectQuizAttempt.completed_at >= week_start,
+            )
+        )
+
+        active_days = await count_active_days_since(
+            self._session, user.id, week_start.date()
+        )
+
+        if quiz_count == 0 and active_days == 0:
+            return None
+
+        if quiz_count > 0:
+            score = round(float(avg_score or 0))
+            body = (
+                f"Săptămâna asta ai terminat {quiz_count} "
+                f"{'quiz' if quiz_count == 1 else 'quiz-uri'} (scor mediu "
+                f"{score}%) și ai studiat {active_days} "
+                f"{'zi' if active_days == 1 else 'zile'}. "
+                f"{_weekly_progress_closing_line(score)}"
+            )
+        else:
+            body = (
+                f"Săptămâna asta ai studiat {active_days} "
+                f"{'zi' if active_days == 1 else 'zile'}. Continuă tot așa!"
+            )
+
+        notification = Notification(
+            user_id=user.id,
+            type="weekly_progress",
+            title="Rezumatul tău săptămânal",
+            body=body,
+        )
+        self._session.add(notification)
+        await self._session.flush()
+        return notification
+
+    async def _maybe_create_inactivity_notification(
+        self,
+        user: User,
+        now: datetime,
+        preferences: UserPreferences,
+    ) -> Notification | None:
+        if not preferences.automation_inactivity_reminder:
+            return None
+
+        last_activity = await get_last_activity_date(self._session, user.id)
+        if last_activity is None:
+            return None
+
+        days_inactive = (now.date() - last_activity).days
+        if days_inactive < INACTIVITY_REMINDER_THRESHOLD_DAYS:
+            return None
+
+        recent_cutoff = now - timedelta(days=INACTIVITY_REMINDER_COOLDOWN_DAYS)
+        existing = await self._session.scalar(
+            select(Notification).where(
+                Notification.user_id == user.id,
+                Notification.type == "inactivity_reminder",
+                Notification.created_at >= recent_cutoff,
+            )
+        )
+        if existing is not None:
+            return None
+
+        notification = Notification(
+            user_id=user.id,
+            type="inactivity_reminder",
+            title="Ne e dor de tine!",
+            body=(
+                f"Nu ai mai studiat de {days_inactive} zile. "
+                "Revino pentru o recapitulare rapidă."
+            ),
+        )
+        self._session.add(notification)
+        await self._session.flush()
+        return notification
+
+    async def _maybe_create_streak_milestone_notification(
+        self,
+        user: User,
+        now: datetime,
+        preferences: UserPreferences,
+    ) -> Notification | None:
+        if not preferences.notify_alert_streak_milestone:
+            return None
+
+        streak = await get_current_streak(self._session, user.id, today=now.date())
+        if streak not in STREAK_MILESTONES:
+            return None
+
+        day_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+        existing = await self._session.scalar(
+            select(Notification).where(
+                Notification.user_id == user.id,
+                Notification.type == "streak_milestone",
+                Notification.created_at >= day_start,
+            )
+        )
+        if existing is not None:
+            return None
+
+        notification = Notification(
+            user_id=user.id,
+            type="streak_milestone",
+            title=f"Streak de {streak} zile!",
+            body=(
+                f"Ai studiat {streak} zile consecutive. "
+                "Așa se construiește performanța."
+            ),
+        )
+        self._session.add(notification)
+        await self._session.flush()
+        return notification
+
     async def run_daily_digest(self) -> int:
         if self._settings is None:
             raise ValueError(
@@ -227,33 +435,23 @@ class NotificationService:
         settings = self._settings
         now = datetime.now(UTC)
 
-        # Outer join: a user with no preferences row yet has never had one
-        # lazily created (e.g. never opened settings, no notification fired
-        # for them before). The column defaults are "daily" + email enabled,
-        # so such a user must still be treated as opted in, not skipped.
+        # Every active user is considered here, regardless of their email
+        # preferences — these notifications (daily_review, weekly_progress,
+        # inactivity_reminder, streak_milestone) must exist in-app (the bell
+        # shows any Notification row for the user, independent of
+        # emailed_at) even for users on "instant" frequency or with email
+        # disabled. Only the email-batching step below is restricted to
+        # users actually opted into a daily email digest.
         users = list(
             (
                 await self._session.scalars(
-                    select(User)
-                    .outerjoin(
-                        UserPreferences, UserPreferences.user_id == User.id
-                    )
-                    .where(
-                        or_(
-                            UserPreferences.notify_frequency.is_(None),
-                            UserPreferences.notify_frequency == "daily",
-                        ),
-                        or_(
-                            UserPreferences.notify_email_enabled.is_(None),
-                            UserPreferences.notify_email_enabled.is_(True),
-                        ),
-                        User.is_active.is_(True),
-                    )
+                    select(User).where(User.is_active.is_(True))
                 )
             ).all()
         )
 
         pending_by_user: dict[uuid.UUID, list[Notification]] = {}
+        email_eligible_user_ids: set[uuid.UUID] = set()
         for user in users:
             notifications = list(
                 (
@@ -268,16 +466,49 @@ class NotificationService:
                 ).all()
             )
 
+            # Fetched once and reused across all four generators below,
+            # instead of each one independently fetching (and committing)
+            # the same preferences row.
+            study_preferences = await PreferencesService(self._session).get(user)
+            preferences = study_preferences.preferences
+
             daily_review = await self._maybe_create_daily_review_notification(
-                user, now
+                user, now, preferences
             )
             if daily_review is not None:
                 notifications.append(daily_review)
 
+            weekly_progress = await self._maybe_create_weekly_progress_notification(
+                user, now, preferences
+            )
+            if weekly_progress is not None:
+                notifications.append(weekly_progress)
+
+            inactivity_reminder = await self._maybe_create_inactivity_notification(
+                user, now, preferences
+            )
+            if inactivity_reminder is not None:
+                notifications.append(inactivity_reminder)
+
+            streak_milestone = (
+                await self._maybe_create_streak_milestone_notification(
+                    user, now, preferences
+                )
+            )
+            if streak_milestone is not None:
+                notifications.append(streak_milestone)
+
             if notifications:
                 pending_by_user[user.id] = notifications
+                if (
+                    preferences.notify_frequency == "daily"
+                    and preferences.notify_email_enabled
+                ):
+                    email_eligible_user_ids.add(user.id)
 
-        if not pending_by_user:
+        if not any(
+            user_id in email_eligible_user_ids for user_id in pending_by_user
+        ):
             await self._session.commit()
             return 0
 
@@ -290,7 +521,14 @@ class NotificationService:
             async with semaphore:
                 user = users_by_id[user_id]
                 notifications = pending_by_user[user_id]
-                items = [(item.title, item.body) for item in notifications]
+                items = [
+                    (
+                        item.title,
+                        item.body,
+                        _project_url(settings.public_app_url, item.project_id),
+                    )
+                    for item in notifications
+                ]
                 html, text = notification_digest_email(
                     items=items,
                     app_url=settings.public_app_url,
@@ -315,7 +553,7 @@ class NotificationService:
                     return user_id, False
 
         results = await asyncio.gather(
-            *(send_for_user(user_id) for user_id in pending_by_user)
+            *(send_for_user(user_id) for user_id in email_eligible_user_ids)
         )
 
         sent_count = 0

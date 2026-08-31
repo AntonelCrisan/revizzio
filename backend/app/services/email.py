@@ -133,6 +133,29 @@ def email_logo_html(logo_url: str | None, app_name: str = "Reviss") -> str:
     return default_email_logo_html(app_name)
 
 
+def _detail_row_html(detail: str | tuple[str, str | None]) -> str:
+    text, href = detail if isinstance(detail, tuple) else (detail, None)
+    safe_text = escape(text)
+    if href:
+        safe_href = escape(href, quote=True)
+        content = (
+            f'<a href="{safe_href}" style="color: #675d54; text-decoration: underline;">'
+            f"{safe_text} →</a>"
+        )
+    else:
+        content = safe_text
+    return f"""
+        <tr>
+          <td style="padding: 7px 0; vertical-align: top;">
+            <span style="display: inline-block; width: 22px; height: 22px; border-radius: 999px; background: #eef5ea; color: #31422c; font-size: 13px; font-weight: 700; line-height: 22px; text-align: center;">✓</span>
+          </td>
+          <td style="padding: 7px 0 7px 10px; color: #675d54; font-size: 14px; line-height: 1.55;">
+            {content}
+          </td>
+        </tr>
+        """
+
+
 def _email_shell(
     *,
     app_name: str,
@@ -144,23 +167,11 @@ def _email_shell(
     action_url: str,
     note_title: str,
     note: str,
-    details: list[str],
+    details: list[str] | list[tuple[str, str | None]],
 ) -> str:
     safe_app_name = escape(app_name)
     safe_action_url = escape(action_url, quote=True)
-    detail_items = "".join(
-        f"""
-        <tr>
-          <td style="padding: 7px 0; vertical-align: top;">
-            <span style="display: inline-block; width: 22px; height: 22px; border-radius: 999px; background: #eef5ea; color: #31422c; font-size: 13px; font-weight: 700; line-height: 22px; text-align: center;">✓</span>
-          </td>
-          <td style="padding: 7px 0 7px 10px; color: #675d54; font-size: 14px; line-height: 1.55;">
-            {escape(detail)}
-          </td>
-        </tr>
-        """
-        for detail in details
-    )
+    detail_items = "".join(_detail_row_html(detail) for detail in details)
 
     return f"""
     <!doctype html>
@@ -332,11 +343,14 @@ def email_change_confirmation_email(
 
 def notification_digest_email(
     *,
-    items: list[tuple[str, str]],
+    items: list[tuple[str, str, str | None]],
     app_url: str,
     logo_html: str,
     app_name: str = "Reviss",
 ) -> tuple[str, str]:
+    """items: (title, body, project_url) tuples. project_url links straight to
+    the relevant project when the notification is about one (None otherwise).
+    """
     is_digest = len(items) > 1
     title = (
         f"{len(items)} noutăți în contul tău" if is_digest else items[0][0]
@@ -346,20 +360,27 @@ def notification_digest_email(
         if is_digest
         else items[0][1]
     )
-    details = [f"{item_title}: {item_body}" for item_title, item_body in items]
+    details: list[tuple[str, str | None]] = [
+        (f"{item_title}: {item_body}", href) for item_title, item_body, href in items
+    ]
+    text_lines = [
+        f"- {item_title}: {item_body}" + (f" ({href})" if href else "")
+        for item_title, item_body, href in items
+    ]
     text = (
         f"{title}\n\n{intro}\n\n"
-        + "\n".join(f"- {line}" for line in details)
+        + "\n".join(text_lines)
         + f"\n\nDeschide Reviss: {app_url}"
     )
+    single_project_url = items[0][2] if not is_digest else None
     html = _email_shell(
         app_name=app_name,
         eyebrow="Rezumat" if is_digest else "Notificare",
         title=title,
         intro=intro,
         logo_html=logo_html,
-        cta_label="Deschide Reviss",
-        action_url=app_url,
+        cta_label="Vezi proiectul" if single_project_url else "Deschide Reviss",
+        action_url=single_project_url or app_url,
         note_title="Vrei mai puține email-uri?",
         note="Poți opri aceste notificări din Setări → Notificări.",
         details=details,

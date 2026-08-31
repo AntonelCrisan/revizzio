@@ -18,6 +18,7 @@ from app.models.email_tokens import (
 from app.models.legal import CompanyData, LegalDocument, LegalDocumentSection
 from app.models.notification import Notification
 from app.models.preferences import UserPreferences
+from app.models.study_activity import UserStudyActivity
 from app.models.study_project import (
     StudyProject,
     StudyProjectArchive,
@@ -86,6 +87,7 @@ __all__ = [
     "SubscriptionCancellation",
     "User",
     "UserPreferences",
+    "UserStudyActivity",
     "VisitorVisit",
     "WithdrawalRequest",
 ]

@@ -79,6 +79,24 @@ class UserPreferences(Base):
         default=True,
         server_default="true",
     )
+    automation_weekly_progress: Mapped[bool] = mapped_column(
+        Boolean,
+        nullable=False,
+        default=True,
+        server_default="true",
+    )
+    automation_inactivity_reminder: Mapped[bool] = mapped_column(
+        Boolean,
+        nullable=False,
+        default=True,
+        server_default="true",
+    )
+    notify_alert_streak_milestone: Mapped[bool] = mapped_column(
+        Boolean,
+        nullable=False,
+        default=True,
+        server_default="true",
+    )
     notify_frequency: Mapped[str] = mapped_column(
         String(16),
         nullable=False,

@@ -4,7 +4,14 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict
 
-NotificationType = Literal["project_ready", "weak_concepts", "daily_review"]
+NotificationType = Literal[
+    "project_ready",
+    "weak_concepts",
+    "daily_review",
+    "weekly_progress",
+    "inactivity_reminder",
+    "streak_milestone",
+]
 
 
 class NotificationResponse(BaseModel):

@@ -1,4 +1,10 @@
-export type NotificationType = "project_ready" | "weak_concepts" | "daily_review";
+export type NotificationType =
+  | "project_ready"
+  | "weak_concepts"
+  | "daily_review"
+  | "weekly_progress"
+  | "inactivity_reminder"
+  | "streak_milestone";
 
 export type Notification = {
   id: string;

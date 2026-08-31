@@ -38,6 +38,9 @@ class PreferencesService:
         notify_email_enabled: bool | None = None,
         notify_alert_project_ready: bool | None = None,
         notify_alert_billing: bool | None = None,
+        automation_weekly_progress: bool | None = None,
+        automation_inactivity_reminder: bool | None = None,
+        notify_alert_streak_milestone: bool | None = None,
         notify_frequency: str | None = None,
         newsletter_consent: bool | None = None,
     ) -> StudyPreferences:
@@ -52,6 +55,9 @@ class PreferencesService:
             notify_email_enabled=notify_email_enabled,
             notify_alert_project_ready=notify_alert_project_ready,
             notify_alert_billing=notify_alert_billing,
+            automation_weekly_progress=automation_weekly_progress,
+            automation_inactivity_reminder=automation_inactivity_reminder,
+            notify_alert_streak_milestone=notify_alert_streak_milestone,
             notify_frequency=notify_frequency,
         )
         if newsletter_consent is not None:
@@ -72,6 +78,9 @@ class PreferencesService:
                 "notify_email_enabled": notify_email_enabled,
                 "notify_alert_project_ready": notify_alert_project_ready,
                 "notify_alert_billing": notify_alert_billing,
+                "automation_weekly_progress": automation_weekly_progress,
+                "automation_inactivity_reminder": automation_inactivity_reminder,
+                "notify_alert_streak_milestone": notify_alert_streak_milestone,
                 "notify_frequency": notify_frequency,
                 "newsletter_consent": newsletter_consent,
             },

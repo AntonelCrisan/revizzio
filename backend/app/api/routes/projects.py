@@ -48,6 +48,7 @@ from app.services.projects import (
     schedule_quiz_pack_generation_task,
     schedule_study_pack_generation_task,
 )
+from app.services.study_activity import record_study_activity
 
 logger = logging.getLogger("revizzio.projects")
 
@@ -393,6 +394,9 @@ async def prepare_project(
             detail="Generarea proiectului a fost anulata.",
         )
 
+    await record_study_activity(session, current_user.id)
+    await session.commit()
+
     schedule_study_pack_generation_task(
         user_id=current_user.id,
         project_id=project.id,
@@ -445,6 +449,9 @@ async def generate_project_quizzes(
         ) from exc
 
     if project.status == "generating_quizzes":
+        await record_study_activity(session, current_user.id)
+        await session.commit()
+
         schedule_quiz_pack_generation_task(
             user_id=current_user.id,
             project_id=project.id,

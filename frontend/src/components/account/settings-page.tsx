@@ -259,6 +259,16 @@ const studyAutomationOptions = [
     title: "Alerte concepte slabe",
     description: "Apar când un concept riscă să fie uitat.",
   },
+  {
+    id: "weeklyProgress",
+    title: "Progres săptămânal",
+    description: "Primești un rezumat cu statistici în fiecare luni.",
+  },
+  {
+    id: "inactivityReminder",
+    title: "Reminder inactivitate",
+    description: "Un mesaj de revenire dacă nu mai studiezi de câteva zile.",
+  },
 ] as const;
 
 type StudyAutomationId = (typeof studyAutomationOptions)[number]["id"];
@@ -274,6 +284,8 @@ const studyAutomationPreferenceKey: Record<
   dailyReview: "automation_daily_review",
   quizAfterSummary: "automation_quiz_after_summary",
   weakConceptAlerts: "automation_weak_concept_alerts",
+  weeklyProgress: "automation_weekly_progress",
+  inactivityReminder: "automation_inactivity_reminder",
 };
 
 const notificationChannelOptions = [
@@ -325,6 +337,23 @@ const notificationAlertOptions = [
     description:
       "Confirmarea de plată e mereu trimisă; acest comutator e doar pentru viitoare alerte suplimentare.",
   },
+  {
+    id: "weeklyProgress",
+    title: "Progres săptămânal",
+    description:
+      "Statistici despre studiul tău din ultima săptămână. Aceeași setare ca „Progres săptămânal” din tab-ul Studiu.",
+  },
+  {
+    id: "inactivityReminder",
+    title: "Reminder inactivitate",
+    description:
+      "Când nu mai studiezi de câteva zile. Aceeași setare ca „Reminder inactivitate” din tab-ul Studiu.",
+  },
+  {
+    id: "streakMilestone",
+    title: "Streak și realizări",
+    description: "Când atingi un număr de zile consecutive de studiu.",
+  },
 ] as const;
 
 type NotificationAlertId = (typeof notificationAlertOptions)[number]["id"];
@@ -336,6 +365,9 @@ const notificationAlertPreferenceKey: Record<
   projectReady: "notify_alert_project_ready",
   weakConcepts: "automation_weak_concept_alerts",
   billing: "notify_alert_billing",
+  weeklyProgress: "automation_weekly_progress",
+  inactivityReminder: "automation_inactivity_reminder",
+  streakMilestone: "notify_alert_streak_milestone",
 };
 
 function dataExportHref() {

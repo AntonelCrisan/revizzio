@@ -11,6 +11,9 @@ export type StudyPreferences = {
   notify_email_enabled: boolean;
   notify_alert_project_ready: boolean;
   notify_alert_billing: boolean;
+  automation_weekly_progress: boolean;
+  automation_inactivity_reminder: boolean;
+  notify_alert_streak_milestone: boolean;
   notify_frequency: NotifyFrequency;
   newsletter_consent: boolean;
 };

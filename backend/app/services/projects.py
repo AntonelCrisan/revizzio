@@ -73,6 +73,7 @@ from app.services.plan_errors import (
     PageLimitReachedError,
 )
 from app.services.preferences import PreferencesService
+from app.services.study_activity import record_study_activity
 
 logger = logging.getLogger("revizzio.projects")
 
@@ -2772,6 +2773,7 @@ Rescrie raspunsul pentru intrebarea curenta ca explicatie completa:
                 completed_at=completed_at,
             )
         )
+        await record_study_activity(self.session, user.id)
         await self.session.commit()
         return await self.get_project(user, project.id)
 

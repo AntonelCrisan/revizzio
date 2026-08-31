@@ -15,7 +15,8 @@ class Notification(Base):
     __tablename__ = "notifications"
     __table_args__ = (
         CheckConstraint(
-            "type IN ('project_ready', 'weak_concepts', 'daily_review')",
+            "type IN ('project_ready', 'weak_concepts', 'daily_review', "
+            "'weekly_progress', 'inactivity_reminder', 'streak_milestone')",
             name="ck_notifications_type",
         ),
     )

@@ -49,6 +49,7 @@ function CloseIcon() {
 function typeDotClass(type: NotificationType) {
   if (type === "project_ready") return "bg-success";
   if (type === "weak_concepts") return "bg-warning";
+  if (type === "streak_milestone") return "bg-success";
   return "bg-info";
 }
 

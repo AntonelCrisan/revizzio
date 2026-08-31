@@ -3765,6 +3765,38 @@ export const uiTranslations: Record<string, UiTranslation> = {
     en: "Shown when a concept is at risk of being forgotten.",
     fr: "Affichées lorsqu'un concept risque d'être oublié.",
   },
+  "Progres săptămânal": {
+    en: "Weekly progress",
+    fr: "Progrès hebdomadaire",
+  },
+  "Primești un rezumat cu statistici în fiecare luni.": {
+    en: "You get a summary with stats every Monday.",
+    fr: "Tu reçois un résumé avec des statistiques chaque lundi.",
+  },
+  "Reminder inactivitate": {
+    en: "Inactivity reminder",
+    fr: "Rappel d'inactivité",
+  },
+  "Un mesaj de revenire dacă nu mai studiezi de câteva zile.": {
+    en: "A nudge to come back if you haven't studied in a few days.",
+    fr: "Un message de retour si tu n'as pas étudié depuis quelques jours.",
+  },
+  "Statistici despre studiul tău din ultima săptămână. Aceeași setare ca „Progres săptămânal” din tab-ul Studiu.": {
+    en: "Stats about your studying from the past week. Same setting as \"Weekly progress\" in the Study tab.",
+    fr: "Statistiques sur ton étude de la semaine passée. Même réglage que « Progrès hebdomadaire » dans l'onglet Étude.",
+  },
+  "Când nu mai studiezi de câteva zile. Aceeași setare ca „Reminder inactivitate” din tab-ul Studiu.": {
+    en: "When you haven't studied in a few days. Same setting as \"Inactivity reminder\" in the Study tab.",
+    fr: "Quand tu n'as pas étudié depuis quelques jours. Même réglage que « Rappel d'inactivité » dans l'onglet Étude.",
+  },
+  "Streak și realizări": {
+    en: "Streaks and achievements",
+    fr: "Séries et réussites",
+  },
+  "Când atingi un număr de zile consecutive de studiu.": {
+    en: "When you hit a number of consecutive study days.",
+    fr: "Quand tu atteins un nombre de jours d'étude consécutifs.",
+  },
   "Reminder studiu": {
     en: "Study reminder",
     fr: "Rappel d'étude",

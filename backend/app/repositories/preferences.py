@@ -46,6 +46,9 @@ class UserPreferencesRepository:
         notify_email_enabled: bool | None = None,
         notify_alert_project_ready: bool | None = None,
         notify_alert_billing: bool | None = None,
+        automation_weekly_progress: bool | None = None,
+        automation_inactivity_reminder: bool | None = None,
+        notify_alert_streak_milestone: bool | None = None,
         notify_frequency: str | None = None,
     ) -> UserPreferences:
         if study_pace is not None:
@@ -68,6 +71,16 @@ class UserPreferencesRepository:
             preferences.notify_alert_project_ready = notify_alert_project_ready
         if notify_alert_billing is not None:
             preferences.notify_alert_billing = notify_alert_billing
+        if automation_weekly_progress is not None:
+            preferences.automation_weekly_progress = automation_weekly_progress
+        if automation_inactivity_reminder is not None:
+            preferences.automation_inactivity_reminder = (
+                automation_inactivity_reminder
+            )
+        if notify_alert_streak_milestone is not None:
+            preferences.notify_alert_streak_milestone = (
+                notify_alert_streak_milestone
+            )
         if notify_frequency is not None:
             preferences.notify_frequency = notify_frequency
 
