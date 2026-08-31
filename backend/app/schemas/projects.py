@@ -4,7 +4,9 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
-SummaryHighlightColor = Literal["yellow", "green", "blue", "pink", "purple"]
+SummaryHighlightColor = Literal[
+    "yellow", "green", "blue", "pink", "purple", "orange"
+]
 
 
 class StudyProjectFileResponse(BaseModel):

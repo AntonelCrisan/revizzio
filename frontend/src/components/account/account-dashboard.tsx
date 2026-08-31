@@ -29,6 +29,7 @@ import {
   createQuizMistakeFlashcard,
   createSummaryHighlight,
   createSummaryNote,
+  deleteAllSummaryHighlights,
   deleteStudyProject,
   deleteSummaryHighlight,
   deleteSummaryNote,
@@ -1005,6 +1006,16 @@ export function AccountDashboard({
     );
   }
 
+  async function resetSummaryHighlights(projectId: string) {
+    const apiProject = await deleteAllSummaryHighlights({ projectId });
+    const mappedProject = mapApiProject(apiProject);
+    setProjects((currentProjects) =>
+      currentProjects.map((project) =>
+        project.id === mappedProject.id ? mappedProject : project,
+      ),
+    );
+  }
+
   async function addSummaryNote(
     projectId: string,
     note: { paragraphIndex: number; text: string; note: string },
@@ -1851,6 +1862,7 @@ export function AccountDashboard({
               onHighlightCreate={addSummaryHighlight}
               onHighlightColorChange={changeSummaryHighlightColor}
               onHighlightRemove={removeSummaryHighlight}
+              onHighlightsReset={resetSummaryHighlights}
               onNoteCreate={addSummaryNote}
               onNoteUpdate={changeSummaryNote}
               onNoteRemove={removeSummaryNote}
@@ -2583,6 +2595,7 @@ function ProjectView({
   onHighlightCreate,
   onHighlightColorChange,
   onHighlightRemove,
+  onHighlightsReset,
   onNoteCreate,
   onNoteUpdate,
   onNoteRemove,
@@ -2629,6 +2642,7 @@ function ProjectView({
     color: ApiSummaryHighlightColor,
   ) => Promise<void>;
   onHighlightRemove: (projectId: string, highlightId: string) => Promise<void>;
+  onHighlightsReset: (projectId: string) => Promise<void>;
   onNoteCreate: (
     projectId: string,
     note: { paragraphIndex: number; text: string; note: string },
@@ -2771,6 +2785,7 @@ function ProjectView({
                 onHighlightCreate={onHighlightCreate}
                 onHighlightColorChange={onHighlightColorChange}
                 onHighlightRemove={onHighlightRemove}
+                onHighlightsReset={onHighlightsReset}
                 onNoteCreate={onNoteCreate}
                 onNoteUpdate={onNoteUpdate}
                 onNoteRemove={onNoteRemove}
@@ -3506,7 +3521,13 @@ type SummaryRange = {
   note?: UserSummaryNote;
 };
 
-type SummaryHighlightColorId = "yellow" | "green" | "blue" | "pink" | "purple";
+type SummaryHighlightColorId =
+  | "yellow"
+  | "green"
+  | "blue"
+  | "pink"
+  | "purple"
+  | "orange";
 
 const defaultSummaryHighlightColor: SummaryHighlightColorId = "yellow";
 
@@ -3551,6 +3572,13 @@ const summaryHighlightColors: Array<{
     bg: "#ede9fe",
     text: "#6d28d9",
     border: "#c4b5fd",
+  },
+  {
+    id: "orange",
+    label: "Portocaliu",
+    bg: "#ffedd5",
+    text: "#9a3412",
+    border: "#fdba74",
   },
 ];
 
@@ -3876,9 +3904,13 @@ function renderSummaryText(
 function SummaryHighlightColorPicker({
   value,
   onChange,
+  onResetHighlights,
+  canResetHighlights,
 }: {
   value: SummaryHighlightColorId;
   onChange: (color: SummaryHighlightColorId) => void;
+  onResetHighlights: () => void;
+  canResetHighlights: boolean;
 }) {
   return (
     <div className="mt-3 rounded-xl border border-subtle bg-app p-3">
@@ -3916,6 +3948,19 @@ function SummaryHighlightColorPicker({
           );
         })}
       </div>
+      <button
+        type="button"
+        onClick={onResetHighlights}
+        disabled={!canResetHighlights}
+        className="mt-2 flex h-9 w-full items-center justify-center gap-2 rounded-full border border-danger-border bg-danger-soft px-3 text-xs font-bold text-danger transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-45 disabled:hover:translate-y-0"
+      >
+        <Icon className="h-3.5 w-3.5">
+          <path d="M3 6h18" />
+          <path d="M8 6V4h8v2" />
+          <path d="M19 6l-1 14H6L5 6" />
+        </Icon>
+        Resetează highlight
+      </button>
     </div>
   );
 }
@@ -3970,19 +4015,23 @@ function SummaryToolsPanel({
   pendingHighlightColor,
   hasProAiAccess,
   toolHintText,
+  canResetHighlights,
   onToggleTool,
   onResetTool,
   onApplyCurrentHighlight,
   onHighlightColorChange,
+  onResetHighlights,
 }: {
   activeTool: SummaryToolMode | null;
   pendingHighlightColor: SummaryHighlightColorId;
   hasProAiAccess: boolean;
   toolHintText: string | null;
+  canResetHighlights: boolean;
   onToggleTool: (tool: SummaryToolMode) => void;
   onResetTool: () => void;
   onApplyCurrentHighlight: () => void;
   onHighlightColorChange: (color: SummaryHighlightColorId) => void;
+  onResetHighlights: () => void;
 }) {
   return (
     <>
@@ -4004,6 +4053,8 @@ function SummaryToolsPanel({
             <SummaryHighlightColorPicker
               value={pendingHighlightColor}
               onChange={onHighlightColorChange}
+              onResetHighlights={onResetHighlights}
+              canResetHighlights={canResetHighlights}
             />
             <button
               type="button"
@@ -4076,6 +4127,7 @@ function SummaryPanel({
   onHighlightCreate,
   onHighlightColorChange,
   onHighlightRemove,
+  onHighlightsReset,
   onNoteCreate,
   onNoteUpdate,
   onNoteRemove,
@@ -4096,6 +4148,7 @@ function SummaryPanel({
     color: ApiSummaryHighlightColor,
   ) => Promise<void>;
   onHighlightRemove: (projectId: string, highlightId: string) => Promise<void>;
+  onHighlightsReset: (projectId: string) => Promise<void>;
   onNoteCreate: (
     projectId: string,
     note: { paragraphIndex: number; text: string; note: string },
@@ -4124,6 +4177,9 @@ function SummaryPanel({
   const [notePanel, setNotePanel] = useState<SummaryNotePanelState | null>(
     null,
   );
+  const [isResetHighlightsDialogOpen, setIsResetHighlightsDialogOpen] =
+    useState(false);
+  const [isResettingHighlights, setIsResettingHighlights] = useState(false);
   const userHighlights = project.summaryHighlights;
   const userNotes = project.summaryNotes;
   const summaryContent = project.summary?.content ?? "";
@@ -4443,6 +4499,29 @@ function SummaryPanel({
       await onHighlightRemove(project.id, highlightId);
     } catch {
       // If deletion failed, the highlight remains in project.summaryHighlights.
+    }
+  }
+
+  function handleRequestResetHighlights() {
+    if (!userHighlights.length) {
+      return;
+    }
+    setIsResetHighlightsDialogOpen(true);
+  }
+
+  function handleCancelResetHighlights() {
+    setIsResetHighlightsDialogOpen(false);
+  }
+
+  async function handleConfirmResetHighlights() {
+    setIsResettingHighlights(true);
+    try {
+      await onHighlightsReset(project.id);
+      setIsResetHighlightsDialogOpen(false);
+    } catch {
+      // Keep the dialog open so the user can retry the reset.
+    } finally {
+      setIsResettingHighlights(false);
     }
   }
 
@@ -4807,10 +4886,12 @@ function SummaryPanel({
             pendingHighlightColor={pendingHighlightColor}
             hasProAiAccess={hasProAiAccess}
             toolHintText={toolHintText}
+            canResetHighlights={userHighlights.length > 0}
             onToggleTool={handleToggleTool}
             onResetTool={handleResetTool}
             onApplyCurrentHighlight={handleApplyCurrentHighlight}
             onHighlightColorChange={setPendingHighlightColor}
+            onResetHighlights={handleRequestResetHighlights}
           />
         </aside>
       </div>
@@ -4852,10 +4933,12 @@ function SummaryPanel({
                 pendingHighlightColor={pendingHighlightColor}
                 hasProAiAccess={hasProAiAccess}
                 toolHintText={toolHintText}
+                canResetHighlights={userHighlights.length > 0}
                 onToggleTool={handleToggleTool}
                 onResetTool={handleResetTool}
                 onApplyCurrentHighlight={handleApplyCurrentHighlight}
                 onHighlightColorChange={setPendingHighlightColor}
+                onResetHighlights={handleRequestResetHighlights}
               />
             </div>
 
@@ -4963,7 +5046,82 @@ function SummaryPanel({
           </div>
         </div>
       ) : null}
+
+      {isResetHighlightsDialogOpen ? (
+        <SummaryResetHighlightsModal
+          isResetting={isResettingHighlights}
+          onCancel={handleCancelResetHighlights}
+          onConfirm={() => void handleConfirmResetHighlights()}
+        />
+      ) : null}
     </article>
+  );
+}
+
+function SummaryResetHighlightsModal({
+  isResetting,
+  onCancel,
+  onConfirm,
+}: {
+  isResetting: boolean;
+  onCancel: () => void;
+  onConfirm: () => void;
+}) {
+  return (
+    <div
+      className="fixed inset-0 z-[80] flex items-center justify-center bg-content/35 px-4 py-6 backdrop-blur-sm"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="reset-highlights-title"
+    >
+      <div className="w-full max-w-md overflow-hidden rounded-xl border border-subtle bg-surface shadow-2xl shadow-black/20">
+        <div className="border-b border-subtle px-6 py-5">
+          <div className="flex items-center gap-3">
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-danger-border bg-danger-soft text-danger">
+              <Icon className="h-5 w-5">
+                <path d="M3 6h18" />
+                <path d="M8 6V4h8v2" />
+                <path d="M19 6l-1 14H6L5 6" />
+                <path d="M10 11v6M14 11v6" />
+              </Icon>
+            </span>
+            <p className="text-xs font-black uppercase tracking-[0.18em] text-danger">
+              Resetare highlight-uri
+            </p>
+          </div>
+
+          <h2
+            id="reset-highlights-title"
+            className="mt-4 font-serif text-2xl font-semibold leading-tight text-content"
+          >
+            Sigur vrei să resetezi toate evidențierile din rezumat?
+          </h2>
+          <p className="mt-3 text-sm leading-6 text-muted">
+            Toate highlight-urile aplicate în acest rezumat vor fi șterse
+            definitiv. Notițele nu sunt afectate.
+          </p>
+        </div>
+
+        <div className="flex flex-col-reverse gap-3 border-t border-subtle bg-app/50 px-6 py-5 sm:flex-row sm:justify-end">
+          <button
+            type="button"
+            onClick={onCancel}
+            disabled={isResetting}
+            className="rounded-full border border-subtle bg-surface px-5 py-3 text-sm font-bold transition hover:bg-surface-hover disabled:cursor-wait disabled:opacity-60"
+          >
+            Renunță
+          </button>
+          <button
+            type="button"
+            onClick={onConfirm}
+            disabled={isResetting}
+            className="rounded-full bg-danger px-5 py-3 text-sm font-bold text-app transition hover:opacity-90 disabled:cursor-wait disabled:opacity-60"
+          >
+            {isResetting ? "Se resetează..." : "Resetează highlight-urile"}
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }
 

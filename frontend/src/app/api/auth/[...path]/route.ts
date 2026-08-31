@@ -77,11 +77,14 @@ async function proxyAuthRequest(
     if (value) headers.set(headerName, value);
   }
 
-  try {
+  const body = request.method === "GET" ? undefined : await request.text();
+  const isDelete = request.method === "DELETE";
+
+  async function callBackend(): Promise<Response> {
     const backendResponse = await fetch(`${apiUrl}${backendPath}`, {
       method: request.method,
       headers,
-      body: request.method === "GET" ? undefined : await request.text(),
+      body,
       cache: "no-store",
     });
 
@@ -106,11 +109,30 @@ async function proxyAuthRequest(
       status: backendResponse.status,
       headers: responseHeaders,
     });
+  }
+
+  try {
+    return await callBackend();
   } catch {
-    return Response.json(
-      { detail: "Serviciul de autentificare nu este disponibil." },
-      { status: 503 },
-    );
+    // A dropped local connection between this proxy and the backend can
+    // surface as a fetch failure even though the backend already handled
+    // the request — retry once before giving up.
+    try {
+      const retryResponse = await callBackend();
+      // DELETE is idempotent: a 404 on the retry most likely means the
+      // first attempt's request actually reached the backend and deleted
+      // the row, but its response never made it back here. Report the
+      // success that already happened instead of a spurious failure.
+      if (isDelete && retryResponse.status === 404) {
+        return new Response(null, { status: 204 });
+      }
+      return retryResponse;
+    } catch {
+      return Response.json(
+        { detail: "Serviciul de autentificare nu este disponibil." },
+        { status: 503 },
+      );
+    }
   }
 }
 

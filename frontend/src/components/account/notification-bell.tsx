@@ -31,17 +31,21 @@ function BellIcon() {
   );
 }
 
-function CloseIcon() {
+function TrashIcon() {
   return (
     <svg
       aria-hidden="true"
-      className="h-3.5 w-3.5"
+      className="h-4 w-4"
       fill="none"
       viewBox="0 0 24 24"
       stroke="currentColor"
-      strokeWidth="2.5"
+      strokeWidth="2"
     >
-      <path strokeLinecap="round" strokeLinejoin="round" d="M6 6l12 12M18 6L6 18" />
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M4 7h16M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2m-9 0 1 13a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1l1-13M10 11v6M14 11v6"
+      />
     </svg>
   );
 }
@@ -360,7 +364,7 @@ export function NotificationBell() {
                           aria-label="Șterge notificarea"
                           className="flex shrink-0 items-center px-2 text-muted transition hover:text-danger"
                         >
-                          <CloseIcon />
+                          <TrashIcon />
                         </button>
                       </li>
                     );

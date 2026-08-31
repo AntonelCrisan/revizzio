@@ -981,6 +981,33 @@ async def create_summary_highlight(
     return service.to_response(project)
 
 
+@router.delete(
+    "/{project_id}/summary-highlights",
+    response_model=StudyProjectResponse,
+)
+async def delete_all_summary_highlights(
+    project_id: uuid.UUID,
+    current_user: CurrentUser,
+    session: DbSession,
+    settings: AppSettings,
+) -> StudyProjectResponse:
+    await _enforce_project_rate_limit(current_user, "study-actions")
+    service = _service(session, settings)
+    try:
+        project = await service.delete_all_summary_highlights(
+            user=current_user,
+            project_id=project_id,
+        )
+    except ProjectNotFoundError as exc:
+        await session.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Proiectul nu a fost gasit.",
+        ) from exc
+
+    return service.to_response(project)
+
+
 @router.patch(
     "/{project_id}/summary-highlights/{highlight_id}",
     response_model=StudyProjectResponse,

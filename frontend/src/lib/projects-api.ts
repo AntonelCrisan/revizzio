@@ -89,7 +89,8 @@ export type SummaryHighlightColor =
   | "green"
   | "blue"
   | "pink"
-  | "purple";
+  | "purple"
+  | "orange";
 
 export type StudyProjectSummaryHighlight = {
   id: string;
@@ -600,6 +601,20 @@ export async function deleteSummaryHighlight(payload: {
 }): Promise<StudyProject> {
   const response = await fetch(
     `/api/projects/${payload.projectId}/summary-highlights/${payload.highlightId}`,
+    {
+      method: "DELETE",
+      credentials: "same-origin",
+      cache: "no-store",
+    },
+  );
+  return parseProjectResponse<StudyProject>(response);
+}
+
+export async function deleteAllSummaryHighlights(payload: {
+  projectId: string;
+}): Promise<StudyProject> {
+  const response = await fetch(
+    `/api/projects/${payload.projectId}/summary-highlights`,
     {
       method: "DELETE",
       credentials: "same-origin",

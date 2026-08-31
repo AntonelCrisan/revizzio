@@ -2645,6 +2645,19 @@ Rescrie raspunsul pentru intrebarea curenta ca explicatie completa:
         await self.session.commit()
         return await self.get_project(user, project.id)
 
+    async def delete_all_summary_highlights(
+        self,
+        *,
+        user: User,
+        project_id: uuid.UUID,
+    ) -> StudyProject:
+        project = await self.get_project(user, project_id)
+        for highlight in list(project.summary_highlights):
+            await self.session.delete(highlight)
+            project.summary_highlights.remove(highlight)
+        await self.session.commit()
+        return await self.get_project(user, project.id)
+
     async def add_summary_note(
         self,
         *,
