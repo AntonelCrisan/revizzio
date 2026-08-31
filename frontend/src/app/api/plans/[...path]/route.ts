@@ -3,6 +3,15 @@ const allowedRoutes = [
   { method: "PUT", pattern: /^admin$/ },
 ];
 
+function noStoreHeaders(headers?: HeadersInit) {
+  const responseHeaders = new Headers(headers);
+  responseHeaders.set(
+    "Cache-Control",
+    "no-store, no-cache, max-age=0, must-revalidate",
+  );
+  return responseHeaders;
+}
+
 type PlansRouteContext = {
   params: Promise<{ path: string[] }>;
 };
@@ -23,7 +32,7 @@ async function proxyPlansRequest(
   if (!isAllowedRoute(request.method, action)) {
     return Response.json(
       { detail: "Ruta pentru planuri nu exista." },
-      { status: 404 },
+      { status: 404, headers: noStoreHeaders() },
     );
   }
 
@@ -33,7 +42,7 @@ async function proxyPlansRequest(
   if (!apiUrl) {
     return Response.json(
       { detail: "API_URL nu este configurat pe serverul frontend." },
-      { status: 500 },
+      { status: 500, headers: noStoreHeaders() },
     );
   }
 
@@ -59,12 +68,12 @@ async function proxyPlansRequest(
 
     return new Response(await backendResponse.arrayBuffer(), {
       status: backendResponse.status,
-      headers: responseHeaders,
+      headers: noStoreHeaders(responseHeaders),
     });
   } catch {
     return Response.json(
       { detail: "Serviciul de planuri nu este disponibil." },
-      { status: 503 },
+      { status: 503, headers: noStoreHeaders() },
     );
   }
 }

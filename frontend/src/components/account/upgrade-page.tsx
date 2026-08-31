@@ -69,10 +69,15 @@ function billingSuffix(interval: string) {
   return `RON / ${interval}`;
 }
 
-function planTitle(plan: SubscriptionPlan, index: number) {
+const PLAN_TITLES: Record<string, string> = {
+  start: "Pentru început",
+  focus: "Studiu Activ",
+  pro: "Sesiune Pro",
+};
+
+function planTitle(plan: SubscriptionPlan) {
   if (Number(plan.price_ron) === 0) return "Pentru început";
-  if (plan.is_featured || index === 1) return "Studiu Activ";
-  return "Fără Limite";
+  return PLAN_TITLES[plan.slug] ?? plan.name;
 }
 
 function planCta(plan: SubscriptionPlan) {
@@ -95,7 +100,7 @@ function toUpgradePlans(plans: SubscriptionPlan[]): UpgradePlan[] {
   return [...plans]
     .filter((plan) => plan.is_visible)
     .sort((first, second) => first.sort_order - second.sort_order)
-    .map((plan, index) => {
+    .map((plan) => {
       const isFree = Number(plan.price_ron) === 0;
       const sortedFeatures = [...plan.features].sort(
         (first, second) => first.sort_order - second.sort_order,
@@ -104,7 +109,7 @@ function toUpgradePlans(plans: SubscriptionPlan[]): UpgradePlan[] {
       return {
         slug: plan.slug,
         name: plan.name,
-        title: planTitle(plan, index),
+        title: planTitle(plan),
         price: formatPlanPrice(plan.price_ron),
         oldPrice: plan.old_price_ron ? formatPlanPrice(plan.old_price_ron) : "",
         note: isFree ? "RON / permanent" : billingSuffix(plan.billing_interval),
@@ -116,7 +121,7 @@ function toUpgradePlans(plans: SubscriptionPlan[]): UpgradePlan[] {
         features: uniqueFeatures([
           plan.material_limit,
           ...sortedFeatures.map((feature) => feature.label),
-        ]).slice(0, 4),
+        ]).slice(0, 6),
       };
     });
 }

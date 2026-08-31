@@ -82,7 +82,7 @@ export function CheckoutPlanPage({ plan }: CheckoutPlanPageProps) {
   const isFree = Number(plan.price_ron) === 0;
   const hasStripePrice = Boolean(plan.stripe_price_id);
   const canStartPayment = !isFree && hasStripePrice && !isStartingPayment;
-  const features = uniqueFeatures(plan).slice(0, 4);
+  const features = uniqueFeatures(plan).slice(0, 6);
   const period = billingPeriod(plan.billing_interval);
 
   async function startPayment() {
