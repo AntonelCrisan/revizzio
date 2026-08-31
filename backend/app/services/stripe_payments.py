@@ -789,6 +789,7 @@ class StripePaymentService:
         if user is None or plan is None:
             return
 
+        period_start, period_end = self._subscription_period(subscription)
         user.stripe_customer_id = stripe_customer_id
         await self._upsert_subscription(
             user=user,
@@ -797,8 +798,8 @@ class StripePaymentService:
             stripe_subscription_id=stripe_subscription_id,
             stripe_price_id=price_id,
             status=status,
-            current_period_start=_timestamp(subscription.get("current_period_start")),
-            current_period_end=_timestamp(subscription.get("current_period_end")),
+            current_period_start=period_start,
+            current_period_end=period_end,
             cancel_at_period_end=bool(subscription.get("cancel_at_period_end")),
             canceled_at=_timestamp(subscription.get("canceled_at")),
         )
@@ -1096,8 +1097,12 @@ class StripePaymentService:
         user_subscription.stripe_subscription_id = stripe_subscription_id
         user_subscription.stripe_price_id = stripe_price_id
         user_subscription.status = status
-        user_subscription.current_period_start = current_period_start
-        user_subscription.current_period_end = current_period_end
+        # Payloads without billing periods (checkout sessions, out-of-order
+        # webhooks) must not wipe periods already synced from Stripe.
+        if current_period_start is not None:
+            user_subscription.current_period_start = current_period_start
+        if current_period_end is not None:
+            user_subscription.current_period_end = current_period_end
         user_subscription.cancel_at_period_end = cancel_at_period_end
         user_subscription.canceled_at = canceled_at
         user_subscription.updated_at = now
@@ -1269,6 +1274,25 @@ class StripePaymentService:
         price = items[0].get("price") or {}
         price_id = price.get("id")
         return str(price_id) if price_id else None
+
+    def _subscription_period(
+        self,
+        subscription: dict[str, Any],
+    ) -> tuple[datetime | None, datetime | None]:
+        # Stripe API 2025-03-31.basil moved current_period_start/end off the
+        # subscription and onto its items; older versions keep them top-level.
+        items = subscription.get("items", {}).get("data", [])
+        if items:
+            item = items[0]
+            period_start = _timestamp(item.get("current_period_start"))
+            period_end = _timestamp(item.get("current_period_end"))
+            if period_start is not None or period_end is not None:
+                return period_start, period_end
+
+        return (
+            _timestamp(subscription.get("current_period_start")),
+            _timestamp(subscription.get("current_period_end")),
+        )
 
     def _invoice_subscription_id(self, invoice: dict[str, Any]) -> str | None:
         direct_subscription = _string_or_none(invoice.get("subscription"))

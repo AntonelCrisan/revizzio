@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useAuth } from "@/components/auth/auth-provider";
 import {
   AuthApiError,
@@ -102,11 +102,17 @@ function safeRedirectPath(value: string | undefined) {
 
 export function AuthForm({ mode, redirectTo, initialError }: AuthFormProps) {
   const router = useRouter();
-  const { setUser } = useAuth();
+  const { user, isLoading, setUser } = useAuth();
   const afterLoginPath = safeRedirectPath(redirectTo);
   const resetRequestLockRef = useRef(false);
   const isRegister = mode === "register";
   const isForgotPassword = mode === "forgot-password";
+
+  useEffect(() => {
+    if (!isForgotPassword && !isLoading && user) {
+      router.replace(afterLoginPath);
+    }
+  }, [afterLoginPath, isForgotPassword, isLoading, router, user]);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmation, setShowConfirmation] = useState(false);
   const [message, setMessage] = useState<string | null>(initialError ?? null);

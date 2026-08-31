@@ -378,6 +378,65 @@ function isSettingsTabId(value: string): value is SettingsTabId {
   return settingsTabs.some((tab) => tab.id === value);
 }
 
+// Distance from the viewport top marking the section considered "current".
+// Kept above the first card so the badge still reads the tab name at scroll 0,
+// then switches early enough to be seen before the header scrolls away.
+const sectionReadingLinePx = 140;
+
+// Tracks which [data-settings-section] block sits at the reading line, so the
+// header badge can follow the scroll position instead of only the active tab.
+function useActiveSectionLabel(
+  containerRef: React.RefObject<HTMLElement | null>,
+  activeTab: SettingsTabId,
+) {
+  const [activeLabel, setActiveLabel] = useState<string | null>(null);
+
+  useEffect(() => {
+    let frame: number | null = null;
+
+    function readActiveSection() {
+      frame = null;
+      const container = containerRef.current;
+      if (!container) return;
+
+      const sections = container.querySelectorAll<HTMLElement>(
+        "[data-settings-section]",
+      );
+      let current: string | null = null;
+      let currentTop = -Infinity;
+
+      // Pick the section closest to the reading line from above, so cards laid
+      // out side by side in a grid resolve by position rather than DOM order.
+      for (const section of sections) {
+        const { top } = section.getBoundingClientRect();
+        if (top <= sectionReadingLinePx && top > currentTop) {
+          current = section.dataset.settingsSection ?? null;
+          currentTop = top;
+        }
+      }
+
+      setActiveLabel(current);
+    }
+
+    function scheduleRead() {
+      if (frame !== null) return;
+      frame = window.requestAnimationFrame(readActiveSection);
+    }
+
+    scheduleRead();
+    window.addEventListener("scroll", scheduleRead, { passive: true });
+    window.addEventListener("resize", scheduleRead);
+
+    return () => {
+      if (frame !== null) window.cancelAnimationFrame(frame);
+      window.removeEventListener("scroll", scheduleRead);
+      window.removeEventListener("resize", scheduleRead);
+    };
+  }, [activeTab, containerRef]);
+
+  return activeLabel;
+}
+
 function initials(name: string) {
   return (
     name
@@ -491,6 +550,11 @@ export function SettingsPage() {
   const customColorCount = Object.keys(customColors).length;
   const activeTabMeta =
     settingsTabs.find((tab) => tab.id === activeTab) ?? settingsTabs[0];
+  const settingsContentRef = useRef<HTMLElement | null>(null);
+  const activeSectionLabel = useActiveSectionLabel(
+    settingsContentRef,
+    activeTab,
+  );
   const selectedStudyPace =
     studyPaceOptions.find((option) => option.id === preferences?.study_pace) ??
     studyPaceOptions[1];
@@ -808,7 +872,10 @@ export function SettingsPage() {
       case "account":
         return (
           <div className="space-y-5">
-            <section className="rounded-xl border border-subtle bg-surface p-6 sm:p-7">
+            <section
+              data-settings-section="Profil"
+              className="rounded-xl border border-subtle bg-surface p-6 sm:p-7"
+            >
               <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
                 <div className="flex flex-col gap-5 sm:flex-row sm:items-center">
                   <div className="relative w-fit">
@@ -897,7 +964,10 @@ export function SettingsPage() {
               })}
             </SettingsList>
 
-            <div className="grid gap-5 md:grid-cols-3">
+            <div
+              data-settings-section="Plan și limite"
+              className="grid gap-5 md:grid-cols-3"
+            >
               <SettingsMetric
                 label="Plan curent"
                 value={getActivePlanName(user)}
@@ -926,7 +996,10 @@ export function SettingsPage() {
               </p>
             ) : null}
 
-            <section className="rounded-xl border border-subtle bg-surface p-6">
+            <section
+              data-settings-section="Ritmul curent"
+              className="rounded-xl border border-subtle bg-surface p-6"
+            >
               <div>
                 <SectionLabel>Ritmul curent</SectionLabel>
                 <h2 className="mt-3 font-serif text-3xl font-semibold leading-tight text-content">
@@ -1007,7 +1080,10 @@ export function SettingsPage() {
       case "appearance":
         return (
           <div className="space-y-5">
-            <div className="grid gap-5 md:grid-cols-3">
+            <div
+              data-settings-section="Stare temă"
+              className="grid gap-5 md:grid-cols-3"
+            >
               <SettingsMetric
                 label="Mod activ"
                 value={formatThemePreference(preference)}
@@ -1049,7 +1125,10 @@ export function SettingsPage() {
       case "colors":
         return (
           <div className="space-y-5">
-            <section className="rounded-xl border border-subtle bg-surface p-5">
+            <section
+              data-settings-section="Tema curentă"
+              className="rounded-xl border border-subtle bg-surface p-5"
+            >
               <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                 <div>
                   <SectionLabel>Tema curentă</SectionLabel>
@@ -1138,7 +1217,10 @@ export function SettingsPage() {
               </p>
             ) : null}
 
-            <div className="grid gap-5 md:grid-cols-3">
+            <div
+              data-settings-section="Sumar notificări"
+              className="grid gap-5 md:grid-cols-3"
+            >
               <SettingsMetric
                 label="Frecvență"
                 value={
@@ -1431,7 +1513,7 @@ export function SettingsPage() {
       settingsSection={activeTab}
       onSettingsSectionChange={selectSettingsTab}
     >
-      <section className="space-y-7">
+      <section className="space-y-7" ref={settingsContentRef}>
         <div className="flex flex-col gap-5 border-b border-subtle pb-7 lg:flex-row lg:items-end lg:justify-between">
           <div>
             <p className="inline-flex rounded-full border border-subtle bg-action-soft px-3 py-1 text-[10px] font-black uppercase tracking-[0.18em] text-muted">
@@ -1448,7 +1530,7 @@ export function SettingsPage() {
           <div className="inline-flex w-fit items-center gap-2 rounded-full border border-subtle bg-surface px-4 py-2 text-xs text-muted">
             <span>Secțiune:</span>
             <span className="font-black text-content">
-              {activeTabMeta.label}
+              {activeSectionLabel ?? activeTabMeta.label}
             </span>
           </div>
         </div>
@@ -1824,7 +1906,10 @@ function SettingsList({
   children: ReactNode;
 }) {
   return (
-    <section className="rounded-xl border border-subtle bg-surface p-5">
+    <section
+      data-settings-section={title}
+      className="rounded-xl border border-subtle bg-surface p-5"
+    >
       <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <SectionLabel>{title}</SectionLabel>

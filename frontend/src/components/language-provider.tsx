@@ -218,8 +218,13 @@ function translateTextNode(node: Text, language: LanguagePreference) {
   const currentValue = node.nodeValue ?? "";
   if (!currentValue.trim()) return;
 
+  // Prefer the source resolved from what the node holds right now over the
+  // cached one: React reuses text nodes, so an in-place update (e.g. a label
+  // switching from "Cont" to "Studiu") must not be rewritten back to the
+  // previously cached source. resolveUiTextSource maps both originals and
+  // translations back to the source, so language switching still works.
   const sourceValue =
-    translatedTextNodes.get(node) ?? resolveUiTextSource(currentValue);
+    resolveUiTextSource(currentValue) ?? translatedTextNodes.get(node);
 
   if (!sourceValue) return;
 
@@ -248,8 +253,10 @@ function translateElementAttribute(
 
   const attributeSources =
     translatedElementAttributes.get(element) ?? new Map<string, string>();
+  // Same reasoning as translateTextNode: the live attribute value wins over the
+  // cached source so in-place updates are not reverted.
   const sourceValue =
-    attributeSources.get(attribute) ?? resolveUiTextSource(currentValue);
+    resolveUiTextSource(currentValue) ?? attributeSources.get(attribute);
 
   if (!sourceValue) return;
 

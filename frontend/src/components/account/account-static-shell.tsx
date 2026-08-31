@@ -217,6 +217,7 @@ export function AccountStaticShell({
 
     const frame = window.requestAnimationFrame(syncSettingsSection);
     window.addEventListener("hashchange", syncSettingsSection);
+    window.addEventListener("popstate", syncSettingsSection);
     window.addEventListener(
       settingsSectionChangeEvent,
       syncSettingsSectionFromEvent,
@@ -224,6 +225,7 @@ export function AccountStaticShell({
     return () => {
       window.cancelAnimationFrame(frame);
       window.removeEventListener("hashchange", syncSettingsSection);
+      window.removeEventListener("popstate", syncSettingsSection);
       window.removeEventListener(
         settingsSectionChangeEvent,
         syncSettingsSectionFromEvent,
@@ -241,7 +243,13 @@ export function AccountStaticShell({
     setActiveSettingsSection(section);
     onSettingsSectionChange?.(section);
     setSidebarOpen(false);
-    router.push(`/settings#${section}`, { scroll: false });
+    // Update the hash directly instead of router.push: pushing the same route
+    // can remount the page and reset the freshly selected section back to the
+    // default. pushState keeps one history entry per section so Back works,
+    // and the popstate listener re-syncs the tab.
+    if (window.location.hash !== `#${section}`) {
+      window.history.pushState(null, "", `#${section}`);
+    }
     window.dispatchEvent(
       new CustomEvent(settingsSectionChangeEvent, { detail: section }),
     );

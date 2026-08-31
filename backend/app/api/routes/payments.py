@@ -1,6 +1,8 @@
-from fastapi import APIRouter, HTTPException, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 
 from app.api.dependencies import AppSettings, CurrentUser, DbSession
+from app.api.security import protect_state_changing_request
+from app.core.rate_limit import consume_rate_limit
 from app.models import UserSubscription
 from app.schemas.payments import (
     CheckoutSessionCreateRequest,
@@ -20,13 +22,36 @@ from app.services.stripe_payments import (
     StripeSignatureError,
 )
 
-router = APIRouter(prefix="/api/payments", tags=["payments"])
+PAYMENTS_RATE_LIMIT_WINDOW_SECONDS = 60
+PAYMENTS_RATE_LIMIT_POLICIES = {
+    "checkout-session": 6,
+    "checkout-session-sync": 20,
+    "subscription-cancel": 6,
+    "subscription-resume": 6,
+}
+
+router = APIRouter(
+    prefix="/api/payments",
+    tags=["payments"],
+    dependencies=[Depends(protect_state_changing_request)],
+)
 
 
 def _client_context(request: Request) -> tuple[str | None, str | None]:
     user_agent = request.headers.get("user-agent")
     ip_address = request.client.host if request.client is not None else None
     return user_agent, ip_address
+
+
+async def _enforce_payments_rate_limit(current_user: CurrentUser, action: str) -> None:
+    await consume_rate_limit(
+        bucket_key=f"payments:{current_user.id}:{action}",
+        max_requests=PAYMENTS_RATE_LIMIT_POLICIES[action],
+        window_seconds=PAYMENTS_RATE_LIMIT_WINDOW_SECONDS,
+        error_message=(
+            "Prea multe solicitari de plata. Incearca din nou peste putin timp."
+        ),
+    )
 
 
 def _subscription_response(
@@ -56,6 +81,7 @@ async def create_checkout_session(
     session: DbSession,
     settings: AppSettings,
 ) -> CheckoutSessionResponse:
+    await _enforce_payments_rate_limit(current_user, "checkout-session")
     service = StripePaymentService(session, settings)
     user_agent, ip_address = _client_context(request)
 
@@ -122,6 +148,7 @@ async def cancel_subscription_renewal(
     session: DbSession,
     settings: AppSettings,
 ) -> SubscriptionActionResponse:
+    await _enforce_payments_rate_limit(current_user, "subscription-cancel")
     service = StripePaymentService(session, settings)
     user_agent, ip_address = _client_context(request)
 
@@ -161,6 +188,7 @@ async def resume_subscription_renewal(
     session: DbSession,
     settings: AppSettings,
 ) -> SubscriptionActionResponse:
+    await _enforce_payments_rate_limit(current_user, "subscription-resume")
     service = StripePaymentService(session, settings)
     user_agent, ip_address = _client_context(request)
 
@@ -201,6 +229,7 @@ async def sync_checkout_session(
     session: DbSession,
     settings: AppSettings,
 ) -> UserResponse:
+    await _enforce_payments_rate_limit(current_user, "checkout-session-sync")
     service = StripePaymentService(session, settings)
     user_agent, ip_address = _client_context(request)
 

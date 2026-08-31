@@ -4,6 +4,7 @@ import { BrandLogo } from "@/components/brand-logo";
 import { SiteFooter } from "@/components/legal/site-footer";
 import { FlashcardStory } from "@/components/marketing/flashcard-story";
 import { MarketingHeader } from "@/components/marketing/marketing-header";
+import { PlanCtaLink } from "@/components/marketing/plan-cta-link";
 import { ScrollReveal } from "@/components/marketing/scroll-reveal";
 import { TranslatedText } from "@/components/translated-text";
 import type { SubscriptionPlan } from "@/lib/plans-api";
@@ -961,26 +962,25 @@ export default async function Home() {
                     ))}
                   </ul>
 
-                  <Link
+                  <PlanCtaLink
+                    isFree={plan.price === "0"}
                     href={plan.price === "0" ? "/register" : "/upgrade"}
+                    label={plan.price === "0" ? plan.cta : "Vezi detaliile planului"}
                     className={`mt-auto inline-flex items-center justify-center gap-3 rounded-2xl px-5 py-3.5 text-sm font-bold transition ${
                       plan.featured
                         ? "bg-on-action text-action hover:opacity-90"
                         : "border border-subtle bg-app hover:bg-surface-hover"
                     }`}
                   >
-                    {plan.price === "0"
-                      ? plan.cta
-                      : "Vezi detaliile planului"}
                     <ArrowIcon />
-                  </Link>
+                  </PlanCtaLink>
                 </article>
               </ScrollReveal>
             ))}
           </div>
 
           <p className="mt-8 text-center text-xs leading-6 text-muted">
-            Prețurile includ TVA. Plata se face lunar, fără perioadă contractuală.
+            Plata se face lunar, fără perioadă contractuală.
           </p>
         </div>
       </section>
