@@ -3613,6 +3613,12 @@ type SummaryRange = {
   note?: UserSummaryNote;
 };
 
+type SummaryInlineSegment = {
+  text: string;
+  strong?: boolean;
+  emphasis?: boolean;
+  code?: boolean;
+};
 type SummaryHighlightColorId =
   | "yellow"
   | "green"
@@ -3760,9 +3766,13 @@ function findParagraphIndexForKeyword(
   paragraphs: SummaryDisplayBlock[],
   anchorText: string,
 ) {
-  const normalizedAnchor = anchorText.toLocaleLowerCase("ro-RO");
+  const normalizedAnchor = stripSummaryInlineMarkdown(anchorText).toLocaleLowerCase(
+    "ro-RO",
+  );
   const index = paragraphs.findIndex((paragraph) =>
-    paragraph.text.toLocaleLowerCase("ro-RO").includes(normalizedAnchor),
+    stripSummaryInlineMarkdown(paragraph.text)
+      .toLocaleLowerCase("ro-RO")
+      .includes(normalizedAnchor),
   );
 
   return index === -1 ? 0 : index;
@@ -3826,8 +3836,14 @@ function findSummaryRanges(
   range: Omit<SummaryRange, "start" | "end">,
 ) {
   const ranges: SummaryRange[] = [];
+  const plainSearchText = stripSummaryInlineMarkdown(searchText);
+
+  if (!plainSearchText) {
+    return ranges;
+  }
+
   const normalizedParagraph = paragraph.toLocaleLowerCase("ro-RO");
-  const normalizedSearchText = searchText.toLocaleLowerCase("ro-RO");
+  const normalizedSearchText = plainSearchText.toLocaleLowerCase("ro-RO");
   let searchFrom = 0;
 
   while (searchFrom < paragraph.length) {
@@ -3837,12 +3853,266 @@ function findSummaryRanges(
       break;
     }
 
-    const end = start + searchText.length;
+    const end = start + plainSearchText.length;
     ranges.push({ ...range, start, end });
     searchFrom = end;
   }
 
   return ranges;
+}
+
+function pushSummaryInlineSegment(
+  segments: SummaryInlineSegment[],
+  text: string,
+  style: Omit<SummaryInlineSegment, "text"> = {},
+) {
+  if (!text) {
+    return;
+  }
+
+  const lastSegment = segments.at(-1);
+  const strong = Boolean(style.strong);
+  const emphasis = Boolean(style.emphasis);
+  const code = Boolean(style.code);
+
+  if (
+    lastSegment &&
+    Boolean(lastSegment.strong) === strong &&
+    Boolean(lastSegment.emphasis) === emphasis &&
+    Boolean(lastSegment.code) === code
+  ) {
+    lastSegment.text += text;
+    return;
+  }
+
+  segments.push({
+    text,
+    ...(strong ? { strong } : {}),
+    ...(emphasis ? { emphasis } : {}),
+    ...(code ? { code } : {}),
+  });
+}
+
+function appendParsedSummaryInlineSegments(
+  segments: SummaryInlineSegment[],
+  text: string,
+  style: Omit<SummaryInlineSegment, "text">,
+) {
+  parseSummaryInlineMarkdown(text).forEach((segment) => {
+    pushSummaryInlineSegment(segments, segment.text, {
+      strong: Boolean(segment.strong) || Boolean(style.strong),
+      emphasis: Boolean(segment.emphasis) || Boolean(style.emphasis),
+      code: Boolean(segment.code) || Boolean(style.code),
+    });
+  });
+}
+
+function appendDelimitedSummaryInlineSegment(
+  segments: SummaryInlineSegment[],
+  text: string,
+  index: number,
+  delimiter: string,
+  style: Omit<SummaryInlineSegment, "text">,
+  allowOuterWhitespace = true,
+) {
+  const contentStart = index + delimiter.length;
+  const closingIndex = text.indexOf(delimiter, contentStart);
+
+  if (closingIndex === -1) {
+    return null;
+  }
+
+  const content = text.slice(contentStart, closingIndex);
+
+  if (
+    !content.trim() ||
+    (!allowOuterWhitespace && (content.startsWith(" ") || content.endsWith(" ")))
+  ) {
+    return null;
+  }
+
+  if (style.code) {
+    pushSummaryInlineSegment(segments, content, style);
+  } else {
+    appendParsedSummaryInlineSegments(segments, content, style);
+  }
+
+  return closingIndex + delimiter.length;
+}
+
+function findNextSummaryInlineMarker(text: string, fromIndex: number) {
+  const markers = ["`", "***", "___", "**", "__", "*"];
+  let nextMarkerIndex = text.length;
+
+  markers.forEach((marker) => {
+    const markerIndex = text.indexOf(marker, fromIndex);
+    if (markerIndex !== -1 && markerIndex < nextMarkerIndex) {
+      nextMarkerIndex = markerIndex;
+    }
+  });
+
+  return nextMarkerIndex;
+}
+
+function parseSummaryInlineMarkdown(text: string): SummaryInlineSegment[] {
+  const segments: SummaryInlineSegment[] = [];
+  let index = 0;
+
+  while (index < text.length) {
+    const nextMarkerIndex = findNextSummaryInlineMarker(text, index);
+
+    if (nextMarkerIndex > index) {
+      pushSummaryInlineSegment(segments, text.slice(index, nextMarkerIndex));
+      index = nextMarkerIndex;
+      continue;
+    }
+
+    const parsedEnd =
+      (text.startsWith("`", index)
+        ? appendDelimitedSummaryInlineSegment(
+            segments,
+            text,
+            index,
+            "`",
+            { code: true },
+          )
+        : null) ??
+      (text.startsWith("***", index)
+        ? appendDelimitedSummaryInlineSegment(
+            segments,
+            text,
+            index,
+            "***",
+            { strong: true, emphasis: true },
+          )
+        : null) ??
+      (text.startsWith("___", index)
+        ? appendDelimitedSummaryInlineSegment(
+            segments,
+            text,
+            index,
+            "___",
+            { strong: true, emphasis: true },
+          )
+        : null) ??
+      (text.startsWith("**", index)
+        ? appendDelimitedSummaryInlineSegment(
+            segments,
+            text,
+            index,
+            "**",
+            { strong: true },
+          )
+        : null) ??
+      (text.startsWith("__", index)
+        ? appendDelimitedSummaryInlineSegment(
+            segments,
+            text,
+            index,
+            "__",
+            { strong: true },
+          )
+        : null) ??
+      (text.startsWith("*", index)
+        ? appendDelimitedSummaryInlineSegment(
+            segments,
+            text,
+            index,
+            "*",
+            { emphasis: true },
+            false,
+          )
+        : null);
+
+    if (parsedEnd) {
+      index = parsedEnd;
+      continue;
+    }
+
+    pushSummaryInlineSegment(segments, text[index]);
+    index += 1;
+  }
+
+  return segments;
+}
+
+function stripSummaryInlineMarkdown(text: string) {
+  return parseSummaryInlineMarkdown(text)
+    .map((segment) => segment.text)
+    .join("");
+}
+
+function renderSummaryInlineRange(
+  segments: SummaryInlineSegment[],
+  start: number,
+  end: number,
+  keyPrefix: string,
+): ReactNode[] {
+  const nodes: ReactNode[] = [];
+  let position = 0;
+
+  segments.forEach((segment, segmentIndex) => {
+    const segmentStart = position;
+    const segmentEnd = segmentStart + segment.text.length;
+    position = segmentEnd;
+
+    if (end <= segmentStart || start >= segmentEnd) {
+      return;
+    }
+
+    const sliceStart = Math.max(start, segmentStart) - segmentStart;
+    const sliceEnd = Math.min(end, segmentEnd) - segmentStart;
+    const text = segment.text.slice(sliceStart, sliceEnd);
+
+    if (!text) {
+      return;
+    }
+
+    const key = `${keyPrefix}-${segmentIndex}-${nodes.length}`;
+
+    if (segment.code) {
+      nodes.push(
+        <code
+          key={key}
+          className="rounded bg-app px-1 py-0.5 font-mono text-[0.9em] text-content"
+        >
+          {text}
+        </code>,
+      );
+      return;
+    }
+
+    if (segment.strong && segment.emphasis) {
+      nodes.push(
+        <strong key={key} className="font-black text-content">
+          <em className="italic">{text}</em>
+        </strong>,
+      );
+      return;
+    }
+
+    if (segment.strong) {
+      nodes.push(
+        <strong key={key} className="font-black text-content">
+          {text}
+        </strong>,
+      );
+      return;
+    }
+
+    if (segment.emphasis) {
+      nodes.push(
+        <em key={key} className="italic text-content">
+          {text}
+        </em>,
+      );
+      return;
+    }
+
+    nodes.push(text);
+  });
+
+  return nodes;
 }
 
 function renderSummaryText(
@@ -3857,11 +4127,13 @@ function renderSummaryText(
   isEraseModeActive: boolean,
   onUserHighlightClick: (highlight: UserSummaryHighlight) => void,
   onNoteBadgeClick: (note: UserSummaryNote) => void,
-) {
+): ReactNode[] {
+  const inlineSegments = parseSummaryInlineMarkdown(paragraph);
+  const plainParagraph = inlineSegments.map((segment) => segment.text).join("");
   const keywordRanges = keywords
     .filter((keyword) => keyword.paragraphIndex === paragraphIndex)
     .flatMap((keyword) =>
-      findSummaryRanges(paragraph, keyword.text, {
+      findSummaryRanges(plainParagraph, keyword.text, {
         kind: "keyword",
         keyword,
       }),
@@ -3870,7 +4142,7 @@ function renderSummaryText(
   const userRanges = userHighlights
     .filter((highlight) => highlight.paragraphIndex === paragraphIndex)
     .flatMap((highlight) =>
-      findSummaryRanges(paragraph, highlight.text, {
+      findSummaryRanges(plainParagraph, highlight.text, {
         kind: "user",
         highlight,
       }),
@@ -3879,30 +4151,36 @@ function renderSummaryText(
   const noteRanges = userNotes
     .filter((note) => note.paragraphIndex === paragraphIndex)
     .flatMap((note) =>
-      findSummaryRanges(paragraph, note.text, {
+      findSummaryRanges(plainParagraph, note.text, {
         kind: "note",
         note,
       }),
     );
 
   const ranges = [...keywordRanges, ...userRanges, ...noteRanges];
-  const breakpoints = new Set([0, paragraph.length]);
+  const breakpoints = new Set([0, plainParagraph.length]);
 
   ranges.forEach((range) => {
     breakpoints.add(range.start);
     breakpoints.add(range.end);
   });
 
+  const renderedSegments: ReactNode[] = [];
   const points = [...breakpoints].sort((a, b) => a - b);
 
-  return points.flatMap((start, index) => {
+  points.forEach((start, index) => {
     const end = points[index + 1];
 
     if (end === undefined || start === end) {
-      return [];
+      return;
     }
 
-    const text = paragraph.slice(start, end);
+    const renderedText = renderSummaryInlineRange(
+      inlineSegments,
+      start,
+      end,
+      `${paragraphIndex}-${start}-${end}`,
+    );
     const keywordRange = keywordRanges.find(
       (range) => start >= range.start && end <= range.end,
     );
@@ -3919,9 +4197,12 @@ function renderSummaryText(
       keywordRange?.keyword?.id !== undefined &&
       keywordRange.keyword.id === activeKeywordId;
 
-    const segment = !keywordRange && !userRange && !note ? (
-      text
-    ) : (
+    if (!keywordRange && !userRange && !note) {
+      renderedSegments.push(...renderedText);
+      return;
+    }
+
+    const segment = (
       <mark
         key={`${paragraphIndex}-${start}-${end}`}
         id={
@@ -3965,12 +4246,12 @@ function renderSummaryText(
           userHighlight ? getSummaryHighlightStyle(userHighlight.color) : undefined
         }
       >
-        {text}
+        {renderedText}
       </mark>
     );
 
     if (note && start === noteRange?.start) {
-      return [
+      renderedSegments.push(
         <button
           key={`${paragraphIndex}-${start}-note-badge`}
           type="button"
@@ -3986,11 +4267,14 @@ function renderSummaryText(
           </Icon>
         </button>,
         segment,
-      ];
+      );
+      return;
     }
 
-    return segment;
+    renderedSegments.push(segment);
   });
+
+  return renderedSegments;
 }
 
 function SummaryHighlightColorPicker({
