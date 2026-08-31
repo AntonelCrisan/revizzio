@@ -33,6 +33,11 @@ class UserPlanResponse(BaseModel):
     quiz_groups_per_complexity: int
     quiz_questions_per_quiz: int
     allow_scanned_documents: bool
+    monthly_ai_credits: int
+    monthly_ocr_pages: int
+    monthly_page_limit: int
+    ai_chat_enabled: bool
+    max_openai_cost_usd_per_cycle: Decimal
     is_featured: bool
 
 

@@ -4,6 +4,8 @@ from pydantic import BaseModel
 
 
 class UsageResponse(BaseModel):
+    projects_used: int
+    projects_limit: int
     materials_used: int
     materials_limit: int
     pages_processed: int

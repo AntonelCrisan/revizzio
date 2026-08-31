@@ -421,7 +421,7 @@ def limits_for_user(user: User) -> ProjectPlanLimits:
             plan,
             "monthly_page_limit",
             fallback.monthly_page_limit,
-            1,
+            0,
         ),
         initial_flashcards=_plan_int_limit(
             plan,
@@ -3236,11 +3236,11 @@ Rescrie raspunsul pentru intrebarea curenta ca explicatie completa:
                 )
                 raise ProjectValidationError(
                     f"Documentul {safe_name} pare scanat sau fara text extractibil. "
-                    "Incarcarea documentelor scanate este disponibila doar pe planul Pro."
+                    "Planul curent nu include incarcarea documentelor scanate."
                 )
 
             logger.info(
-                "Documentul %s pare scanat; pornim Mistral OCR pentru planul Pro.",
+                "Documentul %s pare scanat; pornim Mistral OCR pentru planul curent.",
                 safe_name,
             )
             credits_service = AiCreditsService(self.session)

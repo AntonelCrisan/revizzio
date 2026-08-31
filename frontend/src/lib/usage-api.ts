@@ -1,4 +1,6 @@
 export type Usage = {
+  projects_used: number;
+  projects_limit: number;
   materials_used: number;
   materials_limit: number;
   pages_processed: number;

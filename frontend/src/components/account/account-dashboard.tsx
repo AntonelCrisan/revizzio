@@ -113,6 +113,7 @@ type ProjectUploadPlanLimits = {
   monthlyProjects: number;
   filesPerProject: number;
   monthlyMaterials: number;
+  monthlyPageLimit: number;
   fileSizeMb: number;
   projectSizeMb: number;
   estimatedPages: number;
@@ -121,13 +122,13 @@ type ProjectUploadPlanLimits = {
 
 const initialProjects: StudyProject[] = [];
 const SIDEBAR_COLLAPSED_STORAGE_KEY = "revizzio-sidebar-collapsed";
-const PRO_AI_ACCESS_MESSAGE =
-  "Funcționalitatea AI este disponibilă doar pentru planul Pro.";
-const PRO_AI_UPGRADE_MESSAGE =
-  "Treci la Pro ca să folosești explicații AI, întrebări pe text selectat și Chat AI contextual.";
+const AI_ACCESS_UNAVAILABLE_MESSAGE =
+  "Funcționalitatea AI nu este disponibilă pe planul curent.";
+const AI_ACCESS_UPGRADE_MESSAGE =
+  "Alege un plan care include Chat AI, explicații AI și întrebări pe text selectat.";
 
-function hasProAiPlan(plan: AuthUserPlan | null | undefined) {
-  return plan?.slug === "pro";
+function hasPlanAiAccess(plan: AuthUserPlan | null | undefined) {
+  return Boolean(plan?.ai_chat_enabled);
 }
 
 function isAdminRole(role: string | undefined) {
@@ -286,11 +287,20 @@ function getProjectUploadPlanLimits(
     monthlyProjects: Math.max(0, Number(userPlan?.active_project_limit ?? 1)),
     filesPerProject: Math.max(1, Number(userPlan?.files_per_project_limit ?? 2)),
     monthlyMaterials: Math.max(0, Number(userPlan?.monthly_material_limit ?? 3)),
+    monthlyPageLimit: Math.max(0, Number(userPlan?.monthly_page_limit ?? 40)),
     fileSizeMb: Math.max(1, Number(userPlan?.file_size_limit_mb ?? 10)),
     projectSizeMb: Math.max(1, Number(userPlan?.project_size_limit_mb ?? 20)),
     estimatedPages: Math.max(1, Number(userPlan?.estimated_page_limit ?? 25)),
     allowScannedDocuments: Boolean(userPlan?.allow_scanned_documents),
   };
+}
+
+function quotaReached(used: number, limit: number) {
+  return limit <= 0 || used >= limit;
+}
+
+function quotaExceededBy(used: number, incoming: number, limit: number) {
+  return limit <= 0 ? incoming > 0 : used + incoming > limit;
 }
 
 function delay(ms: number, signal?: AbortSignal) {
@@ -603,7 +613,7 @@ export function AccountDashboard({
   );
 
   const displayName = user?.full_name.trim() || "student";
-  const hasProAiAccess = hasProAiPlan(user?.current_plan);
+  const hasAiAccess = hasPlanAiAccess(user?.current_plan);
   const uploadPlanLimits = useMemo(
     () => getProjectUploadPlanLimits(user?.current_plan),
     [user?.current_plan],
@@ -618,13 +628,56 @@ export function AccountDashboard({
     uploadedFiles.every(
       (file) => file.size <= mbToBytes(uploadPlanLimits.fileSizeMb),
     );
+  const monthlyUploadQuotaNotice = useMemo(() => {
+    if (!usage) return null;
+
+    if (quotaReached(usage.projects_used, usage.projects_limit)) {
+      return `Ai atins limita planului ${uploadPlanLimits.planName}: ${formatCountLabel(
+        usage.projects_limit,
+        "proiect",
+        "proiecte",
+      )} pe lună.`;
+    }
+
+    if (
+      quotaExceededBy(
+        usage.materials_used,
+        uploadedFiles.length,
+        usage.materials_limit,
+      )
+    ) {
+      if (usage.materials_limit <= 0) {
+        return `Planul ${uploadPlanLimits.planName} nu include încărcări de materiale.`;
+      }
+
+      return `Selecția depășește cota lunară de materiale. Mai ai ${formatCountLabel(
+        Math.max(0, usage.materials_limit - usage.materials_used),
+        "material",
+        "materiale",
+      )} disponibile.`;
+    }
+
+    if (
+      uploadedFiles.length > 0 &&
+      quotaReached(usage.pages_processed, usage.pages_limit)
+    ) {
+      if (usage.pages_limit <= 0) {
+        return `Planul ${uploadPlanLimits.planName} nu include pagini procesate.`;
+      }
+
+      return `Ai atins limita lunară de pagini procesate: ${usage.pages_processed}/${usage.pages_limit}.`;
+    }
+
+    return null;
+  }, [usage, uploadPlanLimits.planName, uploadedFiles.length]);
   const canGenerate =
     projectName.trim().length >= PROJECT_DETAIL_MIN_LENGTH &&
     subjectName.trim().length >= PROJECT_DETAIL_MIN_LENGTH &&
     institutionName.trim().length >= PROJECT_DETAIL_MIN_LENGTH &&
     uploadedFiles.length > 0 &&
     hasMaterialRights &&
-    uploadedFilesAreWithinPlan;
+    uploadedFilesAreWithinPlan &&
+    !monthlyUploadQuotaNotice;
   const generationProgress = Math.round(
     (completedSteps.length / generationSteps.length) * 100,
   );
@@ -749,7 +802,7 @@ export function AccountDashboard({
     if (!useTabPages || !activeProjectId) return;
 
     for (const tab of tabs) {
-      if (tab.id === "chat" && !hasProAiAccess) continue;
+      if (tab.id === "chat" && !hasAiAccess) continue;
 
       router.prefetch(
         getTabHref(tab.id, activeProjectId, {
@@ -757,7 +810,7 @@ export function AccountDashboard({
         }),
       );
     }
-  }, [activeProjectId, chatBackTab, hasProAiAccess, router, useTabPages]);
+  }, [activeProjectId, chatBackTab, hasAiAccess, router, useTabPages]);
 
   useEffect(() => {
     if (isLoading || !user) return;
@@ -794,6 +847,15 @@ export function AccountDashboard({
       isMounted = false;
     };
   }, [isLoading, user]);
+
+  async function refreshUsageSnapshot() {
+    try {
+      const result = await getUsage();
+      setUsage(result);
+    } catch {
+      // Usage is informational; blocking the study flow would be worse.
+    }
+  }
 
   function toggleSidebarCollapsed() {
     setIsSidebarCollapsed((current) => {
@@ -838,7 +900,7 @@ export function AccountDashboard({
   }
 
   function openProject(projectId: string, tab: TabId = "rezumat") {
-    if (tab === "chat" && !hasProAiAccess) {
+    if (tab === "chat" && !hasAiAccess) {
       return;
     }
 
@@ -1089,6 +1151,7 @@ export function AccountDashboard({
     }
 
     if (queuedProject.status !== "generating_quizzes") {
+      await refreshUsageSnapshot();
       return mapApiProject(queuedProject);
     }
 
@@ -1102,6 +1165,7 @@ export function AccountDashboard({
       const mappedProject = storeApiProject(apiProject);
 
       if (apiProject.status === "ready" && apiProject.quizzes.length > 0) {
+        await refreshUsageSnapshot();
         return mappedProject;
       }
 
@@ -1177,7 +1241,7 @@ export function AccountDashboard({
   }
 
   function changeProjectTab(tab: TabId) {
-    if (tab === "chat" && !hasProAiAccess) {
+    if (tab === "chat" && !hasAiAccess) {
       return;
     }
 
@@ -1377,6 +1441,10 @@ export function AccountDashboard({
       );
       return;
     }
+    if (monthlyUploadQuotaNotice) {
+      setFileSelectionNotice(monthlyUploadQuotaNotice);
+      return;
+    }
     if (!canGenerate) return;
 
     let transientProjectId: string | null = null;
@@ -1409,6 +1477,7 @@ export function AccountDashboard({
       setPreparedProject(response);
       setCompletedSteps(generationSteps.slice(0, 3));
       await pollProjectUntilReady(response.project.id, abortController.signal);
+      await refreshUsageSnapshot();
       setGenerationState("done");
     } catch (error) {
       if (isAbortError(error) || generationCancelRequestedRef.current) {
@@ -1728,7 +1797,7 @@ export function AccountDashboard({
                   >
                     {tabs.map((tab) => {
                       const isAiTabLocked =
-                        tab.id === "chat" && !hasProAiAccess;
+                        tab.id === "chat" && !hasAiAccess;
 
                       return (
                         <button
@@ -1737,7 +1806,7 @@ export function AccountDashboard({
                           onClick={() => openProject(project.id, tab.id)}
                           disabled={isAiTabLocked}
                           title={
-                            isAiTabLocked ? PRO_AI_ACCESS_MESSAGE : undefined
+                            isAiTabLocked ? AI_ACCESS_UNAVAILABLE_MESSAGE : undefined
                           }
                           className={`ml-5 flex w-[calc(100%-1.25rem)] items-center gap-2 rounded-xl px-3 py-2 text-left text-[13px] transition ${
                             isAiTabLocked
@@ -1850,10 +1919,11 @@ export function AccountDashboard({
               activeTab={activeTab}
               chatBackTab={chatBackTab}
               flashcardMode={initialFlashcardMode}
-              hasProAiAccess={hasProAiAccess}
+              hasAiAccess={hasAiAccess}
               isTabContentLoading={isTabRoutePending}
               onBack={showHome}
               onTabChange={changeProjectTab}
+              onUsageRefresh={refreshUsageSnapshot}
               onQuizMistake={saveQuizMistakeFlashcard}
               onQuizComplete={completeQuizAttempt}
               onGenerateQuizzes={generateProjectQuizPack}
@@ -1884,6 +1954,7 @@ export function AccountDashboard({
               generationError={generationError}
               isCancellingGeneration={isCancellingGeneration}
               fileSelectionNotice={fileSelectionNotice}
+              quotaNotice={monthlyUploadQuotaNotice}
               planLimits={uploadPlanLimits}
               isDragging={isDragging}
               fileInputRef={fileInputRef}
@@ -2061,6 +2132,12 @@ function UsageSection({ usage }: { usage: Usage | null }) {
   if (!usage) return null;
 
   const meters = [
+    {
+      key: "projects",
+      label: "Proiecte lunare",
+      used: usage.projects_used,
+      limit: usage.projects_limit,
+    },
     {
       key: "materials",
       label: "Materiale",
@@ -2583,10 +2660,11 @@ function ProjectView({
   activeTab,
   chatBackTab,
   flashcardMode,
-  hasProAiAccess,
+  hasAiAccess,
   isTabContentLoading,
   onBack,
   onTabChange,
+  onUsageRefresh,
   onQuizMistake,
   onQuizComplete,
   onGenerateQuizzes,
@@ -2604,10 +2682,11 @@ function ProjectView({
   activeTab: TabId;
   chatBackTab: TabId;
   flashcardMode: FlashcardPanelMode;
-  hasProAiAccess: boolean;
+  hasAiAccess: boolean;
   isTabContentLoading: boolean;
   onBack: () => void;
   onTabChange: (tab: TabId) => void;
+  onUsageRefresh: () => Promise<void>;
   onQuizMistake: (
     projectId: string,
     questionId: string | null,
@@ -2703,8 +2782,12 @@ function ProjectView({
 
         {isTabContentLoading ? (
           <ProjectTabContentSkeleton />
-        ) : hasProAiAccess ? (
-          <ProjectChatPanel key={project.id} project={project} />
+        ) : hasAiAccess ? (
+          <ProjectChatPanel
+            key={project.id}
+            project={project}
+            onUsageRefresh={onUsageRefresh}
+          />
         ) : (
           <ProjectAiLockedPanel />
         )}
@@ -2748,7 +2831,7 @@ function ProjectView({
         <div className="ml-16 overflow-x-auto [scrollbar-width:none] md:ml-0 md:flex md:justify-center [&::-webkit-scrollbar]:hidden">
           <div className="flex min-w-max items-center gap-6">
           {tabs.map((tab) => {
-            const isAiTabLocked = tab.id === "chat" && !hasProAiAccess;
+            const isAiTabLocked = tab.id === "chat" && !hasAiAccess;
 
             return (
               <button
@@ -2756,7 +2839,7 @@ function ProjectView({
                 type="button"
                 onClick={() => onTabChange(tab.id)}
                 disabled={isAiTabLocked}
-                title={isAiTabLocked ? PRO_AI_ACCESS_MESSAGE : undefined}
+                title={isAiTabLocked ? AI_ACCESS_UNAVAILABLE_MESSAGE : undefined}
                 className={`relative py-4 text-sm font-black transition after:absolute after:inset-x-0 after:bottom-0 after:h-[3px] after:rounded-full after:transition ${
                   isAiTabLocked
                     ? "cursor-not-allowed text-muted/45 after:bg-transparent"
@@ -2781,7 +2864,8 @@ function ProjectView({
             {activeTab === "rezumat" ? (
               <SummaryPanel
                 project={project}
-                hasProAiAccess={hasProAiAccess}
+                hasAiAccess={hasAiAccess}
+                onUsageRefresh={onUsageRefresh}
                 onHighlightCreate={onHighlightCreate}
                 onHighlightColorChange={onHighlightColorChange}
                 onHighlightRemove={onHighlightRemove}
@@ -2795,7 +2879,8 @@ function ProjectView({
               <FlashcardsPanel
                 project={project}
                 mode={flashcardMode}
-                hasProAiAccess={hasProAiAccess}
+                hasAiAccess={hasAiAccess}
+                onUsageRefresh={onUsageRefresh}
                 onManualFlashcardCreate={onManualFlashcardCreate}
                 onToggleFlashcardReview={onToggleFlashcardReview}
               />
@@ -2839,19 +2924,19 @@ function ProjectAiLockedPanel() {
   return (
     <section className="rounded-xl border border-subtle bg-surface p-6 sm:p-8">
       <span className="inline-flex rounded-full border border-subtle bg-action-soft px-3 py-1 text-[10px] font-black uppercase tracking-[0.18em] text-muted">
-        Pro
+        AI
       </span>
       <h2 className="mt-4 max-w-3xl font-serif text-3xl font-semibold leading-tight text-content sm:text-4xl">
-        Chat AI este disponibil în planul Pro.
+        Chat AI nu este disponibil pe planul curent.
       </h2>
       <p className="mt-3 max-w-2xl text-sm leading-7 text-muted">
-        {PRO_AI_UPGRADE_MESSAGE}
+        {AI_ACCESS_UPGRADE_MESSAGE}
       </p>
       <Link
         href="/upgrade"
         className="mt-6 inline-flex h-11 cursor-pointer items-center justify-center rounded-full bg-action px-5 text-sm font-bold text-on-action transition hover:bg-action-hover"
       >
-        Vezi planul Pro
+        Vezi planurile
       </Link>
     </section>
   );
@@ -3168,7 +3253,13 @@ function ProjectChatMessageText({ text }: { text: string }) {
   );
 }
 
-function ProjectChatPanel({ project }: { project: StudyProject }) {
+function ProjectChatPanel({
+  project,
+  onUsageRefresh,
+}: {
+  project: StudyProject;
+  onUsageRefresh: () => Promise<void>;
+}) {
   const streamTimerRef = useRef<number | null>(null);
   const chatRequestIdRef = useRef(0);
   const bottomRef = useRef<HTMLDivElement | null>(null);
@@ -3330,6 +3421,7 @@ function ProjectChatPanel({ project }: { project: StudyProject }) {
         return;
       }
 
+      void onUsageRefresh();
       streamAssistantAnswer(assistantMessageId, response.answer);
     } catch (error) {
       if (requestId !== chatRequestIdRef.current) {
@@ -4013,7 +4105,7 @@ function SummaryToolButton({
 function SummaryToolsPanel({
   activeTool,
   pendingHighlightColor,
-  hasProAiAccess,
+  hasAiAccess,
   toolHintText,
   canResetHighlights,
   onToggleTool,
@@ -4024,7 +4116,7 @@ function SummaryToolsPanel({
 }: {
   activeTool: SummaryToolMode | null;
   pendingHighlightColor: SummaryHighlightColorId;
-  hasProAiAccess: boolean;
+  hasAiAccess: boolean;
   toolHintText: string | null;
   canResetHighlights: boolean;
   onToggleTool: (tool: SummaryToolMode) => void;
@@ -4080,8 +4172,8 @@ function SummaryToolsPanel({
         <SummaryToolButton
           label="AI"
           active={activeTool === "ai"}
-          disabled={!hasProAiAccess}
-          tooltip={!hasProAiAccess ? PRO_AI_ACCESS_MESSAGE : undefined}
+          disabled={!hasAiAccess}
+          tooltip={!hasAiAccess ? AI_ACCESS_UNAVAILABLE_MESSAGE : undefined}
           onClick={() => onToggleTool("ai")}
         >
           <path d="M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .962 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.963 0z" />
@@ -4123,7 +4215,8 @@ function SummaryToolsPanel({
 
 function SummaryPanel({
   project,
-  hasProAiAccess,
+  hasAiAccess,
+  onUsageRefresh,
   onHighlightCreate,
   onHighlightColorChange,
   onHighlightRemove,
@@ -4133,7 +4226,8 @@ function SummaryPanel({
   onNoteRemove,
 }: {
   project: StudyProject;
-  hasProAiAccess: boolean;
+  hasAiAccess: boolean;
+  onUsageRefresh: () => Promise<void>;
   onHighlightCreate: (
     projectId: string,
     highlight: {
@@ -4266,7 +4360,7 @@ function SummaryPanel({
   }
 
   async function handleAskAi(selection: PendingSummarySelection) {
-    if (!hasProAiAccess) {
+    if (!hasAiAccess) {
       return;
     }
 
@@ -4291,6 +4385,7 @@ function SummaryPanel({
         return;
       }
 
+      void onUsageRefresh();
       setAiDialog({
         ...selection,
         status: "done",
@@ -4300,7 +4395,6 @@ function SummaryPanel({
       if (requestId !== aiRequestIdRef.current) {
         return;
       }
-
       setAiDialog({
         ...selection,
         status: "done",
@@ -4382,7 +4476,7 @@ function SummaryPanel({
     }
 
     if (activeTool === "ai") {
-      if (!hasProAiAccess) {
+      if (!hasAiAccess) {
         return;
       }
 
@@ -4565,7 +4659,7 @@ function SummaryPanel({
   }
 
   function handleToggleTool(tool: SummaryToolMode) {
-    if (tool === "ai" && !hasProAiAccess) {
+    if (tool === "ai" && !hasAiAccess) {
       return;
     }
 
@@ -4884,7 +4978,7 @@ function SummaryPanel({
           <SummaryToolsPanel
             activeTool={activeTool}
             pendingHighlightColor={pendingHighlightColor}
-            hasProAiAccess={hasProAiAccess}
+            hasAiAccess={hasAiAccess}
             toolHintText={toolHintText}
             canResetHighlights={userHighlights.length > 0}
             onToggleTool={handleToggleTool}
@@ -4931,7 +5025,7 @@ function SummaryPanel({
               <SummaryToolsPanel
                 activeTool={activeTool}
                 pendingHighlightColor={pendingHighlightColor}
-                hasProAiAccess={hasProAiAccess}
+                hasAiAccess={hasAiAccess}
                 toolHintText={toolHintText}
                 canResetHighlights={userHighlights.length > 0}
                 onToggleTool={handleToggleTool}
@@ -5599,13 +5693,15 @@ function FlashcardDeckPage({
   deck,
   onBack,
   onToggleReview,
-  hasProAiAccess,
+  hasAiAccess,
+  onUsageRefresh,
 }: {
   projectId: string;
   deck: AccountFlashcardDeck;
   onBack: () => void;
   onToggleReview: (flashcardId: string, review: boolean) => Promise<void>;
-  hasProAiAccess: boolean;
+  hasAiAccess: boolean;
+  onUsageRefresh: () => Promise<void>;
 }) {
   const flashcardTextRef = useRef<HTMLDivElement | null>(null);
   const shuffleIdRef = useRef(0);
@@ -5786,7 +5882,7 @@ function FlashcardDeckPage({
   }
 
   async function handleAskFlashcardAi() {
-    if (!pendingFlashcardSelection || !hasProAiAccess) {
+    if (!pendingFlashcardSelection || !hasAiAccess) {
       return;
     }
 
@@ -5813,6 +5909,7 @@ function FlashcardDeckPage({
         return;
       }
 
+      void onUsageRefresh();
       setFlashcardAiDialog({
         ...selection,
         status: "done",
@@ -5822,7 +5919,6 @@ function FlashcardDeckPage({
       if (requestId !== flashcardAiRequestIdRef.current) {
         return;
       }
-
       setFlashcardAiDialog({
         ...selection,
         status: "done",
@@ -5886,7 +5982,7 @@ function FlashcardDeckPage({
             <div className="flex items-center justify-between gap-4 py-3">
               <span className="text-muted">Interacțiune</span>
               <b className="text-right text-content">
-                {hasProAiAccess ? "Selectează text pentru AI" : "AI inclus în Pro"}
+                {hasAiAccess ? "Selectează text pentru AI" : "AI indisponibil"}
               </b>
             </div>
           </div>
@@ -5906,19 +6002,19 @@ function FlashcardDeckPage({
                   <button
                     type="button"
                     onClick={handleAskFlashcardAi}
-                    disabled={!hasProAiAccess}
-                    title={!hasProAiAccess ? PRO_AI_ACCESS_MESSAGE : undefined}
+                    disabled={!hasAiAccess}
+                    title={!hasAiAccess ? AI_ACCESS_UNAVAILABLE_MESSAGE : undefined}
                     className={`rounded-full px-4 py-2 text-xs font-bold transition ${
-                      hasProAiAccess
+                      hasAiAccess
                         ? "cursor-pointer bg-action text-on-action hover:bg-action-hover"
                         : "cursor-not-allowed border border-info-border bg-surface text-muted opacity-65"
                     }`}
                   >
-                    {hasProAiAccess ? "Întreabă" : "AI inclus în Pro"}
+                    {hasAiAccess ? "Întreabă" : "AI indisponibil"}
                   </button>
-                  {!hasProAiAccess ? (
+                  {!hasAiAccess ? (
                     <span className="pointer-events-none absolute left-0 top-full z-30 mt-2 w-64 rounded-lg border border-subtle bg-surface px-3 py-2 text-xs font-semibold leading-5 text-content opacity-0 shadow-lg shadow-black/10 transition group-hover:opacity-100 group-focus-within:opacity-100">
-                      {PRO_AI_ACCESS_MESSAGE}
+                      {AI_ACCESS_UNAVAILABLE_MESSAGE}
                     </span>
                   ) : null}
                 </span>
@@ -6536,13 +6632,15 @@ function ManualFlashcardEditorCard({
 function FlashcardsPanel({
   project,
   mode,
-  hasProAiAccess,
+  hasAiAccess,
+  onUsageRefresh,
   onManualFlashcardCreate,
   onToggleFlashcardReview,
 }: {
   project: StudyProject;
   mode: FlashcardPanelMode;
-  hasProAiAccess: boolean;
+  hasAiAccess: boolean;
+  onUsageRefresh: () => Promise<void>;
   onManualFlashcardCreate: (
     projectId: string,
     flashcard: ManualFlashcardPayload,
@@ -6614,7 +6712,8 @@ function FlashcardsPanel({
         projectId={project.id}
         deck={decks[activeDeckId]}
         onBack={() => setActiveDeckId(null)}
-        hasProAiAccess={hasProAiAccess}
+        hasAiAccess={hasAiAccess}
+        onUsageRefresh={onUsageRefresh}
         onToggleReview={(flashcardId, review) =>
           onToggleFlashcardReview(project.id, flashcardId, review)
         }
@@ -8567,6 +8666,7 @@ function NewProjectView({
   generationError,
   isCancellingGeneration,
   fileSelectionNotice,
+  quotaNotice,
   planLimits,
   isDragging,
   fileInputRef,
@@ -8598,6 +8698,7 @@ function NewProjectView({
   generationError: string | null;
   isCancellingGeneration: boolean;
   fileSelectionNotice: string | null;
+  quotaNotice: string | null;
   planLimits: ProjectUploadPlanLimits;
   isDragging: boolean;
   fileInputRef: React.RefObject<HTMLInputElement | null>;
@@ -8629,6 +8730,7 @@ function NewProjectView({
   const setupProgress = Math.round(
     (setupSteps.filter(Boolean).length / setupSteps.length) * 100,
   );
+  const visibleNotice = fileSelectionNotice ?? quotaNotice;
 
   return (
     <section className="space-y-6">
@@ -8806,10 +8908,12 @@ function NewProjectView({
                       {planLimits.filesPerProject} fișiere/proiect,{" "}
                       {planLimits.fileSizeMb} MB/fișier,{" "}
                       {planLimits.projectSizeMb} MB/proiect. Cota lunară:{" "}
-                      {planLimits.monthlyMaterials} materiale. Documente scanate:{" "}
+                      {planLimits.monthlyMaterials} materiale și{" "}
+                      {planLimits.monthlyPageLimit} pagini procesate. Documente
+                      scanate:{" "}
                       {planLimits.allowScannedDocuments
                         ? "incluse"
-                        : "doar pe Pro"}
+                        : "neincluse"}
                       .
                     </p>
                   </span>
@@ -8820,9 +8924,9 @@ function NewProjectView({
                     Vezi planuri
                   </Link>
                 </div>
-                {fileSelectionNotice ? (
+                {visibleNotice ? (
                   <p className="mt-3 rounded-lg border border-warning-border bg-warning-soft px-3 py-2 text-sm font-bold text-warning">
-                    {fileSelectionNotice}
+                    {visibleNotice}
                   </p>
                 ) : null}
               </div>

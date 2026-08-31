@@ -3,6 +3,7 @@ from datetime import UTC, datetime
 from urllib.parse import urlparse
 
 from fastapi import APIRouter, HTTPException, Request, Response, status
+from sqlalchemy import func, select
 
 from app.api.dependencies import (
     AppSettings,
@@ -11,7 +12,7 @@ from app.api.dependencies import (
     DbSession,
 )
 from app.core.rate_limit import _memory_rate_limit_buckets, consume_rate_limit
-from app.models import User
+from app.models import StudyProject, User
 from app.schemas.auth import (
     ChangePasswordRequest,
     ConfirmEmailChangeRequest,
@@ -543,6 +544,13 @@ async def get_usage(
 
     window_start, window_end = await current_billing_window(session, current_user)
     limits = limits_for_user(current_user)
+    projects_used = await session.scalar(
+        select(func.count(StudyProject.id)).where(
+            StudyProject.user_id == current_user.id,
+            StudyProject.created_at >= window_start,
+            StudyProject.created_at < window_end,
+        )
+    )
 
     projects_service = StudyProjectService(session, settings)
     materials_used, pages_processed = await projects_service.get_monthly_usage(
@@ -558,6 +566,8 @@ async def get_usage(
     )
 
     return UsageResponse(
+        projects_used=int(projects_used or 0),
+        projects_limit=limits.active_projects,
         materials_used=materials_used,
         materials_limit=limits.monthly_materials,
         pages_processed=pages_processed,

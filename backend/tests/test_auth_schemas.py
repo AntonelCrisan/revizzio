@@ -1,3 +1,5 @@
+from decimal import Decimal
+
 import pytest
 from pydantic import ValidationError
 
@@ -7,6 +9,7 @@ from app.schemas.auth import (
     PasswordResetConfirmRequest,
     RegisterRequest,
 )
+from app.schemas.user import UserPlanResponse
 
 
 def test_register_accepts_secure_password() -> None:
@@ -64,3 +67,39 @@ def test_change_password_rejects_same_password() -> None:
             current_password="ParolaSigura123",
             new_password="ParolaSigura123",
         )
+
+
+def test_user_plan_response_exposes_ai_limits() -> None:
+    payload = UserPlanResponse(
+        id="00000000-0000-4000-8000-000000000001",
+        slug="focus",
+        name="Focus",
+        price_ron=Decimal("29.00"),
+        billing_interval="lunar",
+        badge="recomandat",
+        material_limit="30 materiale",
+        ai_level="AI",
+        storage="Istoric",
+        conditions="Condiții",
+        active_project_limit=10,
+        monthly_material_limit=30,
+        files_per_project_limit=10,
+        file_size_limit_mb=50,
+        project_size_limit_mb=200,
+        estimated_page_limit=200,
+        initial_flashcard_limit=40,
+        quiz_groups_per_complexity=3,
+        quiz_questions_per_quiz=12,
+        allow_scanned_documents=False,
+        monthly_ai_credits=60,
+        monthly_ocr_pages=200,
+        monthly_page_limit=1000,
+        ai_chat_enabled=True,
+        max_openai_cost_usd_per_cycle=Decimal("6.00"),
+        is_featured=True,
+    )
+
+    assert payload.ai_chat_enabled is True
+    assert payload.monthly_ai_credits == 60
+    assert payload.monthly_page_limit == 1000
+    assert payload.max_openai_cost_usd_per_cycle == Decimal("6.00")

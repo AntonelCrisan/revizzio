@@ -713,7 +713,7 @@ export function AdminPlansPage({ initialPlans }: AdminPlansPageProps) {
             <EditorSection title="Limite" detail="proiecte, materiale și generare">
               <div className="grid gap-4 md:grid-cols-3">
                 <TextField
-                  label="Proiecte active"
+                  label="Proiecte / lună"
                   value={selectedPlan.activeProjectLimit}
                   onChange={(value) =>
                     updateSelectedPlan({ activeProjectLimit: value })
