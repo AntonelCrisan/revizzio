@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import hmac
 import json
+import logging
 import time
 import urllib.error
 import urllib.parse
@@ -35,6 +36,8 @@ from app.services.email import (
     invoice_paid_email,
 )
 
+logger = logging.getLogger("revizzio.stripe")
+
 ACTIVE_SUBSCRIPTION_STATUSES = {"active", "trialing"}
 CHECKOUT_SUBSCRIPTION_STATUSES = ACTIVE_SUBSCRIPTION_STATUSES | {
     "checkout_completed",
@@ -51,7 +54,20 @@ class StripeConfigurationError(Exception):
 
 
 class StripeRequestError(Exception):
-    pass
+    def __init__(
+        self,
+        message: str,
+        *,
+        error_code: str | None = None,
+        error_param: str | None = None,
+    ) -> None:
+        super().__init__(message)
+        self.error_code = error_code
+        self.error_param = error_param
+
+    @property
+    def is_stale_customer(self) -> bool:
+        return self.error_code == "resource_missing" and self.error_param == "customer"
 
 
 class StripeSignatureError(Exception):
@@ -266,8 +282,27 @@ class StripeClient:
                 return json.loads(response.read().decode("utf-8"))
         except urllib.error.HTTPError as exc:
             response_body = exc.read().decode("utf-8", errors="replace")
-            raise StripeRequestError(response_body) from exc
+            error_payload: dict[str, Any] = {}
+            try:
+                error_payload = json.loads(response_body).get("error", {})
+            except json.JSONDecodeError:
+                pass
+            logger.error(
+                "Cerere Stripe esuata: %s %s -> %s %s",
+                method,
+                path,
+                exc.code,
+                response_body,
+            )
+            raise StripeRequestError(
+                error_payload.get("message") or response_body,
+                error_code=error_payload.get("code"),
+                error_param=error_payload.get("param"),
+            ) from exc
         except urllib.error.URLError as exc:
+            logger.error(
+                "Stripe nu a putut fi contactat: %s %s -> %s", method, path, exc
+            )
             raise StripeRequestError("Stripe nu a putut fi contactat.") from exc
 
 
@@ -314,27 +349,46 @@ class StripePaymentService:
 
         stripe = StripeClient(self._settings)
         if not user.stripe_customer_id:
-            customer = await stripe.create_customer(user=user)
-            customer_id = str(customer.get("id") or "")
-            if not customer_id:
-                raise StripeRequestError("Stripe nu a returnat customer id.")
-            user.stripe_customer_id = customer_id
-            await self._session.flush()
+            customer_id = await self._create_stripe_customer(stripe, user=user)
         else:
             customer_id = user.stripe_customer_id
 
-        checkout_session = await stripe.create_checkout_session(
-            user=user,
-            plan=plan,
-            customer_id=customer_id,
-            success_url=self._success_url(),
-            cancel_url=self._cancel_url(),
-            replaces_subscription_id=(
-                replaced_subscription.stripe_subscription_id
-                if replaced_subscription is not None
-                else None
-            ),
-        )
+        try:
+            checkout_session = await stripe.create_checkout_session(
+                user=user,
+                plan=plan,
+                customer_id=customer_id,
+                success_url=self._success_url(),
+                cancel_url=self._cancel_url(),
+                replaces_subscription_id=(
+                    replaced_subscription.stripe_subscription_id
+                    if replaced_subscription is not None
+                    else None
+                ),
+            )
+        except StripeRequestError as exc:
+            if not exc.is_stale_customer:
+                raise
+            # The stored customer id was created under a different Stripe mode
+            # (e.g. test vs live) and no longer exists — recreate it and retry.
+            logger.warning(
+                "Customer Stripe %s nu mai exista, recreez pentru user %s.",
+                customer_id,
+                user.id,
+            )
+            customer_id = await self._create_stripe_customer(stripe, user=user)
+            checkout_session = await stripe.create_checkout_session(
+                user=user,
+                plan=plan,
+                customer_id=customer_id,
+                success_url=self._success_url(),
+                cancel_url=self._cancel_url(),
+                replaces_subscription_id=(
+                    replaced_subscription.stripe_subscription_id
+                    if replaced_subscription is not None
+                    else None
+                ),
+            )
         checkout_url = str(checkout_session.get("url") or "")
         session_id = str(checkout_session.get("id") or "")
         if not checkout_url or not session_id:
@@ -361,6 +415,15 @@ class StripePaymentService:
         )
         await self._session.commit()
         return CheckoutSessionResult(checkout_url=checkout_url, session_id=session_id)
+
+    async def _create_stripe_customer(self, stripe: StripeClient, *, user: User) -> str:
+        customer = await stripe.create_customer(user=user)
+        customer_id = str(customer.get("id") or "")
+        if not customer_id:
+            raise StripeRequestError("Stripe nu a returnat customer id.")
+        user.stripe_customer_id = customer_id
+        await self._session.flush()
+        return customer_id
 
     async def handle_webhook(
         self,
