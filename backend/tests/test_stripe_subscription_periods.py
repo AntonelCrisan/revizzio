@@ -170,3 +170,18 @@ def test_period_backfill_survives_missing_stripe_configuration(monkeypatch) -> N
 
     assert asyncio.run(service._backfill_subscription_period(subscription=row)) is False
     assert row.current_period_end is None
+
+
+def test_checkout_sync_source_flushes_between_the_two_upserts() -> None:
+    """Pins the flush in the real code path, not just in a rehearsal."""
+    import inspect
+
+    source = inspect.getsource(StripePaymentService.sync_completed_checkout_session)
+    checkout_at = source.index("_handle_checkout_completed(checkout_session)")
+    flush_at = source.index("self._session.flush()")
+    resync_at = source.index("_sync_subscription_from_stripe(")
+
+    assert checkout_at < flush_at < resync_at, (
+        "sync_completed_checkout_session must flush between the checkout "
+        "handler and the subscription refetch"
+    )

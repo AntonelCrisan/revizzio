@@ -30,3 +30,25 @@ class OcrLimitReachedError(PlanLimitError):
 
 class CostCeilingReachedError(PlanLimitError):
     code = "COST_CEILING_REACHED"
+
+
+class ProjectDeactivatedError(PlanLimitError):
+    """The project itself no longer occupies one of the plan's active slots."""
+
+    code = "PROJECT_DEACTIVATED"
+
+
+class PlanSelectionRequiredError(PlanLimitError):
+    """The account holds more active projects than the plan allows.
+
+    Raised for every project until the user picks which ones keep their slots,
+    so a stale browser tab cannot keep studying past a downgrade.
+    """
+
+    code = "PLAN_SELECTION_REQUIRED"
+
+
+class ActiveProjectSlotsFullError(PlanLimitError):
+    """No free active slot left, so another project must be freed first."""
+
+    code = "ACTIVE_PROJECT_SLOTS_FULL"

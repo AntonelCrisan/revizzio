@@ -57,7 +57,11 @@ export function planFeatureLabels(plan: SubscriptionPlanPublic) {
  */
 function planLimitRows(plan: SubscriptionPlanPublic) {
   return [
-    { label: "Proiecte active", value: String(plan.active_project_limit) },
+    {
+      label: "Proiecte active simultan",
+      value: String(plan.active_project_slots),
+    },
+    { label: "Proiecte noi pe lună", value: String(plan.active_project_limit) },
     { label: "Materiale pe lună", value: String(plan.monthly_material_limit) },
     { label: "Fișiere pe proiect", value: String(plan.files_per_project_limit) },
     { label: "Mărime maximă fișier", value: `${plan.file_size_limit_mb} MB` },

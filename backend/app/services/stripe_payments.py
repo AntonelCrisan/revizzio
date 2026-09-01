@@ -14,7 +14,7 @@ from typing import Any
 from uuid import UUID
 
 from anyio import to_thread
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -22,11 +22,13 @@ from sqlalchemy.orm import selectinload
 from app.core.config import Settings
 from app.models import (
     StripeEvent,
+    StudyProject,
     SubscriptionInvoice,
     SubscriptionPlan,
     User,
     UserSubscription,
 )
+from app.models.study_project import SLOT_OCCUPYING_STATUSES
 from app.services.audit import add_audit_log
 from app.services.email import (
     EmailDeliveryError,
@@ -505,6 +507,13 @@ class StripePaymentService:
         await self._handle_checkout_completed(checkout_session)
         stripe_subscription_id = _string_or_none(checkout_session.get("subscription"))
         if stripe_subscription_id is not None:
+            # The session runs with autoflush=False, so the row just added by
+            # _handle_checkout_completed is still pending. Without this flush the
+            # lookup in _upsert_subscription below misses it and inserts a second
+            # row with the same stripe_subscription_id, which the unique index
+            # rejects at commit time.
+            await self._session.flush()
+
             # _handle_checkout_completed can only write NULL periods -- the
             # checkout session does not carry them. Fetch the subscription so
             # current_period_start/end are stored right away.
@@ -1189,7 +1198,10 @@ class StripePaymentService:
                 latest_active_subscription is None
                 or latest_active_subscription.id == user_subscription.id
             ):
+                previous_plan_id = user.current_plan_id
                 user.current_plan_id = plan.id
+                if previous_plan_id != plan.id:
+                    await self._reactivate_projects_for_plan(user=user, plan=plan)
                 await self._cancel_superseded_subscriptions(
                     user=user,
                     active_subscription=user_subscription,
@@ -1220,6 +1232,51 @@ class StripePaymentService:
             )
             .limit(1)
         )
+
+    async def _reactivate_projects_for_plan(
+        self,
+        *,
+        user: User,
+        plan: SubscriptionPlan,
+    ) -> None:
+        """Give deactivated projects their slots back after a plan change.
+
+        Paying again should restore access immediately -- otherwise the user
+        buys the upgrade and still has to re-activate everything by hand. Only
+        fills the slots the new plan actually has, newest first; a downgrade
+        simply finds no room and changes nothing.
+        """
+        slots = max(int(plan.active_project_slots or 0), 0)
+
+        active_count = await self._session.scalar(
+            select(func.count(StudyProject.id)).where(
+                StudyProject.user_id == user.id,
+                StudyProject.status.in_(SLOT_OCCUPYING_STATUSES),
+                StudyProject.deactivated_at.is_(None),
+                ~StudyProject.archive.has(),
+            )
+        )
+        free_slots = slots - int(active_count or 0)
+        if free_slots <= 0:
+            return
+
+        candidates = list(
+            (
+                await self._session.scalars(
+                    select(StudyProject)
+                    .where(
+                        StudyProject.user_id == user.id,
+                        StudyProject.status.in_(SLOT_OCCUPYING_STATUSES),
+                        StudyProject.deactivated_at.is_not(None),
+                        ~StudyProject.archive.has(),
+                    )
+                    .order_by(StudyProject.updated_at.desc())
+                    .limit(free_slots)
+                )
+            ).all()
+        )
+        for project in candidates:
+            project.deactivated_at = None
 
     async def _cancel_superseded_subscriptions(
         self,

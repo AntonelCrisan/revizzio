@@ -24,6 +24,13 @@ if TYPE_CHECKING:
     from app.models.user import User
 
 
+# Statuses a project must have to occupy one of a plan's active slots. Kept in
+# lockstep with StudyProjectService.list_projects: anything the dashboard does
+# not show must not consume a slot, or an over-cap account would have nothing to
+# release and would stay locked out.
+SLOT_OCCUPYING_STATUSES = ("ready", "generating_quizzes")
+
+
 class StudyProject(Base):
     __tablename__ = "study_projects"
     __table_args__ = (
@@ -148,6 +155,13 @@ class StudyProject(Base):
         cascade="all, delete-orphan",
         passive_deletes=True,
         order_by="StudyProjectSummaryNote.created_at",
+    )
+    # Set when the project no longer fits the plan's active slots. Unlike
+    # archiving it keeps the project in the list, marked as locked, so the user
+    # sees what a downgrade cost them.
+    deactivated_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
     )
     archive: Mapped[StudyProjectArchive | None] = relationship(
         back_populates="project",

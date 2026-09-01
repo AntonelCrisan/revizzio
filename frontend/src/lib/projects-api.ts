@@ -129,6 +129,9 @@ export type StudyProject = {
   updated_at: string;
   is_archived: boolean;
   archived_at: string | null;
+  /** Deactivated projects stay in the list, marked, but cannot be studied. */
+  is_deactivated: boolean;
+  deactivated_at: string | null;
   file_count: number;
   summary_count: number;
   keyword_count: number;
@@ -322,6 +325,58 @@ export async function archiveStudyProject(projectId: string): Promise<StudyProje
 
 export async function restoreStudyProject(projectId: string): Promise<StudyProject> {
   const response = await fetch(`/api/projects/${projectId}/restore`, {
+    method: "POST",
+    credentials: "same-origin",
+    cache: "no-store",
+  });
+  return parseProjectResponse<StudyProject>(response);
+}
+
+/** Slot usage for the account; drives the post-downgrade selection modal. */
+export type ActiveProjectSlots = {
+  slots: number;
+  used: number;
+  over_limit: boolean;
+  must_choose: boolean;
+};
+
+export async function getActiveProjectSlots(): Promise<ActiveProjectSlots> {
+  const response = await fetch("/api/projects/active-slots", {
+    credentials: "same-origin",
+    cache: "no-store",
+  });
+  return parseProjectResponse<ActiveProjectSlots>(response);
+}
+
+/** Set the whole active-slot selection in one request. */
+export async function applyActiveProjectSelection(
+  keepProjectIds: string[],
+): Promise<ActiveProjectSlots> {
+  const response = await fetch("/api/projects/active-slots", {
+    method: "POST",
+    credentials: "same-origin",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ keep_project_ids: keepProjectIds }),
+    cache: "no-store",
+  });
+  return parseProjectResponse<ActiveProjectSlots>(response);
+}
+
+export async function deactivateStudyProject(
+  projectId: string,
+): Promise<StudyProject> {
+  const response = await fetch(`/api/projects/${projectId}/deactivate`, {
+    method: "POST",
+    credentials: "same-origin",
+    cache: "no-store",
+  });
+  return parseProjectResponse<StudyProject>(response);
+}
+
+export async function activateStudyProject(
+  projectId: string,
+): Promise<StudyProject> {
+  const response = await fetch(`/api/projects/${projectId}/activate`, {
     method: "POST",
     credentials: "same-origin",
     cache: "no-store",

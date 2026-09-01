@@ -23,7 +23,7 @@ from fastapi import UploadFile
 from markitdown import MarkItDown
 from markitdown._markitdown import UnsupportedFormatException
 from pdfminer.pdfpage import PDFPage
-from sqlalchemy import func, select
+from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 from starlette.concurrency import run_in_threadpool
@@ -49,6 +49,7 @@ from app.models import (
     StudyProjectSummaryNote,
     User,
 )
+from app.models.study_project import SLOT_OCCUPYING_STATUSES
 from app.schemas.projects import StudyProjectResponse
 from app.services.ai_credits import AiCreditsService
 from app.services.billing_window import (
@@ -69,9 +70,12 @@ from app.services.openai_generation import (
     OpenAIStudyGenerator,
 )
 from app.services.plan_errors import (
+    ActiveProjectSlotsFullError,
     MaterialLimitReachedError,
     MaxPagesPerMaterialExceededError,
     PageLimitReachedError,
+    PlanSelectionRequiredError,
+    ProjectDeactivatedError,
 )
 from app.services.preferences import PreferencesService
 from app.services.study_activity import record_study_activity
@@ -1228,6 +1232,17 @@ class StudyProjectService:
             self.session, user
         )
         plan_name = _user_plan_name(user)
+
+        # A new project claims an active slot. Without this the monthly rate
+        # would let active projects accumulate past the cap over time.
+        slots = self._active_project_slots(user)
+        active_projects = await self.count_active_projects(user)
+        if active_projects >= slots:
+            raise ActiveProjectSlotsFullError(
+                f"Planul {plan_name} permite {slots} proiecte active in acelasi "
+                "timp. Dezactiveaza un proiect existent pentru a crea unul nou."
+            )
+
         monthly_projects = await self.session.scalar(
             select(func.count(StudyProject.id)).where(
                 StudyProject.user_id == user.id,
@@ -1381,9 +1396,15 @@ class StudyProjectService:
             .where(
                 StudyProject.user_id == user.id,
                 ~StudyProject.archive.has(),
-                StudyProject.status.in_(["ready", "generating_quizzes"]),
+                StudyProject.status.in_(SLOT_OCCUPYING_STATUSES),
             )
-            .order_by(StudyProject.created_at.desc())
+            # Active projects first: a deactivated one cannot be opened, so it
+            # must not sit above something the user can actually study. Newest
+            # first within each group, as before.
+            .order_by(
+                StudyProject.deactivated_at.is_not(None),
+                StudyProject.created_at.desc(),
+            )
         )
         return list(result.all())
 
@@ -1405,6 +1426,7 @@ class StudyProjectService:
         project_id: uuid.UUID,
         *,
         include_archived: bool = False,
+        enforce_slots: bool = True,
     ) -> StudyProject:
         conditions = [
             StudyProject.id == project_id,
@@ -1416,6 +1438,10 @@ class StudyProjectService:
         project = await self.session.scalar(self._project_query().where(*conditions))
         if project is None:
             raise ProjectNotFoundError("Proiectul nu a fost gasit.")
+
+        if enforce_slots:
+            await self._assert_project_is_studiable(user=user, project=project)
+
         return project
 
     async def rename_project(
@@ -1425,7 +1451,7 @@ class StudyProjectService:
         project_id: uuid.UUID,
         name: str,
     ) -> StudyProject:
-        project = await self.get_project(user, project_id)
+        project = await self.get_project(user, project_id, enforce_slots=False)
         clean_name = _clean_text(name)
         if len(clean_name) < 2:
             raise ProjectValidationError("Numele proiectului este prea scurt.")
@@ -1434,7 +1460,209 @@ class StudyProjectService:
         project.slug = _slugify(clean_name)
         project.updated_at = datetime.now(UTC)
         await self.session.commit()
-        return await self.get_project(user, project.id)
+        # Read back with the gate off: the rename is already committed, so
+        # enforcing here would return 400 and leave the UI showing the old name.
+        return await self.get_project(user, project.id, enforce_slots=False)
+
+    def _active_project_slots(self, user: User) -> int:
+        plan = getattr(user, "current_plan", None)
+        slots = getattr(plan, "active_project_slots", None)
+        if isinstance(slots, int) and slots >= 1:
+            return slots
+        # No plan loaded: fall back to the free tier's allowance.
+        return 2
+
+    async def count_active_projects(self, user: User) -> int:
+        """Projects occupying a slot: listed, not archived, not deactivated.
+
+        Restricted to SLOT_OCCUPYING_STATUSES so the number always matches what
+        list_projects returns. A failed or still-processing project is invisible
+        in the dashboard, so counting it would leave the user over the cap with
+        nothing to release.
+        """
+        total = await self.session.scalar(
+            select(func.count(StudyProject.id)).where(
+                StudyProject.user_id == user.id,
+                StudyProject.status.in_(SLOT_OCCUPYING_STATUSES),
+                StudyProject.deactivated_at.is_(None),
+                ~StudyProject.archive.has(),
+            )
+        )
+        return int(total or 0)
+
+    async def active_project_slot_status(self, user: User) -> dict[str, int | bool]:
+        """Slot usage for the UI: drives the post-downgrade selection modal."""
+        slots = self._active_project_slots(user)
+        used = await self.count_active_projects(user)
+        return {
+            "slots": slots,
+            "used": used,
+            "over_limit": used > slots,
+            "must_choose": used > slots,
+        }
+
+    async def _assert_project_is_studiable(
+        self,
+        *,
+        user: User,
+        project: StudyProject,
+    ) -> None:
+        """Block study access that a plan downgrade should have taken away.
+
+        Enforced here rather than per route because every study path resolves
+        its project through get_project, so a stale browser tab cannot bypass
+        it by calling the API directly.
+        """
+        if project.deactivated_at is not None:
+            raise ProjectDeactivatedError(
+                "Acest proiect este dezactivat pentru planul tau curent. "
+                "Activeaza-l in locul altuia sau treci la un plan superior."
+            )
+
+        slots = self._active_project_slots(user)
+        used = await self.count_active_projects(user)
+        if used > slots:
+            raise PlanSelectionRequiredError(
+                f"Planul tau permite {slots} proiecte active, iar tu ai {used}. "
+                "Alege ce proiecte raman active pentru a continua."
+            )
+
+    async def _fetch_project_row(
+        self,
+        user: User,
+        project_id: uuid.UUID,
+    ) -> StudyProject:
+        """The project row alone, without the study pack.
+
+        For writes that only touch scalar columns: _project_query eager-loads
+        ten relations, which is ~13 extra queries nobody reads.
+        """
+        project = await self.session.scalar(
+            select(StudyProject).where(
+                StudyProject.id == project_id,
+                StudyProject.user_id == user.id,
+            )
+        )
+        if project is None:
+            raise ProjectNotFoundError("Proiectul nu a fost gasit.")
+        return project
+
+    async def deactivate_project(
+        self,
+        *,
+        user: User,
+        project_id: uuid.UUID,
+    ) -> StudyProject:
+        """Free the project's slot. Nothing is deleted and it stays listed."""
+        project = await self._fetch_project_row(user, project_id)
+        if project.deactivated_at is None:
+            now = datetime.now(UTC)
+            project.deactivated_at = now
+            project.updated_at = now
+            await self.session.commit()
+
+        return await self.get_project(
+            user,
+            project.id,
+            include_archived=True,
+            enforce_slots=False,
+        )
+
+    async def activate_project(
+        self,
+        *,
+        user: User,
+        project_id: uuid.UUID,
+    ) -> StudyProject:
+        """Give the project a slot back, if the plan still has a free one."""
+        project = await self._fetch_project_row(user, project_id)
+        if project.deactivated_at is None:
+            return await self.get_project(
+                user,
+                project.id,
+                include_archived=True,
+                enforce_slots=False,
+            )
+
+        await self._lock_user_plan_quota(user)
+        slots = self._active_project_slots(user)
+        used = await self.count_active_projects(user)
+        if used >= slots:
+            raise ActiveProjectSlotsFullError(
+                f"Planul tau permite {slots} proiecte active. "
+                "Dezactiveaza altul inainte de a activa acesta."
+            )
+
+        project.deactivated_at = None
+        project.updated_at = datetime.now(UTC)
+        await self.session.commit()
+        return await self.get_project(
+            user,
+            project.id,
+            include_archived=True,
+            enforce_slots=False,
+        )
+
+    async def apply_active_project_selection(
+        self,
+        *,
+        user: User,
+        keep_project_ids: list[uuid.UUID],
+    ) -> dict[str, int | bool]:
+        """Set exactly which projects hold the plan's active slots, in one go.
+
+        The selection modal used to POST once per project: with a Pro-to-free
+        downgrade that was ~38 round trips and over a thousand queries, because
+        each one re-read the whole study pack. This does it in two UPDATEs.
+        """
+        await self._lock_user_plan_quota(user)
+
+        slots = self._active_project_slots(user)
+        unique_ids = list(dict.fromkeys(keep_project_ids))
+        if len(unique_ids) > slots:
+            raise ActiveProjectSlotsFullError(
+                f"Planul tau permite {slots} proiecte active, "
+                f"iar ai trimis {len(unique_ids)}."
+            )
+
+        # Only the user's own slot-occupying projects can be selected, so a
+        # foreign or hidden id cannot claim a slot.
+        selectable_ids = set(
+            (
+                await self.session.scalars(
+                    select(StudyProject.id).where(
+                        StudyProject.user_id == user.id,
+                        StudyProject.status.in_(SLOT_OCCUPYING_STATUSES),
+                        ~StudyProject.archive.has(),
+                    )
+                )
+            ).all()
+        )
+        keep = [pid for pid in unique_ids if pid in selectable_ids]
+        now = datetime.now(UTC)
+
+        await self.session.execute(
+            update(StudyProject)
+            .where(
+                StudyProject.user_id == user.id,
+                StudyProject.id.in_(selectable_ids - set(keep)),
+                StudyProject.deactivated_at.is_(None),
+            )
+            .values(deactivated_at=now, updated_at=now)
+        )
+        if keep:
+            await self.session.execute(
+                update(StudyProject)
+                .where(
+                    StudyProject.user_id == user.id,
+                    StudyProject.id.in_(keep),
+                    StudyProject.deactivated_at.is_not(None),
+                )
+                .values(deactivated_at=None, updated_at=now)
+            )
+
+        await self.session.commit()
+        return await self.active_project_slot_status(user)
 
     async def archive_project(
         self,
@@ -1442,14 +1670,19 @@ class StudyProjectService:
         user: User,
         project_id: uuid.UUID,
     ) -> StudyProject:
-        project = await self.get_project(user, project_id)
+        project = await self.get_project(user, project_id, enforce_slots=False)
         project.archive = StudyProjectArchive(
             project_id=project.id,
             user_id=user.id,
         )
         project.updated_at = datetime.now(UTC)
         await self.session.commit()
-        return await self.get_project(user, project.id, include_archived=True)
+        return await self.get_project(
+            user,
+            project.id,
+            include_archived=True,
+            enforce_slots=False,
+        )
 
     async def restore_project(
         self,
@@ -1457,17 +1690,39 @@ class StudyProjectService:
         user: User,
         project_id: uuid.UUID,
     ) -> StudyProject:
-        project = await self.get_project(user, project_id, include_archived=True)
+        project = await self.get_project(
+            user,
+            project_id,
+            include_archived=True,
+            enforce_slots=False,
+        )
         if project.archive is None or project.archive.user_id != user.id:
             raise ProjectNotFoundError("Proiectul arhivat nu a fost gasit.")
+
+        # Restoring puts the project back in the list, so it has to claim a
+        # slot -- otherwise archive/restore would be a way around the cap.
+        if project.deactivated_at is None:
+            await self._lock_user_plan_quota(user)
+            slots = self._active_project_slots(user)
+            used = await self.count_active_projects(user)
+            if used >= slots:
+                raise ActiveProjectSlotsFullError(
+                    f"Planul tau permite {slots} proiecte active. "
+                    "Dezactiveaza altul inainte de a restaura acesta."
+                )
 
         await self.session.delete(project.archive)
         project.updated_at = datetime.now(UTC)
         await self.session.commit()
-        return await self.get_project(user, project.id)
+        return await self.get_project(user, project.id, enforce_slots=False)
 
     async def delete_project(self, *, user: User, project_id: uuid.UUID) -> None:
-        project = await self.get_project(user, project_id, include_archived=True)
+        project = await self.get_project(
+            user,
+            project_id,
+            include_archived=True,
+            enforce_slots=False,
+        )
         project_dir = self._project_dir(user.id, project.id)
 
         await self.session.delete(project)
@@ -1723,7 +1978,7 @@ class StudyProjectService:
             )
         )
         await self.session.commit()
-        return await self.get_project(user, project.id)
+        return await self.get_project(user, project.id, enforce_slots=False)
 
     async def cancel_project_generation(
         self,
@@ -1731,7 +1986,12 @@ class StudyProjectService:
         user: User,
         project_id: uuid.UUID,
     ) -> StudyProject:
-        project = await self.get_project(user, project_id, include_archived=True)
+        project = await self.get_project(
+            user,
+            project_id,
+            include_archived=True,
+            enforce_slots=False,
+        )
         if project.status not in ACTIVE_PROJECT_GENERATION_STATUSES:
             return project
 
@@ -1754,7 +2014,12 @@ class StudyProjectService:
             job.finished_at = now
 
         await self.session.commit()
-        return await self.get_project(user, project.id, include_archived=True)
+        return await self.get_project(
+            user,
+            project.id,
+            include_archived=True,
+            enforce_slots=False,
+        )
 
     async def generate_study_pack(
         self,
@@ -2985,6 +3250,8 @@ Rescrie raspunsul pentru intrebarea curenta ca explicatie completa:
             updated_at=project.updated_at,
             is_archived=project.archive is not None,
             archived_at=project.archive.archived_at if project.archive else None,
+            is_deactivated=project.deactivated_at is not None,
+            deactivated_at=project.deactivated_at,
             file_count=len(project.files),
             summary_count=1 if project.summary is not None else 0,
             keyword_count=len(project.keywords),

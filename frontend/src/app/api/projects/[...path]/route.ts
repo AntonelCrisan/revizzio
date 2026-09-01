@@ -1,6 +1,8 @@
 const allowedRoutes = [
   { method: "GET", pattern: /^$/ },
   { method: "GET", pattern: /^archived$/ },
+  { method: "GET", pattern: /^active-slots$/ },
+  { method: "POST", pattern: /^active-slots$/ },
   { method: "POST", pattern: /^materials\/delete-all$/ },
   { method: "POST", pattern: /^flashcards\/delete-all$/ },
   { method: "GET", pattern: /^[0-9a-fA-F-]{36}$/ },
@@ -16,6 +18,8 @@ const allowedRoutes = [
     method: "POST",
     pattern: /^[0-9a-fA-F-]{36}\/ai\/explain-flashcard-selection$/,
   },
+  { method: "POST", pattern: /^[0-9a-fA-F-]{36}\/deactivate$/ },
+  { method: "POST", pattern: /^[0-9a-fA-F-]{36}\/activate$/ },
   { method: "POST", pattern: /^[0-9a-fA-F-]{36}\/archive$/ },
   { method: "POST", pattern: /^[0-9a-fA-F-]{36}\/restore$/ },
   { method: "POST", pattern: /^[0-9a-fA-F-]{36}\/import-json$/ },

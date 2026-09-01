@@ -25,6 +25,7 @@ export type SubscriptionPlanPublic = {
   ai_level: string;
   storage: string;
   conditions: string;
+  active_project_slots: number;
   active_project_limit: number;
   monthly_material_limit: number;
   files_per_project_limit: number;
@@ -56,6 +57,7 @@ export type SubscriptionPlan = {
   ai_level: string;
   storage: string;
   conditions: string;
+  active_project_slots: number;
   active_project_limit: number;
   monthly_material_limit: number;
   files_per_project_limit: number;
@@ -101,6 +103,7 @@ export type SubscriptionPlanUpdate = {
   ai_level: string;
   storage: string;
   conditions: string;
+  active_project_slots: number;
   active_project_limit: number;
   monthly_material_limit: number;
   files_per_project_limit: number;

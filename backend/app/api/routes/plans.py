@@ -35,6 +35,7 @@ DEFAULT_PLANS = [
             "Potrivit pentru testarea fluxului. Documentele scanate sau OCR "
             "nu sunt incluse in acest plan."
         ),
+        "active_project_slots": 2,
         "active_project_limit": 1,
         "monthly_material_limit": 2,
         "files_per_project_limit": 2,
@@ -74,6 +75,7 @@ DEFAULT_PLANS = [
             "Pentru utilizare individuala activa. Limitele sunt lunare si se "
             "reseteaza automat."
         ),
+        "active_project_slots": 10,
         "active_project_limit": 10,
         "monthly_material_limit": 100,
         "files_per_project_limit": 10,
@@ -114,6 +116,7 @@ DEFAULT_PLANS = [
             "Pentru sesiuni intense si volume mari rezonabile. Utilizarea "
             "trebuie sa ramana educationala si individuala."
         ),
+        "active_project_slots": 40,
         "active_project_limit": 50,
         "monthly_material_limit": 1500,
         "files_per_project_limit": 30,
@@ -168,6 +171,7 @@ async def _ensure_default_plans(session: DbSession) -> None:
             ai_level=str(plan_data["ai_level"]),
             storage=str(plan_data["storage"]),
             conditions=str(plan_data["conditions"]),
+            active_project_slots=int(plan_data["active_project_slots"]),
             active_project_limit=int(plan_data["active_project_limit"]),
             monthly_material_limit=int(plan_data["monthly_material_limit"]),
             files_per_project_limit=int(plan_data["files_per_project_limit"]),
@@ -313,6 +317,7 @@ async def update_admin_plans(
         plan.ai_level = plan_payload.ai_level
         plan.storage = plan_payload.storage
         plan.conditions = plan_payload.conditions
+        plan.active_project_slots = plan_payload.active_project_slots
         plan.active_project_limit = plan_payload.active_project_limit
         plan.monthly_material_limit = plan_payload.monthly_material_limit
         plan.files_per_project_limit = plan_payload.files_per_project_limit

@@ -1893,6 +1893,78 @@ export const uiTranslations: Record<string, UiTranslation> = {
     en: "We ask you to sign in first, then you go straight to payment.",
     fr: "Nous te demandons d'abord de te connecter, puis tu passes directement au paiement.",
   },
+  "Trece pe planul gratuit": {
+    en: "Switch to the free plan",
+    fr: "Passer au forfait gratuit",
+  },
+  "Acesta este planul tău": {
+    en: "This is your plan",
+    fr: "C'est ton forfait",
+  },
+  "Mergi în cont pentru a-ți continua studiul.": {
+    en: "Go to your account to continue studying.",
+    fr: "Va dans ton compte pour continuer à étudier.",
+  },
+  "Planul tău actual rămâne activ până la finalul perioadei plătite.": {
+    en: "Your current plan stays active until the end of the paid period.",
+    fr: "Ton forfait actuel reste actif jusqu'à la fin de la période payée.",
+  },
+  "Alege ce proiecte rămân active": {
+    en: "Choose which projects stay active",
+    fr: "Choisis quels projets restent actifs",
+  },
+  "Planul s-a schimbat": {
+    en: "Your plan changed",
+    fr: "Ton forfait a changé",
+  },
+  "Confirmă selecția": {
+    en: "Confirm selection",
+    fr: "Confirmer la sélection",
+  },
+  "Ai folosit toate sloturile.": {
+    en: "You have used every slot.",
+    fr: "Tu as utilisé tous les emplacements.",
+  },
+  "Nu am putut salva selecția. Încearcă din nou.": {
+    en: "We could not save your selection. Please try again.",
+    fr: "Nous n'avons pas pu enregistrer ta sélection. Réessaie.",
+  },
+  "Indisponibil pe planul curent": {
+    en: "Unavailable on your current plan",
+    fr: "Indisponible avec ton forfait actuel",
+  },
+  "Proiect dezactivat pe planul curent": {
+    en: "Project deactivated on your current plan",
+    fr: "Projet désactivé avec ton forfait actuel",
+  },
+  "Dezactivare": {
+    en: "Deactivate",
+    fr: "Désactiver",
+  },
+  "Activare": {
+    en: "Activate",
+    fr: "Activer",
+  },
+  "Starea proiectului nu a putut fi schimbată.": {
+    en: "The project state could not be changed.",
+    fr: "L'état du projet n'a pas pu être modifié.",
+  },
+  "Dezactivat": {
+    en: "Deactivated",
+    fr: "Désactivé",
+  },
+  "Proiecte active simultan": {
+    en: "Projects active at once",
+    fr: "Projets actifs simultanément",
+  },
+  "Proiecte noi pe lună": {
+    en: "New projects per month",
+    fr: "Nouveaux projets par mois",
+  },
+  "Peste această limită proiectele se dezactivează": {
+    en: "Projects beyond this limit are deactivated",
+    fr: "Les projets au-delà de cette limite sont désactivés",
+  },
   "Îți creezi contul în câțiva pași, fără card.": {
     en: "You create your account in a few steps, no card needed.",
     fr: "Tu crées ton compte en quelques étapes, sans carte.",
@@ -4580,6 +4652,16 @@ const uiPatternTranslations: UiPatternTranslation[] = [
     source: /^Pentru primul curs (?:și|si) testarea fluxului Rev(?:iss|izzio)\.$/,
     en: () => "For your first course and testing the Reviss flow.",
     fr: () => "Pour ton premier cours et tester le flux Reviss.",
+  },
+  {
+    source: /^(\d+) dezactivate pe planul curent$/,
+    en: ([, count]) => `${count} deactivated on your current plan`,
+    fr: ([, count]) => `${count} désactivés avec ton forfait actuel`,
+  },
+  {
+    source: /^1 dezactivat pe planul curent$/,
+    en: () => "1 deactivated on your current plan",
+    fr: () => "1 désactivé avec ton forfait actuel",
   },
   {
     source: /^Ai (\d+) proiecte pregătite pentru studiu\.$/,

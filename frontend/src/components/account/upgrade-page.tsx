@@ -582,6 +582,25 @@ export function UpgradePage({
                         )
                       ) : null}
                     </>
+                  ) : !plan.paid && currentPlanIsPaid ? (
+                    cancellationPending ? (
+                      <button
+                        type="button"
+                        disabled
+                        className="w-full cursor-default rounded-md border border-subtle bg-surface-hover px-5 py-3 text-sm font-black text-muted"
+                      >
+                        Programat pe {accessUntilLabel}
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => setIsCancelModalOpen(true)}
+                        disabled={isUpdatingSubscription}
+                        className="w-full cursor-pointer rounded-md border border-subtle bg-surface px-5 py-3 text-sm font-black text-content transition hover:bg-surface-hover disabled:cursor-not-allowed disabled:opacity-60"
+                      >
+                        Trece pe planul gratuit
+                      </button>
+                    )
                   ) : (
                     <Link
                       href={planDetailPath(plan.slug)}

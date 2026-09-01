@@ -4,9 +4,7 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
-SummaryHighlightColor = Literal[
-    "yellow", "green", "blue", "pink", "purple", "orange"
-]
+SummaryHighlightColor = Literal["yellow", "green", "blue", "pink", "purple", "orange"]
 
 
 class StudyProjectFileResponse(BaseModel):
@@ -165,6 +163,12 @@ class StudyProjectStrategyResponse(BaseModel):
     sort_order: int
 
 
+class ActiveProjectSelectionRequest(BaseModel):
+    """Which projects keep the plan's active slots. Bounded to the plan's max."""
+
+    keep_project_ids: list[uuid.UUID] = Field(default_factory=list, max_length=1000)
+
+
 class StudyProjectResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -181,6 +185,9 @@ class StudyProjectResponse(BaseModel):
     updated_at: datetime
     is_archived: bool = False
     archived_at: datetime | None = None
+    # Deactivated projects stay in the list, marked, but cannot be studied.
+    is_deactivated: bool = False
+    deactivated_at: datetime | None = None
     file_count: int = 0
     summary_count: int = 0
     keyword_count: int = 0

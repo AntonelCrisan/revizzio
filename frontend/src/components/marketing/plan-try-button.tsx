@@ -13,18 +13,57 @@ type PlanTryButtonProps = {
  * The only client-side piece of a plan detail page.
  *
  * Everything else on the page is server-rendered so crawlers get the full
- * content; this button just needs to know whether there is a session, to send
- * the visitor to checkout or through login first.
+ * content; this button just needs the session to pick a destination.
+ *
+ * Moving to the free plan is never a checkout: it means cancelling the paid
+ * renewal, which the account keeps until the period ends. That lives on
+ * /upgrade with its confirmation, so the free plan links there rather than
+ * dropping the user in /myaccount where nothing would happen.
  */
 export function PlanTryButton({ slug, label, isFree }: PlanTryButtonProps) {
   const { user, isLoading } = useAuth();
 
-  const target = isFree ? "/myaccount" : `/checkout/${slug}`;
-  const href = user
-    ? target
-    : isFree
-      ? "/register"
-      : `/login?next=${encodeURIComponent(target)}`;
+  const currentPlanSlug = user?.current_plan?.slug ?? null;
+  const isOnThisPlan = currentPlanSlug === slug;
+  const hasPaidPlan = Number(user?.current_plan?.price_ron ?? 0) > 0;
+
+  function resolve(): { href: string; text: string; hint: string | null } {
+    if (!user) {
+      return isFree
+        ? {
+            href: "/register",
+            text: label,
+            hint: "Îți creezi contul în câțiva pași, fără card.",
+          }
+        : {
+            href: `/login?next=${encodeURIComponent(`/checkout/${slug}`)}`,
+            text: label,
+            hint: "Îți cerem întâi autentificarea, apoi continui direct spre plată.",
+          };
+    }
+
+    if (isOnThisPlan) {
+      return {
+        href: "/myaccount",
+        text: "Acesta este planul tău",
+        hint: "Mergi în cont pentru a-ți continua studiul.",
+      };
+    }
+
+    if (isFree) {
+      return hasPaidPlan
+        ? {
+            href: "/upgrade",
+            text: "Trece pe planul gratuit",
+            hint: "Planul tău actual rămâne activ până la finalul perioadei plătite.",
+          }
+        : { href: "/myaccount", text: label, hint: null };
+    }
+
+    return { href: `/checkout/${slug}`, text: label, hint: null };
+  }
+
+  const { href, text, hint } = resolve();
 
   return (
     <>
@@ -33,15 +72,11 @@ export function PlanTryButton({ slug, label, isFree }: PlanTryButtonProps) {
         aria-busy={isLoading}
         className="theme-shadow-action inline-flex w-full items-center justify-center gap-3 rounded-md bg-action px-6 py-3.5 text-sm font-bold text-on-action transition hover:-translate-y-0.5 hover:bg-action-hover"
       >
-        {label}
+        {text}
         <span aria-hidden="true">→</span>
       </Link>
-      {!isLoading && !user ? (
-        <p className="mt-3 text-center text-xs leading-5 text-muted">
-          {isFree
-            ? "Îți creezi contul în câțiva pași, fără card."
-            : "Îți cerem întâi autentificarea, apoi continui direct spre plată."}
-        </p>
+      {!isLoading && hint ? (
+        <p className="mt-3 text-center text-xs leading-5 text-muted">{hint}</p>
       ) : null}
     </>
   );

@@ -20,6 +20,7 @@ from app.api.security import protect_state_changing_request
 from app.core.rate_limit import _memory_rate_limit_buckets, consume_rate_limit
 from app.schemas.projects import (
     AccountWipeResponse,
+    ActiveProjectSelectionRequest,
     StudyProjectAiSelectionExplainRequest,
     StudyProjectAiSelectionExplainResponse,
     StudyProjectChatRequest,
@@ -266,6 +267,22 @@ async def list_archived_projects(
     service = _service(session, settings)
     projects = await service.list_archived_projects(current_user)
     return [service.to_response(project) for project in projects]
+
+
+@router.get("/active-slots")
+async def get_active_project_slots(
+    current_user: CurrentUser,
+    session: DbSession,
+    settings: AppSettings,
+) -> dict[str, int | bool]:
+    """Slot usage for the account.
+
+    `must_choose` is what drives the post-downgrade selection modal; the API
+    enforces the same condition on every study route, so the modal is a
+    prompt, not the protection.
+    """
+    service = _service(session, settings)
+    return await service.active_project_slot_status(current_user)
 
 
 @router.post("/materials/delete-all", response_model=AccountWipeResponse)
@@ -634,6 +651,74 @@ async def rename_project(
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=str(exc),
+        ) from exc
+
+    return service.to_response(project)
+
+
+@router.post("/active-slots")
+async def apply_active_project_selection(
+    payload: ActiveProjectSelectionRequest,
+    current_user: CurrentUser,
+    session: DbSession,
+    settings: AppSettings,
+) -> dict[str, int | bool]:
+    """Set the whole selection at once, and report the resulting slot usage.
+
+    One request instead of one per project: the selection modal can be
+    resolving dozens of projects after a downgrade.
+    """
+    await _enforce_project_rate_limit(current_user, "manage")
+    service = _service(session, settings)
+    return await service.apply_active_project_selection(
+        user=current_user,
+        keep_project_ids=payload.keep_project_ids,
+    )
+
+
+@router.post("/{project_id}/deactivate", response_model=StudyProjectResponse)
+async def deactivate_project(
+    project_id: uuid.UUID,
+    current_user: CurrentUser,
+    session: DbSession,
+    settings: AppSettings,
+) -> StudyProjectResponse:
+    await _enforce_project_rate_limit(current_user, "manage")
+    service = _service(session, settings)
+    try:
+        project = await service.deactivate_project(
+            user=current_user,
+            project_id=project_id,
+        )
+    except ProjectNotFoundError as exc:
+        await session.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Proiectul nu a fost gasit.",
+        ) from exc
+
+    return service.to_response(project)
+
+
+@router.post("/{project_id}/activate", response_model=StudyProjectResponse)
+async def activate_project(
+    project_id: uuid.UUID,
+    current_user: CurrentUser,
+    session: DbSession,
+    settings: AppSettings,
+) -> StudyProjectResponse:
+    await _enforce_project_rate_limit(current_user, "manage")
+    service = _service(session, settings)
+    try:
+        project = await service.activate_project(
+            user=current_user,
+            project_id=project_id,
+        )
+    except ProjectNotFoundError as exc:
+        await session.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Proiectul nu a fost gasit.",
         ) from exc
 
     return service.to_response(project)

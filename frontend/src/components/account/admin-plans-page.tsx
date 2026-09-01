@@ -23,6 +23,7 @@ type AdminPlanDraft = {
   aiLevel: string;
   storage: string;
   conditions: string;
+  activeProjectSlots: string;
   activeProjectLimit: string;
   monthlyMaterialLimit: string;
   filesPerProjectLimit: string;
@@ -103,6 +104,7 @@ function toDraftPlan(plan: SubscriptionPlan): AdminPlanDraft {
     aiLevel: plan.ai_level,
     storage: plan.storage,
     conditions: plan.conditions,
+    activeProjectSlots: String(plan.active_project_slots),
     activeProjectLimit: String(plan.active_project_limit),
     monthlyMaterialLimit: String(
       plan.active_project_limit * plan.files_per_project_limit,
@@ -154,6 +156,7 @@ function toPlanUpdate(
     ai_level: plan.aiLevel || "Configurat in optiuni",
     storage: plan.storage || "Configurat in optiuni",
     conditions: plan.conditions,
+    active_project_slots: normalizeInteger(plan.activeProjectSlots, 2, 1),
     active_project_limit: activeProjectLimit,
     monthly_material_limit: monthlyMaterialLimit,
     files_per_project_limit: filesPerProjectLimit,
@@ -746,6 +749,15 @@ export function AdminPlansPage({ initialPlans }: AdminPlansPageProps) {
 
             <EditorSection title="Limite" detail="proiecte, materiale și generare">
               <div className="grid gap-4 md:grid-cols-3">
+                <TextField
+                  label="Proiecte active simultan"
+                  value={selectedPlan.activeProjectSlots}
+                  onChange={(value) =>
+                    updateSelectedPlan({ activeProjectSlots: value })
+                  }
+                  placeholder="10"
+                  detail="Peste această limită proiectele se dezactivează"
+                />
                 <TextField
                   label="Proiecte / lună"
                   value={selectedPlan.activeProjectLimit}

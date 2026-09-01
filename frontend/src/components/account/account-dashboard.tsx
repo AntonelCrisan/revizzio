@@ -6,6 +6,7 @@ import {
   type CSSProperties,
   type DragEvent,
   type ReactNode,
+  useCallback,
   useEffect,
   useLayoutEffect,
   useMemo,
@@ -14,6 +15,7 @@ import {
   useTransition,
 } from "react";
 import { AccountSkeleton } from "@/components/account/account-skeleton";
+import { ProjectSlotsModal } from "@/components/account/project-slots-modal";
 import { useAuth } from "@/components/auth/auth-provider";
 import { BrandLogo } from "@/components/brand-logo";
 import {
@@ -50,6 +52,9 @@ import {
   explainStudyProjectSummarySelection,
   generateStudyProjectQuizzes,
   getStudyProject,
+  activateStudyProject,
+  deactivateStudyProject,
+  getActiveProjectSlots,
   listStudyProjects,
   prepareStudyProject,
   renameStudyProject,
@@ -97,6 +102,9 @@ type StudyProject = {
   errorMessage: string | null;
   isArchived: boolean;
   archivedAt: string | null;
+  isDeactivated: boolean;
+  createdAt: string;
+  updatedAt: string;
   meta: string;
   flashcardsDue: number;
   flashcardsTotal: number;
@@ -499,6 +507,18 @@ function computeProjectQuizProgress(project: ApiStudyProject): number {
   return Math.round((completedQuizzes / totalQuizzes) * 100);
 }
 
+/** Active projects first, newest first within each group. */
+function sortProjectsByActivation(projects: StudyProject[]) {
+  return [...projects].sort((first, second) => {
+    if (first.isDeactivated !== second.isDeactivated) {
+      return first.isDeactivated ? 1 : -1;
+    }
+    return (
+      new Date(second.createdAt).getTime() - new Date(first.createdAt).getTime()
+    );
+  });
+}
+
 function mapApiProject(project: ApiStudyProject): StudyProject {
   const generatedFlashcardCount = getGeneratedFlashcards(
     project.flashcards,
@@ -518,6 +538,9 @@ function mapApiProject(project: ApiStudyProject): StudyProject {
     errorMessage: toFriendlyGenerationError(project.error_message),
     isArchived: project.is_archived,
     archivedAt: project.archived_at,
+    isDeactivated: project.is_deactivated,
+    createdAt: project.created_at,
+    updatedAt: project.updated_at,
     meta: metaParts.join(" · "),
     flashcardsDue: generatedFlashcardCount,
     flashcardsTotal: generatedFlashcardCount,
@@ -593,6 +616,23 @@ export function AccountDashboard({
 
   const [projects, setProjects] = useState(initialProjects);
   const [isProjectsLoading, setIsProjectsLoading] = useState(true);
+  const [projectSlots, setProjectSlots] = useState<{
+    slots: number;
+    mustChoose: boolean;
+  } | null>(null);
+
+  const refreshProjectSlots = useCallback(async () => {
+    try {
+      const status = await getActiveProjectSlots();
+      setProjectSlots({
+        slots: status.slots,
+        mustChoose: status.must_choose,
+      });
+    } catch {
+      // The API enforces the cap regardless; a failed check just means no modal.
+      setProjectSlots(null);
+    }
+  }, []);
   const [view, setView] = useState<ViewId>(initialView);
   const [activeProjectId, setActiveProjectId] = useState(
     initialProjectId ?? "",
@@ -753,6 +793,23 @@ export function AccountDashboard({
           // The full list request below still decides the final state.
         });
     }
+
+    // Checked alongside the project list: if the plan shrank below the number
+    // of active projects, the selection modal has to open before anything else.
+    // Written as a promise chain so state is only set in the callback.
+    getActiveProjectSlots()
+      .then((status) => {
+        if (!isMounted) return;
+        setProjectSlots({
+          slots: status.slots,
+          mustChoose: status.must_choose,
+        });
+      })
+      .catch(() => {
+        if (!isMounted) return;
+        // The API enforces the cap regardless; a failed check means no modal.
+        setProjectSlots(null);
+      });
 
     listStudyProjects()
       .then((apiProjects) => {
@@ -935,6 +992,11 @@ export function AccountDashboard({
       return;
     }
 
+    const target = projects.find((project) => project.id === projectId);
+    if (target?.isDeactivated) {
+      return;
+    }
+
     setActiveProjectId(projectId);
     setOpenProjectId(projectId);
     setActiveTab(tab);
@@ -971,6 +1033,32 @@ export function AccountDashboard({
     );
 
     if (activeProjectId === projectId || openProjectId === projectId) {
+      setActiveProjectId("");
+      setOpenProjectId(null);
+      setView("home");
+      if (useTabPages) {
+        router.push("/myaccount");
+      }
+    }
+  }
+
+  async function setProjectActivation(projectId: string, isActive: boolean) {
+    const updated = isActive
+      ? await activateStudyProject(projectId)
+      : await deactivateStudyProject(projectId);
+
+    setProjects((currentProjects) =>
+      sortProjectsByActivation(
+        currentProjects.map((project) =>
+          project.id === projectId
+            ? { ...project, isDeactivated: updated.is_deactivated }
+            : project,
+        ),
+      ),
+    );
+
+    // A deactivated project cannot be studied, so leave it if it is open.
+    if (!isActive && (activeProjectId === projectId || openProjectId === projectId)) {
       setActiveProjectId("");
       setOpenProjectId(null);
       setView("home");
@@ -1615,6 +1703,31 @@ export function AccountDashboard({
 
   return (
     <div className="min-h-svh bg-app text-content lg:flex">
+      {projectSlots?.mustChoose &&
+      !isProjectsLoading &&
+      projects.some((project) => !project.isArchived) ? (
+        <ProjectSlotsModal
+          projects={projects.filter((project) => !project.isArchived)}
+          slots={projectSlots.slots}
+          planName={user.current_plan?.name ?? "actual"}
+          onResolved={({ deactivated, activated }) => {
+            setProjects((currentProjects) =>
+              sortProjectsByActivation(
+                currentProjects.map((project) =>
+                  deactivated.includes(project.id)
+                    ? { ...project, isDeactivated: true }
+                    : activated.includes(project.id)
+                      ? { ...project, isDeactivated: false }
+                      : project,
+                ),
+              ),
+            );
+            setProjectSlots(null);
+            void refreshProjectSlots();
+          }}
+        />
+      ) : null}
+
       {sidebarOpen ? (
         <button
           type="button"
@@ -1842,6 +1955,12 @@ export function AccountDashboard({
                   <div key={project.id} className="overflow-visible rounded-md">
                     <button
                       type="button"
+                      disabled={project.isDeactivated}
+                      title={
+                        project.isDeactivated
+                          ? "Proiect dezactivat pe planul curent"
+                          : undefined
+                      }
                       onClick={() => {
                         if (isSidebarCollapsed && isDesktopSidebarViewport()) {
                           openProject(
@@ -1855,13 +1974,15 @@ export function AccountDashboard({
                           currentId === project.id ? null : project.id,
                         );
                       }}
-                      className={getAccountSidebarProjectClass(
+                      className={`${getAccountSidebarProjectClass(
                         isActiveProject,
                         isSidebarCollapsed,
-                      )}
+                      )} disabled:cursor-not-allowed disabled:opacity-45 disabled:hover:bg-transparent`}
                     >
                       <span
-                        className={`flex h-2 w-2 shrink-0 items-center justify-center rounded-full bg-success text-[10px] font-black text-content ${
+                        className={`flex h-2 w-2 shrink-0 items-center justify-center rounded-full text-[10px] font-black text-content ${
+                          project.isDeactivated ? "bg-muted" : "bg-success"
+                        } ${
                           isSidebarCollapsed
                             ? "lg:h-6 lg:w-6 lg:rounded-md lg:bg-success/20 lg:text-success"
                             : ""
@@ -1876,7 +1997,9 @@ export function AccountDashboard({
                           {project.name}
                         </span>
                         <span className="block truncate text-xs text-muted">
-                          {project.subjectName}
+                          {project.isDeactivated
+                            ? "Dezactivat"
+                            : project.subjectName}
                         </span>
                       </span>
                       <Icon
@@ -2016,6 +2139,7 @@ export function AccountDashboard({
               onOpenNewProject={openNewProject}
               onRenameProject={renameProject}
               onArchiveProject={archiveProject}
+              onSetProjectActivation={setProjectActivation}
               onDeleteProject={removeProject}
             />
           ) : null}
@@ -2339,6 +2463,7 @@ function HomeView({
   onOpenNewProject,
   onRenameProject,
   onArchiveProject,
+  onSetProjectActivation,
   onDeleteProject,
 }: {
   displayName: string;
@@ -2348,6 +2473,10 @@ function HomeView({
   onOpenNewProject: () => void;
   onRenameProject: (projectId: string, name: string) => Promise<void> | void;
   onArchiveProject: (projectId: string) => Promise<void> | void;
+  onSetProjectActivation: (
+    projectId: string,
+    isActive: boolean,
+  ) => Promise<void> | void;
   onDeleteProject: (projectId: string) => Promise<void> | void;
 }) {
   const [openMenuProjectId, setOpenMenuProjectId] = useState<string | null>(
@@ -2363,6 +2492,10 @@ function HomeView({
     useState<StudyProject | null>(null);
   const deletingProjectIdsRef = useRef(new Set<string>());
   const readyProjects = projects.filter((project) => project.status === "ready").length;
+  const deactivatedProjectCount = projects.filter(
+    (project) => project.isDeactivated,
+  ).length;
+  const activeProjectCount = projects.length - deactivatedProjectCount;
   const activeFlashcards = projects.reduce(
     (total, project) => total + project.flashcardsTotal,
     0,
@@ -2422,6 +2555,23 @@ function HomeView({
     }
   }
 
+  async function toggleProjectActivation(projectId: string, isActive: boolean) {
+    setBusyProjectId(projectId);
+    setProjectError(null);
+    setOpenMenuProjectId(null);
+    try {
+      await onSetProjectActivation(projectId, isActive);
+    } catch (error) {
+      setProjectError(
+        error instanceof Error
+          ? error.message
+          : "Starea proiectului nu a putut fi schimbată.",
+      );
+    } finally {
+      setBusyProjectId(null);
+    }
+  }
+
   async function confirmDeleteProject(projectId: string) {
     if (deletingProjectIdsRef.current.has(projectId)) return;
 
@@ -2472,8 +2622,14 @@ function HomeView({
       <div className="grid gap-5 md:grid-cols-3">
         <AccountMetric
           label="Proiecte active"
-          value={projects.length.toString()}
-          detail="în spațiul tău de studiu"
+          value={activeProjectCount.toString()}
+          detail={
+            deactivatedProjectCount === 0
+              ? "în spațiul tău de studiu"
+              : deactivatedProjectCount === 1
+                ? "1 dezactivat pe planul curent"
+                : `${deactivatedProjectCount} dezactivate pe planul curent`
+          }
         />
         <AccountMetric
           label="Pachete de studiu"
@@ -2502,8 +2658,17 @@ function HomeView({
             {projects.map((project) => (
               <article
                 key={project.id}
-                className="theme-shadow-card group relative min-h-[230px] rounded-xl border border-subtle bg-surface p-6 transition hover:-translate-y-0.5 hover:border-content/25"
+                className={`theme-shadow-card group relative flex min-h-[230px] flex-col rounded-xl border p-6 transition ${
+                  project.isDeactivated
+                    ? "border-warning-border bg-surface-hover"
+                    : "border-subtle bg-surface hover:-translate-y-0.5 hover:border-content/25"
+                }`}
               >
+                {project.isDeactivated ? (
+                  <p className="mb-3 inline-flex w-fit items-center gap-2 rounded-md border border-warning-border bg-warning-soft px-3 py-1 text-[10px] font-black uppercase tracking-[0.12em] text-warning">
+                    Dezactivat
+                  </p>
+                ) : null}
                 <button
                   type="button"
                   onClick={() =>
@@ -2542,6 +2707,32 @@ function HomeView({
                     <button
                       type="button"
                       disabled={busyProjectId === project.id}
+                      onClick={() =>
+                        void toggleProjectActivation(
+                          project.id,
+                          project.isDeactivated,
+                        )
+                      }
+                      className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm font-semibold transition hover:bg-surface-hover disabled:cursor-wait disabled:opacity-60"
+                    >
+                      <Icon>
+                        {project.isDeactivated ? (
+                          <>
+                            <path d="M9 12l2 2 4-4" />
+                            <circle cx="12" cy="12" r="9" />
+                          </>
+                        ) : (
+                          <>
+                            <rect x="5" y="11" width="14" height="9" rx="2" />
+                            <path d="M8 11V8a4 4 0 0 1 8 0" />
+                          </>
+                        )}
+                      </Icon>
+                      {project.isDeactivated ? "Activare" : "Dezactivare"}
+                    </button>
+                    <button
+                      type="button"
+                      disabled={busyProjectId === project.id}
                       onClick={() => void archiveProject(project.id)}
                       className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm font-semibold transition hover:bg-surface-hover disabled:cursor-wait disabled:opacity-60"
                     >
@@ -2574,8 +2765,9 @@ function HomeView({
 
                 <button
                   type="button"
+                  disabled={project.isDeactivated}
                   onClick={() => onOpenProject(project.id)}
-                  className="flex h-full w-full flex-col items-start text-left"
+                  className="flex w-full flex-1 flex-col items-start text-left disabled:cursor-not-allowed disabled:opacity-40"
                 >
                   <span
                     className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full text-[11px] font-black text-success"
@@ -2594,11 +2786,21 @@ function HomeView({
                   <span className="mt-3 block text-sm leading-6 text-muted">
                     {project.meta}
                   </span>
-                  <span className="mt-auto inline-flex items-center gap-2 border-t border-subtle pt-5 text-xs font-black uppercase tracking-[0.12em] text-muted transition group-hover:text-content">
-                    Deschide proiectul
-                    <Icon className="h-3.5 w-3.5">
-                      <path d="M5 12h14M13 5l7 7-7 7" />
-                    </Icon>
+                  <span
+                    className={`mt-auto inline-flex items-center gap-2 border-t border-subtle pt-5 text-xs font-black uppercase tracking-[0.12em] text-muted transition ${
+                      project.isDeactivated ? "" : "group-hover:text-content"
+                    }`}
+                  >
+                    {project.isDeactivated ? (
+                      "Indisponibil pe planul curent"
+                    ) : (
+                      <>
+                        Deschide proiectul
+                        <Icon className="h-3.5 w-3.5">
+                          <path d="M5 12h14M13 5l7 7-7 7" />
+                        </Icon>
+                      </>
+                    )}
                   </span>
                 </button>
 

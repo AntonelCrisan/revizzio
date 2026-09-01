@@ -22,6 +22,7 @@ export const fallbackSubscriptionPlans: SubscriptionPlanPublic[] = [
     storage: "Istoric limitat",
     conditions:
       "Potrivit pentru testarea fluxului. Documentele scanate sau OCR nu sunt incluse in acest plan.",
+    active_project_slots: 2,
     active_project_limit: 1,
     monthly_material_limit: 3,
     files_per_project_limit: 2,
@@ -67,6 +68,7 @@ export const fallbackSubscriptionPlans: SubscriptionPlanPublic[] = [
     storage: "Istoric complet pe proiecte",
     conditions:
       "Pentru utilizare individuala activa. Limitele sunt lunare si se reseteaza automat.",
+    active_project_slots: 10,
     active_project_limit: 10,
     monthly_material_limit: 30,
     files_per_project_limit: 10,
@@ -117,6 +119,7 @@ export const fallbackSubscriptionPlans: SubscriptionPlanPublic[] = [
     storage: "Export și arhivă extinsă",
     conditions:
       "Pentru sesiuni intense si volume mari rezonabile. Utilizarea trebuie sa ramana educationala si individuala.",
+    active_project_slots: 40,
     active_project_limit: 50,
     monthly_material_limit: 100,
     files_per_project_limit: 30,

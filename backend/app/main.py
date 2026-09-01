@@ -2,8 +2,9 @@ import logging
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request, status
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 
 from app.api.routes.admin_account_deletion_requests import (
     router as admin_account_deletion_requests_router,
@@ -38,6 +39,7 @@ from app.core.rate_limit import (
     rate_limit_backend_name,
 )
 from app.db.session import engine
+from app.services.plan_errors import PlanLimitError
 
 logger = logging.getLogger("revizzio")
 settings = get_settings()
@@ -89,6 +91,25 @@ app.add_middleware(
         "X-Reviss-Form-Intent",
     ],
 )
+
+
+@app.exception_handler(PlanLimitError)
+async def plan_limit_error_handler(
+    _: Request,
+    exc: PlanLimitError,
+) -> JSONResponse:
+    """Map every plan/usage limit to the shape the frontend already reads.
+
+    Registered globally because these are raised deep in the service layer --
+    notably from ProjectService.get_project, which has dozens of call sites --
+    so a per-route try/except would leave gaps that surface as 500s.
+    """
+    logger.warning("Plan limit hit: %s (%s)", exc, exc.code)
+    return JSONResponse(
+        status_code=status.HTTP_400_BAD_REQUEST,
+        content={"detail": {"code": exc.code, "message": str(exc)}},
+    )
+
 
 app.include_router(health_router)
 app.include_router(internal_router)

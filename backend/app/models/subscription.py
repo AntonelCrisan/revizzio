@@ -48,6 +48,14 @@ class SubscriptionPlan(Base):
     ai_level: Mapped[str] = mapped_column(Text, nullable=False)
     storage: Mapped[str] = mapped_column(Text, nullable=False)
     conditions: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    # Total projects that may be active at once. Distinct from
+    # active_project_limit, which is a per-billing-month creation rate.
+    active_project_slots: Mapped[int] = mapped_column(
+        Integer,
+        nullable=False,
+        default=2,
+        server_default="2",
+    )
     active_project_limit: Mapped[int] = mapped_column(
         Integer,
         nullable=False,
