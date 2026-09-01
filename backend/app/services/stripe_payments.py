@@ -311,6 +311,9 @@ class StripePaymentService:
         self._session = session
         self._settings = settings
         self._email = EmailService(settings)
+        # Subscriptions whose period backfill was already tried in this request,
+        # so a row Stripe cannot resolve is not re-fetched on every read.
+        self._period_backfill_attempted: set[str] = set()
 
     async def create_checkout_session(
         self,
@@ -502,6 +505,12 @@ class StripePaymentService:
         await self._handle_checkout_completed(checkout_session)
         stripe_subscription_id = _string_or_none(checkout_session.get("subscription"))
         if stripe_subscription_id is not None:
+            # _handle_checkout_completed can only write NULL periods -- the
+            # checkout session does not carry them. Fetch the subscription so
+            # current_period_start/end are stored right away.
+            await self._sync_subscription_from_stripe(
+                stripe_subscription_id=stripe_subscription_id,
+            )
             await self._sync_latest_invoice_from_stripe(
                 stripe=stripe,
                 stripe_subscription_id=stripe_subscription_id,
@@ -536,12 +545,77 @@ class StripePaymentService:
         await self._session.commit()
         return await self._fetch_user_invoices(user=user)
 
+    async def _sync_subscription_from_stripe(
+        self,
+        *,
+        stripe_subscription_id: str,
+    ) -> None:
+        """Refresh one subscription from Stripe through the webhook handler.
+
+        Write path only: `_handle_subscription_event` also updates status and
+        can cancel superseded subscriptions in Stripe, so this must never be
+        reached from a request that only reads.
+        """
+        try:
+            stripe = StripeClient(self._settings)
+            subscription = await stripe.retrieve_subscription(
+                subscription_id=stripe_subscription_id,
+            )
+        except (StripeConfigurationError, StripeRequestError):
+            return
+
+        await self._handle_subscription_event(subscription)
+
+    async def _backfill_subscription_period(
+        self,
+        *,
+        subscription: UserSubscription,
+    ) -> bool:
+        """Fill only the billing period columns of one subscription row.
+
+        Read paths use this instead of `_sync_subscription_from_stripe`: it
+        touches nothing but `current_period_start` / `current_period_end`, so a
+        page load can never change a status or cancel anything in Stripe.
+        Returns True when the row was updated.
+        """
+        stripe_subscription_id = subscription.stripe_subscription_id
+        if stripe_subscription_id in self._period_backfill_attempted:
+            return False
+        self._period_backfill_attempted.add(stripe_subscription_id)
+
+        try:
+            stripe = StripeClient(self._settings)
+            stripe_subscription = await stripe.retrieve_subscription(
+                subscription_id=stripe_subscription_id,
+            )
+        except (StripeConfigurationError, StripeRequestError):
+            # A read path must not fail because Stripe is unavailable or unset.
+            return False
+
+        period_start, period_end = self._subscription_period(stripe_subscription)
+        if period_end is None:
+            return False
+
+        subscription.current_period_start = period_start
+        subscription.current_period_end = period_end
+        return True
+
     async def get_current_paid_subscription(
         self,
         *,
         user: User,
     ) -> UserSubscription | None:
-        return await self._fetch_current_paid_subscription(user=user)
+        subscription = await self._fetch_current_paid_subscription(user=user)
+
+        # Subscriptions created straight from a checkout session start with no
+        # billing period, and only a webhook would fill it in. Backfill the
+        # period on read so the renewal date is available even when webhooks
+        # never ran -- narrowly, without touching status.
+        if subscription is not None and subscription.current_period_end is None:
+            if await self._backfill_subscription_period(subscription=subscription):
+                await self._session.commit()
+
+        return subscription
 
     async def schedule_subscription_cancellation(
         self,

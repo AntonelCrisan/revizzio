@@ -1,11 +1,14 @@
 import "server-only";
 
 import { cookies, headers } from "next/headers";
-import type { SubscriptionPlan } from "@/lib/plans-api";
+import type {
+  SubscriptionPlan,
+  SubscriptionPlanPublic,
+} from "@/lib/plans-api";
 
-export const fallbackSubscriptionPlans: SubscriptionPlan[] = [
+/** Used when the API is unreachable. Public shape: no Stripe ids, no costs. */
+export const fallbackSubscriptionPlans: SubscriptionPlanPublic[] = [
   {
-    id: "fallback-start",
     slug: "start",
     name: "Beginner",
     price_ron: "0.00",
@@ -23,24 +26,15 @@ export const fallbackSubscriptionPlans: SubscriptionPlan[] = [
     monthly_material_limit: 3,
     files_per_project_limit: 2,
     file_size_limit_mb: 10,
-    project_size_limit_mb: 20,
     estimated_page_limit: 25,
     initial_flashcard_limit: 20,
-    quiz_groups_per_complexity: 1,
     quiz_questions_per_quiz: 8,
     allow_scanned_documents: false,
-    monthly_ai_credits: 10,
-    monthly_ocr_pages: 0,
-    monthly_page_limit: 40,
     ai_chat_enabled: false,
-    max_openai_cost_usd_per_cycle: "2.00",
-    stripe_product_id: null,
-    stripe_price_id: null,
     is_visible: true,
     is_featured: false,
     sort_order: 0,
-    created_at: new Date(0).toISOString(),
-    updated_at: new Date(0).toISOString(),
+    is_purchasable: false,
     features: [
       {
         id: "fallback-start-1",
@@ -60,7 +54,6 @@ export const fallbackSubscriptionPlans: SubscriptionPlan[] = [
     ],
   },
   {
-    id: "fallback-focus",
     slug: "focus",
     name: "Focus",
     price_ron: "29.00",
@@ -78,24 +71,15 @@ export const fallbackSubscriptionPlans: SubscriptionPlan[] = [
     monthly_material_limit: 30,
     files_per_project_limit: 10,
     file_size_limit_mb: 50,
-    project_size_limit_mb: 200,
     estimated_page_limit: 200,
     initial_flashcard_limit: 40,
-    quiz_groups_per_complexity: 3,
     quiz_questions_per_quiz: 12,
     allow_scanned_documents: false,
-    monthly_ai_credits: 60,
-    monthly_ocr_pages: 200,
-    monthly_page_limit: 1000,
     ai_chat_enabled: true,
-    max_openai_cost_usd_per_cycle: "6.00",
-    stripe_product_id: null,
-    stripe_price_id: null,
     is_visible: true,
     is_featured: true,
     sort_order: 1,
-    created_at: new Date(0).toISOString(),
-    updated_at: new Date(0).toISOString(),
+    is_purchasable: false,
     features: [
       {
         id: "fallback-focus-1",
@@ -120,7 +104,6 @@ export const fallbackSubscriptionPlans: SubscriptionPlan[] = [
     ],
   },
   {
-    id: "fallback-pro",
     slug: "pro",
     name: "Pro",
     price_ron: "59.00",
@@ -138,24 +121,15 @@ export const fallbackSubscriptionPlans: SubscriptionPlan[] = [
     monthly_material_limit: 100,
     files_per_project_limit: 30,
     file_size_limit_mb: 150,
-    project_size_limit_mb: 500,
     estimated_page_limit: 500,
     initial_flashcard_limit: 50,
-    quiz_groups_per_complexity: 4,
     quiz_questions_per_quiz: 12,
     allow_scanned_documents: true,
-    monthly_ai_credits: 120,
-    monthly_ocr_pages: 500,
-    monthly_page_limit: 2500,
     ai_chat_enabled: true,
-    max_openai_cost_usd_per_cycle: "12.00",
-    stripe_product_id: null,
-    stripe_price_id: null,
     is_visible: true,
     is_featured: false,
     sort_order: 2,
-    created_at: new Date(0).toISOString(),
-    updated_at: new Date(0).toISOString(),
+    is_purchasable: false,
     features: [
       {
         id: "fallback-pro-1",
@@ -180,6 +154,75 @@ export const fallbackSubscriptionPlans: SubscriptionPlan[] = [
     ],
   },
 ];
+
+/** Internal columns the public fallback deliberately omits, per slug.
+ *
+ * Mirrors DEFAULT_PLANS in backend/app/api/routes/plans.py so the admin editor
+ * degrades to the same values it always did when the API is unreachable.
+ */
+const fallbackAdminInternals: Record<
+  string,
+  Pick<
+    SubscriptionPlan,
+    | "id"
+    | "project_size_limit_mb"
+    | "quiz_groups_per_complexity"
+    | "monthly_ai_credits"
+    | "monthly_ocr_pages"
+    | "monthly_page_limit"
+    | "max_openai_cost_usd_per_cycle"
+  >
+> = {
+  start: {
+    id: "fallback-start",
+    project_size_limit_mb: 20,
+    quiz_groups_per_complexity: 1,
+    monthly_ai_credits: 10,
+    monthly_ocr_pages: 0,
+    monthly_page_limit: 40,
+    max_openai_cost_usd_per_cycle: "2.00",
+  },
+  focus: {
+    id: "fallback-focus",
+    project_size_limit_mb: 200,
+    quiz_groups_per_complexity: 3,
+    monthly_ai_credits: 60,
+    monthly_ocr_pages: 200,
+    monthly_page_limit: 1000,
+    max_openai_cost_usd_per_cycle: "6.00",
+  },
+  pro: {
+    id: "fallback-pro",
+    project_size_limit_mb: 500,
+    quiz_groups_per_complexity: 4,
+    monthly_ai_credits: 120,
+    monthly_ocr_pages: 500,
+    monthly_page_limit: 2500,
+    max_openai_cost_usd_per_cycle: "12.00",
+  },
+};
+
+export const fallbackAdminSubscriptionPlans: SubscriptionPlan[] =
+  fallbackSubscriptionPlans.map((plan) => {
+    const internals = fallbackAdminInternals[plan.slug];
+    const epoch = new Date(0).toISOString();
+
+    return {
+      ...plan,
+      id: internals?.id ?? `fallback-${plan.slug}`,
+      project_size_limit_mb: internals?.project_size_limit_mb ?? 20,
+      quiz_groups_per_complexity: internals?.quiz_groups_per_complexity ?? 1,
+      monthly_ai_credits: internals?.monthly_ai_credits ?? 0,
+      monthly_ocr_pages: internals?.monthly_ocr_pages ?? 0,
+      monthly_page_limit: internals?.monthly_page_limit ?? 0,
+      max_openai_cost_usd_per_cycle:
+        internals?.max_openai_cost_usd_per_cycle ?? "0.00",
+      stripe_product_id: null,
+      stripe_price_id: null,
+      created_at: epoch,
+      updated_at: epoch,
+    };
+  });
 
 async function requestHeaders(includeAuth: boolean) {
   const requestHeaders = new Headers();
@@ -234,6 +277,8 @@ export function getServerAdminPlans(): Promise<SubscriptionPlan[] | null> {
   return serverPlansRequest<SubscriptionPlan[]>("admin", { includeAuth: true });
 }
 
-export function getServerPublicPlans(): Promise<SubscriptionPlan[] | null> {
-  return serverPlansRequest<SubscriptionPlan[]>("");
+export function getServerPublicPlans(): Promise<
+  SubscriptionPlanPublic[] | null
+> {
+  return serverPlansRequest<SubscriptionPlanPublic[]>("");
 }

@@ -13,10 +13,11 @@ import {
   syncCheckoutSession,
   type CurrentSubscription,
 } from "@/lib/payments-api";
-import type { SubscriptionPlan } from "@/lib/plans-api";
+import type { SubscriptionPlanPublic } from "@/lib/plans-api";
+import { planDetailPath } from "@/lib/seo";
 
 type UpgradePageProps = {
-  plans: SubscriptionPlan[];
+  plans: SubscriptionPlanPublic[];
   checkoutSessionId?: string;
   checkoutStatus?: string;
 };
@@ -30,7 +31,6 @@ type UpgradePlan = {
   note: string;
   description: string;
   discount: string;
-  cta: string;
   paid: boolean;
   highlighted: boolean;
   features: string[];
@@ -54,7 +54,7 @@ function CheckIcon() {
   );
 }
 
-function formatPlanPrice(value: SubscriptionPlan["price_ron"]) {
+function formatPlanPrice(value: SubscriptionPlanPublic["price_ron"]) {
   const numericValue = Number(value);
   if (!Number.isFinite(numericValue)) return String(value);
   return Number.isInteger(numericValue)
@@ -75,15 +75,9 @@ const PLAN_TITLES: Record<string, string> = {
   pro: "Sesiune Pro",
 };
 
-function planTitle(plan: SubscriptionPlan) {
+function planTitle(plan: SubscriptionPlanPublic) {
   if (Number(plan.price_ron) === 0) return "Pentru început";
   return PLAN_TITLES[plan.slug] ?? plan.name;
-}
-
-function planCta(plan: SubscriptionPlan) {
-  if (Number(plan.price_ron) === 0) return "Plan gratuit inclus";
-  if (plan.is_featured) return `Alege ${plan.name}`;
-  return `Upgrade la ${plan.name}`;
 }
 
 function uniqueFeatures(features: string[]) {
@@ -96,7 +90,7 @@ function uniqueFeatures(features: string[]) {
   });
 }
 
-function toUpgradePlans(plans: SubscriptionPlan[]): UpgradePlan[] {
+function toUpgradePlans(plans: SubscriptionPlanPublic[]): UpgradePlan[] {
   return [...plans]
     .filter((plan) => plan.is_visible)
     .sort((first, second) => first.sort_order - second.sort_order)
@@ -115,7 +109,6 @@ function toUpgradePlans(plans: SubscriptionPlan[]): UpgradePlan[] {
         note: isFree ? "RON / permanent" : billingSuffix(plan.billing_interval),
         description: plan.description,
         discount: plan.discount_label ?? "",
-        cta: planCta(plan),
         paid: !isFree,
         highlighted: plan.is_featured,
         features: uniqueFeatures([
@@ -142,6 +135,36 @@ function formatSubscriptionDate(value?: string | null) {
     month: "long",
     year: "numeric",
   }).format(date);
+}
+
+function startOfLocalDay(date: Date) {
+  return new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime();
+}
+
+/** Calendar days from today until `value`; null when unknown or already past.
+ *
+ * Compared per calendar day rather than per 24h block so the wording always
+ * agrees with the date printed next to it -- a renewal three hours from now
+ * reads "astăzi", not "mâine". Returns null for a period_end in the past,
+ * which happens while a Stripe renewal webhook is still in flight.
+ */
+function daysUntil(value?: string | null) {
+  if (!value) return null;
+  const target = new Date(value);
+  if (Number.isNaN(target.getTime())) return null;
+
+  const millisecondsPerDay = 24 * 60 * 60 * 1000;
+  const days = Math.round(
+    (startOfLocalDay(target) - startOfLocalDay(new Date())) / millisecondsPerDay,
+  );
+  return days >= 0 ? days : null;
+}
+
+function renewalCountdownLabel(days: number | null) {
+  if (days === null) return "";
+  if (days === 0) return "astăzi";
+  if (days === 1) return "mâine";
+  return `${days} zile`;
 }
 
 function subscriptionActionError(error: unknown) {
@@ -179,6 +202,35 @@ export function UpgradePage({
   const accessUntilLabel = formatSubscriptionDate(
     activeSubscription?.current_period_end,
   );
+  const daysToRenewal = daysUntil(activeSubscription?.current_period_end);
+  const renewalCountdown = renewalCountdownLabel(daysToRenewal);
+  const hasPeriodEnd =
+    Boolean(activeSubscription) &&
+    currentPlanIsPaid &&
+    Boolean(activeSubscription?.current_period_end);
+  // Shown only while the plan keeps auto-renewing.
+  const showRenewalInfo = hasPeriodEnd && !cancellationPending;
+  // Always render the period end for a paid plan, whichever way it is heading:
+  // a renewal charge, or the day access stops.
+  const billingNotice = !hasPeriodEnd
+    ? null
+    : cancellationPending
+      ? {
+          tone: "warning" as const,
+          title: `Abonamentul ${currentPlanName} expiră pe ${accessUntilLabel}`,
+          detail:
+            daysToRenewal !== null
+              ? `Mai ai acces ${renewalCountdown}. După această dată contul trece automat pe planul gratuit.`
+              : "După această dată contul trece automat pe planul gratuit.",
+        }
+      : {
+          tone: "neutral" as const,
+          title: `Abonamentul ${currentPlanName} se reînnoiește pe ${accessUntilLabel}`,
+          detail:
+            daysToRenewal !== null
+              ? `Următoarea plată are loc ${renewalCountdown}. Poți opri reînnoirea oricând până atunci.`
+              : "Poți opri reînnoirea oricând până atunci.",
+        };
 
   useEffect(() => {
     let isMounted = true;
@@ -330,6 +382,12 @@ export function UpgradePage({
                 se oprește la {accessUntilLabel}
               </span>
             ) : null}
+            {showRenewalInfo ? (
+              <span className="inline-flex items-center gap-2 rounded-md border border-subtle bg-surface px-4 py-2 text-xs font-bold text-muted">
+                se reînnoiește
+                <span className="text-content">{accessUntilLabel}</span>
+              </span>
+            ) : null}
             <Link
               href="/upgrade/facturi"
               className="inline-flex cursor-pointer items-center rounded-md border border-subtle bg-surface px-4 py-2 text-xs font-bold text-muted transition hover:bg-surface-hover hover:text-content"
@@ -338,6 +396,25 @@ export function UpgradePage({
             </Link>
           </div>
         </div>
+
+        {billingNotice ? (
+          <div
+            className={`flex flex-col gap-1 rounded-md border px-5 py-4 ${
+              billingNotice.tone === "warning"
+                ? "border-warning-border bg-warning-soft text-warning"
+                : "border-subtle bg-surface text-content"
+            }`}
+          >
+            <p className="text-sm font-black">{billingNotice.title}</p>
+            <p
+              className={`text-xs leading-6 ${
+                billingNotice.tone === "warning" ? "" : "text-muted"
+              }`}
+            >
+              {billingNotice.detail}
+            </p>
+          </div>
+        ) : null}
 
         {subscriptionMessage || subscriptionError ? (
           <p
@@ -505,25 +582,18 @@ export function UpgradePage({
                         )
                       ) : null}
                     </>
-                  ) : plan.paid ? (
+                  ) : (
                     <Link
-                      href={`/checkout/${plan.slug}`}
-                      className={`inline-flex w-full cursor-pointer items-center justify-center rounded-md px-5 py-3 text-sm font-black transition ${
+                      href={planDetailPath(plan.slug)}
+                      className={`inline-flex w-full cursor-pointer items-center justify-center gap-2 rounded-md px-5 py-3 text-sm font-black transition ${
                         plan.highlighted
                           ? "bg-on-action text-action hover:bg-on-action/90"
                           : "bg-action text-on-action hover:bg-action-hover"
                       }`}
                     >
-                      {plan.cta}
+                      Vezi detaliile planului
+                      <span aria-hidden="true">→</span>
                     </Link>
-                  ) : (
-                    <button
-                      type="button"
-                      disabled
-                      className="w-full cursor-default rounded-md border border-subtle bg-surface-hover px-5 py-3 text-sm font-black text-muted"
-                    >
-                      {plan.cta}
-                    </button>
                   )}
                 </div>
               </article>

@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { AdminPlansPage } from "@/components/account/admin-plans-page";
 import {
-  fallbackSubscriptionPlans,
+  fallbackAdminSubscriptionPlans,
   getServerAdminPlans,
 } from "@/lib/server-plans";
 
@@ -11,7 +11,7 @@ export const metadata: Metadata = {
 };
 
 export default async function AdminPlansRoute() {
-  const plans = (await getServerAdminPlans()) ?? fallbackSubscriptionPlans;
+  const plans = (await getServerAdminPlans()) ?? fallbackAdminSubscriptionPlans;
 
   return <AdminPlansPage initialPlans={plans} />;
 }

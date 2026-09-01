@@ -1885,6 +1885,18 @@ export const uiTranslations: Record<string, UiTranslation> = {
     en: "Everything is transparent: selected plan, price and included benefits. Payment is secured through Stripe.",
     fr: "Tout est transparent : forfait choisi, prix et avantages inclus. Le paiement est sécurisé via Stripe.",
   },
+  "Planul ales, prețul și beneficiile incluse. Plata se face securizat prin Stripe.": {
+    en: "The selected plan, the price and the included benefits. Payment is secured through Stripe.",
+    fr: "Le forfait choisi, le prix et les avantages inclus. Le paiement est sécurisé via Stripe.",
+  },
+  "Îți cerem întâi autentificarea, apoi continui direct spre plată.": {
+    en: "We ask you to sign in first, then you go straight to payment.",
+    fr: "Nous te demandons d'abord de te connecter, puis tu passes directement au paiement.",
+  },
+  "Îți creezi contul în câțiva pași, fără card.": {
+    en: "You create your account in a few steps, no card needed.",
+    fr: "Tu crées ton compte en quelques étapes, sans carte.",
+  },
   "După plată, planul devine activ imediat. Îl poți schimba sau anula din cont.": {
     en: "After payment, the plan becomes active immediately. You can change or cancel it from your account.",
     fr: "Après paiement, le forfait devient actif immédiatement. Tu peux le modifier ou l'annuler depuis ton compte.",
@@ -3513,13 +3525,9 @@ export const uiTranslations: Record<string, UiTranslation> = {
     en: "You do not just read. You test your memory.",
     fr: "Tu ne lis pas seulement. Tu testes ta mémoire.",
   },
-  "Încarci cursul, iar Reviss extrage ideile-cheie și le transformă în flashcard-uri. Derulează pentru a răsfoi pachetul în ambele direcții.": {
-    en: "Upload the course and Reviss extracts the key ideas into flashcards. Scroll to browse the deck both ways.",
-    fr: "Importe le cours et Reviss transforme les idées clés en flashcards. Fais défiler pour parcourir le paquet dans les deux sens.",
-  },
-  "Apasă pe primul card pentru a-l întoarce și click din nou pentru a reveni la întrebare.": {
-    en: "Press the first card to flip it, then click again to return to the question.",
-    fr: "Appuie sur la première carte pour la retourner, puis clique à nouveau pour revenir à la question.",
+  "Încarci cursul, iar Reviss extrage ideile-cheie și le transformă în flashcard-uri.": {
+    en: "Upload the course and Reviss extracts the key ideas into flashcards.",
+    fr: "Importe le cours et Reviss transforme les idées clés en flashcards.",
   },
   "Meniu principal": {
     en: "Main menu",
@@ -4281,9 +4289,298 @@ export const uiTranslations: Record<string, UiTranslation> = {
     en: ". After this date, the plan returns to Beginner if you do not reactivate the subscription.",
     fr: ". Après cette date, le plan revient à Beginner si tu ne réactives pas l'abonnement.",
   },
+  "Gata de studiu": {
+    en: "Ready to study",
+    fr: "Prêt à étudier",
+  },
+  "Concepte": {
+    en: "Concepts",
+    fr: "Concepts",
+  },
+  "Pentru facultate, sesiune și examene": {
+    en: "For university, finals and exams",
+    fr: "Pour l'université, les sessions et examens",
+  },
+  "Când cursurile se adună, Reviss le transformă în pași clari.": {
+    en: "When courses pile up, Reviss turns them into clear steps.",
+    fr: "Quand les cours s'accumulent, Reviss les transforme en étapes claires.",
+  },
+  "Folosește Reviss când ai nevoie de rezumate AI din PDF-uri, flashcard-uri pentru repetare, quiz-uri personalizate și un mod mai simplu de a pregăti examenele la facultate.": {
+    en: "Use Reviss when you need AI summaries from PDFs, flashcards for review, personalized quizzes and a simpler way to prepare for university exams.",
+    fr: "Utilise Reviss quand tu as besoin de résumés IA depuis des PDF, de flashcards pour réviser, de quiz personnalisés et d'une façon plus simple de préparer les examens universitaires.",
+  },
+  "Rezumate AI din PDF-uri și cursuri": {
+    en: "AI summaries from PDFs and courses",
+    fr: "Résumés IA depuis PDF et cours",
+  },
+  "Încarci suporturi de curs, documente Word, prezentări sau notițe, iar Reviss le transformă într-un rezumat structurat pentru recapitulare rapidă.": {
+    en: "Upload course materials, Word documents, presentations or notes, and Reviss turns them into a structured summary for quick review.",
+    fr: "Importe des supports de cours, documents Word, présentations ou notes, et Reviss les transforme en résumé structuré pour une révision rapide.",
+  },
+  "Flashcard-uri pentru învățare activă": {
+    en: "Flashcards for active learning",
+    fr: "Flashcards pour l'apprentissage actif",
+  },
+  "Conceptele importante devin carduri de repetat, astfel încât să verifici ce știi deja și ce trebuie reluat înainte de examen.": {
+    en: "Important concepts become review cards, so you can check what you already know and what needs another pass before the exam.",
+    fr: "Les concepts importants deviennent des cartes à répéter, pour vérifier ce que tu sais déjà et ce qu'il faut revoir avant l'examen.",
+  },
+  "Quiz-uri personalizate pentru facultate": {
+    en: "Personalized quizzes for university",
+    fr: "Quiz personnalisés pour l'université",
+  },
+  "Generezi întrebări din materialele tale, cu explicații și feedback, ca să exersezi aplicarea ideilor, nu doar recitirea lor.": {
+    en: "Generate questions from your own materials, with explanations and feedback, so you practise applying ideas instead of just rereading them.",
+    fr: "Génère des questions depuis tes supports, avec explications et retour, pour t'entraîner à appliquer les idées plutôt qu'à seulement les relire.",
+  },
+  "Plan de recapitulare pentru sesiune": {
+    en: "Review plan for exam season",
+    fr: "Plan de révision pour la session",
+  },
+  "Reviss adună rezumate, cuvinte-cheie, flashcard-uri și progres într-un flux clar pentru colocvii, examene și licență.": {
+    en: "Reviss brings summaries, keywords, flashcards and progress together in a clear flow for tests, exams and thesis prep.",
+    fr: "Reviss rassemble résumés, mots-clés, flashcards et progression dans un flux clair pour les contrôles, examens et mémoire.",
+  },
+  "Care este rolul principal al ribozomilor?": {
+    en: "What is the main role of ribosomes?",
+    fr: "Quel est le rôle principal des ribosomes ?",
+  },
+  "Ribozomii sintetizează proteine prin traducerea informației din ARNm.": {
+    en: "Ribosomes synthesize proteins by translating information from mRNA.",
+    fr: "Les ribosomes synthétisent les protéines en traduisant l'information de l'ARNm.",
+  },
+  "Chimie organică": {
+    en: "Organic chemistry",
+    fr: "Chimie organique",
+  },
+  "Ce definește o legătură covalentă?": {
+    en: "What defines a covalent bond?",
+    fr: "Qu'est-ce qui définit une liaison covalente ?",
+  },
+  "Punerea în comun a uneia sau mai multor perechi de electroni.": {
+    en: "The sharing of one or more pairs of electrons.",
+    fr: "Le partage d'une ou plusieurs paires d'électrons.",
+  },
+  "Istorie modernă": {
+    en: "Modern history",
+    fr: "Histoire moderne",
+  },
+  "În ce an a început Revoluția Franceză?": {
+    en: "In what year did the French Revolution begin?",
+    fr: "En quelle année la Révolution française a-t-elle commencé ?",
+  },
+  "Revoluția Franceză a început în anul 1789.": {
+    en: "The French Revolution began in 1789.",
+    fr: "La Révolution française a commencé en 1789.",
+  },
+  "Programare": {
+    en: "Programming",
+    fr: "Programmation",
+  },
+  "Încarci cursul, iar Reviss extrage ideile-cheie și le transformă în flashcard-uri. Derulează pentru a răsfoi pachetul în ambele direcții.": {
+    en: "Upload the course, and Reviss extracts the key ideas and turns them into flashcards. Scroll to browse the pack in both directions.",
+    fr: "Importe le cours, et Reviss extrait les idées clés pour les transformer en flashcards. Fais défiler pour parcourir le paquet dans les deux sens.",
+  },
+  "Derulează pentru a răsfoi pachetul în ambele direcții.": {
+    en: "Scroll to browse the pack in both directions.",
+    fr: "Fais défiler pour parcourir le paquet dans les deux sens.",
+  },
+  "Apasă pe primul card pentru a-l întoarce și click din nou pentru a reveni la întrebare.": {
+    en: "Press the first card to flip it, then click again to return to the question.",
+    fr: "Appuie sur la première carte pour la retourner, puis clique à nouveau pour revenir à la question.",
+  },
+  "Cel mai bun raport pentru studenți activi.": {
+    en: "The best value for active students.",
+    fr: "Le meilleur rapport qualité-prix pour les étudiants actifs.",
+  },
+  "Pentru sesiuni intense și mai multe materii.": {
+    en: "For intense sessions and multiple subjects.",
+    fr: "Pour les sessions intensives et plusieurs matières.",
+  },
+  "Prioritate la generare": {
+    en: "Priority generation",
+    fr: "Génération prioritaire",
+  },
+  "Highlight-uri și explicații AI": {
+    en: "Highlights and AI explanations",
+    fr: "Surlignages et explications IA",
+  },
+  "Suport prioritar": {
+    en: "Priority support",
+    fr: "Support prioritaire",
+  },
+  "Predicții avansate de pregătire": {
+    en: "Advanced readiness predictions",
+    fr: "Prédictions avancées de préparation",
+  },
+  "25% reducere lansare": {
+    en: "25% launch discount",
+    fr: "25 % de réduction de lancement",
+  },
+  "20 RON economie": {
+    en: "20 RON savings",
+    fr: "20 RON d'économie",
+  },
+  "10 RON economie": {
+    en: "10 RON savings",
+    fr: "10 RON d'économie",
+  },
+  "RON / lună": {
+    en: "RON / month",
+    fr: "RON / mois",
+  },
+  "RON / an": {
+    en: "RON / year",
+    fr: "RON / an",
+  },
+  "RON / permanent": {
+    en: "RON / lifetime",
+    fr: "RON / permanent",
+  },
+  "RON gratuit": {
+    en: "RON free",
+    fr: "RON gratuit",
+  },
+  "gratuit": {
+    en: "free",
+    fr: "gratuit",
+  },
+  "examene": {
+    en: "exams",
+    fr: "examens",
+  },
+  "Materiale nelimitate rezonabil": {
+    en: "Reasonably unlimited materials",
+    fr: "Supports illimités raisonnablement",
+  },
+  "AI de bază": {
+    en: "Basic AI",
+    fr: "IA de base",
+  },
+  "Istoric limitat": {
+    en: "Limited history",
+    fr: "Historique limité",
+  },
+  "Repetiție inteligentă și strategii AI": {
+    en: "Smart repetition and AI strategies",
+    fr: "Répétition intelligente et stratégies IA",
+  },
+  "Export și arhivă extinsă": {
+    en: "Export and extended archive",
+    fr: "Export et archive étendue",
+  },
+  "Navigare": {
+    en: "Navigation",
+    fr: "Navigation",
+  },
+  "Ce include": {
+    en: "What is included",
+    fr: "Ce qui est inclus",
+  },
+  "Limitele planului": {
+    en: "Plan limits",
+    fr: "Limites du forfait",
+  },
+  "Condiții de utilizare": {
+    en: "Terms of use",
+    fr: "Conditions d'utilisation",
+  },
+  "Materiale pe lună": {
+    en: "Materials per month",
+    fr: "Supports par mois",
+  },
+  "Fișiere pe proiect": {
+    en: "Files per project",
+    fr: "Fichiers par projet",
+  },
+  "Mărime maximă fișier": {
+    en: "Maximum file size",
+    fr: "Taille maximale du fichier",
+  },
+  "Pagini pe material": {
+    en: "Pages per material",
+    fr: "Pages par support",
+  },
+  "Flashcard-uri generate inițial": {
+    en: "Initial generated flashcards",
+    fr: "Flashcards initiales générées",
+  },
+  "Întrebări pe quiz": {
+    en: "Questions per quiz",
+    fr: "Questions par quiz",
+  },
+  "Documente scanate (OCR)": {
+    en: "Scanned documents (OCR)",
+    fr: "Documents scannés (OCR)",
+  },
+  "Chat AI pe proiect": {
+    en: "AI chat per project",
+    fr: "Chat IA par projet",
+  },
+  "Incluse": {
+    en: "Included",
+    fr: "Inclus",
+  },
+  "Neincluse": {
+    en: "Not included",
+    fr: "Non inclus",
+  },
+  "Inclus": {
+    en: "Included",
+    fr: "Inclus",
+  },
+  "Neinclus": {
+    en: "Not included",
+    fr: "Non inclus",
+  },
+  "Fără plată": {
+    en: "No payment",
+    fr: "Aucun paiement",
+  },
+  "Oricând, din cont": {
+    en: "Anytime, from account",
+    fr: "À tout moment, depuis le compte",
+  },
+  "Plata se procesează securizat prin Stripe. Vezi": {
+    en: "Payment is securely processed through Stripe. See",
+    fr: "Le paiement est traité de manière sécurisée via Stripe. Voir",
+  },
+  "Potrivit pentru testarea fluxului. Documentele scanate sau OCR nu sunt incluse in acest plan.": {
+    en: "Suitable for testing the flow. Scanned documents or OCR are not included in this plan.",
+    fr: "Adapté pour tester le flux. Les documents scannés ou l'OCR ne sont pas inclus dans ce forfait.",
+  },
+  "Pentru utilizare individuala activa. Limitele sunt lunare si se reseteaza automat.": {
+    en: "For active individual use. Limits are monthly and reset automatically.",
+    fr: "Pour un usage individuel actif. Les limites sont mensuelles et se réinitialisent automatiquement.",
+  },
+  "Pentru sesiuni intense si volume mari rezonabile. Utilizarea trebuie sa ramana educationala si individuala.": {
+    en: "For intense sessions and reasonably large volumes. Use must remain educational and individual.",
+    fr: "Pour des sessions intensives et des volumes raisonnablement importants. L'utilisation doit rester éducative et individuelle.",
+  },
+  "Reviss este un instrument educațional. Conținutul generat automat poate conține erori și trebuie verificat.": {
+    en: "Reviss is an educational tool. Automatically generated content may contain errors and should be checked.",
+    fr: "Reviss est un outil éducatif. Le contenu généré automatiquement peut contenir des erreurs et doit être vérifié.",
+  },
+  "Toate drepturile rezervate.": {
+    en: "All rights reserved.",
+    fr: "Tous droits réservés.",
+  },
+  ". Toate drepturile rezervate.": {
+    en: ". All rights reserved.",
+    fr: ". Tous droits réservés.",
+  },
+  "Plata se face lunar, fără perioadă contractuală.": {
+    en: "Payment is monthly, with no fixed contract period.",
+    fr: "Paiement mensuel, sans engagement contractuel.",
+  },
 };
 
 const uiPatternTranslations: UiPatternTranslation[] = [
+  {
+    source: /^Pentru primul curs (?:și|si) testarea fluxului Rev(?:iss|izzio)\.$/,
+    en: () => "For your first course and testing the Reviss flow.",
+    fr: () => "Pour ton premier cours et tester le flux Reviss.",
+  },
   {
     source: /^Ai (\d+) proiecte pregătite pentru studiu\.$/,
     en: ([, count]) => `You have ${count} projects ready for study.`,
@@ -4460,6 +4757,31 @@ const uiPatternTranslations: UiPatternTranslation[] = [
     source: /^(.+) RON \/ lună$/,
     en: ([, price]) => `${price} RON / month`,
     fr: ([, price]) => `${price} RON / mois`,
+  },
+  {
+    source: /^(.+) RON economie$/,
+    en: ([, value]) => `${value} RON savings`,
+    fr: ([, value]) => `${value} RON d'économie`,
+  },
+  {
+    source: /^(\d+)% reducere lansare$/,
+    en: ([, value]) => `${value}% launch discount`,
+    fr: ([, value]) => `${value} % de réduction de lancement`,
+  },
+  {
+    source: /^Planul (.+)$/,
+    en: ([, plan]) => `${plan} plan`,
+    fr: ([, plan]) => `Forfait ${plan}`,
+  },
+  {
+    source: /^Încearcă planul (.+)$/,
+    en: ([, plan]) => `Try the ${plan} plan`,
+    fr: ([, plan]) => `Essayer le forfait ${plan}`,
+  },
+  {
+    source: /^© (\d{4}) (.+)\. Toate drepturile rezervate\.$/,
+    en: ([, year, company]) => `© ${year} ${company}. All rights reserved.`,
+    fr: ([, year, company]) => `© ${year} ${company}. Tous droits réservés.`,
   },
 ];
 

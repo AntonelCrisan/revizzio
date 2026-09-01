@@ -4,6 +4,44 @@ export type SubscriptionPlanFeature = {
   sort_order: number;
 };
 
+/** Shape returned by the unauthenticated `GET /api/plans/` endpoint.
+ *
+ * Mirrors `SubscriptionPlanPublicResponse` on the backend. It deliberately
+ * lacks the Stripe identifiers, our per-cycle OpenAI cost and the internal
+ * accounting units -- `is_purchasable` stands in for "has a Stripe price".
+ * Anything rendered on a public page must come from this type, not from
+ * `SubscriptionPlan` below (which is admin-only).
+ */
+export type SubscriptionPlanPublic = {
+  slug: string;
+  name: string;
+  price_ron: string | number;
+  old_price_ron: string | number | null;
+  discount_label: string | null;
+  billing_interval: string;
+  badge: string | null;
+  description: string;
+  material_limit: string;
+  ai_level: string;
+  storage: string;
+  conditions: string;
+  active_project_limit: number;
+  monthly_material_limit: number;
+  files_per_project_limit: number;
+  file_size_limit_mb: number;
+  estimated_page_limit: number;
+  initial_flashcard_limit: number;
+  quiz_questions_per_quiz: number;
+  allow_scanned_documents: boolean;
+  ai_chat_enabled: boolean;
+  is_featured: boolean;
+  is_visible: boolean;
+  sort_order: number;
+  is_purchasable: boolean;
+  features: SubscriptionPlanFeature[];
+};
+
+/** Full plan row, returned only by the admin endpoints. */
 export type SubscriptionPlan = {
   id: string;
   slug: string;

@@ -66,6 +66,47 @@ class SubscriptionPlanResponse(BaseModel):
     features: list[SubscriptionPlanFeatureResponse]
 
 
+class SubscriptionPlanPublicResponse(BaseModel):
+    """Plan fields safe to expose on unauthenticated endpoints.
+
+    Deliberately omits internal and commercially sensitive columns:
+    ``max_openai_cost_usd_per_cycle`` (our cost per cycle, i.e. the margin),
+    the Stripe identifiers, the internal AI credit / OCR / page accounting
+    units, and the row bookkeeping (id, timestamps). ``is_purchasable``
+    replaces ``stripe_price_id`` so clients can tell whether checkout is
+    wired up without learning the price id itself.
+    """
+
+    model_config = ConfigDict(from_attributes=True)
+
+    slug: str
+    name: str
+    price_ron: Decimal
+    old_price_ron: Decimal | None
+    discount_label: str | None
+    billing_interval: str
+    badge: str | None
+    description: str
+    material_limit: str
+    ai_level: str
+    storage: str
+    conditions: str
+    active_project_limit: int
+    monthly_material_limit: int
+    files_per_project_limit: int
+    file_size_limit_mb: int
+    estimated_page_limit: int
+    initial_flashcard_limit: int
+    quiz_questions_per_quiz: int
+    allow_scanned_documents: bool
+    ai_chat_enabled: bool
+    is_featured: bool
+    is_visible: bool
+    sort_order: int
+    is_purchasable: bool
+    features: list[SubscriptionPlanFeatureResponse]
+
+
 class SubscriptionPlanFeatureUpdate(BaseModel):
     id: uuid.UUID | None = None
     label: str = Field(min_length=1, max_length=300)

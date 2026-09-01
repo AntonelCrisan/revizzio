@@ -4,10 +4,10 @@ import Link from "next/link";
 import { useState } from "react";
 import { AccountStaticShell } from "@/components/account/account-static-shell";
 import { createCheckoutSession, PaymentsApiError } from "@/lib/payments-api";
-import type { SubscriptionPlan } from "@/lib/plans-api";
+import type { SubscriptionPlanPublic } from "@/lib/plans-api";
 
 type CheckoutPlanPageProps = {
-  plan: SubscriptionPlan;
+  plan: SubscriptionPlanPublic;
 };
 
 function CheckIcon() {
@@ -25,7 +25,7 @@ function CheckIcon() {
   );
 }
 
-function formatPlanPrice(value: SubscriptionPlan["price_ron"]) {
+function formatPlanPrice(value: SubscriptionPlanPublic["price_ron"]) {
   const numericValue = Number(value);
   if (!Number.isFinite(numericValue)) return String(value);
   return Number.isInteger(numericValue)
@@ -47,7 +47,7 @@ function paymentFrequency(interval: string) {
   return `${interval}, reînnoire automată`;
 }
 
-function uniqueFeatures(plan: SubscriptionPlan) {
+function uniqueFeatures(plan: SubscriptionPlanPublic) {
   const sortedFeatures = [...plan.features].sort(
     (first, second) => first.sort_order - second.sort_order,
   );
@@ -80,7 +80,7 @@ export function CheckoutPlanPage({ plan }: CheckoutPlanPageProps) {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const price = formatPlanPrice(plan.price_ron);
   const isFree = Number(plan.price_ron) === 0;
-  const hasStripePrice = Boolean(plan.stripe_price_id);
+  const hasStripePrice = plan.is_purchasable;
   const canStartPayment = !isFree && hasStripePrice && !isStartingPayment;
   const features = uniqueFeatures(plan).slice(0, 6);
   const period = billingPeriod(plan.billing_interval);
@@ -101,7 +101,7 @@ export function CheckoutPlanPage({ plan }: CheckoutPlanPageProps) {
 
   return (
     <AccountStaticShell activePage="upgrade">
-      <div className="grid gap-8 lg:grid-cols-[1fr_23rem] lg:items-start">
+      <div className="grid gap-6 lg:grid-cols-[1fr_23rem] lg:items-start">
         <section>
           <Link
             href="/upgrade"
@@ -111,44 +111,44 @@ export function CheckoutPlanPage({ plan }: CheckoutPlanPageProps) {
             Înapoi la abonamente
           </Link>
 
-          <p className="mt-10 text-xs font-black uppercase tracking-[0.22em] text-warning">
+          <p className="mt-6 text-xs font-black uppercase tracking-[0.22em] text-warning">
             Confirmare abonament
           </p>
-          <h1 className="mt-3 max-w-3xl font-serif text-4xl font-semibold leading-tight sm:text-5xl">
+          <h1 className="mt-2 max-w-3xl font-serif text-2xl font-semibold leading-tight sm:text-3xl">
             Verifică planul înainte de plată.
           </h1>
-          <p className="mt-4 max-w-2xl text-sm leading-7 text-muted">
-            Totul este transparent: planul ales, prețul și beneficiile incluse.
-            Plata se face securizat prin Stripe.
+          <p className="mt-3 max-w-2xl text-[13px] leading-6 text-muted">
+            Planul ales, prețul și beneficiile incluse. Plata se face securizat
+            prin Stripe.
           </p>
 
-          <div className="mt-8 rounded-[1.5rem] border border-subtle bg-surface p-6 shadow-sm">
-            <div className="flex flex-wrap items-start justify-between gap-5">
+          <div className="mt-6 rounded-md border border-subtle bg-surface p-5 shadow-sm">
+            <div className="flex flex-wrap items-start justify-between gap-4">
               <div>
                 {plan.discount_label ? (
                   <span className="rounded-md bg-warning-soft px-3 py-1 text-[10px] font-black uppercase text-warning">
                     {plan.discount_label}
                   </span>
                 ) : null}
-                <h2 className="mt-3 font-serif text-3xl font-semibold">
+                <h2 className="mt-2 font-serif text-2xl font-semibold">
                   {plan.name}
                 </h2>
-                <p className="mt-1 max-w-xl text-sm leading-6 text-muted">
+                <p className="mt-1 max-w-xl text-[13px] leading-6 text-muted">
                   {plan.description}
                 </p>
               </div>
 
               <p className="text-right">
-                <span className="block font-serif text-5xl font-semibold leading-none">
+                <span className="block font-serif text-4xl font-semibold leading-none">
                   {price}
                 </span>
-                <span className="text-sm text-muted">
+                <span className="text-xs text-muted">
                   {isFree ? "RON" : "RON / lună"}
                 </span>
               </p>
             </div>
 
-            <div className="my-6 h-px bg-subtle" />
+            <div className="my-5 h-px bg-subtle" />
 
             <ul className="grid gap-3 text-sm sm:grid-cols-2">
               {features.map((feature) => (
@@ -163,10 +163,10 @@ export function CheckoutPlanPage({ plan }: CheckoutPlanPageProps) {
           </div>
         </section>
 
-        <aside className="rounded-[1.5rem] border border-subtle bg-surface p-6 shadow-lg shadow-black/10 lg:sticky lg:top-6">
-          <h2 className="text-lg font-black">Sumar Plată</h2>
+        <aside className="rounded-md border border-subtle bg-surface p-5 shadow-lg shadow-black/10 lg:sticky lg:top-6">
+          <h2 className="text-base font-black">Sumar Plată</h2>
 
-          <dl className="mt-6 space-y-0 text-sm">
+          <dl className="mt-4 space-y-0 text-sm">
             {[
               ["Plan selectat", `${plan.name} (${period})`],
               ["Monedă plată", "RON"],
@@ -175,19 +175,19 @@ export function CheckoutPlanPage({ plan }: CheckoutPlanPageProps) {
             ].map(([label, value]) => (
               <div
                 key={label}
-                className="flex items-center justify-between gap-4 border-b border-subtle py-4"
+                className="flex items-center justify-between gap-4 border-b border-subtle py-3"
               >
                 <dt className="text-muted">{label}</dt>
                 <dd className="text-right text-xs font-black">{value}</dd>
               </div>
             ))}
-            <div className="flex items-center justify-between gap-4 py-5">
+            <div className="flex items-center justify-between gap-4 py-4">
               <dt className="font-black">Preț Total</dt>
               <dd className="text-lg font-black">{price} RON</dd>
             </div>
           </dl>
 
-          <div className="mt-6 border-t border-subtle pt-5 text-xs leading-6 text-muted">
+          <div className="mt-4 border-t border-subtle pt-4 text-xs leading-6 text-muted">
             <p className="font-black text-content">Ce urmează?</p>
             <p className="mt-2">
               După plată, planul devine activ imediat. Îl poți schimba sau

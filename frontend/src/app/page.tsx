@@ -4,14 +4,14 @@ import { BrandLogo } from "@/components/brand-logo";
 import { SiteFooter } from "@/components/legal/site-footer";
 import { FlashcardStory } from "@/components/marketing/flashcard-story";
 import { MarketingHeader } from "@/components/marketing/marketing-header";
-import { PlanCtaLink } from "@/components/marketing/plan-cta-link";
 import { ScrollReveal } from "@/components/marketing/scroll-reveal";
 import { TranslatedText } from "@/components/translated-text";
-import type { SubscriptionPlan } from "@/lib/plans-api";
+import type { SubscriptionPlanPublic } from "@/lib/plans-api";
 import {
   absoluteUrl,
   defaultLocale,
   openGraphImagePath,
+  planDetailPath,
   seoKeywords,
   siteName,
   siteUrl,
@@ -218,6 +218,7 @@ const studyUseCases = [
 
 const fallbackMarketingPricingPlans = [
   {
+    slug: "start",
     name: "Beginner",
     description: "Pentru primul curs și primele sesiuni de studiu activ.",
     price: "0",
@@ -228,12 +229,12 @@ const fallbackMarketingPricingPlans = [
       "Maximum 25 de pagini per material",
       "Istoric pentru ultimele 7 zile",
     ],
-    cta: "Începe gratuit",
     featured: false,
     discount: "",
     oldPrice: "",
   },
   {
+    slug: "focus",
     name: "Focus",
     description: "Tot ce ai nevoie pentru facultate, de la seminar la examen.",
     price: "29",
@@ -245,12 +246,12 @@ const fallbackMarketingPricingPlans = [
       "Repetiție inteligentă și explicații AI",
       "Progres complet pentru fiecare curs",
     ],
-    cta: "Alege Focus",
     featured: true,
     discount: "25% reducere lansare",
     oldPrice: "39",
   },
   {
+    slug: "pro",
     name: "Exam Pro",
     description: "Pentru sesiuni intense, licență și volume mari de cursuri.",
     price: "59",
@@ -262,7 +263,6 @@ const fallbackMarketingPricingPlans = [
       "Simulări de examen și analiză avansată",
       "Export pentru rezumate și flashcard-uri",
     ],
-    cta: "Treci la Exam Pro",
     featured: false,
     discount: "20 RON economie",
     oldPrice: "79",
@@ -355,7 +355,7 @@ const homepageStructuredData = {
   ],
 };
 
-function formatPlanPrice(value: SubscriptionPlan["price_ron"]) {
+function formatPlanPrice(value: SubscriptionPlanPublic["price_ron"]) {
   const numericValue = Number(value);
   if (!Number.isFinite(numericValue)) return String(value);
   return Number.isInteger(numericValue)
@@ -380,7 +380,7 @@ function uniqueFeatures(features: string[]) {
   });
 }
 
-function toPricingPlans(plans: SubscriptionPlan[]) {
+function toPricingPlans(plans: SubscriptionPlanPublic[]) {
   return [...plans]
     .filter((plan) => plan.is_visible)
     .sort((first, second) => first.sort_order - second.sort_order)
@@ -395,6 +395,7 @@ function toPricingPlans(plans: SubscriptionPlan[]) {
       );
 
       return {
+        slug: plan.slug,
         name: plan.name,
         description: plan.description,
         price,
@@ -403,7 +404,6 @@ function toPricingPlans(plans: SubscriptionPlan[]) {
           plan.material_limit,
           ...sortedFeatures.map((feature) => feature.label),
         ]),
-        cta: isFree ? "Începe gratuit" : `Alege ${plan.name}`,
         featured: plan.is_featured,
         discount: plan.discount_label ?? "",
         oldPrice,
@@ -962,18 +962,17 @@ export default async function Home() {
                     ))}
                   </ul>
 
-                  <PlanCtaLink
-                    isFree={plan.price === "0"}
-                    href={plan.price === "0" ? "/register" : "/upgrade"}
-                    label={plan.price === "0" ? plan.cta : "Vezi detaliile planului"}
+                  <Link
+                    href={planDetailPath(plan.slug)}
                     className={`mt-auto inline-flex items-center justify-center gap-3 rounded-md px-5 py-3.5 text-sm font-bold transition ${
                       plan.featured
                         ? "bg-on-action text-action hover:opacity-90"
                         : "border border-subtle bg-app hover:bg-surface-hover"
                     }`}
                   >
+                    Vezi detaliile planului
                     <ArrowIcon />
-                  </PlanCtaLink>
+                  </Link>
                 </article>
               </ScrollReveal>
             ))}

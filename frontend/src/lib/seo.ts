@@ -51,7 +51,7 @@ export const seoKeywords = [
 
 export const publicSitemapRoutes = [
   { path: "/", changeFrequency: "weekly", priority: 1 },
-  { path: "/upgrade", changeFrequency: "monthly", priority: 0.8 },
+  { path: "/abonamente", changeFrequency: "weekly", priority: 0.9 },
   { path: "/contact", changeFrequency: "monthly", priority: 0.55 },
   {
     path: "/termeni-si-conditii",
@@ -78,7 +78,9 @@ export const robotsDisallowRoutes = [
   "/checkout/",
   "/myaccount/",
   "/settings/",
-  "/upgrade/facturi/",
+  // Requires a session and mirrors /abonamente, which is the indexable
+  // pricing page. Covers /upgrade/facturi too.
+  "/upgrade",
 ];
 
 export const noIndexRobots: Metadata["robots"] = {
@@ -89,6 +91,13 @@ export const noIndexRobots: Metadata["robots"] = {
     follow: false,
   },
 };
+
+/** Public, indexable route for a single subscription plan. */
+export const plansIndexPath = "/abonamente";
+
+export function planDetailPath(slug: string) {
+  return `${plansIndexPath}/${slug}`;
+}
 
 export function absoluteUrl(path: string) {
   return new URL(path, siteUrl).toString();

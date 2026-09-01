@@ -10,6 +10,7 @@ from sqlalchemy.orm import selectinload
 from app.api.dependencies import CurrentAdminUser, DbSession
 from app.models import SubscriptionPlan, SubscriptionPlanFeature
 from app.schemas.plans import (
+    SubscriptionPlanPublicResponse,
     SubscriptionPlanResponse,
     SubscriptionPlansUpdate,
 )
@@ -229,10 +230,32 @@ def _plan_response(plan: SubscriptionPlan) -> SubscriptionPlanResponse:
     return response
 
 
-@router.get("/", response_model=list[SubscriptionPlanResponse])
-async def get_public_plans(session: DbSession) -> list[SubscriptionPlanResponse]:
+def _public_plan_response(plan: SubscriptionPlan) -> SubscriptionPlanPublicResponse:
+    """Serialise a plan for unauthenticated callers.
+
+    Only the fields declared on SubscriptionPlanPublicResponse leave the
+    server, so internal cost accounting and Stripe identifiers stay private.
+    """
+    payload = {
+        field: getattr(plan, field)
+        for field in SubscriptionPlanPublicResponse.model_fields
+        if field != "is_purchasable"
+    }
+    payload["is_purchasable"] = bool(plan.stripe_price_id)
+    response = SubscriptionPlanPublicResponse.model_validate(payload)
+
+    if response.slug == "start" and response.name == "Start":
+        response.name = "Beginner"
+
+    return response
+
+
+@router.get("/", response_model=list[SubscriptionPlanPublicResponse])
+async def get_public_plans(
+    session: DbSession,
+) -> list[SubscriptionPlanPublicResponse]:
     plans = await _get_plans(session, include_hidden=False)
-    return [_plan_response(plan) for plan in plans]
+    return [_public_plan_response(plan) for plan in plans]
 
 
 @router.get("/admin", response_model=list[SubscriptionPlanResponse])

@@ -3,7 +3,11 @@ from decimal import Decimal
 import pytest
 from pydantic import ValidationError
 
-from app.schemas.plans import SubscriptionPlansUpdate, SubscriptionPlanUpdate
+from app.schemas.plans import (
+    SubscriptionPlanPublicResponse,
+    SubscriptionPlansUpdate,
+    SubscriptionPlanUpdate,
+)
 
 
 def _plan(slug: str, stripe_price_id: str | None) -> SubscriptionPlanUpdate:
@@ -97,3 +101,38 @@ def test_subscription_plan_derives_monthly_material_limit() -> None:
     )
 
     assert payload.monthly_material_limit == 64
+
+
+SENSITIVE_PLAN_FIELDS = (
+    # Our cost per cycle -- exposing it exposes the margin on every plan.
+    "max_openai_cost_usd_per_cycle",
+    # Payment infrastructure identifiers.
+    "stripe_product_id",
+    "stripe_price_id",
+    # Internal accounting units that mean nothing to a visitor.
+    "monthly_ai_credits",
+    "monthly_ocr_pages",
+    "monthly_page_limit",
+    "project_size_limit_mb",
+    "quiz_groups_per_complexity",
+    # Row bookkeeping.
+    "id",
+    "created_at",
+    "updated_at",
+)
+
+
+def test_public_plan_response_excludes_sensitive_fields() -> None:
+    """The unauthenticated /api/plans/ payload must stay free of internals."""
+    exposed = set(SubscriptionPlanPublicResponse.model_fields)
+
+    assert exposed.isdisjoint(SENSITIVE_PLAN_FIELDS), (
+        "public plan schema leaks: "
+        f"{sorted(exposed.intersection(SENSITIVE_PLAN_FIELDS))}"
+    )
+
+
+def test_public_plan_response_reports_purchasability_without_price_id() -> None:
+    """Clients need to know checkout is wired up, not what the price id is."""
+    assert "is_purchasable" in SubscriptionPlanPublicResponse.model_fields
+    assert "stripe_price_id" not in SubscriptionPlanPublicResponse.model_fields
