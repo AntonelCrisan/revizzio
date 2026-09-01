@@ -51,7 +51,7 @@ export async function SiteFooter() {
                     target="_blank"
                     rel="noopener noreferrer"
                     aria-label={label}
-                    className="flex h-9 w-9 items-center justify-center rounded-full border border-subtle bg-app text-content transition hover:bg-surface-hover hover:text-action"
+                    className="flex h-9 w-9 items-center justify-center rounded-md border border-subtle bg-app text-content transition hover:bg-surface-hover hover:text-action"
                   >
                     <Icon />
                   </a>

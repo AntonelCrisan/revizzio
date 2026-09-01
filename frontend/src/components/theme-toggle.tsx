@@ -69,7 +69,7 @@ export function ThemeToggle({
       type="button"
       onClick={handleClick}
       disabled={disabled}
-      className="flex h-10 w-10 items-center justify-center rounded-xl border border-subtle bg-surface text-content shadow-sm transition hover:bg-surface-hover disabled:cursor-wait disabled:opacity-60"
+      className="flex h-10 w-10 items-center justify-center rounded-md border border-subtle bg-surface text-content shadow-sm transition hover:bg-surface-hover disabled:cursor-wait disabled:opacity-60"
       aria-label={`Activează tema ${nextTheme}`}
       title={`Activează tema ${nextTheme}`}
     >

@@ -16,6 +16,19 @@ import {
 import { AccountSkeleton } from "@/components/account/account-skeleton";
 import { useAuth } from "@/components/auth/auth-provider";
 import { BrandLogo } from "@/components/brand-logo";
+import {
+  ACCOUNT_SIDEBAR_COLLAPSED_STORAGE_KEY,
+  AccountSidebarTooltip,
+  getAccountSidebarActionClass,
+  getAccountSidebarActionLabelClass,
+  getAccountSidebarChevronClass,
+  getAccountSidebarHeaderClass,
+  getAccountSidebarItemClass,
+  getAccountSidebarLabelClass,
+  getAccountSidebarProjectClass,
+  getAccountSidebarScrollClass,
+  getAccountSidebarShellClass,
+} from "@/components/account/account-sidebar-ui";
 import { useLanguage } from "@/components/language-provider";
 import type { AuthUserPlan, LanguagePreference } from "@/lib/auth-api";
 import { getStudyPreferences } from "@/lib/preferences-api";
@@ -121,7 +134,6 @@ type ProjectUploadPlanLimits = {
 };
 
 const initialProjects: StudyProject[] = [];
-const SIDEBAR_COLLAPSED_STORAGE_KEY = "revizzio-sidebar-collapsed";
 const AI_ACCESS_UNAVAILABLE_MESSAGE =
   "Funcționalitatea AI nu este disponibilă pe planul curent.";
 const AI_ACCESS_UPGRADE_MESSAGE =
@@ -255,13 +267,32 @@ function Icon({
   );
 }
 
-function Logo() {
+function Logo({ collapsed = false }: { collapsed?: boolean }) {
   return (
-    <BrandLogo
-      href="/"
-      className="text-content transition hover:text-action"
-      logoClassName="h-7 w-28"
-    />
+    <>
+      <span className={collapsed ? "hidden lg:inline-flex" : "hidden"}>
+        <BrandLogo
+          href="/"
+          variant="mark"
+          className="text-content transition hover:text-action"
+          logoClassName="h-8 w-8"
+        />
+      </span>
+      <span className={collapsed ? "lg:hidden" : ""}>
+        <BrandLogo
+          href="/"
+          className="text-content transition hover:text-action"
+          logoClassName="h-7 w-28"
+        />
+      </span>
+    </>
+  );
+}
+
+function isDesktopSidebarViewport() {
+  return (
+    typeof window !== "undefined" &&
+    window.matchMedia("(min-width: 1024px)").matches
   );
 }
 
@@ -581,7 +612,7 @@ export function AccountDashboard({
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(
     () =>
       typeof window !== "undefined" &&
-      window.localStorage.getItem(SIDEBAR_COLLAPSED_STORAGE_KEY) === "true",
+      window.localStorage.getItem(ACCOUNT_SIDEBAR_COLLAPSED_STORAGE_KEY) === "true",
   );
   const [openSidebarGroup, setOpenSidebarGroup] =
     useState<SidebarGroupId | null>(null);
@@ -861,7 +892,7 @@ export function AccountDashboard({
     setIsSidebarCollapsed((current) => {
       const next = !current;
       window.localStorage.setItem(
-        SIDEBAR_COLLAPSED_STORAGE_KEY,
+        ACCOUNT_SIDEBAR_COLLAPSED_STORAGE_KEY,
         String(next),
       );
       return next;
@@ -1594,22 +1625,15 @@ export function AccountDashboard({
       ) : null}
 
       <aside
-        className={`fixed inset-y-0 left-0 z-50 flex w-[min(84vw,300px)] flex-col overflow-hidden border-r border-subtle bg-sidebar transition-all duration-300 lg:sticky lg:top-0 lg:h-svh ${
-          sidebarOpen ? "translate-x-0" : "-translate-x-full"
-        } ${
-          isSidebarCollapsed
-            ? "lg:w-0 lg:translate-x-0 lg:border-r-0 lg:pointer-events-none lg:opacity-0"
-            : "lg:w-[min(84vw,300px)] lg:translate-x-0 lg:opacity-100"
-        }`}
-        aria-hidden={isSidebarCollapsed}
+        className={getAccountSidebarShellClass(sidebarOpen, isSidebarCollapsed)}
         aria-label="Meniu principal"
       >
-        <div className="flex items-center justify-between px-4 py-4">
-          <Logo />
+        <div className={getAccountSidebarHeaderClass(isSidebarCollapsed)}>
+          <Logo collapsed={isSidebarCollapsed} />
           <button
             type="button"
             onClick={() => setSidebarOpen(false)}
-            className="flex h-10 w-10 items-center justify-center rounded-xl text-content transition hover:bg-surface-hover lg:hidden"
+            className="flex h-10 w-10 items-center justify-center rounded-md text-muted transition hover:bg-surface-hover hover:text-content lg:hidden"
             aria-label="Închide meniul"
           >
             <Icon className="h-5 w-5">
@@ -1619,43 +1643,58 @@ export function AccountDashboard({
           <button
             type="button"
             onClick={toggleSidebarCollapsed}
-            className="hidden h-10 w-10 items-center justify-center rounded-xl text-content transition hover:bg-surface-hover lg:flex"
-            aria-label="Ascunde meniul"
+            className="hidden h-9 w-9 items-center justify-center rounded-md text-muted transition hover:bg-action-soft hover:text-content lg:flex"
+            aria-label={isSidebarCollapsed ? "Extinde meniul" : "Restrânge meniul"}
+            title={isSidebarCollapsed ? "Extinde meniul" : "Restrânge meniul"}
           >
-            <Icon className="h-5 w-5">
-              <path d="M11 19l-7-7 7-7M4 12h16" />
+            <Icon className="h-4 w-4">
+              {isSidebarCollapsed ? (
+                <path d="M13 5l7 7-7 7M20 12H4" />
+              ) : (
+                <path d="M11 19l-7-7 7-7M4 12h16" />
+              )}
             </Icon>
           </button>
         </div>
 
-        <div className="min-h-0 flex-1 overflow-y-auto pb-4">
+        <div className={getAccountSidebarScrollClass(isSidebarCollapsed)}>
           <button
             type="button"
             onClick={openNewProject}
-            className="mx-4 mb-4 flex w-[calc(100%-2rem)] items-center justify-center gap-2 rounded-full bg-content px-4 py-3 text-sm font-semibold text-app transition hover:opacity-90"
+            className={getAccountSidebarActionClass(isSidebarCollapsed)}
           >
             <Icon>
               <path d="M12 5v14M5 12h14" />
             </Icon>
-            Proiect nou
+            <span className={getAccountSidebarActionLabelClass(isSidebarCollapsed)}>
+              Proiect nou
+            </span>
+            <AccountSidebarTooltip enabled={isSidebarCollapsed}>
+              Proiect nou
+            </AccountSidebarTooltip>
           </button>
 
-          <nav className="space-y-1 px-2">
+          <nav className="space-y-1">
             <button
               type="button"
-            onClick={showHome}
-            className={`flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-semibold transition ${
-              view === "home"
-                  ? "bg-action-soft text-content"
-                  : "text-content hover:bg-action-soft"
-              }`}
+              onClick={showHome}
+              className={getAccountSidebarItemClass(
+                view === "home",
+                isSidebarCollapsed,
+              )}
             >
               <Icon className="h-[18px] w-[18px]">
                 <path d="M3 11l9-8 9 8" />
                 <path d="M5 10v10h14V10" />
               </Icon>
-              Acasă
+              <span className={getAccountSidebarLabelClass(isSidebarCollapsed)}>
+                Acasă
+              </span>
+              <AccountSidebarTooltip enabled={isSidebarCollapsed}>
+                Acasă
+              </AccountSidebarTooltip>
             </button>
+
             <div className="pt-1">
               <button
                 type="button"
@@ -1664,33 +1703,44 @@ export function AccountDashboard({
                     currentGroup === "settings" ? null : "settings",
                   )
                 }
-                className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-semibold text-content transition hover:bg-action-soft"
+                className={getAccountSidebarItemClass(false, isSidebarCollapsed)}
                 aria-expanded={openSidebarGroup === "settings"}
               >
                 <Icon className="h-[18px] w-[18px]">
                   <circle cx="12" cy="12" r="3" />
                   <path d="M19.4 15a1.7 1.7 0 0 0 .34 1.88l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06A1.7 1.7 0 0 0 15 19.4a1.7 1.7 0 0 0-1 .6l-.08.08a2 2 0 1 1-2.83-2.83l.08-.08A1.7 1.7 0 0 0 10.6 15a1.7 1.7 0 0 0-1.88-.34l-.1.04a2 2 0 1 1-1.53-3.7l.1-.04A1.7 1.7 0 0 0 7.8 9a1.7 1.7 0 0 0-.6-1l-.08-.08a2 2 0 1 1 2.83-2.83l.08.08A1.7 1.7 0 0 0 12 4.6a1.7 1.7 0 0 0 1-.6l.08-.08a2 2 0 1 1 2.83 2.83l-.08.08A1.7 1.7 0 0 0 16.4 9a1.7 1.7 0 0 0 1.88.34l.1-.04a2 2 0 1 1 1.53 3.7l-.1.04A1.7 1.7 0 0 0 19.4 15z" />
                 </Icon>
-                <span className="min-w-0 flex-1">Setări</span>
+                <span className={getAccountSidebarLabelClass(isSidebarCollapsed)}>
+                  Setări
+                </span>
                 <Icon
-                  className={`h-4 w-4 transition ${
-                    openSidebarGroup === "settings" ? "rotate-90" : ""
-                  }`}
+                  className={getAccountSidebarChevronClass(
+                    openSidebarGroup === "settings",
+                    isSidebarCollapsed,
+                  )}
                 >
                   <path d="M9 18l6-6-6-6" />
                 </Icon>
+                <AccountSidebarTooltip enabled={isSidebarCollapsed}>
+                  Setări
+                </AccountSidebarTooltip>
               </button>
               <div
-                className={`ml-8 overflow-hidden transition-[max-height] duration-300 ${
-                  openSidebarGroup === "settings" ? "max-h-80" : "max-h-0"
+                className={`ml-5 mr-1 overflow-hidden transition-[max-height,opacity] duration-300 ${
+                  isSidebarCollapsed ? "lg:hidden" : ""
+                } ${
+                  openSidebarGroup === "settings"
+                    ? "max-h-80 opacity-100"
+                    : "max-h-0 opacity-0"
                 }`}
               >
-                <div className="mt-1 space-y-1">
+                <div className="mt-2 space-y-1">
                   {sidebarSettingsItems.map((item) => (
                     <Link
                       key={item.href}
                       href={item.href}
-                      className="flex items-center rounded-xl px-3 py-2 text-sm font-semibold text-muted transition hover:bg-action-soft hover:text-content"
+                      onClick={() => setSidebarOpen(false)}
+                      className="flex items-center rounded-md px-2.5 py-1.5 text-sm font-semibold text-muted transition hover:bg-action-soft hover:text-content"
                     >
                       {item.label}
                     </Link>
@@ -1698,18 +1748,26 @@ export function AccountDashboard({
                 </div>
               </div>
             </div>
+
             {isAdminRole(user.role) ? (
               <Link
                 href="/admin/settings"
-                className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold text-content transition hover:bg-action-soft"
+                onClick={() => setSidebarOpen(false)}
+                className={getAccountSidebarItemClass(false, isSidebarCollapsed)}
               >
                 <Icon className="h-[18px] w-[18px]">
                   <path d="M12 3 20 6v6c0 5-3.4 8.5-8 9-4.6-.5-8-4-8-9V6l8-3z" />
                   <path d="M9 12l2 2 4-4" />
                 </Icon>
-                Setări admin
+                <span className={getAccountSidebarLabelClass(isSidebarCollapsed)}>
+                  Setări admin
+                </span>
+                <AccountSidebarTooltip enabled={isSidebarCollapsed}>
+                  Setări admin
+                </AccountSidebarTooltip>
               </Link>
             ) : null}
+
             <div className="pt-1">
               <button
                 type="button"
@@ -1718,32 +1776,43 @@ export function AccountDashboard({
                     currentGroup === "billing" ? null : "billing",
                   )
                 }
-                className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-semibold text-content transition hover:bg-action-soft"
+                className={getAccountSidebarItemClass(false, isSidebarCollapsed)}
                 aria-expanded={openSidebarGroup === "billing"}
               >
                 <Icon className="h-[18px] w-[18px]">
                   <path d="M12 3l3.2 6.5 7.1 1-5.1 5 1.2 7-6.4-3.4-6.4 3.4 1.2-7-5.1-5 7.1-1L12 3z" />
                 </Icon>
-                <span className="min-w-0 flex-1">Abonament</span>
+                <span className={getAccountSidebarLabelClass(isSidebarCollapsed)}>
+                  Abonament
+                </span>
                 <Icon
-                  className={`h-4 w-4 transition ${
-                    openSidebarGroup === "billing" ? "rotate-90" : ""
-                  }`}
+                  className={getAccountSidebarChevronClass(
+                    openSidebarGroup === "billing",
+                    isSidebarCollapsed,
+                  )}
                 >
                   <path d="M9 18l6-6-6-6" />
                 </Icon>
+                <AccountSidebarTooltip enabled={isSidebarCollapsed}>
+                  Abonament
+                </AccountSidebarTooltip>
               </button>
               <div
-                className={`ml-8 overflow-hidden transition-[max-height] duration-300 ${
-                  openSidebarGroup === "billing" ? "max-h-32" : "max-h-0"
+                className={`ml-5 mr-1 overflow-hidden transition-[max-height,opacity] duration-300 ${
+                  isSidebarCollapsed ? "lg:hidden" : ""
+                } ${
+                  openSidebarGroup === "billing"
+                    ? "max-h-32 opacity-100"
+                    : "max-h-0 opacity-0"
                 }`}
               >
-                <div className="mt-1 space-y-1">
+                <div className="mt-2 space-y-1">
                   {sidebarBillingItems.map((item) => (
                     <Link
                       key={item.href}
                       href={item.href}
-                      className="flex items-center rounded-xl px-3 py-2 text-sm font-semibold text-muted transition hover:bg-action-soft hover:text-content"
+                      onClick={() => setSidebarOpen(false)}
+                      className="flex items-center rounded-md px-2.5 py-1.5 text-sm font-semibold text-muted transition hover:bg-action-soft hover:text-content"
                     >
                       {item.label}
                     </Link>
@@ -1753,98 +1822,148 @@ export function AccountDashboard({
             </div>
           </nav>
 
-          <p className="px-5 pt-5 text-[11px] font-bold uppercase tracking-[0.12em] text-muted">
+          <p
+            className={`px-3 pt-5 text-[10px] font-black uppercase tracking-[0.18em] text-muted ${
+              isSidebarCollapsed ? "lg:hidden" : ""
+            }`}
+          >
             Proiectele tale
           </p>
 
-          <div className="mt-2 space-y-1 px-2">
+          <div className="mt-2 space-y-1">
             {projects.length ? (
               projects.map((project) => {
-              const isOpen = openProjectId === project.id;
-              return (
-                <div key={project.id} className="overflow-hidden rounded-2xl">
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setOpenProjectId((currentId) =>
-                        currentId === project.id ? null : project.id,
-                      )
-                    }
-                    className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left transition hover:bg-action-soft"
-                  >
-                    <span className="h-2 w-2 rounded-full bg-success" />
-                    <span className="min-w-0 flex-1">
-                      <span className="block truncate text-sm font-semibold">
-                        {project.name}
-                      </span>
-                      <span className="block truncate text-xs text-muted">
-                        {project.subjectName}
-                      </span>
-                    </span>
-                    <Icon
-                      className={`h-4 w-4 text-muted transition ${
-                        isOpen ? "rotate-90" : ""
-                      }`}
+                const isOpen = openProjectId === project.id;
+                const isActiveProject =
+                  activeProjectId === project.id && view === "project";
+                const projectInitial = project.name.trim().charAt(0).toUpperCase();
+
+                return (
+                  <div key={project.id} className="overflow-visible rounded-md">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (isSidebarCollapsed && isDesktopSidebarViewport()) {
+                          openProject(
+                            project.id,
+                            isActiveProject ? activeTab : "rezumat",
+                          );
+                          return;
+                        }
+
+                        setOpenProjectId((currentId) =>
+                          currentId === project.id ? null : project.id,
+                        );
+                      }}
+                      className={getAccountSidebarProjectClass(
+                        isActiveProject,
+                        isSidebarCollapsed,
+                      )}
                     >
-                      <path d="M9 18l6-6-6-6" />
-                    </Icon>
-                  </button>
+                      <span
+                        className={`flex h-2 w-2 shrink-0 items-center justify-center rounded-full bg-success text-[10px] font-black text-content ${
+                          isSidebarCollapsed
+                            ? "lg:h-6 lg:w-6 lg:rounded-md lg:bg-success/20 lg:text-success"
+                            : ""
+                        }`}
+                      >
+                        <span className={isSidebarCollapsed ? "hidden lg:inline" : "hidden"}>
+                          {projectInitial || "P"}
+                        </span>
+                      </span>
+                      <span className={getAccountSidebarLabelClass(isSidebarCollapsed)}>
+                        <span className="block truncate text-sm font-semibold text-content">
+                          {project.name}
+                        </span>
+                        <span className="block truncate text-xs text-muted">
+                          {project.subjectName}
+                        </span>
+                      </span>
+                      <Icon
+                        className={getAccountSidebarChevronClass(
+                          isOpen,
+                          isSidebarCollapsed,
+                        )}
+                      >
+                        <path d="M9 18l6-6-6-6" />
+                      </Icon>
+                      <AccountSidebarTooltip enabled={isSidebarCollapsed}>
+                        {project.name}
+                      </AccountSidebarTooltip>
+                    </button>
 
-                  <div
-                    className={`overflow-hidden transition-[max-height] duration-300 ${
-                      isOpen ? "max-h-64" : "max-h-0"
-                    }`}
-                  >
-                    {tabs.map((tab) => {
-                      const isAiTabLocked =
-                        tab.id === "chat" && !hasAiAccess;
-
-                      return (
-                        <button
-                          key={tab.id}
-                          type="button"
-                          onClick={() => openProject(project.id, tab.id)}
-                          disabled={isAiTabLocked}
-                          title={
-                            isAiTabLocked ? AI_ACCESS_UNAVAILABLE_MESSAGE : undefined
-                          }
-                          className={`ml-5 flex w-[calc(100%-1.25rem)] items-center gap-2 rounded-xl px-3 py-2 text-left text-[13px] transition ${
-                            isAiTabLocked
-                              ? "cursor-not-allowed opacity-45"
-                              : "cursor-pointer hover:bg-action-soft"
-                          } ${
+                    <div
+                      className={`overflow-hidden transition-[max-height,opacity] duration-300 ${
+                        isSidebarCollapsed ? "lg:hidden" : ""
+                      } ${isOpen ? "max-h-80 opacity-100" : "max-h-0 opacity-0"}`}
+                    >
+                      <div className="ml-5 mr-1 mt-2 space-y-1">
+                        {tabs.map((tab) => {
+                          const isAiTabLocked =
+                            tab.id === "chat" && !hasAiAccess;
+                          const isActiveTab =
                             activeProjectId === project.id &&
                             view === "project" &&
-                            activeTab === tab.id
-                              ? "bg-action-soft font-semibold text-content"
-                              : "text-muted"
-                          }`}
-                        >
-                          <span className="h-1.5 w-1.5 rounded-full bg-current opacity-60" />
-                          {tab.label}
-                        </button>
-                      );
-                    })}
+                            activeTab === tab.id;
+
+                          return (
+                            <button
+                              key={tab.id}
+                              type="button"
+                              onClick={() => openProject(project.id, tab.id)}
+                              disabled={isAiTabLocked}
+                              title={
+                                isAiTabLocked
+                                  ? AI_ACCESS_UNAVAILABLE_MESSAGE
+                                  : undefined
+                              }
+                              className={`flex w-full items-center gap-2 rounded-md px-2.5 py-1.5 text-left text-[13px] transition ${
+                                isAiTabLocked
+                                  ? "cursor-not-allowed text-muted opacity-45"
+                                  : "cursor-pointer text-muted hover:bg-action-soft hover:text-content"
+                              } ${
+                                isActiveTab
+                                  ? "bg-action-soft font-semibold text-content"
+                                  : ""
+                              }`}
+                            >
+                              <span className="h-1.5 w-1.5 rounded-full bg-current opacity-60" />
+                              {tab.label}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
                   </div>
-                </div>
-              );
+                );
               })
             ) : (
-              <p className="rounded-2xl border border-dashed border-subtle px-3 py-4 text-xs leading-5 text-muted">
+              <p
+                className={`rounded-md border border-dashed border-subtle px-3 py-4 text-xs leading-5 text-muted ${
+                  isSidebarCollapsed ? "lg:hidden" : ""
+                }`}
+              >
                 Nu ai proiecte încă.
               </p>
             )}
           </div>
-
         </div>
 
-        <div className="border-t border-subtle p-3">
-          <div className="flex items-center gap-3 rounded-2xl px-2 py-2">
-            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-subtle bg-success-soft text-xs font-bold text-success">
+        <div className="shrink-0 border-t border-subtle p-3">
+          <div
+            className={`flex items-center gap-3 rounded-md px-2 py-2 ${
+              isSidebarCollapsed ? "lg:justify-center lg:gap-0 lg:px-0" : ""
+            }`}
+          >
+            <span
+              className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-subtle bg-success-soft text-xs font-bold text-success ${
+                isSidebarCollapsed ? "lg:hidden" : ""
+              }`}
+            >
               {initials(user.full_name)}
             </span>
-            <span className="min-w-0 flex-1">
-              <span className="block truncate text-sm font-semibold">
+            <span className={getAccountSidebarLabelClass(isSidebarCollapsed)}>
+              <span className="block truncate text-sm font-semibold text-content">
                 {user.full_name}
               </span>
               <span className="block truncate text-xs text-muted">
@@ -1855,7 +1974,9 @@ export function AccountDashboard({
               type="button"
               onClick={handleLogout}
               disabled={isLoggingOut}
-              className="flex h-9 w-9 items-center justify-center rounded-xl text-muted transition hover:bg-surface-hover hover:text-content disabled:cursor-wait disabled:opacity-60"
+              className={`group/sidebar-item relative flex h-9 w-9 shrink-0 items-center justify-center rounded-md text-muted transition hover:bg-action-soft hover:text-content disabled:cursor-wait disabled:opacity-60 ${
+                isSidebarCollapsed ? "lg:h-10 lg:w-10" : ""
+              }`}
               aria-label="Ieși din cont"
             >
               <Icon>
@@ -1863,6 +1984,9 @@ export function AccountDashboard({
                 <path d="M15 12H3" />
                 <path d="M21 19V5" />
               </Icon>
+              <AccountSidebarTooltip enabled={isSidebarCollapsed}>
+                Ieși din cont
+              </AccountSidebarTooltip>
             </button>
           </div>
         </div>
@@ -1873,24 +1997,11 @@ export function AccountDashboard({
           <button
             type="button"
             onClick={() => setSidebarOpen(true)}
-            className="fixed left-4 top-4 z-50 flex h-11 w-11 items-center justify-center rounded-2xl border border-subtle bg-surface/95 text-content shadow-lg shadow-black/10 backdrop-blur-xl transition hover:bg-surface-hover lg:hidden"
+            className="fixed left-4 top-4 z-50 flex h-11 w-11 items-center justify-center rounded-md border border-subtle bg-surface/95 text-content shadow-lg shadow-black/10 backdrop-blur-xl transition hover:bg-surface-hover lg:hidden"
             aria-label="Deschide meniul"
           >
             <Icon className="h-5 w-5">
               <path d="M3 6h18M3 12h18M3 18h18" />
-            </Icon>
-          </button>
-        ) : null}
-
-        {isSidebarCollapsed ? (
-          <button
-            type="button"
-            onClick={toggleSidebarCollapsed}
-            className="fixed left-4 top-4 z-50 hidden h-11 w-11 items-center justify-center rounded-2xl border border-subtle bg-surface/95 text-content shadow-lg shadow-black/10 backdrop-blur-xl transition hover:bg-surface-hover lg:flex"
-            aria-label="Afișează meniul"
-          >
-            <Icon className="h-5 w-5">
-              <path d="M13 5l7 7-7 7M20 12H4" />
             </Icon>
           </button>
         ) : null}
@@ -2089,7 +2200,7 @@ function UsageMeter({
       <div className="py-3">
         <div className="mb-2 flex items-center justify-between gap-3">
           <p className="text-sm font-bold text-content">{label}</p>
-          <span className="rounded-full bg-app px-2.5 py-1 text-[11px] font-bold text-muted">
+          <span className="rounded-md bg-app px-2.5 py-1 text-[11px] font-bold text-muted">
             Indisponibil
           </span>
         </div>
@@ -2113,7 +2224,7 @@ function UsageMeter({
       <div className="mb-2 flex items-center justify-between gap-3">
         <p className="text-sm font-bold text-content">{label}</p>
         <span
-          className={`rounded-full px-2.5 py-1 text-[11px] font-bold ${badgeClass}`}
+          className={`rounded-md px-2.5 py-1 text-[11px] font-bold ${badgeClass}`}
         >
           {used} / {limit}
         </span>
@@ -2336,7 +2447,7 @@ function HomeView({
     <section className="space-y-6">
       <div className="flex flex-col gap-6 border-b border-subtle pb-8 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <span className="inline-flex rounded-full border border-subtle bg-action-soft px-3 py-1 text-[10px] font-black uppercase tracking-[0.18em] text-muted">
+          <span className="inline-flex rounded-md border border-subtle bg-action-soft px-3 py-1 text-[10px] font-black uppercase tracking-[0.18em] text-muted">
             Acasă
           </span>
           <h1 className="mt-4 max-w-3xl font-serif text-4xl font-semibold leading-[0.95] text-content sm:text-5xl">
@@ -2349,7 +2460,7 @@ function HomeView({
         <button
           type="button"
           onClick={onOpenNewProject}
-          className="inline-flex w-fit items-center justify-center gap-2 rounded-full bg-action px-5 py-3 text-sm font-bold text-on-action shadow-sm transition hover:-translate-y-0.5 hover:bg-action-hover"
+          className="inline-flex w-fit items-center justify-center gap-2 rounded-md bg-action px-5 py-3 text-sm font-bold text-on-action shadow-sm transition hover:-translate-y-0.5 hover:bg-action-hover"
         >
           <Icon>
             <path d="M12 5v14M5 12h14" />
@@ -2400,7 +2511,7 @@ function HomeView({
                       currentProjectId === project.id ? null : project.id,
                     )
                   }
-                  className="absolute right-4 top-4 z-20 flex h-9 w-9 items-center justify-center rounded-full border border-subtle bg-surface text-content transition hover:bg-surface-hover"
+                  className="absolute right-4 top-4 z-20 flex h-9 w-9 items-center justify-center rounded-md border border-subtle bg-surface text-content transition hover:bg-surface-hover"
                   aria-label={`Deschide meniul pentru ${project.name}`}
                 >
                   <svg
@@ -2420,7 +2531,7 @@ function HomeView({
                     <button
                       type="button"
                       onClick={() => startRename(project)}
-                      className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm font-semibold transition hover:bg-surface-hover"
+                      className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm font-semibold transition hover:bg-surface-hover"
                     >
                       <Icon>
                         <path d="M12 20h9" />
@@ -2432,7 +2543,7 @@ function HomeView({
                       type="button"
                       disabled={busyProjectId === project.id}
                       onClick={() => void archiveProject(project.id)}
-                      className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm font-semibold transition hover:bg-surface-hover disabled:cursor-wait disabled:opacity-60"
+                      className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm font-semibold transition hover:bg-surface-hover disabled:cursor-wait disabled:opacity-60"
                     >
                       <Icon>
                         <path d="M21 8v13H3V8" />
@@ -2448,7 +2559,7 @@ function HomeView({
                         setOpenMenuProjectId(null);
                         setDeleteCandidateProject(project);
                       }}
-                      className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm font-semibold text-danger transition hover:bg-danger-soft disabled:cursor-wait disabled:opacity-60"
+                      className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm font-semibold text-danger transition hover:bg-danger-soft disabled:cursor-wait disabled:opacity-60"
                     >
                       <Icon>
                         <path d="M3 6h18" />
@@ -2515,7 +2626,7 @@ function HomeView({
                       <button
                         type="button"
                         onClick={() => setRenamingProjectId(null)}
-                        className="rounded-full border border-subtle px-3 py-2 text-xs font-bold transition hover:bg-surface-hover"
+                        className="rounded-md border border-subtle px-3 py-2 text-xs font-bold transition hover:bg-surface-hover"
                       >
                         Renunță
                       </button>
@@ -2523,7 +2634,7 @@ function HomeView({
                         type="button"
                         disabled={busyProjectId === project.id}
                         onClick={() => void submitRename(project.id)}
-                        className="rounded-full bg-action px-3 py-2 text-xs font-bold text-on-action disabled:cursor-wait disabled:opacity-60"
+                        className="rounded-md bg-action px-3 py-2 text-xs font-bold text-on-action disabled:cursor-wait disabled:opacity-60"
                       >
                         Salvează
                       </button>
@@ -2637,7 +2748,7 @@ function ProjectDeleteModal({
             type="button"
             onClick={onCancel}
             disabled={isDeleting}
-            className="rounded-full border border-subtle bg-surface px-5 py-3 text-sm font-bold transition hover:bg-surface-hover disabled:cursor-wait disabled:opacity-60"
+            className="rounded-md border border-subtle bg-surface px-5 py-3 text-sm font-bold transition hover:bg-surface-hover disabled:cursor-wait disabled:opacity-60"
           >
             Renunță
           </button>
@@ -2645,7 +2756,7 @@ function ProjectDeleteModal({
             type="button"
             onClick={onConfirm}
             disabled={isDeleting}
-            className="rounded-full bg-danger px-5 py-3 text-sm font-bold text-app transition hover:opacity-90 disabled:cursor-wait disabled:opacity-60"
+            className="rounded-md bg-danger px-5 py-3 text-sm font-bold text-app transition hover:opacity-90 disabled:cursor-wait disabled:opacity-60"
           >
             {isDeleting ? "Se șterge..." : "Șterge definitiv"}
           </button>
@@ -2772,7 +2883,7 @@ function ProjectView({
         <button
           type="button"
           onClick={() => onTabChange(isChatBackTab(chatBackTab) ? chatBackTab : "rezumat")}
-          className="inline-flex h-9 cursor-pointer items-center gap-2 rounded-full border border-subtle bg-surface px-3 text-xs font-bold text-muted transition hover:bg-surface-hover hover:text-content"
+          className="inline-flex h-9 cursor-pointer items-center gap-2 rounded-md border border-subtle bg-surface px-3 text-xs font-bold text-muted transition hover:bg-surface-hover hover:text-content"
         >
           <Icon>
             <path d="M19 12H5M12 19l-7-7 7-7" />
@@ -2802,7 +2913,7 @@ function ProjectView({
           <button
             type="button"
             onClick={onBack}
-            className="inline-flex cursor-pointer items-center gap-2 rounded-full border border-subtle bg-surface px-4 py-2 text-sm font-semibold text-muted transition hover:bg-surface-hover hover:text-content"
+            className="inline-flex cursor-pointer items-center gap-2 rounded-md border border-subtle bg-surface px-4 py-2 text-sm font-semibold text-muted transition hover:bg-surface-hover hover:text-content"
           >
             <Icon>
               <path d="M19 12H5M12 19l-7-7 7-7" />
@@ -2811,7 +2922,7 @@ function ProjectView({
           </button>
 
           <div className="mt-4 flex min-w-0 flex-wrap items-center gap-x-4 gap-y-2">
-            <span className="inline-flex rounded-full border border-subtle bg-action-soft px-3 py-1 text-[10px] font-black uppercase tracking-[0.18em] text-muted">
+            <span className="inline-flex rounded-md border border-subtle bg-action-soft px-3 py-1 text-[10px] font-black uppercase tracking-[0.18em] text-muted">
               Proiect activ
             </span>
             <h1 className="min-w-0 font-serif text-3xl font-semibold leading-none text-content sm:text-4xl">
@@ -2840,7 +2951,7 @@ function ProjectView({
                 onClick={() => onTabChange(tab.id)}
                 disabled={isAiTabLocked}
                 title={isAiTabLocked ? AI_ACCESS_UNAVAILABLE_MESSAGE : undefined}
-                className={`relative py-4 text-sm font-black transition after:absolute after:inset-x-0 after:bottom-0 after:h-[3px] after:rounded-full after:transition ${
+                className={`relative py-4 text-sm font-black transition after:absolute after:inset-x-0 after:bottom-0 after:h-[3px] after:rounded-md after:transition ${
                   isAiTabLocked
                     ? "cursor-not-allowed text-muted/45 after:bg-transparent"
                     : activeTab === tab.id
@@ -2923,7 +3034,7 @@ const PROJECT_CHAT_SUMMARY_MESSAGES = 30;
 function ProjectAiLockedPanel() {
   return (
     <section className="rounded-xl border border-subtle bg-surface p-6 sm:p-8">
-      <span className="inline-flex rounded-full border border-subtle bg-action-soft px-3 py-1 text-[10px] font-black uppercase tracking-[0.18em] text-muted">
+      <span className="inline-flex rounded-md border border-subtle bg-action-soft px-3 py-1 text-[10px] font-black uppercase tracking-[0.18em] text-muted">
         AI
       </span>
       <h2 className="mt-4 max-w-3xl font-serif text-3xl font-semibold leading-tight text-content sm:text-4xl">
@@ -2934,7 +3045,7 @@ function ProjectAiLockedPanel() {
       </p>
       <Link
         href="/upgrade"
-        className="mt-6 inline-flex h-11 cursor-pointer items-center justify-center rounded-full bg-action px-5 text-sm font-bold text-on-action transition hover:bg-action-hover"
+        className="mt-6 inline-flex h-11 cursor-pointer items-center justify-center rounded-md bg-action px-5 text-sm font-bold text-on-action transition hover:bg-action-hover"
       >
         Vezi planurile
       </Link>
@@ -3443,7 +3554,7 @@ function ProjectChatPanel({
           <button
             type="button"
             onClick={startNewChat}
-            className="inline-flex h-8 cursor-pointer items-center justify-center rounded-full border border-subtle bg-app px-3 text-xs font-bold text-content transition hover:bg-surface-hover"
+            className="inline-flex h-8 cursor-pointer items-center justify-center rounded-md border border-subtle bg-app px-3 text-xs font-bold text-content transition hover:bg-surface-hover"
           >
             Chat nou
           </button>
@@ -3529,7 +3640,7 @@ function ProjectChatPanel({
             <button
               type="submit"
               disabled={!draftMessage.trim() || isGenerating}
-              className="inline-flex h-9 cursor-pointer items-center justify-center rounded-full bg-action px-4 text-xs font-bold text-on-action transition hover:bg-action-hover disabled:cursor-not-allowed disabled:opacity-60"
+              className="inline-flex h-9 cursor-pointer items-center justify-center rounded-md bg-action px-4 text-xs font-bold text-on-action transition hover:bg-action-hover disabled:cursor-not-allowed disabled:opacity-60"
             >
               Trimite
             </button>
@@ -4260,7 +4371,7 @@ function renderSummaryText(
             onNoteBadgeClick(note);
           }}
           title="Vezi notița"
-          className="mr-1 inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full border border-info-border bg-info-soft align-middle text-info transition hover:-translate-y-0.5"
+          className="mr-1 inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-md border border-info-border bg-info-soft align-middle text-info transition hover:-translate-y-0.5"
         >
           <Icon className="h-3 w-3">
             <path d="M12 20h9M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" />
@@ -4302,7 +4413,7 @@ function SummaryHighlightColorPicker({
               key={color.id}
               type="button"
               onClick={() => onChange(color.id)}
-              className={`flex items-center justify-center gap-2 rounded-full border px-3 py-2 text-xs font-bold transition hover:-translate-y-0.5 ${
+              className={`flex items-center justify-center gap-2 rounded-md border px-3 py-2 text-xs font-bold transition hover:-translate-y-0.5 ${
                 isSelected ? "ring-2 ring-info/45" : ""
               }`}
               style={{
@@ -4328,7 +4439,7 @@ function SummaryHighlightColorPicker({
         type="button"
         onClick={onResetHighlights}
         disabled={!canResetHighlights}
-        className="mt-2 flex h-9 w-full items-center justify-center gap-2 rounded-full border border-danger-border bg-danger-soft px-3 text-xs font-bold text-danger transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-45 disabled:hover:translate-y-0"
+        className="mt-2 flex h-9 w-full items-center justify-center gap-2 rounded-md border border-danger-border bg-danger-soft px-3 text-xs font-bold text-danger transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-45 disabled:hover:translate-y-0"
       >
         <Icon className="h-3.5 w-3.5">
           <path d="M3 6h18" />
@@ -4366,7 +4477,7 @@ function SummaryToolButton({
         disabled={disabled}
         aria-pressed={isActive}
         title={tooltip}
-        className={`flex w-full items-center gap-3 rounded-lg px-3 py-3 text-left text-sm font-bold transition ${
+        className={`flex w-full items-center gap-3 rounded-md px-3 py-3 text-left text-sm font-bold transition ${
           disabled
             ? "cursor-not-allowed text-muted/45"
             : isActive
@@ -4436,7 +4547,7 @@ function SummaryToolsPanel({
               type="button"
               onMouseDown={(event) => event.preventDefault()}
               onClick={onApplyCurrentHighlight}
-              className="mt-3 flex h-10 w-full cursor-pointer items-center justify-center rounded-full bg-action px-4 text-xs font-bold text-on-action transition hover:bg-action-hover"
+              className="mt-3 flex h-10 w-full cursor-pointer items-center justify-center rounded-md bg-action px-4 text-xs font-bold text-on-action transition hover:bg-action-hover"
             >
               Aplică
             </button>
@@ -4475,7 +4586,7 @@ function SummaryToolsPanel({
           type="button"
           onClick={onResetTool}
           disabled={!activeTool}
-          className={`flex w-full items-center gap-3 rounded-lg px-3 py-3 text-left text-sm font-bold transition ${
+          className={`flex w-full items-center gap-3 rounded-md px-3 py-3 text-left text-sm font-bold transition ${
             activeTool
               ? "cursor-pointer text-danger hover:bg-danger-soft"
               : "cursor-not-allowed text-muted/45"
@@ -4613,7 +4724,7 @@ function SummaryPanel({
   const keywordHighlightClass =
     "scroll-mt-28 rounded-md border border-warning-border bg-warning-soft px-1.5 py-0.5 font-semibold text-warning";
   const userHighlightClass =
-    "box-decoration-clone rounded-md border px-1.5 py-0.5 font-semibold";
+    "box-decoration-clone rounded-md border px-1.5 py-0.5 font-semibold [&_code]:bg-current/10 [&_code]:text-inherit [&_em]:text-inherit [&_strong]:text-inherit";
 
   async function handleApplyHighlight(selection: PendingSummarySelection) {
     const existingHighlight = userHighlights.find(
@@ -4858,7 +4969,7 @@ function SummaryPanel({
   if (!project.summary?.content) {
     return (
       <article className="rounded-xl border border-subtle bg-surface p-6 text-center sm:p-8">
-        <p className="mx-auto inline-flex rounded-full border border-subtle bg-action-soft px-3 py-1 text-[10px] font-black uppercase tracking-[0.18em] text-muted">
+        <p className="mx-auto inline-flex rounded-md border border-subtle bg-action-soft px-3 py-1 text-[10px] font-black uppercase tracking-[0.18em] text-muted">
           Rezumat
         </p>
         <h2 className="mx-auto mt-3 max-w-2xl font-serif text-3xl font-semibold leading-tight">
@@ -5048,7 +5159,7 @@ function SummaryPanel({
         type="button"
         onClick={() => setIsToolsDialogOpen((current) => !current)}
         onMouseDown={(event) => event.preventDefault()}
-        className="fixed bottom-5 right-5 z-40 inline-flex cursor-pointer items-center gap-2 rounded-full border border-subtle bg-action px-4 py-3 text-sm font-bold text-on-action shadow-xl shadow-black/15 transition hover:bg-action-hover xl:hidden"
+        className="fixed bottom-5 right-5 z-40 inline-flex cursor-pointer items-center gap-2 rounded-md border border-subtle bg-action px-4 py-3 text-sm font-bold text-on-action shadow-xl shadow-black/15 transition hover:bg-action-hover xl:hidden"
         aria-expanded={isToolsDialogOpen}
       >
         <Icon className="h-4 w-4">
@@ -5057,7 +5168,7 @@ function SummaryPanel({
         </Icon>
         Instrumente
         {activeToolLabel ? (
-          <span className="rounded-full bg-on-action/15 px-2 py-0.5 text-[10px] uppercase tracking-[0.12em]">
+          <span className="rounded-md bg-on-action/15 px-2 py-0.5 text-[10px] uppercase tracking-[0.12em]">
             {activeToolLabel}
           </span>
         ) : null}
@@ -5077,14 +5188,14 @@ function SummaryPanel({
                 <button
                   type="button"
                   onClick={handleConfirmAiSelection}
-                  className="inline-flex h-10 cursor-pointer items-center justify-center rounded-full bg-action px-5 text-sm font-bold text-on-action transition hover:bg-action-hover"
+                  className="inline-flex h-10 cursor-pointer items-center justify-center rounded-md bg-action px-5 text-sm font-bold text-on-action transition hover:bg-action-hover"
                 >
                   Întreabă
                 </button>
                 <button
                   type="button"
                   onClick={handleCancelAiSelection}
-                  className="inline-flex h-10 cursor-pointer items-center justify-center rounded-full border border-info-border bg-surface px-5 text-sm font-bold text-content transition hover:bg-surface-hover"
+                  className="inline-flex h-10 cursor-pointer items-center justify-center rounded-md border border-info-border bg-surface px-5 text-sm font-bold text-content transition hover:bg-surface-hover"
                 >
                   Anulează
                 </button>
@@ -5249,7 +5360,7 @@ function SummaryPanel({
                   key={keyword.id}
                   href={`#${keyword.id}`}
                   onClick={() => handleKeywordClick(keyword.id)}
-                  className="rounded-full border border-subtle bg-app px-3 py-1.5 text-xs font-bold text-content transition hover:-translate-y-0.5 hover:bg-surface-hover"
+                  className="rounded-md border border-subtle bg-app px-3 py-1.5 text-xs font-bold text-content transition hover:-translate-y-0.5 hover:bg-surface-hover"
                 >
                   {keyword.label}
                 </a>
@@ -5296,7 +5407,7 @@ function SummaryPanel({
               <button
                 type="button"
                 onClick={() => setIsToolsDialogOpen(false)}
-                className="flex h-10 w-10 cursor-pointer items-center justify-center rounded-full border border-subtle text-content transition hover:bg-surface-hover"
+                className="flex h-10 w-10 cursor-pointer items-center justify-center rounded-md border border-subtle text-content transition hover:bg-surface-hover"
                 aria-label="Închide instrumentele"
               >
                 <Icon className="h-4 w-4">
@@ -5324,7 +5435,7 @@ function SummaryPanel({
               <button
                 type="button"
                 onClick={() => setIsToolsDialogOpen(false)}
-                className="flex h-11 w-full cursor-pointer items-center justify-center rounded-full bg-action px-5 text-sm font-bold text-on-action transition hover:bg-action-hover"
+                className="flex h-11 w-full cursor-pointer items-center justify-center rounded-md bg-action px-5 text-sm font-bold text-on-action transition hover:bg-action-hover"
               >
                 Închide
               </button>
@@ -5363,7 +5474,7 @@ function SummaryPanel({
               <button
                 type="button"
                 onClick={handleCloseAiDialog}
-                className="rounded-full border border-subtle px-4 py-2 text-xs font-bold text-content transition hover:bg-surface-hover"
+                className="rounded-md border border-subtle px-4 py-2 text-xs font-bold text-content transition hover:bg-surface-hover"
               >
                 Închide
               </button>
@@ -5485,7 +5596,7 @@ function SummaryResetHighlightsModal({
             type="button"
             onClick={onCancel}
             disabled={isResetting}
-            className="rounded-full border border-subtle bg-surface px-5 py-3 text-sm font-bold transition hover:bg-surface-hover disabled:cursor-wait disabled:opacity-60"
+            className="rounded-md border border-subtle bg-surface px-5 py-3 text-sm font-bold transition hover:bg-surface-hover disabled:cursor-wait disabled:opacity-60"
           >
             Renunță
           </button>
@@ -5493,7 +5604,7 @@ function SummaryResetHighlightsModal({
             type="button"
             onClick={onConfirm}
             disabled={isResetting}
-            className="rounded-full bg-danger px-5 py-3 text-sm font-bold text-app transition hover:opacity-90 disabled:cursor-wait disabled:opacity-60"
+            className="rounded-md bg-danger px-5 py-3 text-sm font-bold text-app transition hover:opacity-90 disabled:cursor-wait disabled:opacity-60"
           >
             {isResetting ? "Se resetează..." : "Resetează highlight-urile"}
           </button>
@@ -5734,7 +5845,7 @@ function FlashcardTicket({
   return (
     <article className="theme-shadow-card flex min-h-[15rem] flex-col rounded-xl border border-subtle bg-surface p-6 transition hover:-translate-y-0.5 hover:border-content/25">
       <div>
-        <span className="inline-flex rounded-full border border-success-border bg-success-soft px-3 py-1 text-[10px] font-black uppercase tracking-[0.12em] text-success">
+        <span className="inline-flex rounded-md border border-success-border bg-success-soft px-3 py-1 text-[10px] font-black uppercase tracking-[0.12em] text-success">
           {card.badge}
         </span>
         <h2 className="mt-4 font-serif text-2xl font-semibold leading-tight text-content">
@@ -5755,7 +5866,7 @@ function FlashcardTicket({
         <button
           type="button"
           onClick={() => onOpenDeck(card.id)}
-          className="inline-flex shrink-0 items-center gap-2 rounded-full bg-action px-4 py-2.5 text-sm font-bold text-on-action transition hover:bg-action-hover"
+          className="inline-flex shrink-0 items-center gap-2 rounded-md bg-action px-4 py-2.5 text-sm font-bold text-on-action transition hover:bg-action-hover"
         >
           Continuă
           <Icon>
@@ -5863,7 +5974,7 @@ function AccountFlashcardFaceContent({
             event.stopPropagation();
             onToggleReview();
           }}
-          className={`absolute right-6 top-6 z-10 flex h-9 w-9 items-center justify-center rounded-full border transition sm:right-8 sm:top-8 ${
+          className={`absolute right-6 top-6 z-10 flex h-9 w-9 items-center justify-center rounded-md border transition sm:right-8 sm:top-8 ${
             card.review
               ? "border-action bg-action text-on-action"
               : "border-subtle bg-app text-muted hover:bg-surface-hover hover:text-content"
@@ -5922,7 +6033,7 @@ function AccountFlashcardFaceContent({
               event.stopPropagation();
               onFlip();
             }}
-            className="flashcard-card-action rounded-full border border-subtle bg-app px-3 py-1.5 text-content transition hover:-translate-y-0.5 hover:bg-surface-hover"
+            className="flashcard-card-action rounded-md border border-subtle bg-app px-3 py-1.5 text-content transition hover:-translate-y-0.5 hover:bg-surface-hover"
           >
             {flipLabel}
           </button>
@@ -6238,7 +6349,7 @@ function FlashcardDeckPage({
       <button
         type="button"
         onClick={onBack}
-        className="inline-flex h-11 cursor-pointer items-center gap-2 rounded-full border border-subtle bg-surface px-4 text-sm font-semibold text-muted transition hover:bg-surface-hover hover:text-content focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-action"
+        className="inline-flex h-11 cursor-pointer items-center gap-2 rounded-md border border-subtle bg-surface px-4 text-sm font-semibold text-muted transition hover:bg-surface-hover hover:text-content focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-action"
       >
         <Icon>
           <path d="M19 12H5M12 19l-7-7 7-7" />
@@ -6248,7 +6359,7 @@ function FlashcardDeckPage({
 
       <div className="grid gap-8 border-t border-subtle pt-6 lg:grid-cols-[0.72fr_1.28fr] lg:items-start">
         <div>
-          <p className="inline-flex rounded-full border border-subtle bg-action-soft px-3 py-1 text-[10px] font-black uppercase tracking-[0.18em] text-muted">
+          <p className="inline-flex rounded-md border border-subtle bg-action-soft px-3 py-1 text-[10px] font-black uppercase tracking-[0.18em] text-muted">
             {deck.eyebrow}
           </p>
           <h2 className="mt-4 max-w-xl font-serif text-4xl font-semibold leading-none text-content sm:text-5xl">
@@ -6288,7 +6399,7 @@ function FlashcardDeckPage({
                     onClick={handleAskFlashcardAi}
                     disabled={!hasAiAccess}
                     title={!hasAiAccess ? AI_ACCESS_UNAVAILABLE_MESSAGE : undefined}
-                    className={`rounded-full px-4 py-2 text-xs font-bold transition ${
+                    className={`rounded-md px-4 py-2 text-xs font-bold transition ${
                       hasAiAccess
                         ? "cursor-pointer bg-action text-on-action hover:bg-action-hover"
                         : "cursor-not-allowed border border-info-border bg-surface text-muted opacity-65"
@@ -6308,7 +6419,7 @@ function FlashcardDeckPage({
                     setPendingFlashcardSelection(null);
                     window.getSelection()?.removeAllRanges();
                   }}
-                  className="rounded-full border border-info-border px-4 py-2 text-xs font-bold transition hover:bg-info-soft/70"
+                  className="rounded-md border border-info-border px-4 py-2 text-xs font-bold transition hover:bg-info-soft/70"
                 >
                   Anulează
                 </button>
@@ -6456,7 +6567,7 @@ function FlashcardDeckPage({
                   type="button"
                   onClick={() => moveCard(-1)}
                   disabled={isAnimating || cards.length <= 1}
-                  className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-subtle bg-app text-content transition hover:-translate-y-0.5 hover:bg-surface-hover disabled:cursor-not-allowed disabled:opacity-55 sm:h-12 sm:w-12"
+                  className="flex h-11 w-11 shrink-0 items-center justify-center rounded-md border border-subtle bg-app text-content transition hover:-translate-y-0.5 hover:bg-surface-hover disabled:cursor-not-allowed disabled:opacity-55 sm:h-12 sm:w-12"
                   aria-label="Flashcard anterior"
                 >
                   <Icon>
@@ -6467,14 +6578,14 @@ function FlashcardDeckPage({
                   type="button"
                   onClick={() => moveCard(1)}
                   disabled={isAnimating || cards.length <= 1}
-                  className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-action text-on-action transition hover:-translate-y-0.5 hover:bg-action-hover disabled:cursor-not-allowed disabled:opacity-55 sm:h-12 sm:w-12"
+                  className="flex h-11 w-11 shrink-0 items-center justify-center rounded-md bg-action text-on-action transition hover:-translate-y-0.5 hover:bg-action-hover disabled:cursor-not-allowed disabled:opacity-55 sm:h-12 sm:w-12"
                   aria-label="Flashcard următor"
                 >
                   <Icon>
                     <path d="M5 12h14M13 5l7 7-7 7" />
                   </Icon>
                 </button>
-                <span className="min-w-14 rounded-full border border-subtle bg-app px-3 py-2 text-center text-xs font-bold text-muted sm:border-0 sm:bg-transparent sm:px-0">
+                <span className="min-w-14 rounded-md border border-subtle bg-app px-3 py-2 text-center text-xs font-bold text-muted sm:border-0 sm:bg-transparent sm:px-0">
                   {activeIndex + 1}/{cards.length}
                 </span>
               </div>
@@ -6484,7 +6595,7 @@ function FlashcardDeckPage({
                   type="button"
                   onClick={shuffleDeck}
                   disabled={isAnimating || cards.length <= 1}
-                  className="inline-flex h-10 w-full max-w-[13.5rem] items-center justify-center gap-2 rounded-full border border-subtle bg-app px-4 text-xs font-bold text-content transition hover:-translate-y-0.5 hover:bg-surface-hover disabled:cursor-not-allowed disabled:opacity-55 sm:h-12 sm:w-[13.5rem] sm:max-w-none sm:px-5 sm:text-sm"
+                  className="inline-flex h-10 w-full max-w-[13.5rem] items-center justify-center gap-2 rounded-md border border-subtle bg-app px-4 text-xs font-bold text-content transition hover:-translate-y-0.5 hover:bg-surface-hover disabled:cursor-not-allowed disabled:opacity-55 sm:h-12 sm:w-[13.5rem] sm:max-w-none sm:px-5 sm:text-sm"
                 >
                   <Icon className="h-4 w-4 sm:h-5 sm:w-5">
                     <path d="M16 3h5v5M4 20l17-17M21 16v5h-5M15 15l6 6M4 4l5 5" />
@@ -6495,7 +6606,7 @@ function FlashcardDeckPage({
                   <button
                     type="button"
                     onClick={toggleReviewOnlyFilter}
-                    className={`inline-flex h-10 w-full max-w-[13.5rem] items-center justify-center gap-2 rounded-full border px-4 text-xs font-bold transition sm:h-12 sm:w-[13.5rem] sm:max-w-none sm:text-sm ${
+                    className={`inline-flex h-10 w-full max-w-[13.5rem] items-center justify-center gap-2 rounded-md border px-4 text-xs font-bold transition sm:h-12 sm:w-[13.5rem] sm:max-w-none sm:text-sm ${
                       showReviewOnly
                         ? "border-action bg-action text-on-action"
                         : "border-subtle bg-app text-content hover:bg-surface-hover"
@@ -6518,7 +6629,7 @@ function FlashcardDeckPage({
               <button
                 type="button"
                 onClick={toggleReviewOnlyFilter}
-                className={`inline-flex h-10 w-full max-w-[13.5rem] items-center justify-center gap-2 rounded-full border px-4 text-xs font-bold transition sm:h-12 sm:w-[13.5rem] sm:max-w-none sm:text-sm ${
+                className={`inline-flex h-10 w-full max-w-[13.5rem] items-center justify-center gap-2 rounded-md border px-4 text-xs font-bold transition sm:h-12 sm:w-[13.5rem] sm:max-w-none sm:text-sm ${
                   showReviewOnly
                     ? "border-action bg-action text-on-action"
                     : "border-subtle bg-app text-content hover:bg-surface-hover"
@@ -6561,7 +6672,7 @@ function FlashcardDeckPage({
               <button
                 type="button"
                 onClick={handleCloseFlashcardAiDialog}
-                className="rounded-full border border-subtle px-4 py-2 text-xs font-bold text-content transition hover:bg-surface-hover"
+                className="rounded-md border border-subtle px-4 py-2 text-xs font-bold text-content transition hover:bg-surface-hover"
               >
                 Închide
               </button>
@@ -6725,7 +6836,7 @@ function ManualFlashcardBuilderPage({
           <button
             type="button"
             onClick={onBack}
-            className="inline-flex h-10 cursor-pointer items-center gap-2 rounded-full border border-subtle bg-surface px-4 text-sm font-semibold text-muted transition hover:bg-surface-hover hover:text-content focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-action"
+            className="inline-flex h-10 cursor-pointer items-center gap-2 rounded-md border border-subtle bg-surface px-4 text-sm font-semibold text-muted transition hover:bg-surface-hover hover:text-content focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-action"
           >
             <Icon>
               <path d="M19 12H5M12 19l-7-7 7-7" />
@@ -6734,7 +6845,7 @@ function ManualFlashcardBuilderPage({
           </button>
 
           <div className="mt-4 flex min-w-0 flex-wrap items-center gap-x-4 gap-y-2">
-            <span className="inline-flex rounded-full border border-subtle bg-action-soft px-3 py-1 text-[10px] font-black uppercase tracking-[0.18em] text-muted">
+            <span className="inline-flex rounded-md border border-subtle bg-action-soft px-3 py-1 text-[10px] font-black uppercase tracking-[0.18em] text-muted">
               Flashcard manual
             </span>
             <h2 className="min-w-0 font-serif text-3xl font-semibold leading-none text-content sm:text-4xl">
@@ -6769,7 +6880,7 @@ function ManualFlashcardBuilderPage({
                       key={option.value}
                       type="button"
                       onClick={() => setDifficulty(option.value)}
-                      className={`h-9 cursor-pointer rounded-full border px-4 text-xs font-bold transition ${
+                      className={`h-9 cursor-pointer rounded-md border px-4 text-xs font-bold transition ${
                         isActive
                           ? "border-action bg-action text-on-action"
                           : "border-subtle text-muted hover:bg-surface-hover hover:text-content"
@@ -6818,7 +6929,7 @@ function ManualFlashcardBuilderPage({
           type="button"
           onClick={handleCancel}
           disabled={isSaving}
-          className="h-12 cursor-pointer rounded-full border border-subtle px-5 text-sm font-bold text-content transition hover:bg-surface-hover disabled:cursor-wait disabled:opacity-60"
+          className="h-12 cursor-pointer rounded-md border border-subtle px-5 text-sm font-bold text-content transition hover:bg-surface-hover disabled:cursor-wait disabled:opacity-60"
         >
           Anulare
         </button>
@@ -6826,7 +6937,7 @@ function ManualFlashcardBuilderPage({
           type="button"
           onClick={handleSave}
           disabled={!canSave}
-          className="h-12 cursor-pointer rounded-full bg-action px-6 text-sm font-bold text-on-action transition hover:bg-action-hover disabled:cursor-not-allowed disabled:bg-subtle disabled:text-muted"
+          className="h-12 cursor-pointer rounded-md bg-action px-6 text-sm font-bold text-on-action transition hover:bg-action-hover disabled:cursor-not-allowed disabled:bg-subtle disabled:text-muted"
         >
           {isSaving ? "Se salvează..." : "Salvare"}
         </button>
@@ -6868,7 +6979,7 @@ function ManualFlashcardEditorCard({
           </h3>
         </div>
         {allowImage ? (
-          <label className="inline-flex h-10 cursor-pointer items-center gap-2 rounded-full border border-subtle bg-app px-4 text-xs font-bold text-content transition hover:bg-surface-hover">
+          <label className="inline-flex h-10 cursor-pointer items-center gap-2 rounded-md border border-subtle bg-app px-4 text-xs font-bold text-content transition hover:bg-surface-hover">
             <Icon className="h-4 w-4">
               <path d="M12 5v14M5 12h14" />
             </Icon>
@@ -6902,7 +7013,7 @@ function ManualFlashcardEditorCard({
             <button
               type="button"
               onClick={onImageRemove}
-              className="absolute right-7 top-7 cursor-pointer rounded-full bg-action px-3 py-1.5 text-xs font-bold text-on-action transition hover:bg-action-hover"
+              className="absolute right-7 top-7 cursor-pointer rounded-md bg-action px-3 py-1.5 text-xs font-bold text-on-action transition hover:bg-action-hover"
             >
               Șterge
             </button>
@@ -7013,7 +7124,7 @@ function FlashcardsPanel({
           onClick={() =>
             router.push(`/myaccount/flashcarduri/creeaza?project=${project.id}`)
           }
-          className="inline-flex h-11 w-fit shrink-0 cursor-pointer items-center gap-2 rounded-full bg-action px-5 text-sm font-bold text-on-action transition hover:-translate-y-0.5 hover:bg-action-hover sm:ml-auto"
+          className="inline-flex h-11 w-fit shrink-0 cursor-pointer items-center gap-2 rounded-md bg-action px-5 text-sm font-bold text-on-action transition hover:-translate-y-0.5 hover:bg-action-hover sm:ml-auto"
         >
           <Icon>
             <path d="M12 5v14M5 12h14" />
@@ -7543,7 +7654,7 @@ function QuizPanel({
         <button
           type="button"
           onClick={handleBackToQuizList}
-          className="inline-flex h-11 w-fit cursor-pointer items-center gap-2 rounded-full border border-subtle bg-surface px-4 text-sm font-semibold text-muted transition hover:bg-surface-hover hover:text-content"
+          className="inline-flex h-11 w-fit cursor-pointer items-center gap-2 rounded-md border border-subtle bg-surface px-4 text-sm font-semibold text-muted transition hover:bg-surface-hover hover:text-content"
         >
           <Icon>
             <path d="M19 12H5M12 19l-7-7 7-7" />
@@ -7552,14 +7663,14 @@ function QuizPanel({
         </button>
 
         <div className="flex flex-wrap gap-2">
-          <span className="rounded-full border border-subtle bg-surface px-3 py-1.5 text-xs font-bold text-content">
+          <span className="rounded-md border border-subtle bg-surface px-3 py-1.5 text-xs font-bold text-content">
             {activeQuiz.mode}
           </span>
-          <span className="rounded-full border border-subtle bg-surface px-3 py-1.5 text-xs font-bold text-content">
+          <span className="rounded-md border border-subtle bg-surface px-3 py-1.5 text-xs font-bold text-content">
             {activeQuiz.duration}
           </span>
           <span
-            className={`rounded-full border px-3 py-1.5 text-xs font-bold ${getQuizComplexityClass(
+            className={`rounded-md border px-3 py-1.5 text-xs font-bold ${getQuizComplexityClass(
               activeQuiz.complexity,
             )}`}
           >
@@ -7571,7 +7682,7 @@ function QuizPanel({
       <article className="theme-shadow-card overflow-hidden rounded-xl border border-subtle bg-surface">
         <header className="grid gap-6 border-b border-subtle p-5 sm:p-7 xl:grid-cols-[minmax(0,1fr)_20rem] xl:items-end">
           <div>
-            <span className="inline-flex rounded-full border border-subtle bg-action-soft px-3 py-1 text-[10px] font-black uppercase tracking-[0.18em] text-muted">
+            <span className="inline-flex rounded-md border border-subtle bg-action-soft px-3 py-1 text-[10px] font-black uppercase tracking-[0.18em] text-muted">
               Quiz activ
             </span>
             <h2 className="mt-4 max-w-4xl font-serif text-4xl font-semibold leading-none text-content sm:text-5xl">
@@ -7610,14 +7721,14 @@ function QuizPanel({
           <div className="p-5 sm:p-7">
             <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
               <div className="flex flex-wrap gap-2">
-                <span className="inline-flex rounded-full border border-subtle bg-action-soft px-3 py-1 text-[10px] font-black uppercase tracking-[0.16em] text-muted">
+                <span className="inline-flex rounded-md border border-subtle bg-action-soft px-3 py-1 text-[10px] font-black uppercase tracking-[0.16em] text-muted">
                   Întrebarea {activeQuestionIndex + 1} din {quizQuestions.length}
                 </span>
-                <span className="inline-flex rounded-full border border-subtle bg-app px-3 py-1 text-[10px] font-black uppercase tracking-[0.16em] text-muted">
+                <span className="inline-flex rounded-md border border-subtle bg-app px-3 py-1 text-[10px] font-black uppercase tracking-[0.16em] text-muted">
                   {activeQuestionModeLabel}
                 </span>
               </div>
-              <span className="w-fit rounded-full border border-info-border bg-info-soft px-3 py-1.5 text-xs font-bold text-info">
+              <span className="w-fit rounded-md border border-info-border bg-info-soft px-3 py-1.5 text-xs font-bold text-info">
                 {activeQuestion.difficulty}
               </span>
             </div>
@@ -7645,7 +7756,7 @@ function QuizPanel({
                 type="button"
                 onClick={submitMultipleAnswer}
                 disabled={draftAnswer.length === 0}
-                className="mt-5 inline-flex items-center justify-center rounded-full bg-action px-5 py-3 text-sm font-bold text-on-action transition hover:bg-action-hover disabled:cursor-not-allowed disabled:opacity-40"
+                className="mt-5 inline-flex items-center justify-center rounded-md bg-action px-5 py-3 text-sm font-bold text-on-action transition hover:bg-action-hover disabled:cursor-not-allowed disabled:opacity-40"
               >
                 Verifică răspunsul
               </button>
@@ -7670,10 +7781,10 @@ function QuizPanel({
                 </p>
 
                 <div className="mt-4 flex flex-wrap gap-2">
-                  <span className="rounded-full border border-subtle bg-app px-3 py-1.5 text-xs font-bold text-content">
+                  <span className="rounded-md border border-subtle bg-app px-3 py-1.5 text-xs font-bold text-content">
                     Sursă: {activeQuestion.source}
                   </span>
-                  <span className="rounded-full border border-subtle bg-app px-3 py-1.5 text-xs font-bold text-content">
+                  <span className="rounded-md border border-subtle bg-app px-3 py-1.5 text-xs font-bold text-content">
                     Concept: {activeQuestion.concept}
                   </span>
                 </div>
@@ -7685,7 +7796,7 @@ function QuizPanel({
                 type="button"
                 onClick={() => goToQuestion(Math.max(0, activeQuestionIndex - 1))}
                 disabled={activeQuestionIndex === 0}
-                className="inline-flex items-center justify-center gap-2 rounded-full border border-subtle px-5 py-3 text-sm font-bold text-content transition hover:bg-surface-hover disabled:cursor-not-allowed disabled:opacity-40"
+                className="inline-flex items-center justify-center gap-2 rounded-md border border-subtle px-5 py-3 text-sm font-bold text-content transition hover:bg-surface-hover disabled:cursor-not-allowed disabled:opacity-40"
               >
                 <Icon>
                   <path d="M19 12H5M11 5l-7 7 7 7" />
@@ -7697,7 +7808,7 @@ function QuizPanel({
                 type="button"
                 onClick={goToNextQuestion}
                 disabled={!isAnswered || activeQuestionIndex === quizQuestions.length - 1}
-                className="inline-flex items-center justify-center gap-2 rounded-full bg-action px-5 py-3 text-sm font-bold text-on-action transition hover:bg-action-hover disabled:cursor-not-allowed disabled:opacity-40"
+                className="inline-flex items-center justify-center gap-2 rounded-md bg-action px-5 py-3 text-sm font-bold text-on-action transition hover:bg-action-hover disabled:cursor-not-allowed disabled:opacity-40"
               >
                 Următoarea întrebare
                 <Icon>
@@ -7723,7 +7834,7 @@ function QuizPanel({
                     key={question.id}
                     type="button"
                     onClick={() => goToQuestion(questionIndex)}
-                    className={`flex h-10 cursor-pointer items-center justify-center rounded-lg border text-sm font-bold transition ${
+                    className={`flex h-10 cursor-pointer items-center justify-center rounded-md border text-sm font-bold transition ${
                       isCurrent
                         ? "border-action bg-action text-on-action"
                         : isQuestionAnswered && isCorrect
@@ -7798,14 +7909,14 @@ function QuizPanel({
             <button
               type="button"
               onClick={() => setShowQuizSummary(true)}
-              className="rounded-full bg-action px-5 py-3 text-sm font-bold text-on-action transition hover:bg-action-hover"
+              className="rounded-md bg-action px-5 py-3 text-sm font-bold text-on-action transition hover:bg-action-hover"
             >
               Vezi sumarul
             </button>
             <button
               type="button"
               onClick={handleBackToQuizList}
-              className="rounded-full border border-success-border px-5 py-3 text-sm font-bold text-success transition hover:bg-success-soft/70"
+              className="rounded-md border border-success-border px-5 py-3 text-sm font-bold text-success transition hover:bg-success-soft/70"
             >
               Înapoi la quiz-uri
             </button>
@@ -7837,7 +7948,7 @@ function QuizPanel({
               <button
                 type="button"
                 onClick={() => setShowQuizSummary(false)}
-                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-subtle text-muted transition hover:bg-surface-hover hover:text-content"
+                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-subtle text-muted transition hover:bg-surface-hover hover:text-content"
                 aria-label="Închide sumarul"
               >
                 <Icon className="h-4 w-4">
@@ -7865,14 +7976,14 @@ function QuizPanel({
               <button
                 type="button"
                 onClick={resetQuiz}
-                className="rounded-full border border-subtle px-5 py-3 text-sm font-bold text-content transition hover:bg-surface-hover"
+                className="rounded-md border border-subtle px-5 py-3 text-sm font-bold text-content transition hover:bg-surface-hover"
               >
                 Reia quiz-ul
               </button>
               <button
                 type="button"
                 onClick={handleBackToQuizList}
-                className="rounded-full bg-action px-5 py-3 text-sm font-bold text-on-action transition hover:bg-action-hover"
+                className="rounded-md bg-action px-5 py-3 text-sm font-bold text-on-action transition hover:bg-action-hover"
               >
                 Înapoi la quiz-uri
               </button>
@@ -7911,7 +8022,7 @@ function QuizLibrary({
     return (
       <section className="grid gap-6 rounded-xl border border-subtle bg-surface p-6 sm:p-8 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center">
         <div>
-          <p className="inline-flex rounded-full border border-subtle bg-action-soft px-3 py-1 text-[10px] font-black uppercase tracking-[0.18em] text-muted">
+          <p className="inline-flex rounded-md border border-subtle bg-action-soft px-3 py-1 text-[10px] font-black uppercase tracking-[0.18em] text-muted">
             Quiz-uri
           </p>
           <h2 className="mt-4 max-w-2xl font-serif text-3xl font-semibold leading-tight">
@@ -7932,7 +8043,7 @@ function QuizLibrary({
           type="button"
           onClick={onGenerateQuizzes}
           disabled={isButtonBusy}
-          className="inline-flex min-w-56 cursor-pointer items-center justify-center gap-2 rounded-full bg-action px-6 py-4 text-sm font-black text-on-action transition hover:bg-action-hover disabled:cursor-wait disabled:bg-subtle disabled:text-muted"
+          className="inline-flex min-w-56 cursor-pointer items-center justify-center gap-2 rounded-md bg-action px-6 py-4 text-sm font-black text-on-action transition hover:bg-action-hover disabled:cursor-wait disabled:bg-subtle disabled:text-muted"
         >
           {isButtonBusy ? loadingCopy.buttonBusy : loadingCopy.buttonIdle}
           {isButtonBusy ? (
@@ -7998,7 +8109,7 @@ function QuizLibrary({
     <section className="space-y-5">
       <div className="flex flex-col gap-4 border-b border-subtle pb-5 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <span className="inline-flex rounded-full border border-subtle bg-action-soft px-3 py-1 text-[10px] font-black uppercase tracking-[0.18em] text-muted">
+          <span className="inline-flex rounded-md border border-subtle bg-action-soft px-3 py-1 text-[10px] font-black uppercase tracking-[0.18em] text-muted">
             Quiz-uri
           </span>
           <h2 className="mt-4 font-serif text-3xl font-semibold leading-tight text-content sm:text-4xl">
@@ -8009,7 +8120,7 @@ function QuizLibrary({
             exact ce exersezi.
           </p>
         </div>
-        <span className="inline-flex w-fit rounded-full border border-subtle bg-surface px-4 py-2 text-xs font-black text-content">
+        <span className="inline-flex w-fit rounded-md border border-subtle bg-surface px-4 py-2 text-xs font-black text-content">
           {completedCount}/{quizzes.length} completate
         </span>
       </div>
@@ -8046,14 +8157,14 @@ function QuizCatalogCard({
     >
       <div className="flex flex-wrap items-center gap-2">
         <span
-          className={`inline-flex w-fit rounded-full border px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.12em] ${getQuizComplexityClass(
+          className={`inline-flex w-fit rounded-md border px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.12em] ${getQuizComplexityClass(
             quiz.complexity,
           )}`}
         >
           {quiz.complexity}
         </span>
         {quiz.recommended ? (
-          <span className="inline-flex rounded-full border border-subtle bg-action-soft px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.12em] text-content">
+          <span className="inline-flex rounded-md border border-subtle bg-action-soft px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.12em] text-content">
             Recomandat
           </span>
         ) : null}
@@ -8083,7 +8194,7 @@ function QuizCatalogCard({
         <button
           type="button"
           onClick={() => onStartQuiz(quiz.id)}
-          className="inline-flex shrink-0 items-center justify-center gap-2 rounded-full bg-action px-5 py-3 text-sm font-bold text-on-action transition hover:bg-action-hover"
+          className="inline-flex shrink-0 items-center justify-center gap-2 rounded-md bg-action px-5 py-3 text-sm font-bold text-on-action transition hover:bg-action-hover"
         >
           {isCompleted ? "Reintră" : "Începe"}
           <Icon>
@@ -8138,7 +8249,7 @@ function QuizAnswerButton({
       type="button"
       onClick={onSelect}
       disabled={isAnswered}
-      className={`group grid cursor-pointer grid-cols-[2.75rem_minmax(0,1fr)_1.5rem] items-center gap-4 rounded-xl border px-4 py-4 text-left text-sm font-bold transition disabled:cursor-default ${stateClass}`}
+      className={`group grid cursor-pointer grid-cols-[2.75rem_minmax(0,1fr)_1.5rem] items-center gap-4 rounded-md border px-4 py-4 text-left text-sm font-bold transition disabled:cursor-default ${stateClass}`}
     >
       <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-current/20 bg-app font-serif text-lg font-semibold">
         {String.fromCharCode(65 + answerIndex)}
@@ -8206,7 +8317,7 @@ function StrategiesPanel({ project }: { project: StudyProject }) {
       <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_18rem]">
         <article className="theme-shadow-card rounded-xl border border-subtle bg-surface">
           <div className="border-b border-subtle p-5 sm:p-6">
-            <span className="inline-flex rounded-full border border-subtle bg-action-soft px-3 py-1 text-[10px] font-black uppercase tracking-[0.18em] text-muted">
+            <span className="inline-flex rounded-md border border-subtle bg-action-soft px-3 py-1 text-[10px] font-black uppercase tracking-[0.18em] text-muted">
               Strategii AI
             </span>
             <h2 className="mt-4 max-w-3xl font-serif text-3xl font-semibold leading-tight text-content sm:text-4xl">
@@ -8262,7 +8373,7 @@ function StrategiesPanel({ project }: { project: StudyProject }) {
       <section className="rounded-xl border border-subtle bg-surface">
         <div className="grid lg:grid-cols-[18rem_minmax(0,1fr)]">
           <div className="border-b border-subtle p-5 sm:p-6 lg:border-b-0 lg:border-r">
-            <span className="inline-flex rounded-full border border-subtle bg-app px-3 py-1 text-[10px] font-black uppercase tracking-[0.18em] text-muted">
+            <span className="inline-flex rounded-md border border-subtle bg-app px-3 py-1 text-[10px] font-black uppercase tracking-[0.18em] text-muted">
               Bază
             </span>
             <h3 className="mt-4 font-serif text-2xl font-semibold leading-tight text-content">
@@ -8321,7 +8432,7 @@ function StrategyPlanRow({
             {title}
           </h3>
           {!muted ? (
-            <span className="rounded-full border border-subtle bg-app px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.12em] text-muted">
+            <span className="rounded-md border border-subtle bg-app px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.12em] text-muted">
               pas {index + 1}
             </span>
           ) : null}
@@ -8334,21 +8445,173 @@ function StrategyPlanRow({
   );
 }
 
+type ProgressAttempt = {
+  quizTitle: string;
+  scorePercent: number;
+  completedAt: string;
+};
+
+type ProgressQuizScore = {
+  title: string;
+  scorePercent: number | null;
+  completed: boolean;
+};
+
+type CompletedProgressQuizScore = ProgressQuizScore & {
+  scorePercent: number;
+};
+
+type ProgressCompetencyScore = {
+  label: string;
+  value: number;
+};
+
+type ProgressActivityDay = {
+  key: string;
+  label: string;
+  count: number;
+  level: number;
+  isLatest: boolean;
+};
+
+type ProgressFlashcardSegment = {
+  label: string;
+  detail: string;
+  value: number;
+  color: string;
+};
+
+function isCompletedProgressQuizScore(
+  quiz: ProgressQuizScore,
+): quiz is CompletedProgressQuizScore {
+  return quiz.completed && typeof quiz.scorePercent === "number";
+}
+
+function clampProgressPercent(value: number) {
+  return Math.max(0, Math.min(100, Math.round(value)));
+}
+
+function formatProgressPercent(value: number | null) {
+  return typeof value === "number" ? `${value}%` : "-";
+}
+
+function formatSignedPercent(value: number) {
+  if (value > 0) return `+${value}%`;
+  if (value < 0) return `${value}%`;
+  return "0%";
+}
+
+function truncateProgressLabel(label: string, maxLength = 20) {
+  const cleanLabel = label.replace(/\s+/g, " ").trim();
+  if (cleanLabel.length <= maxLength) return cleanLabel;
+  return `${cleanLabel.slice(0, maxLength - 3).trim()}...`;
+}
+
+function startOfLocalDay(date: Date) {
+  const nextDate = new Date(date);
+  nextDate.setHours(0, 0, 0, 0);
+  return nextDate;
+}
+
+function addLocalDays(date: Date, days: number) {
+  const nextDate = new Date(date);
+  nextDate.setDate(nextDate.getDate() + days);
+  return nextDate;
+}
+
+function toLocalDateKey(date: Date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function formatProgressDayLabel(date: Date) {
+  return date.toLocaleDateString("ro-RO", {
+    day: "2-digit",
+    month: "short",
+  });
+}
+
+function buildProgressActivityDays(
+  attempts: ProgressAttempt[],
+): ProgressActivityDay[] {
+  if (!attempts.length) return [];
+
+  const counts = new Map<string, number>();
+  for (const attempt of attempts) {
+    const date = startOfLocalDay(new Date(attempt.completedAt));
+    const key = toLocalDateKey(date);
+    counts.set(key, (counts.get(key) ?? 0) + 1);
+  }
+
+  const latestDate = startOfLocalDay(
+    new Date(attempts[attempts.length - 1].completedAt),
+  );
+  const maxCount = Math.max(1, ...counts.values());
+
+  return Array.from({ length: 28 }, (_, index) => {
+    const date = addLocalDays(latestDate, index - 27);
+    const key = toLocalDateKey(date);
+    const count = counts.get(key) ?? 0;
+    const level =
+      count === 0
+        ? 0
+        : count >= maxCount
+          ? 3
+          : count >= Math.ceil(maxCount / 2)
+            ? 2
+            : 1;
+
+    return {
+      key,
+      label: formatProgressDayLabel(date),
+      count,
+      level,
+      isLatest: index === 27,
+    };
+  });
+}
+
+function buildProgressCompetencyScores(
+  quizScores: ProgressQuizScore[],
+  weakConcepts: Array<[string, number]>,
+): ProgressCompetencyScore[] {
+  const completedScores = quizScores
+    .filter(isCompletedProgressQuizScore)
+    .map((quiz) => ({
+      label: quiz.title,
+      value: clampProgressPercent(quiz.scorePercent),
+    }));
+  const usedLabels = new Set(
+    completedScores.map((score) => score.label.toLocaleLowerCase("ro-RO")),
+  );
+  const inferredWeakScores = weakConcepts
+    .filter(([concept]) => !usedLabels.has(concept.toLocaleLowerCase("ro-RO")))
+    .map(([concept, count]) => ({
+      label: concept,
+      value: clampProgressPercent(78 - count * 9),
+    }));
+
+  return [...completedScores, ...inferredWeakScores].slice(0, 6);
+}
+
 function buildProjectProgressData(project: StudyProject) {
   const quizzes = project.quizzes;
   const totalQuizzes = quizzes.length;
   const completedQuizzes = quizzes.filter((quiz) => quiz.completed_at);
   const completedCount = completedQuizzes.length;
-  const averageScore = completedCount
+  const completedQuizScores = completedQuizzes
+    .map((quiz) => quiz.score_percent)
+    .filter((score): score is number => typeof score === "number");
+  const averageScore = completedQuizScores.length
     ? Math.round(
-        completedQuizzes.reduce(
-          (sum, quiz) => sum + (quiz.score_percent ?? 0),
-          0,
-        ) / completedCount,
+        completedQuizScores.reduce((sum, score) => sum + score, 0) /
+          completedQuizScores.length,
       )
     : null;
 
-  const allAttempts = quizzes
+  const allAttempts: ProgressAttempt[] = quizzes
     .flatMap((quiz) =>
       quiz.attempts.map((attempt) => ({
         quizTitle: quiz.title,
@@ -8360,6 +8623,23 @@ function buildProjectProgressData(project: StudyProject) {
       (a, b) =>
         new Date(a.completedAt).getTime() - new Date(b.completedAt).getTime(),
     );
+  const allAttemptScores = allAttempts.map((attempt) => attempt.scorePercent);
+  const averageAttemptScore = allAttemptScores.length
+    ? Math.round(
+        allAttemptScores.reduce((sum, score) => sum + score, 0) /
+          allAttemptScores.length,
+      )
+    : averageScore;
+  const maxScore = allAttemptScores.length
+    ? Math.max(...allAttemptScores)
+    : completedQuizScores.length
+      ? Math.max(...completedQuizScores)
+      : null;
+  const trendDelta =
+    allAttempts.length > 1
+      ? allAttempts[allAttempts.length - 1].scorePercent -
+        allAttempts[0].scorePercent
+      : 0;
 
   const weakConceptCounts = new Map<string, number>();
   for (const mistake of project.quizMistakeFlashcards) {
@@ -8370,24 +8650,38 @@ function buildProjectProgressData(project: StudyProject) {
     (a, b) => b[1] - a[1],
   );
 
-  const quizScores = quizzes
+  const quizScores: ProgressQuizScore[] = quizzes
     .map((quiz) => ({
       title: quiz.title,
       scorePercent: quiz.score_percent,
       completed: Boolean(quiz.completed_at),
     }))
-    .sort((a, b) => Number(b.completed) - Number(a.completed));
+    .sort((a, b) => {
+      if (a.completed !== b.completed) {
+        return Number(b.completed) - Number(a.completed);
+      }
+
+      return (b.scorePercent ?? -1) - (a.scorePercent ?? -1);
+    });
+  const generatedFlashcardsCount = getGeneratedFlashcards(
+    project.flashcards,
+  ).length;
 
   return {
     totalQuizzes,
     completedCount,
     averageScore,
+    averageAttemptScore,
+    maxScore,
+    trendDelta,
     totalAttempts: allAttempts.length,
     recentAttempts: allAttempts.slice(-8),
     weakConcepts,
     quizScores,
+    competencyScores: buildProgressCompetencyScores(quizScores, weakConcepts),
+    activityDays: buildProgressActivityDays(allAttempts),
     totalFlashcards: project.flashcards.length,
-    generatedFlashcardsCount: getGeneratedFlashcards(project.flashcards).length,
+    generatedFlashcardsCount,
     manualFlashcardsCount: project.manualFlashcards.length,
     quizMistakeFlashcardsCount: project.quizMistakeFlashcards.length,
     keywordsCount: project.keywords.length,
@@ -8407,45 +8701,97 @@ function ProgressPanel({ project }: { project: StudyProject }) {
   const latestAttempt = data.recentAttempts.length
     ? data.recentAttempts[data.recentAttempts.length - 1]
     : null;
+  const nextQuiz = data.quizScores.find((quiz) => !quiz.completed);
   const focusText = data.weakConcepts.length
     ? data.weakConcepts
         .slice(0, 2)
         .map(([concept]) => concept)
         .join(" și ")
     : "nu există încă zone slabe clare";
+  const trendLabel = data.totalAttempts
+    ? data.totalAttempts > 1
+      ? `${formatSignedPercent(data.trendDelta)} de la prima încercare`
+      : "Primul reper salvat"
+    : "Fără încercări încă";
+  const flashcardSegments: ProgressFlashcardSegment[] = [
+    {
+      label: "Generate",
+      detail: "din material",
+      value: data.generatedFlashcardsCount,
+      color: "var(--theme-action)",
+    },
+    {
+      label: "Manuale",
+      detail: "adăugate de tine",
+      value: data.manualFlashcardsCount,
+      color: "var(--theme-warning-text)",
+    },
+    {
+      label: "Din greșeli",
+      detail: "salvate la quiz",
+      value: data.quizMistakeFlashcardsCount,
+      color: "var(--theme-danger-text)",
+    },
+  ];
+  const summaryStats = [
+    ["Flashcard-uri generate", String(data.generatedFlashcardsCount)],
+    ["Concepte cheie", String(data.keywordsCount)],
+    ["Flashcard-uri manuale", String(data.manualFlashcardsCount)],
+    ["Highlight-uri în rezumat", String(data.highlightsCount)],
+    ["Flashcard-uri din greșeli", String(data.quizMistakeFlashcardsCount)],
+    ["Încercări la quiz-uri", String(data.totalAttempts)],
+  ] as const;
 
   return (
     <div className="space-y-5">
-      <section className="theme-shadow-card rounded-xl border border-subtle bg-surface">
-        <div className="grid gap-6 border-b border-subtle p-5 sm:p-6 xl:grid-cols-[minmax(0,1fr)_24rem] xl:items-end">
-          <div>
-            <span className="inline-flex rounded-full border border-subtle bg-action-soft px-3 py-1 text-[10px] font-black uppercase tracking-[0.18em] text-muted">
-              Progres
-            </span>
-            <h2 className="mt-4 max-w-3xl font-serif text-4xl font-semibold leading-none text-content sm:text-5xl">
-              {data.totalQuizzes
-                ? `Scor de pregătire ${readinessScore}%.`
-                : "Încă nu ai date de progres."}
-            </h2>
-            <p className="mt-3 max-w-2xl text-sm leading-6 text-muted">
-              {data.totalQuizzes
-                ? `Calculat din quiz-uri, încercări și ritmul curent. Focus: ${focusText}.`
-                : "Rezolvă cel puțin un quiz ca să vezi scorul, zonele slabe și evoluția."}
-            </p>
+      <section className="theme-shadow-card overflow-hidden rounded-xl border border-subtle bg-surface">
+        <div className="grid gap-7 border-b border-subtle p-5 sm:p-7 xl:grid-cols-[minmax(0,1fr)_24rem] xl:items-start">
+          <div className="min-w-0 space-y-4">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="inline-flex rounded-md border border-subtle bg-action-soft px-3 py-1 text-[10px] font-black uppercase tracking-[0.18em] text-muted">
+                Progres general
+              </span>
+              <span
+                className={`inline-flex items-center gap-1.5 rounded-md border px-3 py-1 text-[10px] font-black uppercase tracking-[0.12em] ${
+                  data.trendDelta >= 0
+                    ? "border-success-border bg-success-soft text-success"
+                    : "border-danger-border bg-danger-soft text-danger"
+                }`}
+              >
+                <Icon className="h-3.5 w-3.5">
+                  <path d="M13 7h8v8" />
+                  <path d="m21 7-8 8-4-4-6 6" />
+                </Icon>
+                {trendLabel}
+              </span>
+            </div>
+
+            <div>
+              <h2 className="max-w-3xl font-serif text-4xl font-semibold leading-none text-content sm:text-5xl">
+                {data.totalQuizzes
+                  ? `Scor de pregătire ${readinessScore}%.`
+                  : "Încă nu ai date de progres."}
+              </h2>
+              <p className="mt-3 max-w-2xl text-sm leading-6 text-muted">
+                {data.totalQuizzes
+                  ? `Estimarea combină scorurile, quiz-urile finalizate și ritmul încercărilor. Focus recomandat: ${focusText}.`
+                  : "Generează sau rezolvă cel puțin un quiz ca să apară scorul, zonele slabe și evoluția."}
+              </p>
+            </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-2 gap-3 border-t border-subtle pt-5 xl:border-l xl:border-t-0 xl:pl-7 xl:pt-0">
             <ProgressHeroMetric
-              label="Scor mediu"
-              value={data.averageScore !== null ? `${data.averageScore}%` : "—"}
+              label="Scor mediu quiz-uri"
+              value={formatProgressPercent(data.averageScore)}
             />
             <ProgressHeroMetric
-              label="Quiz-uri completate"
+              label="Quiz-uri finalizate"
               value={`${data.completedCount}/${data.totalQuizzes}`}
             />
             <ProgressHeroMetric
-              label="Ultimul scor"
-              value={latestAttempt ? `${latestAttempt.scorePercent}%` : "—"}
+              label="Ultimul scor obținut"
+              value={latestAttempt ? `${latestAttempt.scorePercent}%` : "-"}
             />
             <ProgressHeroMetric
               label="Greșeli salvate"
@@ -8454,181 +8800,154 @@ function ProgressPanel({ project }: { project: StudyProject }) {
           </div>
         </div>
 
-        <div className="grid gap-0 divide-y divide-subtle sm:grid-cols-3 sm:divide-x sm:divide-y-0">
+        <div className="grid divide-y divide-subtle md:grid-cols-3 md:divide-x md:divide-y-0">
           <ProgressHeroStrip
             label="Material activ"
-            value={project.subjectName}
-            detail={`${data.totalFlashcards} flashcard-uri în proiect`}
+            value={project.subjectName || project.name}
+            detail={`${data.totalFlashcards} flashcard-uri și ${data.keywordsCount} concepte cheie`}
           />
           <ProgressHeroStrip
             label="Atenție azi"
-            value={data.weakConcepts.length ? "Revizuire" : "Stabil"}
+            value={data.weakConcepts.length ? `${data.weakConcepts.length} concepte` : "Stabil"}
             detail={
               data.weakConcepts.length
-                ? `${data.weakConcepts.length} concepte cer recapitulare`
-                : "Nu ai greșeli recurente încă"
+                ? "Repetă cardurile salvate din răspunsuri greșite."
+                : "Nu există greșeli recurente înregistrate."
             }
+            href={getTabHref("flashcards", project.id)}
+            actionLabel="Recapitulează"
           />
           <ProgressHeroStrip
             label="Următorul pas"
-            value={data.totalQuizzes ? "Quiz + flashcard" : "Generează quiz"}
-            detail="Recapitulare scurtă după fiecare răspuns greșit"
+            value={nextQuiz?.title ?? (data.totalQuizzes ? "Repetă quiz-uri" : "Generează quiz")}
+            detail="O sesiune scurtă îți actualizează scorul și harta de progres."
+            href={getTabHref("quiz", project.id)}
+            actionLabel="Începe"
           />
         </div>
       </section>
 
-      <div className="grid gap-5 xl:grid-cols-[0.95fr_1.05fr]">
+      <div className="grid gap-5 xl:grid-cols-[minmax(0,1.15fr)_minmax(20rem,0.85fr)]">
         <section className="rounded-xl border border-subtle bg-surface p-5 sm:p-6">
-          <p className="text-xs font-bold uppercase tracking-[0.18em] text-muted">
-            Rata de completare
-          </p>
-          <h3 className="mt-3 font-serif text-4xl font-semibold leading-none text-content">
-            {completionPercent}%
-          </h3>
+          <ProgressSectionHeader
+            eyebrow="Evoluția în timp"
+            title="Performanță și consecvență"
+            meta={`${data.recentAttempts.length} înregistrări`}
+          />
 
-          <div className="mt-5 h-2 overflow-hidden rounded-full bg-app">
-            <div
-              className="h-full rounded-full bg-action"
-              style={{ width: `${completionPercent}%` }}
-            />
-          </div>
-
-          <p className="mt-4 text-sm leading-6 text-muted">
-            {data.totalQuizzes
-              ? `Ai completat ${data.completedCount} din ${data.totalQuizzes} quiz-uri din acest proiect.`
-              : "Nu există quiz-uri generate încă pentru acest proiect."}
-          </p>
-        </section>
-
-        <section className="rounded-xl border border-subtle bg-surface p-5 sm:p-6">
-          <p className="text-xs font-bold uppercase tracking-[0.18em] text-muted">
-            Zone care necesită atenție
-          </p>
-          {data.weakConcepts.length ? (
-            <>
-              <h3 className="mt-3 font-serif text-2xl font-semibold text-content">
-                Greșești frecvent la:
-              </h3>
-              <div className="mt-4 divide-y divide-subtle border-y border-subtle">
-                {data.weakConcepts.map(([concept, count]) => (
-                  <div
-                    key={concept}
-                    className="flex items-center justify-between gap-4 py-3"
-                  >
-                    <span className="text-sm font-semibold text-content">
-                      {concept}
-                    </span>
-                    <span className="rounded-full border border-warning-border bg-warning-soft px-3 py-1 text-xs font-bold text-warning">
-                      {count} greșeli
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </>
-          ) : (
-            <div className="mt-3 space-y-4">
-              <p className="text-sm leading-7 text-muted">
-                Nu ai încă greșeli înregistrate la quiz-uri — răspunde la
-                câteva întrebări pentru a apărea zonele de recapitulat aici.
-              </p>
-              <Link
-                href={getTabHref("quiz", project.id)}
-                className="inline-flex items-center justify-center rounded-full bg-action px-5 py-2.5 text-sm font-bold text-on-action transition hover:-translate-y-0.5 hover:bg-action-hover"
-              >
-                Mergi la quiz-uri
-                <span aria-hidden="true" className="ml-2">
-                  →
-                </span>
-              </Link>
+          <div className="mt-4 flex flex-col gap-3 rounded-xl border border-subtle bg-app px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex min-w-0 items-center gap-2 text-xs font-bold text-content">
+              <span className="h-2.5 w-2.5 shrink-0 rounded-full bg-action" />
+              <span>
+                {data.totalAttempts > 1
+                  ? data.trendDelta >= 0
+                    ? "Tendință ascendentă pe ultimele încercări"
+                    : "Tendință de stabilizat pe următoarele quiz-uri"
+                  : "Primul reper va construi graficul de evoluție"}
+              </span>
             </div>
-          )}
-        </section>
-      </div>
-
-      <div className="grid gap-5 xl:grid-cols-[minmax(0,1.15fr)_minmax(0,0.85fr)]">
-        <section className="rounded-xl border border-subtle bg-surface p-5 sm:p-6">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-            <div>
-              <p className="text-xs font-bold uppercase tracking-[0.18em] text-muted">
-                Evoluția scorurilor
-              </p>
-              <h3 className="mt-2 font-serif text-3xl font-semibold text-content">
-                Ultimele încercări
-              </h3>
-            </div>
-            <span className="w-fit rounded-full border border-subtle bg-app px-3 py-1.5 text-xs font-bold text-muted">
-              {data.recentAttempts.length} înregistrări
+            <span
+              className={`w-fit rounded-md border px-2 py-1 text-xs font-black ${
+                data.trendDelta >= 0
+                  ? "border-success-border bg-success-soft text-success"
+                  : "border-danger-border bg-danger-soft text-danger"
+              }`}
+            >
+              {trendLabel}
             </span>
           </div>
+
           {data.recentAttempts.length ? (
             <ProgressScoreTrendChart attempts={data.recentAttempts} />
           ) : (
-            <p className="mt-4 text-sm leading-6 text-muted">
-              Rezolvă un quiz ca să vezi aici evoluția scorurilor tale în timp.
-            </p>
+            <ProgressEmptyState
+              title="Graficul apare după primul quiz."
+              description="Primele încercări vor crea linia de evoluție și comparația dintre scoruri."
+            />
           )}
+
+          <div className="mt-5 grid divide-y divide-subtle border-t border-subtle pt-3 sm:grid-cols-3 sm:divide-x sm:divide-y-0">
+            <ProgressChartStat
+              label="Media curentă"
+              value={formatProgressPercent(data.averageAttemptScore)}
+            />
+            <ProgressChartStat
+              label="Punct maxim"
+              value={formatProgressPercent(data.maxScore)}
+            />
+            <ProgressChartStat
+              label="Creștere totală"
+              value={data.totalAttempts > 1 ? formatSignedPercent(data.trendDelta) : "0%"}
+            />
+          </div>
         </section>
 
         <section className="rounded-xl border border-subtle bg-surface p-5 sm:p-6">
-          <p className="text-xs font-bold uppercase tracking-[0.18em] text-muted">
-            Scor pe quiz
-          </p>
-          {data.quizScores.length ? (
-            <div className="mt-4 divide-y divide-subtle border-y border-subtle">
-              {data.quizScores.map((quiz) =>
-                quiz.completed ? (
-                  <ProgressBarRow
-                    key={quiz.title}
-                    label={quiz.title}
-                    value={quiz.scorePercent ?? 0}
-                  />
-                ) : (
-                  <div
-                    key={quiz.title}
-                    className="flex items-center justify-between gap-3 py-3"
-                  >
-                    <p className="text-sm font-bold text-content">{quiz.title}</p>
-                    <span className="rounded-full bg-app px-2.5 py-1 text-[11px] font-bold text-muted">
-                      Neîncercat
-                    </span>
-                  </div>
-                ),
-              )}
-            </div>
-          ) : (
-            <p className="mt-4 text-sm leading-6 text-muted">
-              Quiz-urile nu sunt generate încă pentru acest proiect.
-            </p>
-          )}
+          <ProgressSectionHeader
+            eyebrow="Matrice de competențe"
+            title="Stăpânirea pe subiecte"
+            meta="din quiz-uri"
+          />
+          <ProgressRadarChart scores={data.competencyScores} />
+          <div className="mt-4 flex flex-col gap-2 rounded-xl border border-subtle bg-app px-4 py-3 text-xs sm:flex-row sm:items-center sm:justify-between">
+            <span className="font-bold text-muted">Punct de urmărit:</span>
+            <span className="font-black text-content">
+              {data.weakConcepts[0]
+                ? `${data.weakConcepts[0][0]} (${data.weakConcepts[0][1]} greșeli)`
+                : "niciun concept critic încă"}
+            </span>
+          </div>
         </section>
       </div>
 
-      <section className="rounded-xl border border-subtle bg-surface">
-        <div className="grid divide-y divide-subtle sm:grid-cols-3 sm:divide-x sm:divide-y-0">
-          <ProgressMiniStat
-            label="Flashcard-uri generate"
-            value={String(data.generatedFlashcardsCount)}
+      <div className="grid gap-5 xl:grid-cols-[minmax(0,1.15fr)_minmax(20rem,0.85fr)]">
+        <section className="rounded-xl border border-subtle bg-surface p-5 sm:p-6">
+          <ProgressSectionHeader
+            eyebrow="Detaliu pe module"
+            title="Scor per quiz parcurs"
+            meta="Top 6"
           />
-          <ProgressMiniStat
-            label="Flashcard-uri manuale"
-            value={String(data.manualFlashcardsCount)}
+          <ProgressTopicBars quizScores={data.quizScores} />
+        </section>
+
+        <section className="rounded-xl border border-subtle bg-surface p-5 sm:p-6">
+          <ProgressSectionHeader
+            eyebrow="Distribuție flashcard-uri"
+            title="Retenție și memorie"
+            meta={`${data.totalFlashcards} total`}
           />
-          <ProgressMiniStat
-            label="Flashcard-uri din greșeli"
-            value={String(data.quizMistakeFlashcardsCount)}
+          <ProgressFlashcardDoughnut
+            segments={flashcardSegments}
+            total={data.totalFlashcards}
           />
-          <ProgressMiniStat
-            label="Concepte cheie"
-            value={String(data.keywordsCount)}
+        </section>
+      </div>
+
+      <div className="grid gap-5 xl:grid-cols-[minmax(0,1.05fr)_minmax(20rem,0.95fr)]">
+        <div className="space-y-5">
+          <ProgressActivityHeatmap activityDays={data.activityDays} />
+          <ProgressWeakConceptsPanel
+            concepts={data.weakConcepts}
+            projectId={project.id}
           />
-          <ProgressMiniStat
-            label="Highlight-uri în rezumat"
-            value={String(data.highlightsCount)}
-          />
-          <ProgressMiniStat
-            label="Încercări la quiz-uri"
-            value={String(data.totalAttempts)}
-          />
+        </div>
+
+        <ProgressQuizBreakdown
+          quizScores={data.quizScores}
+          projectId={project.id}
+        />
+      </div>
+
+      <section className="rounded-xl border border-subtle bg-surface p-5 sm:p-7">
+        <div className="grid gap-6 md:grid-cols-3">
+          {summaryStats.map(([label, value], index) => (
+            <ProgressMiniStat
+              key={label}
+              label={label}
+              value={value}
+              withDivider={index % 3 !== 2}
+            />
+          ))}
         </div>
       </section>
     </div>
@@ -8655,11 +8974,7 @@ function buildProgressTrendPath(points: Array<{ x: number; y: number }>) {
 function ProgressScoreTrendChart({
   attempts,
 }: {
-  attempts: Array<{
-    quizTitle: string;
-    scorePercent: number;
-    completedAt: string;
-  }>;
+  attempts: ProgressAttempt[];
 }) {
   const width = 760;
   const height = 280;
@@ -8701,22 +9016,10 @@ function ProgressScoreTrendChart({
         >
           <defs>
             <linearGradient id="progress-line-fill" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="var(--theme-action)" stopOpacity="0.22" />
-              <stop offset="72%" stopColor="var(--theme-action)" stopOpacity="0.04" />
+              <stop offset="0%" stopColor="var(--theme-action)" stopOpacity="0.24" />
+              <stop offset="74%" stopColor="var(--theme-action)" stopOpacity="0.05" />
               <stop offset="100%" stopColor="var(--theme-action)" stopOpacity="0" />
             </linearGradient>
-            <filter id="progress-line-glow" x="-20%" y="-20%" width="140%" height="140%">
-              <feGaussianBlur stdDeviation="5" result="blur" />
-              <feColorMatrix
-                in="blur"
-                type="matrix"
-                values="0 0 0 0 0.20 0 0 0 0 0.28 0 0 0 0 0.20 0 0 0 0.35 0"
-              />
-              <feMerge>
-                <feMergeNode />
-                <feMergeNode in="SourceGraphic" />
-              </feMerge>
-            </filter>
           </defs>
 
           {[0, 25, 50, 75, 100].map((line) => {
@@ -8754,7 +9057,6 @@ function ProgressScoreTrendChart({
             strokeWidth={4}
             strokeLinecap="round"
             strokeLinejoin="round"
-            filter="url(#progress-line-glow)"
           />
 
           {points.map(({ x, y, attempt, index }) => {
@@ -8816,16 +9118,16 @@ function ProgressScoreTrendChart({
       </div>
 
       <div className="mt-4 flex flex-col gap-2 rounded-xl border border-subtle bg-app p-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
+        <div className="min-w-0">
           <p className="text-[10px] font-black uppercase tracking-[0.18em] text-muted">
             Ultima încercare
           </p>
-          <p className="mt-1 text-sm font-semibold text-content">
+          <p className="mt-1 truncate text-sm font-semibold text-content">
             {latestAttempt.quizTitle}
           </p>
         </div>
-        <div className="flex items-center gap-3">
-          <span className="rounded-full border border-action bg-action px-3 py-1.5 text-xs font-black text-on-action">
+        <div className="flex flex-wrap items-center gap-3">
+          <span className="rounded-md border border-action bg-action px-3 py-1.5 text-xs font-black text-on-action">
             {latestAttempt.scorePercent}%
           </span>
           <span className="text-xs font-bold text-muted">
@@ -8833,28 +9135,466 @@ function ProgressScoreTrendChart({
           </span>
         </div>
       </div>
+    </div>
+  );
+}
 
-      <div className="mt-4 divide-y divide-subtle border-y border-subtle">
-        {attempts.map((attempt, index) => (
-          <div
-            key={`${attempt.quizTitle}-${attempt.completedAt}`}
-            className="grid gap-2 py-3 text-sm sm:grid-cols-[minmax(0,1fr)_auto_auto] sm:items-center"
+function ProgressSectionHeader({
+  eyebrow,
+  title,
+  meta,
+}: {
+  eyebrow: string;
+  title: string;
+  meta?: string;
+}) {
+  return (
+    <div className="flex flex-col gap-3 border-b border-subtle pb-4 sm:flex-row sm:items-end sm:justify-between">
+      <div className="min-w-0">
+        <p className="text-[10px] font-black uppercase tracking-[0.18em] text-muted">
+          {eyebrow}
+        </p>
+        <h3 className="mt-1 font-serif text-2xl font-semibold leading-tight text-content">
+          {title}
+        </h3>
+      </div>
+      {meta ? (
+        <span className="w-fit rounded-md border border-subtle bg-app px-3 py-1.5 text-xs font-bold text-muted">
+          {meta}
+        </span>
+      ) : null}
+    </div>
+  );
+}
+
+function ProgressEmptyState({
+  title,
+  description,
+}: {
+  title: string;
+  description: string;
+}) {
+  return (
+    <div className="mt-5 rounded-xl border border-dashed border-subtle bg-app px-4 py-5">
+      <p className="text-sm font-black text-content">{title}</p>
+      <p className="mt-2 text-sm leading-6 text-muted">{description}</p>
+    </div>
+  );
+}
+
+function ProgressRadarChart({ scores }: { scores: ProgressCompetencyScore[] }) {
+  const size = 280;
+  const center = size / 2;
+  const radius = 92;
+
+  if (scores.length < 3) {
+    return (
+      <ProgressEmptyState
+        title="Radarul se activează după mai multe rezultate."
+        description="Ai nevoie de cel puțin trei subiecte evaluate pentru o matrice de competențe lizibilă."
+      />
+    );
+  }
+
+  const angles = scores.map(
+    (_, index) => -Math.PI / 2 + (index * Math.PI * 2) / scores.length,
+  );
+  const valuePoints = scores.map((score, index) => {
+    const currentRadius = (radius * score.value) / 100;
+    const angle = angles[index];
+    return {
+      x: center + Math.cos(angle) * currentRadius,
+      y: center + Math.sin(angle) * currentRadius,
+    };
+  });
+  const polygonPoints = valuePoints
+    .map((point) => `${point.x},${point.y}`)
+    .join(" ");
+
+  return (
+    <div
+      className="mt-5 flex justify-center overflow-hidden border-b border-subtle pb-4"
+      role="img"
+      aria-label="Radarul competențelor pe subiecte"
+    >
+      <svg viewBox={`0 0 ${size} ${size}`} className="h-72 w-full max-w-sm">
+        {[0.34, 0.67, 1].map((scale) => {
+          const ringPoints = angles
+            .map((angle) => {
+              const x = center + Math.cos(angle) * radius * scale;
+              const y = center + Math.sin(angle) * radius * scale;
+              return `${x},${y}`;
+            })
+            .join(" ");
+
+          return (
+            <polygon
+              key={scale}
+              points={ringPoints}
+              fill="none"
+              stroke="var(--theme-border)"
+              strokeWidth={1}
+            />
+          );
+        })}
+
+        {angles.map((angle, index) => {
+          const outerX = center + Math.cos(angle) * radius;
+          const outerY = center + Math.sin(angle) * radius;
+          const labelX = center + Math.cos(angle) * (radius + 32);
+          const labelY = center + Math.sin(angle) * (radius + 32);
+          const textAnchor =
+            labelX < center - 10 ? "end" : labelX > center + 10 ? "start" : "middle";
+
+          return (
+            <g key={scores[index].label}>
+              <line
+                x1={center}
+                y1={center}
+                x2={outerX}
+                y2={outerY}
+                stroke="var(--theme-border)"
+                strokeWidth={1}
+              />
+              <text
+                x={labelX}
+                y={labelY + 4}
+                textAnchor={textAnchor}
+                className="fill-muted text-[10px] font-bold"
+              >
+                {truncateProgressLabel(scores[index].label, 16)}
+              </text>
+            </g>
+          );
+        })}
+
+        <polygon
+          points={polygonPoints}
+          fill="var(--theme-action)"
+          fillOpacity={0.15}
+          stroke="var(--theme-action)"
+          strokeWidth={2.5}
+          strokeLinejoin="round"
+        />
+        {valuePoints.map((point, index) => (
+          <circle
+            key={`${scores[index].label}-${index}`}
+            cx={point.x}
+            cy={point.y}
+            r={4}
+            fill="var(--theme-action)"
           >
-            <span className="font-semibold text-content">{attempt.quizTitle}</span>
-            <span className="text-xs font-bold text-muted">
-              {formatQuizAttemptTimestamp(attempt.completedAt)}
+            <title>
+              {scores[index].label}: {scores[index].value}%
+            </title>
+          </circle>
+        ))}
+      </svg>
+    </div>
+  );
+}
+
+function ProgressTopicBars({ quizScores }: { quizScores: ProgressQuizScore[] }) {
+  const completedScores = quizScores
+    .filter(isCompletedProgressQuizScore)
+    .slice(0, 6);
+
+  if (!completedScores.length) {
+    return (
+      <ProgressEmptyState
+        title="Nu există quiz-uri parcurse încă."
+        description="Scorurile pe module vor apărea aici după primele rezultate salvate."
+      />
+    );
+  }
+
+  return (
+    <div className="mt-5 space-y-4">
+      {completedScores.map((quiz) => (
+        <ProgressBarRow
+          key={quiz.title}
+          label={quiz.title}
+          value={quiz.scorePercent}
+        />
+      ))}
+    </div>
+  );
+}
+
+function buildProgressDoughnutBackground(
+  segments: ProgressFlashcardSegment[],
+  total: number,
+) {
+  const visibleSegments = segments.filter((segment) => segment.value > 0);
+
+  if (!visibleSegments.length) {
+    return "var(--theme-border)";
+  }
+
+  const safeTotal = Math.max(1, total);
+  let offset = 0;
+  const gradientStops = visibleSegments.map((segment) => {
+    const start = offset;
+    const end = start + (segment.value / safeTotal) * 100;
+    offset = end;
+    return `${segment.color} ${start}% ${end}%`;
+  });
+
+  return `conic-gradient(${gradientStops.join(", ")})`;
+}
+
+function ProgressFlashcardDoughnut({
+  segments,
+  total,
+}: {
+  segments: ProgressFlashcardSegment[];
+  total: number;
+}) {
+  const ringBackground = buildProgressDoughnutBackground(segments, total);
+
+  return (
+    <div className="mt-5">
+      <div className="flex justify-center border-b border-subtle pb-5">
+        <div
+          className="relative flex h-48 w-48 items-center justify-center rounded-full"
+          style={{ background: ringBackground }}
+          role="img"
+          aria-label="Distribuția flashcard-urilor pe surse"
+        >
+          <div className="flex h-32 w-32 flex-col items-center justify-center rounded-full border border-subtle bg-surface text-center">
+            <span className="font-serif text-4xl font-semibold leading-none text-content">
+              {total}
             </span>
-            <span
-              className={`w-fit rounded-full border px-3 py-1 text-xs font-black ${
-                index === latestIndex
-                  ? "border-action bg-action text-on-action"
-                  : "border-subtle bg-app text-content"
-              }`}
-            >
-              {attempt.scorePercent}%
+            <span className="mt-1 text-[10px] font-black uppercase tracking-[0.14em] text-muted">
+              total
             </span>
           </div>
-        ))}
+        </div>
+      </div>
+
+      <div className="mt-4 space-y-3">
+        {segments.map((segment) => {
+          const percent = total
+            ? Math.round((segment.value / total) * 100)
+            : 0;
+
+          return (
+            <div key={segment.label} className="flex items-center justify-between gap-4 text-xs">
+              <span className="flex min-w-0 items-center gap-2 font-bold text-content">
+                <span
+                  className="h-2.5 w-2.5 shrink-0 rounded-full"
+                  style={{ background: segment.color }}
+                />
+                <span className="truncate">{segment.label}</span>
+                <span className="hidden text-muted sm:inline">{segment.detail}</span>
+              </span>
+              <span className="shrink-0 font-black text-content">
+                {segment.value} ({percent}%)
+              </span>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function ProgressActivityHeatmap({
+  activityDays,
+}: {
+  activityDays: ProgressActivityDay[];
+}) {
+  const placeholderDays: ProgressActivityDay[] = Array.from(
+    { length: 28 },
+    (_, index) => ({
+      key: `empty-${index}`,
+      label: "Fără activitate",
+      count: 0,
+      level: 0,
+      isLatest: false,
+    }),
+  );
+  const days = activityDays.length ? activityDays : placeholderDays;
+  const dayLabels = ["L", "M", "M", "J", "V", "S", "D"];
+
+  return (
+    <section className="rounded-xl border border-subtle bg-surface p-5 sm:p-6">
+      <ProgressSectionHeader
+        eyebrow="Activitate zilnică"
+        title="Constanță în recapitulare"
+        meta="4 săptămâni"
+      />
+      <div className="mt-5 space-y-2">
+        <div className="grid grid-cols-7 gap-2 text-center text-[10px] font-bold text-muted">
+          {dayLabels.map((label, index) => (
+            <span key={`${label}-${index}`}>{label}</span>
+          ))}
+        </div>
+        <div className="grid grid-cols-7 gap-2">
+          {days.map((day) => (
+            <span
+              key={day.key}
+              title={`${day.label}: ${day.count} încercări`}
+              className={`h-7 rounded-md border transition hover:scale-105 ${getProgressHeatmapLevelClass(
+                day.level,
+              )} ${day.isLatest ? "ring-2 ring-action ring-offset-2 ring-offset-surface" : ""}`}
+            />
+          ))}
+        </div>
+      </div>
+      <div className="mt-4 flex items-center justify-between gap-3 text-[11px] font-bold text-muted">
+        <span>Mai puțin activ</span>
+        <div className="flex items-center gap-1.5">
+          {[0, 1, 2, 3].map((level) => (
+            <span
+              key={level}
+              className={`h-3 w-3 rounded border ${getProgressHeatmapLevelClass(level)}`}
+            />
+          ))}
+        </div>
+        <span>Foarte activ</span>
+      </div>
+    </section>
+  );
+}
+
+function getProgressHeatmapLevelClass(level: number) {
+  if (level >= 3) return "border-action bg-action";
+  if (level === 2) return "border-warning-border bg-warning";
+  if (level === 1) return "border-warning-border bg-warning-soft";
+  return "border-subtle bg-app";
+}
+
+function ProgressWeakConceptsPanel({
+  concepts,
+  projectId,
+}: {
+  concepts: Array<[string, number]>;
+  projectId: string;
+}) {
+  return (
+    <section className="rounded-xl border border-subtle bg-surface p-5 sm:p-6">
+      <ProgressSectionHeader
+        eyebrow="Zone critice recomandate"
+        title="Top concepte greșite"
+      />
+      {concepts.length ? (
+        <div className="mt-5 space-y-3">
+          {concepts.slice(0, 3).map(([concept, count], index) => (
+            <div
+              key={concept}
+              className="grid gap-3 rounded-xl border border-subtle bg-app px-4 py-3 sm:grid-cols-[auto_minmax(0,1fr)_auto] sm:items-center"
+            >
+              <span className="flex h-9 w-9 items-center justify-center rounded-full bg-surface font-serif text-lg font-semibold text-content">
+                {index + 1}
+              </span>
+              <div className="min-w-0">
+                <p className="truncate text-sm font-black text-content">
+                  {concept}
+                </p>
+                <p className="mt-1 text-xs font-bold text-muted">
+                  {count} {count === 1 ? "greșeală salvată" : "greșeli salvate"}
+                </p>
+              </div>
+              <Link
+                href={getTabHref("flashcards", projectId)}
+                className="inline-flex h-9 items-center justify-center rounded-md border border-subtle bg-surface px-3 text-xs font-black text-content transition hover:bg-surface-hover"
+              >
+                Repetă
+              </Link>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <ProgressEmptyState
+          title="Nu există concepte problematice."
+          description="Când salvezi greșeli din quiz-uri, Reviss le grupează aici pentru recapitulare rapidă."
+        />
+      )}
+    </section>
+  );
+}
+
+function ProgressQuizBreakdown({
+  quizScores,
+  projectId,
+}: {
+  quizScores: ProgressQuizScore[];
+  projectId: string;
+}) {
+  return (
+    <section className="flex rounded-xl border border-subtle bg-surface p-5 sm:p-6">
+      <div className="flex min-w-0 flex-1 flex-col">
+        <ProgressSectionHeader
+          eyebrow="Scor pe fiecare quiz"
+          title="Rezultate salvate"
+          meta={`${quizScores.length} module`}
+        />
+        {quizScores.length ? (
+          <div className="mt-5 max-h-[28rem] space-y-3 overflow-y-auto pr-2 [scrollbar-width:thin]">
+            {quizScores.map((quiz) =>
+              quiz.completed && typeof quiz.scorePercent === "number" ? (
+                <ProgressQuizListRow
+                  key={quiz.title}
+                  title={quiz.title}
+                  scorePercent={quiz.scorePercent}
+                />
+              ) : (
+                <div
+                  key={quiz.title}
+                  className="flex items-center justify-between gap-3 border-b border-subtle pb-3 text-xs"
+                >
+                  <span className="min-w-0 truncate font-bold text-content">
+                    {quiz.title}
+                  </span>
+                  <span className="shrink-0 rounded-md bg-app px-2.5 py-1 font-bold text-muted">
+                    Neîncercat
+                  </span>
+                </div>
+              ),
+            )}
+          </div>
+        ) : (
+          <ProgressEmptyState
+            title="Quiz-urile nu sunt generate încă."
+            description="După generarea quiz-urilor, lista completă de module apare aici."
+          />
+        )}
+
+        <div className="mt-5 border-t border-subtle pt-4">
+          <Link
+            href={getTabHref("quiz", projectId)}
+            className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-md bg-action px-4 text-sm font-black text-on-action transition hover:bg-action-hover"
+          >
+            Începe un quiz nou
+            <Icon>
+              <path d="M5 12h14M13 5l7 7-7 7" />
+            </Icon>
+          </Link>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function ProgressQuizListRow({
+  title,
+  scorePercent,
+}: {
+  title: string;
+  scorePercent: number;
+}) {
+  return (
+    <div className="border-b border-subtle pb-3">
+      <div className="mb-2 flex items-center justify-between gap-3 text-xs">
+        <span className="min-w-0 truncate font-black text-content">{title}</span>
+        <span className="font-black text-content">{scorePercent}%</span>
+      </div>
+      <div className="h-2 overflow-hidden rounded-full bg-app">
+        <div
+          className={`h-full rounded-full ${getProgressScoreBarClass(scorePercent)}`}
+          style={{ width: `${scorePercent}%` }}
+        />
       </div>
     </div>
   );
@@ -8868,7 +9608,7 @@ function ProgressHeroMetric({
   value: string;
 }) {
   return (
-    <div className="border-t border-subtle pt-3">
+    <div className="min-w-0 rounded-lg border border-subtle bg-app/55 px-3 py-3">
       <p className="font-serif text-3xl font-semibold leading-none text-content">
         {value}
       </p>
@@ -8881,54 +9621,94 @@ function ProgressHeroStrip({
   label,
   value,
   detail,
+  href,
+  actionLabel,
 }: {
   label: string;
   value: string;
   detail: string;
+  href?: string;
+  actionLabel?: string;
 }) {
   return (
-    <div className="p-5 sm:p-6">
-      <p className="text-[10px] font-black uppercase tracking-[0.18em] text-muted">
-        {label}
-      </p>
-      <p className="mt-2 font-serif text-2xl font-semibold leading-tight text-content">
-        {value}
-      </p>
-      <p className="mt-1 text-sm leading-6 text-muted">{detail}</p>
+    <div className="grid gap-3 p-5 sm:p-6 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center">
+      <div className="min-w-0">
+        <p className="text-[10px] font-black uppercase tracking-[0.18em] text-muted">
+          {label}
+        </p>
+        <p className="mt-2 min-w-0 break-words font-serif text-2xl font-semibold leading-tight text-content">
+          {value}
+        </p>
+        <p className="mt-1 text-sm leading-6 text-muted">{detail}</p>
+      </div>
+      {href && actionLabel ? (
+        <Link
+          href={href}
+          className="inline-flex h-9 w-fit items-center justify-center rounded-md border border-subtle bg-app px-3 text-xs font-black text-content transition hover:bg-surface-hover"
+        >
+          {actionLabel}
+        </Link>
+      ) : null}
     </div>
   );
 }
 
-function ProgressMiniStat({ label, value }: { label: string; value: string }) {
+function ProgressChartStat({ label, value }: { label: string; value: string }) {
   return (
-    <div className="p-5 sm:p-6">
-      <p className="font-serif text-2xl font-semibold text-content">{value}</p>
-      <p className="mt-1 text-xs leading-5 text-muted">{label}</p>
+    <div className="px-0 py-3 text-left sm:px-4 sm:text-center">
+      <p className="text-[10px] font-black uppercase tracking-[0.14em] text-muted">
+        {label}
+      </p>
+      <p className="mt-1 font-serif text-2xl font-semibold text-content">
+        {value}
+      </p>
     </div>
   );
+}
+
+function ProgressMiniStat({
+  label,
+  value,
+  withDivider,
+}: {
+  label: string;
+  value: string;
+  withDivider: boolean;
+}) {
+  return (
+    <div className={withDivider ? "md:border-r md:border-subtle md:pr-6" : ""}>
+      <p className="font-serif text-4xl font-semibold leading-none text-content">
+        {value}
+      </p>
+      <p className="mt-2 text-xs font-semibold leading-5 text-muted">{label}</p>
+    </div>
+  );
+}
+
+function getProgressScoreBarClass(value: number) {
+  if (value >= 80) return "bg-success";
+  if (value >= 60) return "bg-warning";
+  return "bg-danger";
+}
+
+function getProgressScoreBadgeClass(value: number) {
+  if (value >= 80) return "bg-success-soft text-success";
+  if (value >= 60) return "bg-warning-soft text-warning";
+  return "bg-danger-soft text-danger";
 }
 
 function ProgressBarRow({ label, value }: { label: string; value: number }) {
-  const barClass =
-    value >= 80 ? "bg-success" : value >= 60 ? "bg-warning" : "bg-danger";
-  const badgeClass =
-    value >= 80
-      ? "bg-success-soft text-success"
-      : value >= 60
-        ? "bg-warning-soft text-warning"
-        : "bg-danger-soft text-danger";
-
   return (
-    <div className="py-3">
+    <div>
       <div className="mb-2 flex items-center justify-between gap-3">
-        <p className="text-sm font-bold text-content">{label}</p>
-        <span className={`rounded-full px-2.5 py-1 text-[11px] font-bold ${badgeClass}`}>
+        <p className="min-w-0 truncate text-sm font-bold text-content">{label}</p>
+        <span className={`shrink-0 rounded-md px-2.5 py-1 text-[11px] font-bold ${getProgressScoreBadgeClass(value)}`}>
           {value}%
         </span>
       </div>
       <div className="h-2.5 overflow-hidden rounded-full bg-app">
         <div
-          className={`h-full rounded-full ${barClass}`}
+          className={`h-full rounded-full ${getProgressScoreBarClass(value)}`}
           style={{ width: `${value}%` }}
         />
       </div>
@@ -9021,7 +9801,7 @@ function NewProjectView({
       <button
         type="button"
         onClick={onBack}
-        className="inline-flex h-11 cursor-pointer items-center gap-2 rounded-full border border-subtle bg-surface px-4 text-sm font-semibold text-muted transition hover:bg-surface-hover hover:text-content"
+        className="inline-flex h-11 cursor-pointer items-center gap-2 rounded-md border border-subtle bg-surface px-4 text-sm font-semibold text-muted transition hover:bg-surface-hover hover:text-content"
       >
         <Icon>
           <path d="M19 12H5M12 19l-7-7 7-7" />
@@ -9033,7 +9813,7 @@ function NewProjectView({
         <>
           <header className="flex flex-col gap-4 border-b border-subtle pb-5 lg:flex-row lg:items-end lg:justify-between">
             <div className="min-w-0">
-              <p className="inline-flex rounded-full border border-subtle bg-action-soft px-3 py-1 text-[10px] font-black uppercase tracking-[0.18em] text-muted">
+              <p className="inline-flex rounded-md border border-subtle bg-action-soft px-3 py-1 text-[10px] font-black uppercase tracking-[0.18em] text-muted">
                 Proiect nou
               </p>
               <h1 className="mt-3 font-serif text-4xl font-semibold leading-none text-content sm:text-5xl">
@@ -9158,7 +9938,7 @@ function NewProjectView({
                       : "Trage fișiere aici sau apasă pentru selectare."}
                   </span>
                 </span>
-                <span className="hidden rounded-full bg-action px-4 py-2 text-xs font-black text-on-action sm:inline-flex">
+                <span className="hidden rounded-md bg-action px-4 py-2 text-xs font-black text-on-action sm:inline-flex">
                   Alege fișiere
                 </span>
               </button>
@@ -9203,7 +9983,7 @@ function NewProjectView({
                   </span>
                   <Link
                     href="/upgrade"
-                    className="inline-flex h-10 shrink-0 cursor-pointer items-center justify-center rounded-full border border-subtle bg-app px-4 text-sm font-black text-content transition hover:bg-action hover:text-on-action"
+                    className="inline-flex h-10 shrink-0 cursor-pointer items-center justify-center rounded-md border border-subtle bg-app px-4 text-sm font-black text-content transition hover:bg-action hover:text-on-action"
                   >
                     Vezi planuri
                   </Link>
@@ -9233,7 +10013,7 @@ function NewProjectView({
                       <button
                         type="button"
                         onClick={() => onRemoveFile(index)}
-                        className="w-fit cursor-pointer rounded-full border border-subtle px-3 py-2 text-xs font-bold text-muted transition hover:bg-danger-soft hover:text-danger"
+                        className="w-fit cursor-pointer rounded-md border border-subtle px-3 py-2 text-xs font-bold text-muted transition hover:bg-danger-soft hover:text-danger"
                       >
                         Elimină
                       </button>
@@ -9280,7 +10060,7 @@ function NewProjectView({
                 type="button"
                 disabled={!canGenerate}
                 onClick={onStartGeneration}
-                className="mt-5 flex w-full cursor-pointer items-center justify-center gap-2 rounded-full bg-action px-5 py-4 text-sm font-black text-on-action transition hover:bg-action-hover disabled:cursor-not-allowed disabled:bg-subtle disabled:text-muted"
+                className="mt-5 flex w-full cursor-pointer items-center justify-center gap-2 rounded-md bg-action px-5 py-4 text-sm font-black text-on-action transition hover:bg-action-hover disabled:cursor-not-allowed disabled:bg-subtle disabled:text-muted"
               >
                 Generează pachetul
                 <Icon>
@@ -9376,7 +10156,7 @@ function GenerationView({
             type="button"
             onClick={onCancelGeneration}
             disabled={isCancellingGeneration}
-            className="inline-flex items-center justify-center gap-2 rounded-full border border-subtle bg-app px-5 py-3 text-sm font-black text-content transition hover:border-danger-border hover:bg-danger-soft hover:text-danger disabled:cursor-not-allowed disabled:bg-subtle disabled:text-muted"
+            className="inline-flex items-center justify-center gap-2 rounded-md border border-subtle bg-app px-5 py-3 text-sm font-black text-content transition hover:border-danger-border hover:bg-danger-soft hover:text-danger disabled:cursor-not-allowed disabled:bg-subtle disabled:text-muted"
           >
             {isCancellingGeneration ? "Se anuleaza..." : "Anulare"}
             <Icon>
@@ -9431,7 +10211,7 @@ function GenerationView({
             type="button"
             disabled={!preparedProject}
             onClick={onOpenGeneratedProject}
-            className="mt-6 inline-flex items-center justify-center gap-2 rounded-full bg-action px-5 py-3 text-sm font-semibold text-on-action transition hover:bg-action-hover disabled:cursor-not-allowed disabled:bg-subtle disabled:text-muted"
+            className="mt-6 inline-flex items-center justify-center gap-2 rounded-md bg-action px-5 py-3 text-sm font-semibold text-on-action transition hover:bg-action-hover disabled:cursor-not-allowed disabled:bg-subtle disabled:text-muted"
           >
             Deschide proiectul
             <Icon>
@@ -9452,7 +10232,7 @@ function GenerationView({
                 type="button"
                 disabled={!preparedProject}
                 onClick={onStartQuizAfterSummary}
-                className="mt-3 inline-flex items-center justify-center gap-2 rounded-full border border-action px-4 py-2 text-xs font-black text-content transition hover:bg-action hover:text-on-action disabled:cursor-not-allowed disabled:opacity-60"
+                className="mt-3 inline-flex items-center justify-center gap-2 rounded-md border border-action px-4 py-2 text-xs font-black text-content transition hover:bg-action hover:text-on-action disabled:cursor-not-allowed disabled:opacity-60"
               >
                 Generează un quiz
                 <Icon className="h-3.5 w-3.5">

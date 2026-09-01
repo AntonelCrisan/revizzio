@@ -306,7 +306,7 @@ export function UpgradePage({
       <section className="space-y-7">
         <div className="flex flex-col gap-5 border-b border-subtle pb-7 lg:flex-row lg:items-end lg:justify-between">
           <div>
-            <p className="inline-flex rounded-full border border-subtle bg-action-soft px-3 py-1 text-[10px] font-black uppercase tracking-[0.18em] text-muted">
+            <p className="inline-flex rounded-md border border-subtle bg-action-soft px-3 py-1 text-[10px] font-black uppercase tracking-[0.18em] text-muted">
               Abonament
             </p>
             <h1 className="mt-3 max-w-3xl font-serif text-4xl font-semibold leading-[0.95] text-content sm:text-5xl">
@@ -318,7 +318,7 @@ export function UpgradePage({
           </div>
 
           <div className="flex flex-wrap gap-2">
-            <span className="inline-flex items-center gap-2 rounded-full border border-subtle bg-surface px-4 py-2 text-xs font-bold text-muted">
+            <span className="inline-flex items-center gap-2 rounded-md border border-subtle bg-surface px-4 py-2 text-xs font-bold text-muted">
               <span className="h-1.5 w-1.5 rounded-full bg-success" />
               <span className="text-content">
                 {currentPlanName}
@@ -326,13 +326,13 @@ export function UpgradePage({
               activ
             </span>
             {cancellationPending ? (
-              <span className="inline-flex items-center rounded-full border border-warning-border bg-warning-soft px-4 py-2 text-xs font-bold text-warning">
+              <span className="inline-flex items-center rounded-md border border-warning-border bg-warning-soft px-4 py-2 text-xs font-bold text-warning">
                 se oprește la {accessUntilLabel}
               </span>
             ) : null}
             <Link
               href="/upgrade/facturi"
-              className="inline-flex cursor-pointer items-center rounded-full border border-subtle bg-surface px-4 py-2 text-xs font-bold text-muted transition hover:bg-surface-hover hover:text-content"
+              className="inline-flex cursor-pointer items-center rounded-md border border-subtle bg-surface px-4 py-2 text-xs font-bold text-muted transition hover:bg-surface-hover hover:text-content"
             >
               Facturi
             </Link>
@@ -378,7 +378,7 @@ export function UpgradePage({
                   <div className="flex shrink-0 flex-wrap justify-end gap-2">
                     {isCurrentPlan ? (
                       <span
-                        className={`rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-[0.12em] ${
+                        className={`rounded-md px-3 py-1 text-[10px] font-black uppercase tracking-[0.12em] ${
                           plan.highlighted
                             ? "bg-on-action text-action"
                             : "bg-success-soft text-success"
@@ -388,7 +388,7 @@ export function UpgradePage({
                       </span>
                     ) : null}
                     {plan.highlighted ? (
-                      <span className="rounded-full bg-on-action px-3 py-1 text-[10px] font-black uppercase tracking-[0.12em] text-action">
+                      <span className="rounded-md bg-on-action px-3 py-1 text-[10px] font-black uppercase tracking-[0.12em] text-action">
                         Recomandat
                       </span>
                     ) : null}
@@ -423,7 +423,7 @@ export function UpgradePage({
 
                 {plan.discount ? (
                   <p
-                    className={`mt-3 w-fit rounded-full border px-3 py-1 text-[10px] font-black ${
+                    className={`mt-3 w-fit rounded-md border px-3 py-1 text-[10px] font-black ${
                       plan.highlighted
                         ? "border-on-action/20 bg-on-action/10 text-on-action"
                         : "border-success-border bg-success-soft text-success"
@@ -463,7 +463,7 @@ export function UpgradePage({
                     <>
                       <button
                         type="button"
-                        className={`w-full cursor-default rounded-full border px-5 py-3 text-sm font-black ${
+                        className={`w-full cursor-default rounded-md border px-5 py-3 text-sm font-black ${
                           plan.highlighted
                             ? "border-on-action/35 bg-on-action text-action"
                             : "border-subtle bg-surface-hover text-content"
@@ -479,7 +479,7 @@ export function UpgradePage({
                             type="button"
                             onClick={resumeRenewal}
                             disabled={isUpdatingSubscription}
-                            className={`w-full cursor-pointer rounded-full border px-5 py-3 text-sm font-black transition disabled:cursor-not-allowed disabled:opacity-60 ${
+                            className={`w-full cursor-pointer rounded-md border px-5 py-3 text-sm font-black transition disabled:cursor-not-allowed disabled:opacity-60 ${
                               plan.highlighted
                                 ? "border-on-action/35 text-on-action hover:bg-on-action/10"
                                 : "border-subtle text-content hover:bg-surface-hover"
@@ -494,7 +494,7 @@ export function UpgradePage({
                             type="button"
                             onClick={() => setIsCancelModalOpen(true)}
                             disabled={isUpdatingSubscription}
-                            className={`w-full cursor-pointer rounded-full border px-5 py-3 text-sm font-black transition disabled:cursor-not-allowed disabled:opacity-60 ${
+                            className={`w-full cursor-pointer rounded-md border px-5 py-3 text-sm font-black transition disabled:cursor-not-allowed disabled:opacity-60 ${
                               plan.highlighted
                                 ? "border-on-action/35 text-on-action hover:bg-on-action/10"
                                 : "border-danger-border text-danger hover:bg-danger-soft"
@@ -508,7 +508,7 @@ export function UpgradePage({
                   ) : plan.paid ? (
                     <Link
                       href={`/checkout/${plan.slug}`}
-                      className={`inline-flex w-full cursor-pointer items-center justify-center rounded-full px-5 py-3 text-sm font-black transition ${
+                      className={`inline-flex w-full cursor-pointer items-center justify-center rounded-md px-5 py-3 text-sm font-black transition ${
                         plan.highlighted
                           ? "bg-on-action text-action hover:bg-on-action/90"
                           : "bg-action text-on-action hover:bg-action-hover"
@@ -520,7 +520,7 @@ export function UpgradePage({
                     <button
                       type="button"
                       disabled
-                      className="w-full cursor-default rounded-full border border-subtle bg-surface-hover px-5 py-3 text-sm font-black text-muted"
+                      className="w-full cursor-default rounded-md border border-subtle bg-surface-hover px-5 py-3 text-sm font-black text-muted"
                     >
                       {plan.cta}
                     </button>
@@ -562,7 +562,7 @@ function CancelRenewalModal({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 px-4 py-8">
       <section className="w-full max-w-xl rounded-xl border border-subtle bg-surface p-6 text-content shadow-2xl shadow-black/20">
-        <p className="inline-flex rounded-full border border-danger-border bg-danger-soft px-3 py-1 text-[10px] font-black uppercase tracking-[0.18em] text-danger">
+        <p className="inline-flex rounded-md border border-danger-border bg-danger-soft px-3 py-1 text-[10px] font-black uppercase tracking-[0.18em] text-danger">
           Anulare reînnoire
         </p>
         <h2 className="mt-4 font-serif text-4xl font-semibold leading-tight">
@@ -578,7 +578,7 @@ function CancelRenewalModal({
             type="button"
             onClick={onCancel}
             disabled={isSubmitting}
-            className="cursor-pointer rounded-full border border-subtle px-5 py-3 text-sm font-black transition hover:bg-surface-hover disabled:cursor-not-allowed disabled:opacity-60"
+            className="cursor-pointer rounded-md border border-subtle px-5 py-3 text-sm font-black transition hover:bg-surface-hover disabled:cursor-not-allowed disabled:opacity-60"
           >
             Renunță
           </button>
@@ -586,7 +586,7 @@ function CancelRenewalModal({
             type="button"
             onClick={onConfirm}
             disabled={isSubmitting}
-            className="cursor-pointer rounded-full bg-danger px-5 py-3 text-sm font-black text-on-action transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
+            className="cursor-pointer rounded-md bg-danger px-5 py-3 text-sm font-black text-on-action transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
           >
             {isSubmitting ? "Se anulează..." : "Anulează reînnoirea"}
           </button>

@@ -277,7 +277,7 @@ function SettingsGroup({
               </span>
             </span>
             <span className="flex items-center gap-3 sm:justify-end">
-              <span className="hidden rounded-full bg-action px-4 py-2 text-xs font-black text-on-action transition group-hover:bg-action-hover sm:inline-flex">
+              <span className="hidden rounded-md bg-action px-4 py-2 text-xs font-black text-on-action transition group-hover:bg-action-hover sm:inline-flex">
                 Deschide
               </span>
               <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-subtle text-muted transition group-hover:border-action group-hover:text-content">
@@ -297,7 +297,7 @@ export function AdminSettingsPage() {
       <section className="space-y-7">
         <div className="flex flex-col gap-5 border-b border-subtle pb-7 lg:flex-row lg:items-end lg:justify-between">
           <div>
-            <p className="inline-flex rounded-full border border-subtle bg-action-soft px-3 py-1 text-[10px] font-black uppercase tracking-[0.18em] text-muted">
+            <p className="inline-flex rounded-md border border-subtle bg-action-soft px-3 py-1 text-[10px] font-black uppercase tracking-[0.18em] text-muted">
               Administrare
             </p>
             <h1 className="mt-3 max-w-3xl font-serif text-4xl font-semibold leading-[0.95] text-content sm:text-5xl">
@@ -308,7 +308,7 @@ export function AdminSettingsPage() {
             </p>
           </div>
 
-          <span className="inline-flex w-fit rounded-full border border-success-border bg-success-soft px-4 py-2 text-xs font-black text-success">
+          <span className="inline-flex w-fit rounded-md border border-success-border bg-success-soft px-4 py-2 text-xs font-black text-success">
             Acces admin
           </span>
         </div>

@@ -75,13 +75,13 @@ export function ConfirmEmailChangeClient({
       <div className="grid gap-2 sm:grid-cols-2">
         <Link
           href="/login"
-          className="flex h-11 items-center justify-center rounded-xl border border-subtle bg-surface px-5 text-sm font-bold text-content transition hover:border-action"
+          className="flex h-11 items-center justify-center rounded-md border border-subtle bg-surface px-5 text-sm font-bold text-content transition hover:border-action"
         >
           Autentificare
         </Link>
         <Link
           href="/myaccount"
-          className="theme-shadow-action flex h-11 items-center justify-center rounded-xl bg-action px-5 text-sm font-bold text-on-action transition hover:-translate-y-0.5 hover:bg-action-hover"
+          className="theme-shadow-action flex h-11 items-center justify-center rounded-md bg-action px-5 text-sm font-bold text-on-action transition hover:-translate-y-0.5 hover:bg-action-hover"
         >
           Mergi în cont
         </Link>

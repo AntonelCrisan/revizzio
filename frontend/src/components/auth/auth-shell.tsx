@@ -61,23 +61,23 @@ export function AuthShell({
 }: AuthShellProps) {
   return (
     <div className="theme-shadow mx-auto grid w-full overflow-hidden rounded-[1.75rem] border border-subtle bg-surface lg:grid-cols-[1.03fr_0.97fr]">
-      <section className="p-5 sm:p-7 lg:p-8 xl:p-10">
+      <section className="p-5 sm:p-6 lg:p-7 xl:p-8">
         <BrandLogo
           href="/"
-          className="mb-6 w-fit text-content transition hover:text-action"
+          className="mb-5 w-fit text-content transition hover:text-action"
           logoClassName="h-9 w-36"
         />
 
-        <h1 className="max-w-xl font-serif text-3xl font-semibold leading-[1.08] tracking-[-0.025em] sm:text-4xl xl:text-[2.75rem]">
+        <h1 className="max-w-xl font-serif text-2xl font-semibold leading-[1.12] tracking-[-0.02em] sm:text-3xl xl:text-[2rem]">
           {title}
         </h1>
-        <p className="mt-3 max-w-lg text-sm leading-6 text-muted">
+        <p className="mt-3 max-w-lg text-[13px] leading-5 text-muted">
           {description}
         </p>
 
-        <div className="mt-6">{children}</div>
+        <div className="mt-5">{children}</div>
 
-        <p className="mt-5 text-center text-xs text-muted sm:text-sm">
+        <p className="mt-4 text-center text-xs text-muted sm:text-sm">
           {alternateText}{" "}
           <Link
             href={alternateHref}
@@ -88,7 +88,7 @@ export function AuthShell({
         </p>
       </section>
 
-      <aside className="relative hidden overflow-hidden border-l border-subtle bg-action p-8 text-on-action lg:flex lg:flex-col lg:justify-between xl:p-10">
+      <aside className="relative hidden overflow-hidden border-l border-subtle bg-action p-7 text-on-action lg:flex lg:flex-col lg:justify-between xl:p-8">
         <div className="pointer-events-none absolute -right-24 -top-24 h-72 w-72 rounded-full border border-on-action/10" />
         <div className="pointer-events-none absolute -right-10 -top-10 h-44 w-44 rounded-full border border-on-action/10" />
         <div className="pointer-events-none absolute -bottom-36 -left-28 h-80 w-80 rounded-full bg-on-action/5 blur-2xl" />
@@ -100,7 +100,7 @@ export function AuthShell({
           <p className="mt-7 text-[10px] font-bold uppercase tracking-[0.2em] text-on-action/65">
             Spațiul tău de studiu
           </p>
-          <h2 className="mt-3 max-w-md font-serif text-3xl font-semibold leading-tight xl:text-4xl">
+          <h2 className="mt-3 max-w-md font-serif text-2xl font-semibold leading-tight xl:text-[1.75rem]">
             {asideTitle}
           </h2>
           <p className="mt-4 max-w-sm text-sm leading-6 text-on-action/70">

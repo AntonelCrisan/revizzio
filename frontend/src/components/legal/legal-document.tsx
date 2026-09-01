@@ -41,7 +41,7 @@ export function LegalDocument({ contentHtml, eyebrow, summary }: LegalDocumentPr
 
           <Link
             href="/"
-            className="inline-flex items-center gap-2 rounded-full border border-subtle bg-surface px-4 py-2 text-xs font-bold text-muted shadow-sm transition hover:border-content/20 hover:text-content"
+            className="inline-flex items-center gap-2 rounded-md border border-subtle bg-surface px-4 py-2 text-xs font-bold text-muted shadow-sm transition hover:border-content/20 hover:text-content"
           >
             <ArrowLeftIcon />
             Acasă

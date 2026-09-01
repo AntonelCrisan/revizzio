@@ -27,7 +27,7 @@ export function LegalPageShell({
 
           <Link
             href="/"
-            className="rounded-full border border-subtle bg-surface px-4 py-2 text-xs font-bold text-muted shadow-sm transition hover:text-content"
+            className="rounded-md border border-subtle bg-surface px-4 py-2 text-xs font-bold text-muted shadow-sm transition hover:text-content"
           >
             Acasă
           </Link>

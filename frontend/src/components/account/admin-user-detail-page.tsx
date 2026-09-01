@@ -278,11 +278,11 @@ export function AdminUserDetailPage({
           <div>
             <Link
               href="/admin/settings/utilizatori"
-              className="mb-5 flex w-fit items-center rounded-full border border-subtle bg-surface px-4 py-2 text-sm font-semibold text-muted transition hover:bg-surface-hover hover:text-content"
+              className="mb-5 flex w-fit items-center rounded-md border border-subtle bg-surface px-4 py-2 text-sm font-semibold text-muted transition hover:bg-surface-hover hover:text-content"
             >
               ← Utilizatori
             </Link>
-            <p className="inline-flex rounded-full border border-subtle bg-action-soft px-3 py-1 text-[10px] font-black uppercase tracking-[0.18em] text-muted">
+            <p className="inline-flex rounded-md border border-subtle bg-action-soft px-3 py-1 text-[10px] font-black uppercase tracking-[0.18em] text-muted">
               Utilizator
             </p>
             <h1 className="mt-3 max-w-3xl break-words font-serif text-4xl font-semibold leading-[0.95] text-content sm:text-5xl">
@@ -294,11 +294,11 @@ export function AdminUserDetailPage({
           </div>
 
           <div className="flex flex-wrap gap-2">
-            <span className="inline-flex rounded-full border border-action bg-action px-4 py-2 text-xs font-black uppercase tracking-[0.12em] text-on-action">
+            <span className="inline-flex rounded-md border border-action bg-action px-4 py-2 text-xs font-black uppercase tracking-[0.12em] text-on-action">
               {roleLabel(user.role)}
             </span>
             <span
-              className={`inline-flex rounded-full border px-4 py-2 text-xs font-black uppercase tracking-[0.12em] ${statusBadgeClass(user.is_active)}`}
+              className={`inline-flex rounded-md border px-4 py-2 text-xs font-black uppercase tracking-[0.12em] ${statusBadgeClass(user.is_active)}`}
             >
               {user.is_active ? "Activ" : "Inactiv"}
             </span>
@@ -335,7 +335,7 @@ export function AdminUserDetailPage({
               </p>
             </div>
             <span
-              className={`inline-flex w-fit rounded-full border px-3 py-1 text-[10px] font-black uppercase tracking-[0.12em] ${
+              className={`inline-flex w-fit rounded-md border px-3 py-1 text-[10px] font-black uppercase tracking-[0.12em] ${
                 user.is_active
                   ? "border-success-border bg-success-soft text-success"
                   : "border-warning-border bg-warning-soft text-warning"
@@ -399,7 +399,7 @@ export function AdminUserDetailPage({
                       : "Trimite un link nou de verificare sau verifica manual contul daca emailul nu ajunge."}
                   </p>
                 </div>
-                <span className="w-fit rounded-full border border-subtle bg-surface px-3 py-1 text-[10px] font-black uppercase tracking-[0.12em] text-muted">
+                <span className="w-fit rounded-md border border-subtle bg-surface px-3 py-1 text-[10px] font-black uppercase tracking-[0.12em] text-muted">
                   {user.is_active ? "Acces permis" : "Acces blocat"}
                 </span>
               </div>
@@ -412,7 +412,7 @@ export function AdminUserDetailPage({
                       onClick={() => void sendVerificationEmail()}
                       disabled={isCurrentUser}
                       aria-busy={showVerificationEmailSpinner}
-                      className="inline-flex h-11 items-center justify-center gap-2 rounded-full bg-action px-5 text-sm font-black text-on-action transition hover:bg-action-hover disabled:cursor-not-allowed disabled:opacity-60"
+                      className="inline-flex h-11 items-center justify-center gap-2 rounded-md bg-action px-5 text-sm font-black text-on-action transition hover:bg-action-hover disabled:cursor-not-allowed disabled:opacity-60"
                     >
                       {showVerificationEmailSpinner ? (
                         <svg
@@ -433,7 +433,7 @@ export function AdminUserDetailPage({
                       type="button"
                       onClick={() => void verifyUserManually()}
                       disabled={isSavingStatus || isCurrentUser}
-                      className="inline-flex h-11 items-center justify-center rounded-full border border-success-border bg-success-soft px-5 text-sm font-black text-success transition hover:opacity-80 disabled:cursor-not-allowed disabled:opacity-60"
+                      className="inline-flex h-11 items-center justify-center rounded-md border border-success-border bg-success-soft px-5 text-sm font-black text-success transition hover:opacity-80 disabled:cursor-not-allowed disabled:opacity-60"
                     >
                       {isSavingStatus ? "Se verifica..." : "Verifica manual"}
                     </button>
@@ -443,7 +443,7 @@ export function AdminUserDetailPage({
                     type="button"
                     onClick={() => void toggleUserStatus()}
                     disabled={isSavingStatus || isCurrentUser}
-                    className="inline-flex h-11 items-center justify-center rounded-full border border-warning-border bg-warning-soft px-5 text-sm font-black text-warning transition hover:opacity-80 disabled:cursor-not-allowed disabled:opacity-60"
+                    className="inline-flex h-11 items-center justify-center rounded-md border border-warning-border bg-warning-soft px-5 text-sm font-black text-warning transition hover:opacity-80 disabled:cursor-not-allowed disabled:opacity-60"
                   >
                     {isSavingStatus ? "Se salveaza..." : "Dezactiveaza contul"}
                   </button>
@@ -465,7 +465,7 @@ export function AdminUserDetailPage({
                 type="button"
                 onClick={() => setIsDeleteUserModalOpen(true)}
                 disabled={isDeletingUser || isCurrentUser}
-                className="inline-flex h-11 w-fit items-center justify-center rounded-full bg-danger px-5 text-sm font-black text-danger-soft transition hover:opacity-85 disabled:cursor-not-allowed disabled:opacity-60"
+                className="inline-flex h-11 w-fit items-center justify-center rounded-md bg-danger px-5 text-sm font-black text-danger-soft transition hover:opacity-85 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {isDeletingUser ? "Se sterge..." : "Sterge utilizator"}
               </button>
@@ -542,7 +542,7 @@ export function AdminUserDetailPage({
                   <tr key={session.id} className="transition hover:bg-surface-hover/45">
                     <td className="px-4 py-4">
                       <span
-                        className={`inline-flex rounded-full border px-3 py-1 text-[10px] font-black uppercase tracking-[0.12em] ${sessionStatusClass(session.status)}`}
+                        className={`inline-flex rounded-md border px-3 py-1 text-[10px] font-black uppercase tracking-[0.12em] ${sessionStatusClass(session.status)}`}
                       >
                         {session.status}
                       </span>
@@ -636,7 +636,7 @@ function DeleteAdminUserModal({
             type="button"
             onClick={onCancel}
             disabled={isDeleting}
-            className="rounded-full border border-subtle px-5 py-3 text-sm font-bold transition hover:bg-surface-hover disabled:cursor-wait disabled:opacity-60"
+            className="rounded-md border border-subtle px-5 py-3 text-sm font-bold transition hover:bg-surface-hover disabled:cursor-wait disabled:opacity-60"
           >
             Renunță
           </button>
@@ -644,7 +644,7 @@ function DeleteAdminUserModal({
             type="button"
             onClick={onConfirm}
             disabled={isDeleting}
-            className="rounded-full bg-danger px-5 py-3 text-sm font-bold text-danger-soft transition hover:opacity-85 disabled:cursor-wait disabled:opacity-60"
+            className="rounded-md bg-danger px-5 py-3 text-sm font-bold text-danger-soft transition hover:opacity-85 disabled:cursor-wait disabled:opacity-60"
           >
             {isDeleting ? "Se șterge..." : "Șterge utilizatorul"}
           </button>

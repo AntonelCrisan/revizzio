@@ -259,11 +259,11 @@ export function NotificationBell() {
         onClick={toggleOpen}
         aria-label="Notificări"
         aria-expanded={isOpen}
-        className="relative flex h-10 w-10 items-center justify-center rounded-xl border border-subtle bg-surface text-content transition hover:bg-surface-hover"
+        className="relative flex h-10 w-10 items-center justify-center rounded-md border border-subtle bg-surface text-content transition hover:bg-surface-hover"
       >
         <BellIcon />
         {unreadCount > 0 ? (
-          <span className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-danger px-1 text-[10px] font-black text-danger-soft">
+          <span className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-md bg-danger px-1 text-[10px] font-black text-danger-soft">
             {unreadCount > 9 ? "9+" : unreadCount}
           </span>
         ) : null}

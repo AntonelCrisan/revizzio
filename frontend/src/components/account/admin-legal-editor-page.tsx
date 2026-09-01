@@ -251,11 +251,11 @@ export function AdminLegalEditorPage({
           <div className="min-w-0">
             <Link
               href="/admin/settings"
-              className="mb-5 flex w-fit max-w-full items-center rounded-full border border-subtle bg-surface px-4 py-2 text-sm font-semibold text-muted transition hover:bg-surface-hover hover:text-content"
+              className="mb-5 flex w-fit max-w-full items-center rounded-md border border-subtle bg-surface px-4 py-2 text-sm font-semibold text-muted transition hover:bg-surface-hover hover:text-content"
             >
               ← Setări admin
             </Link>
-            <p className="inline-flex max-w-full rounded-full border border-subtle bg-action-soft px-3 py-1 text-[10px] font-black uppercase tracking-[0.18em] text-muted">
+            <p className="inline-flex max-w-full rounded-md border border-subtle bg-action-soft px-3 py-1 text-[10px] font-black uppercase tracking-[0.18em] text-muted">
               Document legal
             </p>
             <h1 className="mt-3 max-w-3xl break-words font-serif text-4xl font-semibold leading-[0.95] text-content sm:text-5xl">
@@ -269,7 +269,7 @@ export function AdminLegalEditorPage({
           <Link
             href={publicHref}
             target="_blank"
-            className="inline-flex min-h-12 w-fit max-w-full items-center justify-center rounded-full border border-subtle bg-surface px-5 py-3 text-center text-sm font-bold leading-tight text-content transition hover:bg-surface-hover"
+            className="inline-flex min-h-12 w-fit max-w-full items-center justify-center rounded-md border border-subtle bg-surface px-5 py-3 text-center text-sm font-bold leading-tight text-content transition hover:bg-surface-hover"
           >
             Vezi public
           </Link>
@@ -330,7 +330,7 @@ export function AdminLegalEditorPage({
                     setDeleteConfirmKey(null);
                     setNotice(null);
                   }}
-                  className="inline-flex min-h-11 w-full min-w-0 items-center justify-center gap-2 rounded-full bg-action px-4 py-2.5 text-center text-sm font-black leading-tight text-on-action transition hover:bg-action-hover sm:w-auto"
+                  className="inline-flex min-h-11 w-full min-w-0 items-center justify-center gap-2 rounded-md bg-action px-4 py-2.5 text-center text-sm font-black leading-tight text-on-action transition hover:bg-action-hover sm:w-auto"
                 >
                   <svg
                     aria-hidden="true"
@@ -408,7 +408,7 @@ export function AdminLegalEditorPage({
                       type="button"
                       onClick={resetNewSection}
                       disabled={isCreating}
-                      className="inline-flex min-h-12 w-full min-w-0 items-center justify-center rounded-full border border-subtle bg-app px-5 py-3 text-center text-sm font-bold leading-tight text-content transition hover:bg-surface-hover disabled:cursor-wait disabled:opacity-60 sm:w-auto"
+                      className="inline-flex min-h-12 w-full min-w-0 items-center justify-center rounded-md border border-subtle bg-app px-5 py-3 text-center text-sm font-bold leading-tight text-content transition hover:bg-surface-hover disabled:cursor-wait disabled:opacity-60 sm:w-auto"
                     >
                       Renunță
                     </button>
@@ -416,7 +416,7 @@ export function AdminLegalEditorPage({
                       type="button"
                       onClick={createSection}
                       disabled={isCreating}
-                      className="inline-flex min-h-12 w-full min-w-0 items-center justify-center rounded-full bg-action px-5 py-3 text-center text-sm font-black leading-tight text-on-action transition hover:bg-action-hover disabled:cursor-wait disabled:opacity-60 sm:w-auto"
+                      className="inline-flex min-h-12 w-full min-w-0 items-center justify-center rounded-md bg-action px-5 py-3 text-center text-sm font-black leading-tight text-on-action transition hover:bg-action-hover disabled:cursor-wait disabled:opacity-60 sm:w-auto"
                     >
                       {isCreating ? "Se adaugă..." : "Creează secțiunea"}
                     </button>
@@ -442,7 +442,7 @@ export function AdminLegalEditorPage({
                   <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                     <div className="min-w-0">
                       <div className="flex min-w-0 flex-wrap items-center gap-2">
-                        <span className="max-w-full break-all rounded-full border border-subtle bg-app px-3 py-1 text-[10px] font-black uppercase tracking-[0.16em] text-muted">
+                        <span className="max-w-full break-all rounded-md border border-subtle bg-app px-3 py-1 text-[10px] font-black uppercase tracking-[0.16em] text-muted">
                           {section.section_key}
                         </span>
                         <span className="min-w-0 break-words text-xs font-bold text-muted">
@@ -465,7 +465,7 @@ export function AdminLegalEditorPage({
                               type="button"
                               onClick={() => setDeleteConfirmKey(null)}
                               disabled={isDeleting}
-                              className="inline-flex min-h-10 w-full min-w-0 items-center justify-center rounded-full border border-subtle bg-app px-4 py-2 text-center text-xs font-bold leading-tight text-content transition hover:bg-surface-hover disabled:cursor-wait disabled:opacity-60 sm:w-auto"
+                              className="inline-flex min-h-10 w-full min-w-0 items-center justify-center rounded-md border border-subtle bg-app px-4 py-2 text-center text-xs font-bold leading-tight text-content transition hover:bg-surface-hover disabled:cursor-wait disabled:opacity-60 sm:w-auto"
                             >
                               Anulează
                             </button>
@@ -473,7 +473,7 @@ export function AdminLegalEditorPage({
                               type="button"
                               onClick={() => deleteSection(section)}
                               disabled={isDeleting}
-                              className="inline-flex min-h-10 w-full min-w-0 items-center justify-center rounded-full bg-danger px-4 py-2 text-center text-xs font-black leading-tight text-danger-soft transition hover:opacity-90 disabled:cursor-wait disabled:opacity-60 sm:w-auto"
+                              className="inline-flex min-h-10 w-full min-w-0 items-center justify-center rounded-md bg-danger px-4 py-2 text-center text-xs font-black leading-tight text-danger-soft transition hover:opacity-90 disabled:cursor-wait disabled:opacity-60 sm:w-auto"
                             >
                               {isDeleting ? "Se șterge..." : "Confirmă"}
                             </button>
@@ -484,7 +484,7 @@ export function AdminLegalEditorPage({
                               type="button"
                               onClick={() => startEditing(section)}
                               disabled={Boolean(savingKey || deletingKey)}
-                              className="inline-flex min-h-10 w-full min-w-0 items-center justify-center rounded-full border border-subtle bg-app px-4 py-2.5 text-center text-sm font-bold leading-tight text-content transition hover:bg-surface-hover disabled:cursor-wait disabled:opacity-60 sm:w-auto"
+                              className="inline-flex min-h-10 w-full min-w-0 items-center justify-center rounded-md border border-subtle bg-app px-4 py-2.5 text-center text-sm font-bold leading-tight text-content transition hover:bg-surface-hover disabled:cursor-wait disabled:opacity-60 sm:w-auto"
                             >
                               Editează
                             </button>
@@ -495,7 +495,7 @@ export function AdminLegalEditorPage({
                                 setNotice(null);
                               }}
                               disabled={sections.length <= 1 || Boolean(deletingKey)}
-                              className="inline-flex min-h-10 w-full min-w-0 items-center justify-center rounded-full border border-danger-border bg-danger-soft px-4 py-2.5 text-center text-sm font-bold leading-tight text-danger transition hover:bg-danger-border disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
+                              className="inline-flex min-h-10 w-full min-w-0 items-center justify-center rounded-md border border-danger-border bg-danger-soft px-4 py-2.5 text-center text-sm font-bold leading-tight text-danger transition hover:bg-danger-border disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
                             >
                               Șterge
                             </button>
@@ -554,7 +554,7 @@ export function AdminLegalEditorPage({
                             setDraft(null);
                           }}
                           disabled={isSaving}
-                          className="inline-flex min-h-12 w-full min-w-0 items-center justify-center rounded-full border border-subtle bg-app px-5 py-3 text-center text-sm font-bold leading-tight text-content transition hover:bg-surface-hover disabled:cursor-wait disabled:opacity-60 sm:w-auto"
+                          className="inline-flex min-h-12 w-full min-w-0 items-center justify-center rounded-md border border-subtle bg-app px-5 py-3 text-center text-sm font-bold leading-tight text-content transition hover:bg-surface-hover disabled:cursor-wait disabled:opacity-60 sm:w-auto"
                         >
                           Renunță
                         </button>
@@ -562,7 +562,7 @@ export function AdminLegalEditorPage({
                           type="button"
                           onClick={() => saveSection(section)}
                           disabled={isSaving}
-                          className="inline-flex min-h-12 w-full min-w-0 items-center justify-center rounded-full bg-action px-5 py-3 text-center text-sm font-black leading-tight text-on-action transition hover:bg-action-hover disabled:cursor-wait disabled:opacity-60 sm:w-auto"
+                          className="inline-flex min-h-12 w-full min-w-0 items-center justify-center rounded-md bg-action px-5 py-3 text-center text-sm font-black leading-tight text-on-action transition hover:bg-action-hover disabled:cursor-wait disabled:opacity-60 sm:w-auto"
                         >
                           {isSaving ? "Se salvează..." : "Salvează secțiunea"}
                         </button>
@@ -595,7 +595,7 @@ export function AdminLegalEditorPage({
                   document.available_variables.map((variable) => (
                     <code
                       key={variable}
-                      className="max-w-full break-all rounded-full border border-subtle bg-app px-3 py-1 text-xs font-bold text-muted"
+                      className="max-w-full break-all rounded-md border border-subtle bg-app px-3 py-1 text-xs font-bold text-muted"
                     >
                       {variable}
                     </code>

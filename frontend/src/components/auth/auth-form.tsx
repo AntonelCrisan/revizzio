@@ -215,10 +215,10 @@ export function AuthForm({ mode, redirectTo, initialError }: AuthFormProps) {
   return (
     <>
     {!isForgotPassword ? (
-      <div className="mb-4 space-y-3">
+      <div className="mb-4 space-y-2.5">
         <a
           href={`/api/auth/google/authorize?next=${encodeURIComponent(afterLoginPath)}`}
-          className="flex h-11 w-full items-center justify-center gap-2.5 rounded-xl border border-subtle bg-surface px-5 text-sm font-bold text-content transition hover:-translate-y-0.5 hover:bg-app"
+          className="flex h-11 w-full items-center justify-center gap-2.5 rounded-md border border-subtle bg-surface px-5 text-sm font-bold text-content transition hover:-translate-y-0.5 hover:bg-app"
         >
           <GoogleIcon />
           Continuă cu Google
@@ -247,7 +247,7 @@ export function AuthForm({ mode, redirectTo, initialError }: AuthFormProps) {
         </div>
       </div>
     ) : null}
-    <form onSubmit={handleSubmit} className="space-y-4">
+    <form onSubmit={handleSubmit} className="space-y-3.5">
       {isRegister ? (
         <div>
           <label htmlFor="name" className="text-sm font-bold text-content">
@@ -370,7 +370,7 @@ export function AuthForm({ mode, redirectTo, initialError }: AuthFormProps) {
       ) : null}
 
       {isRegister ? (
-        <div className="space-y-3">
+        <div className="space-y-2.5">
           <label className="flex cursor-pointer items-start gap-3 text-xs leading-5 text-muted">
             <input
               name="terms"
@@ -428,7 +428,7 @@ export function AuthForm({ mode, redirectTo, initialError }: AuthFormProps) {
       <button
         type="submit"
         disabled={isSubmitting || (isForgotPassword && hasRequestedReset)}
-        className="theme-shadow-action flex h-11 w-full items-center justify-center gap-3 rounded-xl bg-action px-5 text-sm font-bold text-on-action transition hover:-translate-y-0.5 hover:bg-action-hover disabled:cursor-wait disabled:opacity-65 disabled:hover:translate-y-0"
+        className="theme-shadow-action flex h-11 w-full items-center justify-center gap-3 rounded-md bg-action px-5 text-sm font-bold text-on-action transition hover:-translate-y-0.5 hover:bg-action-hover disabled:cursor-wait disabled:opacity-65 disabled:hover:translate-y-0"
       >
         {isSubmitting
           ? "Se procesează..."
@@ -496,7 +496,7 @@ export function AuthForm({ mode, redirectTo, initialError }: AuthFormProps) {
           <button
             type="button"
             onClick={() => setSuccessDialog(null)}
-            className="theme-shadow-action mt-5 flex h-11 w-full items-center justify-center rounded-xl bg-action px-5 text-sm font-bold text-on-action transition hover:-translate-y-0.5 hover:bg-action-hover"
+            className="theme-shadow-action mt-5 flex h-11 w-full items-center justify-center rounded-md bg-action px-5 text-sm font-bold text-on-action transition hover:-translate-y-0.5 hover:bg-action-hover"
           >
             Am înțeles
           </button>

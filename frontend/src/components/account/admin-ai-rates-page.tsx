@@ -168,11 +168,11 @@ export function AdminAiRatesPage() {
           <div className="min-w-0">
             <Link
               href="/admin/settings"
-              className="mb-5 flex w-fit max-w-full items-center rounded-full border border-subtle bg-surface px-4 py-2 text-sm font-semibold text-muted transition hover:bg-surface-hover hover:text-content"
+              className="mb-5 flex w-fit max-w-full items-center rounded-md border border-subtle bg-surface px-4 py-2 text-sm font-semibold text-muted transition hover:bg-surface-hover hover:text-content"
             >
               ← Setări admin
             </Link>
-            <p className="inline-flex max-w-full rounded-full border border-subtle bg-action-soft px-3 py-1 text-[10px] font-black uppercase tracking-[0.18em] text-muted">
+            <p className="inline-flex max-w-full rounded-md border border-subtle bg-action-soft px-3 py-1 text-[10px] font-black uppercase tracking-[0.18em] text-muted">
               AI Credits
             </p>
             <h1 className="mt-3 max-w-3xl break-words font-serif text-4xl font-semibold leading-[0.95] text-content sm:text-5xl">
@@ -219,7 +219,7 @@ export function AdminAiRatesPage() {
                   type="button"
                   onClick={() => void saveCreditRates()}
                   disabled={isSavingCredits}
-                  className="inline-flex h-11 w-fit items-center justify-center rounded-full bg-action px-5 text-sm font-black text-on-action transition hover:bg-action-hover disabled:cursor-not-allowed disabled:opacity-60"
+                  className="inline-flex h-11 w-fit items-center justify-center rounded-md bg-action px-5 text-sm font-black text-on-action transition hover:bg-action-hover disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   {isSavingCredits ? "Se salvează..." : "Salvează pragurile"}
                 </button>
@@ -295,7 +295,7 @@ export function AdminAiRatesPage() {
                   type="button"
                   onClick={() => void saveModelRates()}
                   disabled={isSavingModels}
-                  className="inline-flex h-11 w-fit items-center justify-center rounded-full bg-action px-5 text-sm font-black text-on-action transition hover:bg-action-hover disabled:cursor-not-allowed disabled:opacity-60"
+                  className="inline-flex h-11 w-fit items-center justify-center rounded-md bg-action px-5 text-sm font-black text-on-action transition hover:bg-action-hover disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   {isSavingModels ? "Se salvează..." : "Salvează prețurile"}
                 </button>

@@ -1088,7 +1088,7 @@ export function ContactForm({ recaptchaSiteKey }: ContactFormProps) {
           key="contact-success-action"
           type="button"
           onClick={handleAnotherMessage}
-          className="inline-flex min-h-12 w-full items-center justify-center rounded-full bg-action px-5 py-3 text-sm font-black text-on-action transition hover:bg-action-hover sm:w-fit"
+          className="inline-flex min-h-12 w-full items-center justify-center rounded-md bg-action px-5 py-3 text-sm font-black text-on-action transition hover:bg-action-hover sm:w-fit"
         >
           Trimite alt mesaj
         </button>
@@ -1097,7 +1097,7 @@ export function ContactForm({ recaptchaSiteKey }: ContactFormProps) {
           key="contact-submit-action"
           type="submit"
           disabled={isSubmitButtonDisabled}
-          className="inline-flex min-h-12 w-full items-center justify-center rounded-full bg-action px-5 py-3 text-sm font-black text-on-action transition hover:bg-action-hover disabled:cursor-wait disabled:opacity-60 sm:w-fit"
+          className="inline-flex min-h-12 w-full items-center justify-center rounded-md bg-action px-5 py-3 text-sm font-black text-on-action transition hover:bg-action-hover disabled:cursor-wait disabled:opacity-60 sm:w-fit"
         >
           {isContactSubmitting ? "Se trimite..." : "Trimite mesajul"}
         </button>
@@ -1389,7 +1389,7 @@ export function WithdrawalForm({ recaptchaSiteKey }: WithdrawalFormProps) {
           key="withdrawal-success-action"
           type="button"
           onClick={handleAnotherWithdrawal}
-          className="inline-flex min-h-12 w-full items-center justify-center rounded-full bg-action px-5 py-3 text-sm font-black text-on-action transition hover:bg-action-hover sm:w-fit"
+          className="inline-flex min-h-12 w-full items-center justify-center rounded-md bg-action px-5 py-3 text-sm font-black text-on-action transition hover:bg-action-hover sm:w-fit"
         >
           Trimite altă solicitare
         </button>
@@ -1398,7 +1398,7 @@ export function WithdrawalForm({ recaptchaSiteKey }: WithdrawalFormProps) {
           key="withdrawal-submit-action"
           type="submit"
           disabled={isSubmitButtonDisabled}
-          className="inline-flex min-h-12 w-full items-center justify-center rounded-full bg-action px-5 py-3 text-sm font-black text-on-action transition hover:bg-action-hover disabled:cursor-wait disabled:opacity-60 sm:w-fit"
+          className="inline-flex min-h-12 w-full items-center justify-center rounded-md bg-action px-5 py-3 text-sm font-black text-on-action transition hover:bg-action-hover disabled:cursor-wait disabled:opacity-60 sm:w-fit"
         >
           {isWithdrawalSubmitting
             ? "Se înregistrează..."
@@ -1833,7 +1833,7 @@ export function ContentReportForm({
                   disabled={
                     selectedAttachments.length >= contentReportMaxAttachmentFiles
                   }
-                  className="inline-flex w-fit items-center justify-center rounded-full bg-action px-4 py-2 text-xs font-black text-on-action transition hover:bg-action-hover disabled:cursor-not-allowed disabled:opacity-60"
+                  className="inline-flex w-fit items-center justify-center rounded-md bg-action px-4 py-2 text-xs font-black text-on-action transition hover:bg-action-hover disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   Adaugă documente
                 </button>
@@ -1867,7 +1867,7 @@ export function ContentReportForm({
                       <button
                         type="button"
                         onClick={() => removeAttachment(attachment.id)}
-                        className="shrink-0 rounded-full border border-subtle px-3 py-1.5 text-xs font-black text-muted transition hover:bg-surface-hover hover:text-content"
+                        className="shrink-0 rounded-md border border-subtle px-3 py-1.5 text-xs font-black text-muted transition hover:bg-surface-hover hover:text-content"
                       >
                         Șterge
                       </button>
@@ -1923,7 +1923,7 @@ export function ContentReportForm({
           key="content-report-success-action"
           type="button"
           onClick={handleAnotherReport}
-          className="inline-flex min-h-12 w-full items-center justify-center rounded-full bg-action px-5 py-3 text-sm font-black text-on-action transition hover:bg-action-hover sm:w-fit"
+          className="inline-flex min-h-12 w-full items-center justify-center rounded-md bg-action px-5 py-3 text-sm font-black text-on-action transition hover:bg-action-hover sm:w-fit"
         >
           Trimite altă sesizare
         </button>
@@ -1932,7 +1932,7 @@ export function ContentReportForm({
           key="content-report-submit-action"
           type="submit"
           disabled={isSubmitButtonDisabled}
-          className="inline-flex min-h-12 w-full items-center justify-center rounded-full bg-action px-5 py-3 text-sm font-black text-on-action transition hover:bg-action-hover disabled:cursor-wait disabled:opacity-60 sm:w-fit"
+          className="inline-flex min-h-12 w-full items-center justify-center rounded-md bg-action px-5 py-3 text-sm font-black text-on-action transition hover:bg-action-hover disabled:cursor-wait disabled:opacity-60 sm:w-fit"
         >
           {isContentReportSubmitting ? "Se trimite..." : "Trimite sesizarea"}
         </button>
@@ -2023,7 +2023,7 @@ export function SocialLinksCard({ companyData }: SocialLinksCardProps) {
               href={companyData[key]}
               target="_blank"
               rel="noopener noreferrer"
-              className="flex items-center justify-between gap-2 rounded-xl border border-subtle bg-app px-4 py-2.5 text-sm font-bold text-content transition hover:bg-surface-hover"
+              className="flex items-center justify-between gap-2 rounded-md border border-subtle bg-app px-4 py-2.5 text-sm font-bold text-content transition hover:bg-surface-hover"
             >
               <span className="flex min-w-0 items-center gap-2.5">
                 <Icon />

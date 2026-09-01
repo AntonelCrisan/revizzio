@@ -30,11 +30,11 @@ export default function CookiePolicyPage() {
                 <div className="flex flex-wrap items-center gap-2">
                   <h3 className="text-sm font-black">{category.label}</h3>
                   {category.alwaysActive ? (
-                    <span className="rounded-full bg-success-soft px-2 py-0.5 text-[10px] font-bold text-success">
+                    <span className="rounded-md bg-success-soft px-2 py-0.5 text-[10px] font-bold text-success">
                       mereu active
                     </span>
                   ) : (
-                    <span className="rounded-full bg-warning-soft px-2 py-0.5 text-[10px] font-bold text-warning">
+                    <span className="rounded-md bg-warning-soft px-2 py-0.5 text-[10px] font-bold text-warning">
                       doar cu acord
                     </span>
                   )}
@@ -55,7 +55,7 @@ export default function CookiePolicyPage() {
             Versiune consimțământ: {legalConfig.cookieConsentVersion}. Poți
             modifica acordul fără să ți se blocheze accesul la platformă.
           </p>
-          <CookieSettingsButton className="mt-5 w-full rounded-full bg-action px-4 py-3 text-sm font-black text-on-action transition hover:bg-action-hover" />
+          <CookieSettingsButton className="mt-5 w-full rounded-md bg-action px-4 py-3 text-sm font-black text-on-action transition hover:bg-action-hover" />
         </aside>
       </div>
     </LegalPageShell>

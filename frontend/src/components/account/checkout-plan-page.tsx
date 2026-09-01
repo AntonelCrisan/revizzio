@@ -126,7 +126,7 @@ export function CheckoutPlanPage({ plan }: CheckoutPlanPageProps) {
             <div className="flex flex-wrap items-start justify-between gap-5">
               <div>
                 {plan.discount_label ? (
-                  <span className="rounded bg-warning-soft px-3 py-1 text-[10px] font-black uppercase text-warning">
+                  <span className="rounded-md bg-warning-soft px-3 py-1 text-[10px] font-black uppercase text-warning">
                     {plan.discount_label}
                   </span>
                 ) : null}
@@ -215,7 +215,7 @@ export function CheckoutPlanPage({ plan }: CheckoutPlanPageProps) {
           {isFree ? (
             <Link
               href="/myaccount"
-              className="mt-5 inline-flex w-full items-center justify-center rounded-xl bg-content px-5 py-3 text-sm font-black text-app transition hover:opacity-90"
+              className="mt-5 inline-flex w-full items-center justify-center rounded-md bg-content px-5 py-3 text-sm font-black text-app transition hover:opacity-90"
             >
               Continuă în cont
             </Link>
@@ -224,7 +224,7 @@ export function CheckoutPlanPage({ plan }: CheckoutPlanPageProps) {
               type="button"
               onClick={startPayment}
               disabled={!canStartPayment}
-              className="mt-5 inline-flex w-full items-center justify-center rounded-xl bg-content px-5 py-3 text-sm font-black text-app transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-55"
+              className="mt-5 inline-flex w-full items-center justify-center rounded-md bg-content px-5 py-3 text-sm font-black text-app transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-55"
             >
               {isStartingPayment
                 ? "Se pregătește checkout-ul..."

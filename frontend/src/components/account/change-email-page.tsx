@@ -180,12 +180,12 @@ export function ChangeEmailPage() {
             <div className="mb-10 flex flex-col items-start gap-4">
               <Link
                 href="/settings#security"
-                className="inline-flex w-fit items-center gap-2 rounded-full border border-subtle bg-surface px-4 py-2 text-sm font-semibold text-muted transition hover:bg-surface-hover hover:text-content"
+                className="inline-flex w-fit items-center gap-2 rounded-md border border-subtle bg-surface px-4 py-2 text-sm font-semibold text-muted transition hover:bg-surface-hover hover:text-content"
               >
                 <ArrowLeftIcon />
                 Securitate
               </Link>
-              <p className="inline-flex rounded-full border border-subtle bg-action-soft px-3 py-1 text-[10px] font-black uppercase tracking-[0.18em] text-muted">
+              <p className="inline-flex rounded-md border border-subtle bg-action-soft px-3 py-1 text-[10px] font-black uppercase tracking-[0.18em] text-muted">
                 Email
               </p>
             </div>
@@ -263,7 +263,7 @@ export function ChangeEmailPage() {
           <div className="flex flex-col-reverse gap-3 p-5 sm:flex-row sm:justify-end">
             <Link
               href="/settings#security"
-              className="inline-flex min-h-12 items-center justify-center rounded-full border border-subtle bg-app px-5 py-3 text-sm font-bold text-content transition hover:bg-surface-hover"
+              className="inline-flex min-h-12 items-center justify-center rounded-md border border-subtle bg-app px-5 py-3 text-sm font-bold text-content transition hover:bg-surface-hover"
             >
               {isSuccess ? "Înapoi la securitate" : "Renunță"}
             </Link>
@@ -272,7 +272,7 @@ export function ChangeEmailPage() {
                 key="change-email-success-action"
                 type="button"
                 onClick={resetForAnotherRequest}
-                className="inline-flex min-h-12 items-center justify-center gap-2 rounded-full bg-action px-5 py-3 text-sm font-black text-on-action transition hover:bg-action-hover"
+                className="inline-flex min-h-12 items-center justify-center gap-2 rounded-md bg-action px-5 py-3 text-sm font-black text-on-action transition hover:bg-action-hover"
               >
                 Trimite din nou
                 <ArrowRightIcon />
@@ -282,7 +282,7 @@ export function ChangeEmailPage() {
                 key="change-email-submit-action"
                 type="submit"
                 disabled={isSubmitting}
-                className="inline-flex min-h-12 items-center justify-center gap-2 rounded-full bg-action px-5 py-3 text-sm font-black text-on-action transition hover:bg-action-hover disabled:cursor-wait disabled:opacity-60"
+                className="inline-flex min-h-12 items-center justify-center gap-2 rounded-md bg-action px-5 py-3 text-sm font-black text-on-action transition hover:bg-action-hover disabled:cursor-wait disabled:opacity-60"
               >
                 {isSubmitting ? "Se trimite..." : "Trimite confirmarea"}
                 <ArrowRightIcon />

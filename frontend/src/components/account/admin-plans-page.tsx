@@ -335,7 +335,7 @@ function PlanPreview({ plan }: { plan: AdminPlanDraft }) {
           </h3>
         </div>
         <span
-          className={`rounded-full border px-3 py-1 text-[10px] font-black uppercase tracking-[0.12em] ${
+          className={`rounded-md border px-3 py-1 text-[10px] font-black uppercase tracking-[0.12em] ${
             plan.isVisible
               ? plan.isFeatured
                 ? "border-on-action/30 bg-on-action text-action"
@@ -373,7 +373,7 @@ function PlanPreview({ plan }: { plan: AdminPlanDraft }) {
 
       {plan.discount ? (
         <p
-          className={`mt-3 w-fit rounded-full border px-3 py-1 text-xs font-black ${
+          className={`mt-3 w-fit rounded-md border px-3 py-1 text-xs font-black ${
             plan.isFeatured
               ? "border-on-action/20 bg-on-action/10 text-on-action"
               : "border-success-border bg-success-soft text-success"
@@ -542,7 +542,7 @@ export function AdminPlansPage({ initialPlans }: AdminPlansPageProps) {
         <section className="space-y-7">
           <Link
             href="/admin/settings"
-            className="flex w-fit items-center rounded-full border border-subtle bg-surface px-4 py-2 text-sm font-semibold text-muted transition hover:bg-surface-hover hover:text-content"
+            className="flex w-fit items-center rounded-md border border-subtle bg-surface px-4 py-2 text-sm font-semibold text-muted transition hover:bg-surface-hover hover:text-content"
           >
             ← Setări admin
           </Link>
@@ -561,11 +561,11 @@ export function AdminPlansPage({ initialPlans }: AdminPlansPageProps) {
           <div>
             <Link
               href="/admin/settings"
-              className="mb-5 flex w-fit items-center rounded-full border border-subtle bg-surface px-4 py-2 text-sm font-semibold text-muted transition hover:bg-surface-hover hover:text-content"
+              className="mb-5 flex w-fit items-center rounded-md border border-subtle bg-surface px-4 py-2 text-sm font-semibold text-muted transition hover:bg-surface-hover hover:text-content"
             >
               ← Setări admin
             </Link>
-            <p className="inline-flex rounded-full border border-subtle bg-action-soft px-3 py-1 text-[10px] font-black uppercase tracking-[0.18em] text-muted">
+            <p className="inline-flex rounded-md border border-subtle bg-action-soft px-3 py-1 text-[10px] font-black uppercase tracking-[0.18em] text-muted">
               Abonamente
             </p>
             <h1 className="mt-3 max-w-3xl font-serif text-4xl font-semibold leading-[0.95] text-content sm:text-5xl">
@@ -581,7 +581,7 @@ export function AdminPlansPage({ initialPlans }: AdminPlansPageProps) {
             type="button"
             onClick={saveConfiguration}
             disabled={isSaving}
-            className="inline-flex w-fit items-center justify-center rounded-full bg-action px-5 py-3 text-sm font-black text-on-action transition hover:bg-action-hover disabled:cursor-wait disabled:opacity-60"
+            className="inline-flex w-fit items-center justify-center rounded-md bg-action px-5 py-3 text-sm font-black text-on-action transition hover:bg-action-hover disabled:cursor-wait disabled:opacity-60"
           >
             {isSaving ? "Se salvează..." : "Salvează"}
           </button>
@@ -622,7 +622,7 @@ export function AdminPlansPage({ initialPlans }: AdminPlansPageProps) {
                   Lista activă
                 </h2>
               </div>
-              <span className="rounded-full border border-subtle bg-app px-3 py-1 text-xs font-bold text-muted">
+              <span className="rounded-md border border-subtle bg-app px-3 py-1 text-xs font-bold text-muted">
                 {plans.length}
               </span>
             </div>
@@ -654,7 +654,7 @@ export function AdminPlansPage({ initialPlans }: AdminPlansPageProps) {
                     <span className="flex flex-wrap items-center gap-2 text-xs text-muted">
                       <span>{plan.slug}</span>
                       {plan.isFeatured ? (
-                        <span className="rounded-full border border-success-border bg-success-soft px-2 py-0.5 font-bold text-success">
+                        <span className="rounded-md border border-success-border bg-success-soft px-2 py-0.5 font-bold text-success">
                           recomandat
                         </span>
                       ) : null}
@@ -923,7 +923,7 @@ export function AdminPlansPage({ initialPlans }: AdminPlansPageProps) {
                 <button
                   type="button"
                   onClick={addOption}
-                  className="w-fit rounded-full border border-subtle bg-app px-4 py-2 text-sm font-bold text-content transition hover:bg-surface-hover"
+                  className="w-fit rounded-md border border-subtle bg-app px-4 py-2 text-sm font-bold text-content transition hover:bg-surface-hover"
                 >
                   Adaugă opțiune
                 </button>
@@ -943,7 +943,7 @@ export function AdminPlansPage({ initialPlans }: AdminPlansPageProps) {
                     <button
                       type="button"
                       onClick={() => removeOption(index)}
-                      className="h-12 rounded-full border border-subtle bg-app px-4 text-sm font-black text-muted transition hover:bg-surface-hover hover:text-content"
+                      className="h-12 rounded-md border border-subtle bg-app px-4 text-sm font-black text-muted transition hover:bg-surface-hover hover:text-content"
                       aria-label="Șterge opțiunea"
                     >
                       Șterge
@@ -966,7 +966,7 @@ export function AdminPlansPage({ initialPlans }: AdminPlansPageProps) {
                   (item) => (
                     <code
                       key={item}
-                      className="rounded-full border border-subtle bg-app px-3 py-1 text-xs font-bold text-muted"
+                      className="rounded-md border border-subtle bg-app px-3 py-1 text-xs font-bold text-muted"
                     >
                       {item}
                     </code>

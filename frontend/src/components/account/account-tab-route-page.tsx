@@ -9,20 +9,35 @@ type AccountTabSearchParams = Promise<{
   from?: string | string[] | undefined;
 }>;
 
+const chatBackTabs = [
+  "rezumat",
+  "flashcards",
+  "quiz",
+  "strategii",
+  "progres",
+] as const satisfies readonly TabId[];
+
+type ChatBackTab = (typeof chatBackTabs)[number];
+
+function isChatBackTab(value: string): value is ChatBackTab {
+  return (chatBackTabs as readonly string[]).includes(value);
+}
+
+function getSearchParamValue(value: string | string[] | undefined) {
+  const firstValue = Array.isArray(value) ? value[0] : value;
+  const cleanValue = firstValue?.trim();
+
+  return cleanValue || undefined;
+}
+
 function getProjectId(project: string | string[] | undefined) {
-  return typeof project === "string" ? project : undefined;
+  return getSearchParamValue(project);
 }
 
 function getChatBackTab(from: string | string[] | undefined): TabId | undefined {
-  if (typeof from !== "string") {
-    return undefined;
-  }
+  const tab = getSearchParamValue(from);
 
-  return ["rezumat", "flashcards", "quiz", "strategii", "progres"].includes(
-    from,
-  )
-    ? (from as TabId)
-    : undefined;
+  return tab && isChatBackTab(tab) ? tab : undefined;
 }
 
 export async function AccountTabRoutePage({

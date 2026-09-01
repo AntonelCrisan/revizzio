@@ -150,7 +150,7 @@ export function LanguageSelect({
         aria-haspopup="listbox"
         aria-expanded={isOpen}
         onClick={() => setIsOpen((open) => !open)}
-        className="inline-flex h-10 w-full cursor-pointer items-center justify-between gap-2 rounded-full border border-subtle bg-surface px-3 text-xs font-black shadow-sm transition hover:-translate-y-0.5 hover:border-content/25 hover:bg-surface-hover disabled:cursor-not-allowed disabled:opacity-60"
+        className="inline-flex h-10 w-full cursor-pointer items-center justify-between gap-2 rounded-md border border-subtle bg-surface px-3 text-xs font-black shadow-sm transition hover:-translate-y-0.5 hover:border-content/25 hover:bg-surface-hover disabled:cursor-not-allowed disabled:opacity-60"
       >
         <span className="inline-flex items-center gap-2">
           <FlagIcon language={selectedLanguage} />
@@ -189,7 +189,7 @@ export function LanguageSelect({
                 role="option"
                 aria-selected={isSelected}
                 onClick={() => selectLanguage(option.value)}
-                className={`flex w-full cursor-pointer items-center justify-between gap-3 rounded-xl px-3 py-2.5 text-left transition ${
+                className={`flex w-full cursor-pointer items-center justify-between gap-3 rounded-md px-3 py-2.5 text-left transition ${
                   isSelected
                     ? "bg-action text-on-action"
                     : "text-content hover:bg-surface-hover"

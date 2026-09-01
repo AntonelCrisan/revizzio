@@ -126,7 +126,7 @@ export function SubscriptionCancellationPage() {
               type="button"
               onClick={handleCancelRenewal}
               disabled={isSubmitting || state.status === "success"}
-              className="mt-5 rounded-full bg-action px-5 py-3 text-sm font-black text-on-action transition hover:bg-action-hover disabled:cursor-not-allowed disabled:opacity-60"
+              className="mt-5 rounded-md bg-action px-5 py-3 text-sm font-black text-on-action transition hover:bg-action-hover disabled:cursor-not-allowed disabled:opacity-60"
             >
               {isSubmitting
                 ? "Se procesează..."

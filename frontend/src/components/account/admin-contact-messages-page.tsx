@@ -172,11 +172,11 @@ export function AdminContactMessagesPage({
           <div>
             <Link
               href="/admin/settings"
-              className="mb-5 flex w-fit items-center rounded-full border border-subtle bg-surface px-4 py-2 text-sm font-semibold text-muted transition hover:bg-surface-hover hover:text-content"
+              className="mb-5 flex w-fit items-center rounded-md border border-subtle bg-surface px-4 py-2 text-sm font-semibold text-muted transition hover:bg-surface-hover hover:text-content"
             >
               ← Setări admin
             </Link>
-            <p className="inline-flex rounded-full border border-subtle bg-action-soft px-3 py-1 text-[10px] font-black uppercase tracking-[0.18em] text-muted">
+            <p className="inline-flex rounded-md border border-subtle bg-action-soft px-3 py-1 text-[10px] font-black uppercase tracking-[0.18em] text-muted">
               Contact
             </p>
             <h1 className="mt-3 max-w-3xl font-serif text-4xl font-semibold leading-[0.95] text-content sm:text-5xl">
@@ -192,7 +192,7 @@ export function AdminContactMessagesPage({
             type="button"
             onClick={refreshMessages}
             disabled={isRefreshing}
-            className="inline-flex w-fit items-center justify-center gap-2 rounded-full bg-action px-5 py-3 text-sm font-black text-on-action transition hover:bg-action-hover disabled:cursor-wait disabled:opacity-60"
+            className="inline-flex w-fit items-center justify-center gap-2 rounded-md bg-action px-5 py-3 text-sm font-black text-on-action transition hover:bg-action-hover disabled:cursor-wait disabled:opacity-60"
           >
             <RefreshIcon spinning={isRefreshing} />
             <span>{isRefreshing ? "Refreshing..." : "Refresh"}</span>
@@ -296,7 +296,7 @@ export function AdminContactMessagesPage({
                       </a>
                     </td>
                     <td className="px-5 py-4">
-                      <span className="inline-flex rounded-full border border-subtle bg-action-soft px-3 py-1 text-[10px] font-black uppercase tracking-[0.12em] text-muted">
+                      <span className="inline-flex rounded-md border border-subtle bg-action-soft px-3 py-1 text-[10px] font-black uppercase tracking-[0.12em] text-muted">
                         {categoryLabels[message.category]}
                       </span>
                     </td>
@@ -327,7 +327,7 @@ export function AdminContactMessagesPage({
                     <td className="px-5 py-4">
                       <a
                         href={replyHref(message)}
-                        className="inline-flex items-center justify-center rounded-full bg-action px-4 py-2 text-xs font-black text-on-action transition hover:bg-action-hover"
+                        className="inline-flex items-center justify-center rounded-md bg-action px-4 py-2 text-xs font-black text-on-action transition hover:bg-action-hover"
                       >
                         Răspunde
                       </a>

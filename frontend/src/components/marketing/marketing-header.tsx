@@ -84,7 +84,7 @@ export function MarketingHeader() {
             <a
               key={item.href}
               href={item.href}
-              className="whitespace-nowrap rounded-xl px-3 py-2 text-xs font-bold text-muted transition hover:bg-surface hover:text-content 2xl:px-4"
+              className="whitespace-nowrap rounded-md px-3 py-2 text-xs font-bold text-muted transition hover:bg-surface hover:text-content 2xl:px-4"
             >
               {t(item.labelKey)}
             </a>
@@ -104,7 +104,7 @@ export function MarketingHeader() {
           ) : user ? (
             <Link
               href="/myaccount"
-              className="hidden shrink-0 items-center gap-2 whitespace-nowrap rounded-xl bg-action px-4 py-2.5 text-xs font-bold text-on-action transition hover:bg-action-hover sm:inline-flex"
+              className="hidden shrink-0 items-center gap-2 whitespace-nowrap rounded-md bg-action px-4 py-2.5 text-xs font-bold text-on-action transition hover:bg-action-hover sm:inline-flex"
             >
               <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-on-action/15 text-[9px]">
                 {user.full_name.charAt(0).toUpperCase()}
@@ -115,13 +115,13 @@ export function MarketingHeader() {
             <>
               <Link
                 href="/login"
-                className="hidden shrink-0 whitespace-nowrap rounded-xl px-4 py-2.5 text-xs font-bold text-muted transition hover:bg-surface-hover hover:text-content sm:inline-flex"
+                className="hidden shrink-0 whitespace-nowrap rounded-md px-4 py-2.5 text-xs font-bold text-muted transition hover:bg-surface-hover hover:text-content sm:inline-flex"
               >
                 {t("marketing.login")}
               </Link>
               <Link
                 href="/register"
-                className="hidden shrink-0 whitespace-nowrap rounded-xl bg-action px-4 py-2.5 text-xs font-bold text-on-action transition hover:bg-action-hover sm:inline-flex"
+                className="hidden shrink-0 whitespace-nowrap rounded-md bg-action px-4 py-2.5 text-xs font-bold text-on-action transition hover:bg-action-hover sm:inline-flex"
               >
                 {t("marketing.register")}
               </Link>
@@ -140,7 +140,7 @@ export function MarketingHeader() {
             aria-label={
               isOpen ? t("marketing.closeMenu") : t("marketing.openMenu")
             }
-            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-subtle bg-surface text-content xl:hidden"
+            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md border border-subtle bg-surface text-content xl:hidden"
           >
             <MenuIcon open={isOpen} />
           </button>
@@ -167,7 +167,7 @@ export function MarketingHeader() {
               key={item.href}
               href={item.href}
               onClick={() => setIsOpen(false)}
-              className="rounded-xl px-4 py-3 text-sm font-bold text-muted transition hover:bg-surface-hover hover:text-content"
+              className="rounded-md px-4 py-3 text-sm font-bold text-muted transition hover:bg-surface-hover hover:text-content"
             >
               {t(item.labelKey)}
             </a>
@@ -177,7 +177,7 @@ export function MarketingHeader() {
               <Link
                 href="/myaccount"
                 onClick={() => setIsOpen(false)}
-                className="mt-2 rounded-xl bg-action px-4 py-3 text-center text-xs font-bold text-on-action sm:hidden"
+                className="mt-2 rounded-md bg-action px-4 py-3 text-center text-xs font-bold text-on-action sm:hidden"
               >
                 {t("marketing.goToAccount")}
               </Link>
@@ -185,13 +185,13 @@ export function MarketingHeader() {
               <div className="mt-2 grid grid-cols-2 gap-2 border-t border-subtle pt-4 sm:hidden">
                 <Link
                   href="/login"
-                  className="rounded-xl border border-subtle bg-app px-4 py-3 text-center text-xs font-bold"
+                  className="rounded-md border border-subtle bg-app px-4 py-3 text-center text-xs font-bold"
                 >
                   {t("marketing.login")}
                 </Link>
                 <Link
                   href="/register"
-                  className="rounded-xl bg-action px-4 py-3 text-center text-xs font-bold text-on-action"
+                  className="rounded-md bg-action px-4 py-3 text-center text-xs font-bold text-on-action"
                 >
                   {t("marketing.register")}
                 </Link>

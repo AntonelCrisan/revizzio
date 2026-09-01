@@ -187,7 +187,7 @@ export function CookieConsentProvider({ children }: { children: ReactNode }) {
               <button
                 type="button"
                 onClick={() => saveConsent("accept_all", allCookieConsent)}
-                className="rounded-full bg-action px-4 py-3 text-xs font-black text-on-action transition hover:bg-action-hover"
+                className="rounded-md bg-action px-4 py-3 text-xs font-black text-on-action transition hover:bg-action-hover"
               >
                 Acceptă toate
               </button>
@@ -196,14 +196,14 @@ export function CookieConsentProvider({ children }: { children: ReactNode }) {
                 onClick={() =>
                   saveConsent("reject_optional", necessaryOnlyCookieConsent)
                 }
-                className="rounded-full border border-action px-4 py-3 text-xs font-black text-content transition hover:bg-action-soft"
+                className="rounded-md border border-action px-4 py-3 text-xs font-black text-content transition hover:bg-action-soft"
               >
                 Respinge cookie-urile opționale
               </button>
               <button
                 type="button"
                 onClick={() => setIsSettingsOpen(true)}
-                className="rounded-full border border-subtle bg-app px-4 py-3 text-xs font-black text-content transition hover:bg-surface-hover"
+                className="rounded-md border border-subtle bg-app px-4 py-3 text-xs font-black text-content transition hover:bg-surface-hover"
               >
                 Personalizează
               </button>
@@ -239,7 +239,7 @@ export function CookieConsentProvider({ children }: { children: ReactNode }) {
               <button
                 type="button"
                 onClick={() => setIsSettingsOpen(false)}
-                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-subtle text-muted transition hover:bg-surface-hover hover:text-content"
+                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md border border-subtle text-muted transition hover:bg-surface-hover hover:text-content"
                 aria-label="Închide setările cookie"
               >
                 ×
@@ -265,7 +265,7 @@ export function CookieConsentProvider({ children }: { children: ReactNode }) {
                       <span className="flex flex-wrap items-center gap-2 text-sm font-black">
                         {category.label}
                         {category.alwaysActive ? (
-                          <span className="rounded-full bg-success-soft px-2 py-0.5 text-[10px] font-bold text-success">
+                          <span className="rounded-md bg-success-soft px-2 py-0.5 text-[10px] font-bold text-success">
                             mereu active
                           </span>
                         ) : null}
@@ -283,14 +283,14 @@ export function CookieConsentProvider({ children }: { children: ReactNode }) {
               <button
                 type="button"
                 onClick={() => saveConsent("save_custom", draft)}
-                className="rounded-full bg-action px-4 py-3 text-xs font-black text-on-action transition hover:bg-action-hover"
+                className="rounded-md bg-action px-4 py-3 text-xs font-black text-on-action transition hover:bg-action-hover"
               >
                 Salvează preferințele
               </button>
               <button
                 type="button"
                 onClick={() => saveConsent("accept_all", allCookieConsent)}
-                className="rounded-full border border-action px-4 py-3 text-xs font-black text-content transition hover:bg-action-soft"
+                className="rounded-md border border-action px-4 py-3 text-xs font-black text-content transition hover:bg-action-soft"
               >
                 Acceptă toate
               </button>
@@ -299,7 +299,7 @@ export function CookieConsentProvider({ children }: { children: ReactNode }) {
                 onClick={() =>
                   saveConsent("reject_optional", necessaryOnlyCookieConsent)
                 }
-                className="rounded-full border border-subtle bg-app px-4 py-3 text-xs font-black text-content transition hover:bg-surface-hover"
+                className="rounded-md border border-subtle bg-app px-4 py-3 text-xs font-black text-content transition hover:bg-surface-hover"
               >
                 Respinge opționalele
               </button>

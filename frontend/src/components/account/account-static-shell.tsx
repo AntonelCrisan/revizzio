@@ -5,6 +5,19 @@ import { useRouter } from "next/navigation";
 import { type MouseEvent, type ReactNode, useEffect, useState } from "react";
 import { useAuth } from "@/components/auth/auth-provider";
 import { BrandLogo } from "@/components/brand-logo";
+import {
+  ACCOUNT_SIDEBAR_COLLAPSED_STORAGE_KEY,
+  AccountSidebarTooltip,
+  getAccountSidebarActionClass,
+  getAccountSidebarActionLabelClass,
+  getAccountSidebarChevronClass,
+  getAccountSidebarChildItemClass,
+  getAccountSidebarHeaderClass,
+  getAccountSidebarItemClass,
+  getAccountSidebarLabelClass,
+  getAccountSidebarScrollClass,
+  getAccountSidebarShellClass,
+} from "@/components/account/account-sidebar-ui";
 
 type AccountPageId =
   | "dashboard"
@@ -96,13 +109,25 @@ function Icon({
   );
 }
 
-function Logo() {
+function Logo({ collapsed = false }: { collapsed?: boolean }) {
   return (
-    <BrandLogo
-      href="/"
-      className="text-content transition hover:text-action"
-      logoClassName="h-7 w-28"
-    />
+    <>
+      <span className={collapsed ? "hidden lg:inline-flex" : "hidden"}>
+        <BrandLogo
+          href="/"
+          variant="mark"
+          className="text-content transition hover:text-action"
+          logoClassName="h-8 w-8"
+        />
+      </span>
+      <span className={collapsed ? "lg:hidden" : ""}>
+        <BrandLogo
+          href="/"
+          className="text-content transition hover:text-action"
+          logoClassName="h-7 w-28"
+        />
+      </span>
+    </>
   );
 }
 
@@ -146,20 +171,12 @@ function PageIcon({ page }: { page: AccountPageId }) {
   );
 }
 
-function primaryNavClass(isActive: boolean) {
-  return `flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-semibold transition ${
-    isActive
-      ? "bg-action-soft text-content"
-      : "text-content hover:bg-action-soft"
-  }`;
+function primaryNavClass(isActive: boolean, isCollapsed = false) {
+  return getAccountSidebarItemClass(isActive, isCollapsed);
 }
 
 function secondaryNavClass(isActive: boolean) {
-  return `flex items-center rounded-xl px-3 py-2 text-sm transition ${
-    isActive
-      ? "bg-action-soft font-semibold text-content"
-      : "font-semibold text-muted hover:bg-action-soft hover:text-content"
-  }`;
+  return getAccountSidebarChildItemClass(isActive);
 }
 
 export function AccountStaticShell({
@@ -181,6 +198,12 @@ export function AccountStaticShell({
     useState<SettingsSectionId>("account");
   const visibleSettingsSection = settingsSection ?? activeSettingsSection;
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(
+    () =>
+      typeof window !== "undefined" &&
+      window.localStorage.getItem(ACCOUNT_SIDEBAR_COLLAPSED_STORAGE_KEY) ===
+        "true",
+  );
   const [isLoggingOut, setIsLoggingOut] = useState(false);
 
   useEffect(() => {
@@ -255,6 +278,17 @@ export function AccountStaticShell({
     );
   }
 
+  function toggleSidebarCollapsed() {
+    setIsSidebarCollapsed((current) => {
+      const next = !current;
+      window.localStorage.setItem(
+        ACCOUNT_SIDEBAR_COLLAPSED_STORAGE_KEY,
+        String(next),
+      );
+      return next;
+    });
+  }
+
   async function handleLogout() {
     setIsLoggingOut(true);
     try {
@@ -285,47 +319,72 @@ export function AccountStaticShell({
       ) : null}
 
       <aside
-        className={`fixed inset-y-0 left-0 z-50 flex w-[min(84vw,300px)] flex-col overflow-hidden border-r border-subtle bg-sidebar transition-transform duration-300 lg:sticky lg:top-0 lg:h-svh lg:translate-x-0 ${
-          sidebarOpen ? "translate-x-0" : "-translate-x-full"
-        }`}
+        className={getAccountSidebarShellClass(sidebarOpen, isSidebarCollapsed)}
         aria-label="Meniu principal"
       >
-        <div className="flex items-center justify-between px-4 py-4">
-          <Logo />
+        <div className={getAccountSidebarHeaderClass(isSidebarCollapsed)}>
+          <Logo collapsed={isSidebarCollapsed} />
           <button
             type="button"
             onClick={() => setSidebarOpen(false)}
-            className="flex h-10 w-10 items-center justify-center rounded-xl text-content transition hover:bg-surface-hover lg:hidden"
+            className="flex h-10 w-10 items-center justify-center rounded-md text-muted transition hover:bg-surface-hover hover:text-content lg:hidden"
             aria-label="Închide meniul"
           >
             <Icon className="h-5 w-5">
               <path d="M18 6 6 18M6 6l12 12" />
             </Icon>
           </button>
+          <button
+            type="button"
+            onClick={toggleSidebarCollapsed}
+            className="hidden h-9 w-9 items-center justify-center rounded-md text-muted transition hover:bg-action-soft hover:text-content lg:flex"
+            aria-label={isSidebarCollapsed ? "Extinde meniul" : "Restrânge meniul"}
+            title={isSidebarCollapsed ? "Extinde meniul" : "Restrânge meniul"}
+          >
+            <Icon className="h-4 w-4">
+              {isSidebarCollapsed ? (
+                <path d="M13 5l7 7-7 7M20 12H4" />
+              ) : (
+                <path d="M11 19l-7-7 7-7M4 12h16" />
+              )}
+            </Icon>
+          </button>
         </div>
 
-        <div className="min-h-0 flex-1 overflow-y-auto pb-4">
+        <div className={getAccountSidebarScrollClass(isSidebarCollapsed)}>
           <Link
             href="/myaccount"
-            className="mx-4 mb-4 flex w-[calc(100%-2rem)] items-center justify-center gap-2 rounded-full bg-content px-4 py-3 text-sm font-semibold text-app transition hover:opacity-90"
+            onClick={() => setSidebarOpen(false)}
+            className={getAccountSidebarActionClass(isSidebarCollapsed)}
           >
             <Icon>
               <path d="M12 5v14M5 12h14" />
             </Icon>
-            Proiect nou
+            <span className={getAccountSidebarActionLabelClass(isSidebarCollapsed)}>
+              Proiect nou
+            </span>
+            <AccountSidebarTooltip enabled={isSidebarCollapsed}>
+              Proiect nou
+            </AccountSidebarTooltip>
           </Link>
 
-          <nav className="space-y-1 px-2">
+          <nav className="space-y-1">
             {navigationItems.map((item) => {
               const isActive = item.page === activePage;
               return (
                 <Link
                   key={item.href}
                   href={item.href}
-                  className={primaryNavClass(isActive)}
+                  onClick={() => setSidebarOpen(false)}
+                  className={primaryNavClass(isActive, isSidebarCollapsed)}
                 >
                   <PageIcon page={item.page} />
-                  {item.label}
+                  <span className={getAccountSidebarLabelClass(isSidebarCollapsed)}>
+                    {item.label}
+                  </span>
+                  <AccountSidebarTooltip enabled={isSidebarCollapsed}>
+                    {item.label}
+                  </AccountSidebarTooltip>
                 </Link>
               );
             })}
@@ -338,26 +397,39 @@ export function AccountStaticShell({
                     currentGroup === "settings" ? null : "settings",
                   )
                 }
-                className={primaryNavClass(activePage === "settings")}
+                className={primaryNavClass(
+                  activePage === "settings",
+                  isSidebarCollapsed,
+                )}
                 aria-expanded={openNavGroup === "settings"}
               >
                 <PageIcon page="settings" />
-                <span className="min-w-0 flex-1">Setări</span>
+                <span className={getAccountSidebarLabelClass(isSidebarCollapsed)}>
+                  Setări
+                </span>
                 <Icon
-                  className={`h-4 w-4 transition ${
-                    openNavGroup === "settings" ? "rotate-90" : ""
-                  }`}
+                  className={getAccountSidebarChevronClass(
+                    openNavGroup === "settings",
+                    isSidebarCollapsed,
+                  )}
                 >
                   <path d="M9 18l6-6-6-6" />
                 </Icon>
+                <AccountSidebarTooltip enabled={isSidebarCollapsed}>
+                  Setări
+                </AccountSidebarTooltip>
               </button>
 
               <div
-                className={`ml-8 overflow-hidden transition-[max-height] duration-300 ${
-                  openNavGroup === "settings" ? "max-h-80" : "max-h-0"
+                className={`ml-5 mr-1 overflow-hidden transition-[max-height,opacity] duration-300 ${
+                  isSidebarCollapsed ? "lg:hidden" : ""
+                } ${
+                  openNavGroup === "settings"
+                    ? "max-h-80 opacity-100"
+                    : "max-h-0 opacity-0"
                 }`}
               >
-                <div className="mt-1 space-y-1">
+                <div className="mt-2 space-y-1">
                   {settingsItems.map((item) => {
                     const isActive =
                       activePage === "settings" &&
@@ -382,12 +454,19 @@ export function AccountStaticShell({
             {isAdminRole(user.role) ? (
               <Link
                 href={adminNavigationItem.href}
+                onClick={() => setSidebarOpen(false)}
                 className={primaryNavClass(
                   activePage === adminNavigationItem.page,
+                  isSidebarCollapsed,
                 )}
               >
                 <PageIcon page={adminNavigationItem.page} />
-                {adminNavigationItem.label}
+                <span className={getAccountSidebarLabelClass(isSidebarCollapsed)}>
+                  {adminNavigationItem.label}
+                </span>
+                <AccountSidebarTooltip enabled={isSidebarCollapsed}>
+                  {adminNavigationItem.label}
+                </AccountSidebarTooltip>
               </Link>
             ) : null}
 
@@ -402,33 +481,45 @@ export function AccountStaticShell({
                 className={primaryNavClass(
                   activePage === "upgrade" ||
                     activePage === "billing-invoices",
+                  isSidebarCollapsed,
                 )}
                 aria-expanded={openNavGroup === "billing"}
               >
                 <Icon className="h-[18px] w-[18px]">
                   <path d="M12 3l3.2 6.5 7.1 1-5.1 5 1.2 7-6.4-3.4-6.4 3.4 1.2-7-5.1-5 7.1-1L12 3z" />
                 </Icon>
-                <span className="min-w-0 flex-1">Abonament</span>
+                <span className={getAccountSidebarLabelClass(isSidebarCollapsed)}>
+                  Abonament
+                </span>
                 <Icon
-                  className={`h-4 w-4 transition ${
-                    openNavGroup === "billing" ? "rotate-90" : ""
-                  }`}
+                  className={getAccountSidebarChevronClass(
+                    openNavGroup === "billing",
+                    isSidebarCollapsed,
+                  )}
                 >
                   <path d="M9 18l6-6-6-6" />
                 </Icon>
+                <AccountSidebarTooltip enabled={isSidebarCollapsed}>
+                  Abonament
+                </AccountSidebarTooltip>
               </button>
               <div
-                className={`ml-8 overflow-hidden transition-[max-height] duration-300 ${
-                  openNavGroup === "billing" ? "max-h-32" : "max-h-0"
+                className={`ml-5 mr-1 overflow-hidden transition-[max-height,opacity] duration-300 ${
+                  isSidebarCollapsed ? "lg:hidden" : ""
+                } ${
+                  openNavGroup === "billing"
+                    ? "max-h-32 opacity-100"
+                    : "max-h-0 opacity-0"
                 }`}
               >
-                <div className="mt-1 space-y-1">
+                <div className="mt-2 space-y-1">
                   {billingItems.map((item) => {
                     const isActive = item.page === activePage;
                     return (
                       <Link
                         key={item.href}
                         href={item.href}
+                        onClick={() => setSidebarOpen(false)}
                         className={secondaryNavClass(isActive)}
                       >
                         {item.label}
@@ -441,13 +532,21 @@ export function AccountStaticShell({
           </nav>
         </div>
 
-        <div className="border-t border-subtle p-3">
-          <div className="flex items-center gap-3 rounded-2xl px-2 py-2">
-            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-subtle bg-success-soft text-xs font-bold text-success">
+        <div className="shrink-0 border-t border-subtle p-3">
+          <div
+            className={`flex items-center gap-3 rounded-md px-2 py-2 ${
+              isSidebarCollapsed ? "lg:justify-center lg:gap-0 lg:px-0" : ""
+            }`}
+          >
+            <span
+              className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-subtle bg-success-soft text-xs font-bold text-success ${
+                isSidebarCollapsed ? "lg:hidden" : ""
+              }`}
+            >
               {initials(user.full_name)}
             </span>
-            <span className="min-w-0 flex-1">
-              <span className="block truncate text-sm font-semibold">
+            <span className={getAccountSidebarLabelClass(isSidebarCollapsed)}>
+              <span className="block truncate text-sm font-semibold text-content">
                 {user.full_name}
               </span>
               <span className="block truncate text-xs text-muted">
@@ -458,7 +557,9 @@ export function AccountStaticShell({
               type="button"
               onClick={handleLogout}
               disabled={isLoggingOut}
-              className="flex h-9 w-9 items-center justify-center rounded-xl text-muted transition hover:bg-action-soft hover:text-content disabled:cursor-wait disabled:opacity-60"
+              className={`group/sidebar-item relative flex h-9 w-9 shrink-0 items-center justify-center rounded-md text-muted transition hover:bg-action-soft hover:text-content disabled:cursor-wait disabled:opacity-60 ${
+                isSidebarCollapsed ? "lg:h-10 lg:w-10" : ""
+              }`}
               aria-label="Ieși din cont"
             >
               <Icon>
@@ -466,6 +567,9 @@ export function AccountStaticShell({
                 <path d="M15 12H3" />
                 <path d="M21 19V5" />
               </Icon>
+              <AccountSidebarTooltip enabled={isSidebarCollapsed}>
+                Ieși din cont
+              </AccountSidebarTooltip>
             </button>
           </div>
         </div>
@@ -475,7 +579,7 @@ export function AccountStaticShell({
         <button
           type="button"
           onClick={() => setSidebarOpen(true)}
-          className="fixed left-4 top-4 z-30 flex h-11 w-11 items-center justify-center rounded-2xl border border-subtle bg-surface/95 text-content shadow-lg shadow-black/10 backdrop-blur-xl transition hover:bg-surface-hover lg:hidden"
+          className="fixed left-4 top-4 z-30 flex h-11 w-11 items-center justify-center rounded-md border border-subtle bg-surface/95 text-content shadow-lg shadow-black/10 backdrop-blur-xl transition hover:bg-surface-hover lg:hidden"
           aria-label="Deschide meniul"
         >
           <Icon className="h-5 w-5">

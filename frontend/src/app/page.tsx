@@ -435,7 +435,7 @@ export default async function Home() {
 
         <div className="relative mx-auto grid min-h-[calc(100svh-4.5rem)] max-w-7xl items-center gap-14 px-5 py-16 sm:px-8 sm:py-24 lg:grid-cols-[1.02fr_0.98fr] lg:py-28">
           <div>
-            <div className="inline-flex items-center gap-2 rounded-full border border-subtle bg-surface px-4 py-2 text-[11px] font-bold uppercase tracking-[0.17em] text-muted shadow-sm">
+            <div className="inline-flex items-center gap-2 rounded-md border border-subtle bg-surface px-4 py-2 text-[11px] font-bold uppercase tracking-[0.17em] text-muted shadow-sm">
               <SparkIcon />
               <TranslatedText id="marketing.hero.badge" />
             </div>
@@ -454,14 +454,14 @@ export default async function Home() {
             <div className="mt-9 flex flex-col gap-3 sm:flex-row">
               <Link
                 href="/register"
-                className="theme-shadow-action inline-flex items-center justify-center gap-3 rounded-2xl bg-action px-6 py-3.5 text-sm font-bold text-on-action transition hover:-translate-y-0.5 hover:bg-action-hover"
+                className="theme-shadow-action inline-flex items-center justify-center gap-3 rounded-md bg-action px-6 py-3.5 text-sm font-bold text-on-action transition hover:-translate-y-0.5 hover:bg-action-hover"
               >
                 <TranslatedText id="marketing.hero.cta.primary" />
                 <ArrowIcon />
               </Link>
               <a
                 href="#cum-functioneaza"
-                className="inline-flex items-center justify-center rounded-2xl border border-subtle bg-surface px-6 py-3.5 text-sm font-bold transition hover:bg-surface-hover"
+                className="inline-flex items-center justify-center rounded-md border border-subtle bg-surface px-6 py-3.5 text-sm font-bold transition hover:bg-surface-hover"
               >
                 <TranslatedText id="marketing.hero.cta.secondary" />
               </a>
@@ -502,7 +502,7 @@ export default async function Home() {
                     </p>
                   </div>
                 </div>
-                <span className="rounded-full border border-success-border bg-success-soft px-3 py-1 text-[10px] font-bold text-success">
+                <span className="rounded-md border border-success-border bg-success-soft px-3 py-1 text-[10px] font-bold text-success">
                   Gata de studiu
                 </span>
               </div>
@@ -568,7 +568,7 @@ export default async function Home() {
                       12 flashcard-uri + quiz de 8 întrebări
                     </p>
                   </div>
-                  <span className="rounded-xl bg-info px-3 py-2 text-[10px] font-bold text-info-soft">
+                  <span className="rounded-md bg-info px-3 py-2 text-[10px] font-bold text-info-soft">
                     25 min
                   </span>
                 </div>
@@ -704,7 +704,7 @@ export default async function Home() {
             </p>
             <Link
               href="/register"
-              className="mt-8 inline-flex items-center gap-3 rounded-2xl bg-on-action px-5 py-3 text-sm font-bold text-action transition hover:opacity-90"
+              className="mt-8 inline-flex items-center gap-3 rounded-md bg-on-action px-5 py-3 text-sm font-bold text-action transition hover:opacity-90"
             >
               Creează primul pachet
               <ArrowIcon />
@@ -850,7 +850,7 @@ export default async function Home() {
               Începi gratuit, iar când cursurile se adună poți trece la un plan
               cu mai mult spațiu, repetiție inteligentă și analiză de progres.
             </p>
-            <div className="mt-7 inline-flex items-center gap-2 rounded-full border border-success-border bg-success-soft px-4 py-2 text-xs font-bold text-success">
+            <div className="mt-7 inline-flex items-center gap-2 rounded-md border border-success-border bg-success-soft px-4 py-2 text-xs font-bold text-success">
               <CheckIcon />
               Poți anula sau schimba planul oricând
             </div>
@@ -878,7 +878,7 @@ export default async function Home() {
                   }`}
                 >
                   {plan.featured ? (
-                    <div className="absolute right-5 top-5 rounded-full bg-on-action px-3 py-1.5 text-[10px] font-bold uppercase tracking-[0.14em] text-action">
+                    <div className="absolute right-5 top-5 rounded-md bg-on-action px-3 py-1.5 text-[10px] font-bold uppercase tracking-[0.14em] text-action">
                       Cea mai bună alegere
                     </div>
                   ) : null}
@@ -924,7 +924,7 @@ export default async function Home() {
 
                   {plan.discount ? (
                     <p
-                      className={`mt-3 w-fit rounded-full px-3 py-1 text-xs font-black ${
+                      className={`mt-3 w-fit rounded-md px-3 py-1 text-xs font-black ${
                         plan.featured
                           ? "bg-on-action/12 text-on-action"
                           : "border border-success-border bg-success-soft text-success"
@@ -966,7 +966,7 @@ export default async function Home() {
                     isFree={plan.price === "0"}
                     href={plan.price === "0" ? "/register" : "/upgrade"}
                     label={plan.price === "0" ? plan.cta : "Vezi detaliile planului"}
-                    className={`mt-auto inline-flex items-center justify-center gap-3 rounded-2xl px-5 py-3.5 text-sm font-bold transition ${
+                    className={`mt-auto inline-flex items-center justify-center gap-3 rounded-md px-5 py-3.5 text-sm font-bold transition ${
                       plan.featured
                         ? "bg-on-action text-action hover:opacity-90"
                         : "border border-subtle bg-app hover:bg-surface-hover"
@@ -1005,14 +1005,14 @@ export default async function Home() {
                 <div className="mt-8 flex flex-col justify-center gap-3 sm:flex-row">
                   <Link
                     href="/register"
-                    className="inline-flex items-center justify-center gap-3 rounded-2xl bg-on-action px-6 py-3.5 text-sm font-bold text-action transition hover:opacity-90"
+                    className="inline-flex items-center justify-center gap-3 rounded-md bg-on-action px-6 py-3.5 text-sm font-bold text-action transition hover:opacity-90"
                   >
                     Creează cont gratuit
                     <ArrowIcon />
                   </Link>
                   <Link
                     href="/login"
-                    className="inline-flex items-center justify-center rounded-2xl border border-on-action/20 px-6 py-3.5 text-sm font-bold transition hover:bg-on-action/10"
+                    className="inline-flex items-center justify-center rounded-md border border-on-action/20 px-6 py-3.5 text-sm font-bold transition hover:bg-on-action/10"
                   >
                     Am deja un cont
                   </Link>

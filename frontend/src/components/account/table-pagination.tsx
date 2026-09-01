@@ -56,7 +56,7 @@ export function TablePagination({
           type="button"
           onClick={() => onPageChange(safeCurrentPage - 1)}
           disabled={!canGoBack}
-          className="rounded-full border border-subtle bg-app px-4 py-2 text-xs font-black text-content transition hover:bg-surface-hover disabled:cursor-not-allowed disabled:opacity-45"
+          className="rounded-md border border-subtle bg-app px-4 py-2 text-xs font-black text-content transition hover:bg-surface-hover disabled:cursor-not-allowed disabled:opacity-45"
         >
           Înapoi
         </button>
@@ -69,7 +69,7 @@ export function TablePagination({
               key={page}
               type="button"
               onClick={() => onPageChange(page)}
-              className={`flex h-9 min-w-9 items-center justify-center rounded-full border px-3 text-xs font-black transition ${
+              className={`flex h-9 min-w-9 items-center justify-center rounded-md border px-3 text-xs font-black transition ${
                 isActive
                   ? "border-action bg-action text-on-action"
                   : "border-subtle bg-app text-muted hover:bg-surface-hover hover:text-content"
@@ -84,7 +84,7 @@ export function TablePagination({
           type="button"
           onClick={() => onPageChange(safeCurrentPage + 1)}
           disabled={!canGoForward}
-          className="rounded-full border border-subtle bg-app px-4 py-2 text-xs font-black text-content transition hover:bg-surface-hover disabled:cursor-not-allowed disabled:opacity-45"
+          className="rounded-md border border-subtle bg-app px-4 py-2 text-xs font-black text-content transition hover:bg-surface-hover disabled:cursor-not-allowed disabled:opacity-45"
         >
           Înainte
         </button>

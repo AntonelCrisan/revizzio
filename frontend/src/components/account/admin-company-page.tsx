@@ -199,7 +199,7 @@ function saveButtonClassName(
   justSaved: boolean,
 ) {
   const baseClassName =
-    "inline-flex min-h-12 w-full min-w-0 items-center justify-center rounded-full px-5 py-3 text-center text-sm font-black leading-tight transition disabled:cursor-not-allowed sm:w-auto";
+    "inline-flex min-h-12 w-full min-w-0 items-center justify-center rounded-md px-5 py-3 text-center text-sm font-black leading-tight transition disabled:cursor-not-allowed sm:w-auto";
 
   if ((justSaved || !hasChanges) && !isSaving) {
     return `${baseClassName} border border-success-border bg-success-soft text-success disabled:opacity-100`;
@@ -283,11 +283,11 @@ export function AdminCompanyPage({
           <div className="min-w-0">
             <Link
               href="/admin/settings"
-              className="mb-5 flex w-fit max-w-full items-center rounded-full border border-subtle bg-surface px-4 py-2 text-sm font-semibold text-muted transition hover:bg-surface-hover hover:text-content"
+              className="mb-5 flex w-fit max-w-full items-center rounded-md border border-subtle bg-surface px-4 py-2 text-sm font-semibold text-muted transition hover:bg-surface-hover hover:text-content"
             >
               ← Setări admin
             </Link>
-            <p className="inline-flex max-w-full rounded-full border border-subtle bg-action-soft px-3 py-1 text-[10px] font-black uppercase tracking-[0.18em] text-muted">
+            <p className="inline-flex max-w-full rounded-md border border-subtle bg-action-soft px-3 py-1 text-[10px] font-black uppercase tracking-[0.18em] text-muted">
               Date firmă
             </p>
             <h1 className="mt-3 max-w-3xl break-words font-serif text-4xl font-semibold leading-[0.95] text-content sm:text-5xl">
@@ -299,7 +299,7 @@ export function AdminCompanyPage({
             </p>
           </div>
 
-          <span className="inline-flex w-fit max-w-full rounded-full border border-subtle bg-surface px-5 py-3 text-sm font-bold leading-tight text-content">
+          <span className="inline-flex w-fit max-w-full rounded-md border border-subtle bg-surface px-5 py-3 text-sm font-bold leading-tight text-content">
             Ultima modificare: {formatDate(lastModified)}
           </span>
         </div>
@@ -389,7 +389,7 @@ export function AdminCompanyPage({
                   setJustSaved(false);
                 }}
                 disabled={!hasChanges || isSaving}
-                className="inline-flex min-h-12 w-full min-w-0 items-center justify-center rounded-full border border-subtle bg-app px-5 py-3 text-center text-sm font-bold leading-tight text-content transition hover:bg-surface-hover disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
+                className="inline-flex min-h-12 w-full min-w-0 items-center justify-center rounded-md border border-subtle bg-app px-5 py-3 text-center text-sm font-bold leading-tight text-content transition hover:bg-surface-hover disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
               >
                 Resetează
               </button>
@@ -426,7 +426,7 @@ export function AdminCompanyPage({
                 {["{name}", "{email}", "{phone}", "{cui}"].map((variable) => (
                   <code
                     key={variable}
-                    className="max-w-full break-all rounded-full border border-subtle bg-app px-3 py-1 text-xs font-bold text-muted"
+                    className="max-w-full break-all rounded-md border border-subtle bg-app px-3 py-1 text-xs font-bold text-muted"
                   >
                     {variable}
                   </code>

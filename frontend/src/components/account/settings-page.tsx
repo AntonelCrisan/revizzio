@@ -905,7 +905,7 @@ export function SettingsPage() {
                       <h2 className="font-serif text-3xl font-semibold leading-tight text-content">
                         {user?.full_name ?? "Student Reviss"}
                       </h2>
-                      <span className="inline-flex rounded-full border border-success-border bg-success-soft px-3 py-1 text-[10px] font-black uppercase tracking-[0.12em] text-success">
+                      <span className="inline-flex rounded-md border border-success-border bg-success-soft px-3 py-1 text-[10px] font-black uppercase tracking-[0.12em] text-success">
                         {user?.is_active ? "Cont activ" : "Neverificat"}
                       </span>
                     </div>
@@ -1144,7 +1144,7 @@ export function SettingsPage() {
                   <button
                     type="button"
                     onClick={resetCustomColors}
-                    className="w-fit rounded-full border border-danger-border bg-danger-soft px-4 py-2 text-xs font-bold text-danger transition hover:opacity-80"
+                    className="w-fit rounded-md border border-danger-border bg-danger-soft px-4 py-2 text-xs font-bold text-danger transition hover:opacity-80"
                   >
                     Resetează modificările
                   </button>
@@ -1397,7 +1397,7 @@ export function SettingsPage() {
               >
                 <a
                   href={dataExportHref()}
-                  className="w-fit rounded-full border border-action px-4 py-2 text-xs font-bold transition hover:bg-action hover:text-on-action"
+                  className="w-fit rounded-md border border-action px-4 py-2 text-xs font-bold transition hover:bg-action hover:text-on-action"
                 >
                   Descarcă datele
                 </a>
@@ -1440,7 +1440,7 @@ export function SettingsPage() {
                 title="Setări cookie"
                 description="Poți modifica sau retrage acordul pentru cookie-urile opționale oricând."
               >
-                <CookieSettingsButton className="w-fit rounded-full bg-action px-4 py-2 text-xs font-bold text-on-action transition hover:bg-action-hover" />
+                <CookieSettingsButton className="w-fit rounded-md bg-action px-4 py-2 text-xs font-bold text-on-action transition hover:bg-action-hover" />
               </SettingsActionRow>
 
               <SettingsActionRow
@@ -1450,10 +1450,10 @@ export function SettingsPage() {
                 <button
                   type="button"
                   onClick={() => setIsArchiveModalOpen(true)}
-                  className="group inline-flex w-fit items-center gap-2 rounded-full border border-action px-4 py-2 text-xs font-bold transition hover:bg-action hover:text-on-action"
+                  className="group inline-flex w-fit items-center gap-2 rounded-md border border-action px-4 py-2 text-xs font-bold transition hover:bg-action hover:text-on-action"
                 >
                   Vezi arhiva
-                  <span className="rounded-full border border-subtle bg-surface px-2 py-0.5 text-[10px] text-content transition">
+                  <span className="rounded-md border border-subtle bg-surface px-2 py-0.5 text-[10px] text-content transition">
                     {archivedProjects.length}
                   </span>
                 </button>
@@ -1516,7 +1516,7 @@ export function SettingsPage() {
       <section className="space-y-7" ref={settingsContentRef}>
         <div className="flex flex-col gap-5 border-b border-subtle pb-7 lg:flex-row lg:items-end lg:justify-between">
           <div>
-            <p className="inline-flex rounded-full border border-subtle bg-action-soft px-3 py-1 text-[10px] font-black uppercase tracking-[0.18em] text-muted">
+            <p className="inline-flex rounded-md border border-subtle bg-action-soft px-3 py-1 text-[10px] font-black uppercase tracking-[0.18em] text-muted">
               {activeTabMeta.eyebrow}
             </p>
             <h1 className="mt-3 max-w-3xl font-serif text-4xl font-semibold leading-[0.95] text-content sm:text-5xl">
@@ -1527,7 +1527,7 @@ export function SettingsPage() {
             </p>
           </div>
 
-          <div className="inline-flex w-fit items-center gap-2 rounded-full border border-subtle bg-surface px-4 py-2 text-xs text-muted">
+          <div className="inline-flex w-fit items-center gap-2 rounded-md border border-subtle bg-surface px-4 py-2 text-xs text-muted">
             <span>Secțiune:</span>
             <span className="font-black text-content">
               {activeSectionLabel ?? activeTabMeta.label}
@@ -1588,7 +1588,7 @@ function AccountDeletionRequestModal({
             type="button"
             onClick={onCancel}
             disabled={isSubmitting}
-            className="rounded-full border border-subtle px-5 py-3 text-sm font-bold transition hover:bg-surface-hover disabled:cursor-wait disabled:opacity-60"
+            className="rounded-md border border-subtle px-5 py-3 text-sm font-bold transition hover:bg-surface-hover disabled:cursor-wait disabled:opacity-60"
           >
             Renunță
           </button>
@@ -1596,7 +1596,7 @@ function AccountDeletionRequestModal({
             type="button"
             onClick={onConfirm}
             disabled={isSubmitting}
-            className="rounded-full bg-danger px-5 py-3 text-sm font-bold text-on-action transition hover:opacity-90 disabled:cursor-wait disabled:opacity-60"
+            className="rounded-md bg-danger px-5 py-3 text-sm font-bold text-on-action transition hover:opacity-90 disabled:cursor-wait disabled:opacity-60"
           >
             {isSubmitting ? "Se trimite..." : "Trimite solicitarea"}
           </button>
@@ -1650,7 +1650,7 @@ function ArchivedProjectsModal({
           <button
             type="button"
             onClick={onClose}
-            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-subtle transition hover:bg-surface-hover"
+            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md border border-subtle transition hover:bg-surface-hover"
             aria-label="Închide arhiva"
           >
             <svg
@@ -1700,7 +1700,7 @@ function ArchivedProjectsModal({
                         type="button"
                         disabled={isBusy}
                         onClick={() => onRestore(project.id)}
-                        className="rounded-full border border-action px-4 py-2 text-xs font-bold transition hover:bg-action hover:text-on-action disabled:cursor-wait disabled:opacity-60"
+                        className="rounded-md border border-action px-4 py-2 text-xs font-bold transition hover:bg-action hover:text-on-action disabled:cursor-wait disabled:opacity-60"
                       >
                         Restabilește
                       </button>
@@ -1708,7 +1708,7 @@ function ArchivedProjectsModal({
                         type="button"
                         disabled={isBusy}
                         onClick={() => onDelete(project)}
-                        className="rounded-full border border-danger-border px-4 py-2 text-xs font-bold text-danger transition hover:bg-danger-soft disabled:cursor-wait disabled:opacity-60"
+                        className="rounded-md border border-danger-border px-4 py-2 text-xs font-bold text-danger transition hover:bg-danger-soft disabled:cursor-wait disabled:opacity-60"
                       >
                         Șterge
                       </button>
@@ -1765,7 +1765,7 @@ function ArchiveDeleteModal({
             type="button"
             onClick={onCancel}
             disabled={isDeleting}
-            className="rounded-full border border-subtle px-5 py-3 text-sm font-bold transition hover:bg-surface-hover disabled:cursor-wait disabled:opacity-60"
+            className="rounded-md border border-subtle px-5 py-3 text-sm font-bold transition hover:bg-surface-hover disabled:cursor-wait disabled:opacity-60"
           >
             Renunță
           </button>
@@ -1773,7 +1773,7 @@ function ArchiveDeleteModal({
             type="button"
             onClick={onConfirm}
             disabled={isDeleting}
-            className="rounded-full bg-danger px-5 py-3 text-sm font-bold text-on-action transition hover:opacity-90 disabled:cursor-wait disabled:opacity-60"
+            className="rounded-md bg-danger px-5 py-3 text-sm font-bold text-on-action transition hover:opacity-90 disabled:cursor-wait disabled:opacity-60"
           >
             {isDeleting ? "Se șterge..." : "Șterge definitiv"}
           </button>
@@ -1835,7 +1835,7 @@ function PrivacyWipeConfirmModal({
             type="button"
             onClick={onCancel}
             disabled={isProcessing}
-            className="rounded-full border border-subtle px-5 py-3 text-sm font-bold transition hover:bg-surface-hover disabled:cursor-wait disabled:opacity-60"
+            className="rounded-md border border-subtle px-5 py-3 text-sm font-bold transition hover:bg-surface-hover disabled:cursor-wait disabled:opacity-60"
           >
             Renunță
           </button>
@@ -1843,7 +1843,7 @@ function PrivacyWipeConfirmModal({
             type="button"
             onClick={onConfirm}
             disabled={isProcessing}
-            className="rounded-full bg-danger px-5 py-3 text-sm font-bold text-on-action transition hover:opacity-90 disabled:cursor-wait disabled:opacity-60"
+            className="rounded-md bg-danger px-5 py-3 text-sm font-bold text-on-action transition hover:opacity-90 disabled:cursor-wait disabled:opacity-60"
           >
             {isProcessing ? "Se șterge..." : copy.confirmLabel}
           </button>
@@ -2033,7 +2033,7 @@ function ActionPill({
 }) {
   return (
     <span
-      className={`inline-flex w-fit items-center gap-2 rounded-full px-4 py-2 text-xs font-black transition group-hover:translate-x-0.5 ${
+      className={`inline-flex w-fit items-center gap-2 rounded-md px-4 py-2 text-xs font-black transition group-hover:translate-x-0.5 ${
         tone === "danger"
           ? "bg-danger-soft text-danger"
           : "bg-action text-on-action"
@@ -2088,7 +2088,7 @@ function ThemePreview({
               Biologie celulară
             </p>
           </div>
-          <span className="rounded-full bg-[var(--settings-preview-action)] px-4 py-2 text-xs font-black text-[var(--settings-preview-on-action)]">
+          <span className="rounded-md bg-[var(--settings-preview-action)] px-4 py-2 text-xs font-black text-[var(--settings-preview-on-action)]">
             Continuă
           </span>
         </div>
@@ -2162,7 +2162,7 @@ function ColorControl({
         <span className="flex items-center gap-2 text-sm font-black">
           {label}
           {isCustom ? (
-            <span className="rounded-full bg-warning-soft px-2 py-0.5 text-[10px] text-warning">
+            <span className="rounded-md bg-warning-soft px-2 py-0.5 text-[10px] text-warning">
               custom
             </span>
           ) : null}
@@ -2172,7 +2172,7 @@ function ColorControl({
         </span>
       </span>
       <span className="flex items-center gap-3 sm:justify-end">
-        <span className="rounded-full border border-subtle bg-surface px-3 py-1.5 text-xs font-black text-content transition group-hover:border-content">
+        <span className="rounded-md border border-subtle bg-surface px-3 py-1.5 text-xs font-black text-content transition group-hover:border-content">
           Modifică
         </span>
       </span>

@@ -224,11 +224,11 @@ export function AdminAccountDeletionRequestsPage({
           <div>
             <Link
               href="/admin/settings"
-              className="mb-5 flex w-fit items-center rounded-full border border-subtle bg-surface px-4 py-2 text-sm font-semibold text-muted transition hover:bg-surface-hover hover:text-content"
+              className="mb-5 flex w-fit items-center rounded-md border border-subtle bg-surface px-4 py-2 text-sm font-semibold text-muted transition hover:bg-surface-hover hover:text-content"
             >
               ← Setări admin
             </Link>
-            <p className="inline-flex rounded-full border border-subtle bg-action-soft px-3 py-1 text-[10px] font-black uppercase tracking-[0.18em] text-muted">
+            <p className="inline-flex rounded-md border border-subtle bg-action-soft px-3 py-1 text-[10px] font-black uppercase tracking-[0.18em] text-muted">
               Conturi
             </p>
             <h1 className="mt-3 max-w-3xl font-serif text-4xl font-semibold leading-[0.95] text-content sm:text-5xl">
@@ -244,7 +244,7 @@ export function AdminAccountDeletionRequestsPage({
             type="button"
             onClick={refreshRequests}
             disabled={isRefreshing}
-            className="inline-flex w-fit items-center justify-center gap-2 rounded-full bg-action px-5 py-3 text-sm font-black text-on-action transition hover:bg-action-hover disabled:cursor-wait disabled:opacity-60"
+            className="inline-flex w-fit items-center justify-center gap-2 rounded-md bg-action px-5 py-3 text-sm font-black text-on-action transition hover:bg-action-hover disabled:cursor-wait disabled:opacity-60"
           >
             <RefreshIcon spinning={isRefreshing} />
             <span>{isRefreshing ? "Refreshing..." : "Refresh"}</span>
@@ -371,7 +371,7 @@ export function AdminAccountDeletionRequestsPage({
                       </td>
                       <td className="px-5 py-4">
                         <span
-                          className={`inline-flex rounded-full border px-3 py-1 text-[10px] font-black uppercase tracking-[0.12em] ${statusClass(
+                          className={`inline-flex rounded-md border px-3 py-1 text-[10px] font-black uppercase tracking-[0.12em] ${statusClass(
                             request.status,
                           )}`}
                         >
@@ -400,7 +400,7 @@ export function AdminAccountDeletionRequestsPage({
                             type="button"
                             onClick={() => setRequestToResolve(request)}
                             disabled={Boolean(actionRequestId)}
-                            className="inline-flex items-center justify-center rounded-full bg-danger px-4 py-2 text-xs font-black text-danger-soft transition hover:opacity-85 disabled:cursor-wait disabled:opacity-60"
+                            className="inline-flex items-center justify-center rounded-md bg-danger px-4 py-2 text-xs font-black text-danger-soft transition hover:opacity-85 disabled:cursor-wait disabled:opacity-60"
                           >
                             {isBusy
                               ? "Se procesează..."
@@ -498,7 +498,7 @@ function ResolveAccountDeletionRequestModal({
             type="button"
             onClick={onCancel}
             disabled={isProcessing}
-            className="rounded-full border border-subtle px-5 py-3 text-sm font-bold transition hover:bg-surface-hover disabled:cursor-wait disabled:opacity-60"
+            className="rounded-md border border-subtle px-5 py-3 text-sm font-bold transition hover:bg-surface-hover disabled:cursor-wait disabled:opacity-60"
           >
             Renunță
           </button>
@@ -506,7 +506,7 @@ function ResolveAccountDeletionRequestModal({
             type="button"
             onClick={onConfirm}
             disabled={isProcessing}
-            className="rounded-full bg-danger px-5 py-3 text-sm font-bold text-danger-soft transition hover:opacity-85 disabled:cursor-wait disabled:opacity-60"
+            className="rounded-md bg-danger px-5 py-3 text-sm font-bold text-danger-soft transition hover:opacity-85 disabled:cursor-wait disabled:opacity-60"
           >
             {isProcessing
               ? "Se procesează..."

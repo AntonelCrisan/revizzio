@@ -49,7 +49,7 @@ function StatusBadge({
 }) {
   return (
     <span
-      className={`inline-flex rounded-full border px-3 py-1 text-[10px] font-black uppercase tracking-[0.12em] ${
+      className={`inline-flex rounded-md border px-3 py-1 text-[10px] font-black uppercase tracking-[0.12em] ${
         active
           ? "border-success-border bg-success-soft text-success"
           : "border-danger-border bg-danger-soft text-danger"
@@ -63,7 +63,7 @@ function StatusBadge({
 function RoleBadge({ role }: { role: AdminUser["role"] }) {
   return (
     <span
-      className={`inline-flex rounded-full border px-3 py-1 text-[10px] font-black uppercase tracking-[0.12em] ${
+      className={`inline-flex rounded-md border px-3 py-1 text-[10px] font-black uppercase tracking-[0.12em] ${
         role === "admin"
           ? "border-action bg-action text-on-action"
           : "border-subtle bg-app text-muted"
@@ -174,11 +174,11 @@ export function AdminUsersPage({
           <div>
             <Link
               href="/admin/settings"
-              className="mb-5 flex w-fit items-center rounded-full border border-subtle bg-surface px-4 py-2 text-sm font-semibold text-muted transition hover:bg-surface-hover hover:text-content"
+              className="mb-5 flex w-fit items-center rounded-md border border-subtle bg-surface px-4 py-2 text-sm font-semibold text-muted transition hover:bg-surface-hover hover:text-content"
             >
               ← Setări admin
             </Link>
-            <p className="inline-flex rounded-full border border-subtle bg-action-soft px-3 py-1 text-[10px] font-black uppercase tracking-[0.18em] text-muted">
+            <p className="inline-flex rounded-md border border-subtle bg-action-soft px-3 py-1 text-[10px] font-black uppercase tracking-[0.18em] text-muted">
               Utilizatori
             </p>
             <h1 className="mt-3 max-w-3xl font-serif text-4xl font-semibold leading-[0.95] text-content sm:text-5xl">
@@ -194,7 +194,7 @@ export function AdminUsersPage({
             type="button"
             onClick={refreshUsers}
             disabled={isRefreshing}
-            className="inline-flex w-fit items-center justify-center gap-2 rounded-full bg-action px-5 py-3 text-sm font-black text-on-action transition hover:bg-action-hover disabled:cursor-wait disabled:opacity-60"
+            className="inline-flex w-fit items-center justify-center gap-2 rounded-md bg-action px-5 py-3 text-sm font-black text-on-action transition hover:bg-action-hover disabled:cursor-wait disabled:opacity-60"
           >
             <svg
               aria-hidden="true"
@@ -267,7 +267,7 @@ export function AdminUsersPage({
                       setFilter(item.value);
                       setCurrentPage(1);
                     }}
-                    className={`rounded-full border px-4 py-2 text-xs font-black transition ${
+                    className={`rounded-md border px-4 py-2 text-xs font-black transition ${
                       isActive
                         ? "border-action bg-action text-on-action"
                         : "border-subtle bg-app text-muted hover:bg-surface-hover hover:text-content"
@@ -331,7 +331,7 @@ export function AdminUsersPage({
                     <td className="px-5 py-4 text-right">
                       <Link
                         href={`/admin/settings/utilizatori/${user.id}`}
-                        className="inline-flex rounded-full border border-subtle bg-app px-4 py-2 text-xs font-black text-content transition hover:border-action hover:bg-action hover:text-on-action"
+                        className="inline-flex rounded-md border border-subtle bg-app px-4 py-2 text-xs font-black text-content transition hover:border-action hover:bg-action hover:text-on-action"
                       >
                         Detalii
                       </Link>

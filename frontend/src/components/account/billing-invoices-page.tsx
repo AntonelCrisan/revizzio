@@ -113,7 +113,7 @@ export function BillingInvoicesPage() {
       <section className="space-y-7">
         <div className="flex flex-col gap-5 border-b border-subtle pb-7 lg:flex-row lg:items-end lg:justify-between">
           <div>
-            <p className="inline-flex rounded-full border border-subtle bg-action-soft px-3 py-1 text-[10px] font-black uppercase tracking-[0.18em] text-muted">
+            <p className="inline-flex rounded-md border border-subtle bg-action-soft px-3 py-1 text-[10px] font-black uppercase tracking-[0.18em] text-muted">
               Facturi
             </p>
             <h1 className="mt-3 max-w-3xl font-serif text-4xl font-semibold leading-[0.95] text-content sm:text-5xl">
@@ -127,14 +127,14 @@ export function BillingInvoicesPage() {
           <div className="flex flex-wrap gap-2">
             <Link
               href="/upgrade"
-              className="inline-flex items-center rounded-full border border-subtle bg-surface px-4 py-2 text-xs font-bold text-muted transition hover:bg-surface-hover hover:text-content"
+              className="inline-flex items-center rounded-md border border-subtle bg-surface px-4 py-2 text-xs font-bold text-muted transition hover:bg-surface-hover hover:text-content"
             >
               Planuri
             </Link>
             <button
               type="button"
               onClick={refreshInvoices}
-              className="rounded-full border border-subtle bg-surface px-4 py-2 text-xs font-bold text-muted transition hover:bg-surface-hover hover:text-content"
+              className="rounded-md border border-subtle bg-surface px-4 py-2 text-xs font-bold text-muted transition hover:bg-surface-hover hover:text-content"
             >
               Reîncarcă
             </button>
@@ -180,7 +180,7 @@ export function BillingInvoicesPage() {
                     {formatInvoiceAmount(invoice)}
                   </p>
                   <span
-                    className={`w-fit rounded-full border px-3 py-1 text-xs font-black ${statusClass(
+                    className={`w-fit rounded-md border px-3 py-1 text-xs font-black ${statusClass(
                       invoice.status,
                     )}`}
                   >
@@ -192,7 +192,7 @@ export function BillingInvoicesPage() {
                         href={invoice.hosted_invoice_url}
                         target="_blank"
                         rel="noreferrer"
-                        className="rounded-full bg-action px-4 py-2 text-sm font-black text-on-action transition hover:bg-action-hover"
+                        className="rounded-md bg-action px-4 py-2 text-sm font-black text-on-action transition hover:bg-action-hover"
                       >
                         Vezi factura
                       </a>
@@ -202,7 +202,7 @@ export function BillingInvoicesPage() {
                         href={invoice.invoice_pdf_url}
                         target="_blank"
                         rel="noreferrer"
-                        className="rounded-full border border-subtle bg-surface px-4 py-2 text-sm font-black transition hover:bg-surface-hover"
+                        className="rounded-md border border-subtle bg-surface px-4 py-2 text-sm font-black transition hover:bg-surface-hover"
                       >
                         PDF
                       </a>
