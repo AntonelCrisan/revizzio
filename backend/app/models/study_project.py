@@ -30,6 +30,27 @@ if TYPE_CHECKING:
 # release and would stay locked out.
 SLOT_OCCUPYING_STATUSES = ("ready", "generating_quizzes")
 
+# How a question is answered, stored on StudyProjectQuizQuestion.question_type.
+# A single quiz may mix them, which is why the quiz itself no longer carries one.
+QUIZ_QUESTION_TYPES = (
+    "single_choice",
+    "multiple_choice",
+    # Option rows pair `label` with `match_label`.
+    "matching",
+    # Option rows are the words of one sentence; `sort_order` is the answer.
+    "ordering",
+    # The question prompt is a sentence with gaps; option rows are the words
+    # that fill them plus distractors. `sort_order` is the gap number, 0 for a
+    # distractor.
+    "cloze",
+)
+
+# Marks one gap inside a cloze question prompt.
+CLOZE_GAP_MARKER = "____"
+
+# Difficulty of a whole quiz, on StudyProjectQuiz.complexity.
+QUIZ_COMPLEXITIES = ("low", "medium", "high", "exam")
+
 
 class StudyProject(Base):
     __tablename__ = "study_projects"
@@ -402,7 +423,6 @@ class StudyProjectQuiz(Base):
     title: Mapped[str] = mapped_column(String(180), nullable=False)
     description: Mapped[str | None] = mapped_column(Text)
     complexity: Mapped[str | None] = mapped_column(String(60))
-    question_type: Mapped[str | None] = mapped_column(String(60))
     sort_order: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     score_percent: Mapped[int | None] = mapped_column(Integer)
@@ -478,7 +498,11 @@ class StudyProjectQuizOption(Base):
         index=True,
     )
     label: Mapped[str] = mapped_column(Text, nullable=False)
+    # "matching" only: the right-hand item this label pairs with. The client
+    # shuffles the right column before showing it.
+    match_label: Mapped[str | None] = mapped_column(Text)
     is_correct: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    # "ordering": the word's correct position in the sentence.
     sort_order: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
 
     question: Mapped[StudyProjectQuizQuestion] = relationship(back_populates="options")
@@ -495,6 +519,8 @@ class StudyProjectSummaryHighlight(Base):
     )
     paragraph_index: Mapped[int] = mapped_column(Integer, nullable=False)
     text: Mapped[str] = mapped_column(Text, nullable=False)
+    start_offset: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    end_offset: Mapped[int | None] = mapped_column(Integer, nullable=True)
     color: Mapped[str] = mapped_column(
         String(20),
         nullable=False,

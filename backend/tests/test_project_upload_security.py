@@ -28,13 +28,13 @@ from app.services.projects import (
     _is_prompt_extraction_request,
     _postgres_advisory_lock_key,
     _quiz_mistake_flashcard_back,
-    _quiz_pack_output_token_budget,
     _safe_filename,
+    _single_quiz_output_token_budget,
     _study_pack_output_token_budget,
     _validate_flashcard_image_signature,
     _validate_generated_payload,
     _validate_project_file_signature,
-    build_reviss_quiz_pack_prompt,
+    build_reviss_single_quiz_prompt,
 )
 
 BASE_SETTINGS = {
@@ -68,7 +68,6 @@ def _plan_limits(
         estimated_pages=25,
         monthly_page_limit=1000,
         initial_flashcards=20,
-        quiz_groups_per_complexity=1,
         quiz_questions_per_quiz=8,
         allow_scanned_documents=allow_scanned_documents,
     )
@@ -129,9 +128,7 @@ def test_safe_filename_removes_path_parts_and_limits_length() -> None:
 def test_postgres_quota_lock_key_is_stable_bigint() -> None:
     user_id = uuid.uuid4()
 
-    assert _postgres_advisory_lock_key(user_id) == _postgres_advisory_lock_key(
-        user_id
-    )
+    assert _postgres_advisory_lock_key(user_id) == _postgres_advisory_lock_key(user_id)
     assert 0 <= _postgres_advisory_lock_key(user_id) < (2**63)
 
 
@@ -241,10 +238,7 @@ def test_project_chat_prompt_is_course_scoped_and_compact(tmp_path) -> None:
         project_id=project_id,
         content="\n\n".join(
             [
-                *(
-                    f"Unrelated block {index} about other notes."
-                    for index in range(40)
-                ),
+                *(f"Unrelated block {index} about other notes." for index in range(40)),
                 "The rectal route can produce local and systemic effects.",
             ]
         ),
@@ -274,8 +268,11 @@ def test_project_chat_prompt_is_course_scoped_and_compact(tmp_path) -> None:
 def test_openai_output_budgets_scale_with_requested_content() -> None:
     assert _study_pack_output_token_budget(20) < _study_pack_output_token_budget(60)
     assert _study_pack_output_token_budget(120) == 18_000
-    assert _quiz_pack_output_token_budget(1, 8) < _quiz_pack_output_token_budget(4, 12)
-    assert _quiz_pack_output_token_budget(20, 50) == 48_000
+    assert _single_quiz_output_token_budget(5) < _single_quiz_output_token_budget(20)
+    # The question count is clamped, so an absurd request cannot inflate the
+    # budget past what 50 questions need.
+    assert _single_quiz_output_token_budget(200) == _single_quiz_output_token_budget(50)
+    assert _single_quiz_output_token_budget(1) >= 4_000
 
 
 def test_project_file_signature_accepts_valid_pdf_header() -> None:
@@ -460,21 +457,29 @@ def test_project_markdown_can_be_read_from_persisted_db_content(tmp_path) -> Non
 def test_quiz_prompt_keeps_full_material_and_targets_selected_language() -> None:
     material = "Curs in romana care trebuie acoperit integral."
 
-    prompt = build_reviss_quiz_pack_prompt(
+    prompt = build_reviss_single_quiz_prompt(
         project_name="Biologie",
         subject_name="Biologie celulara",
         institution_name="Facultate",
         summary="Rezumat generat.",
         flashcard_context="- Q: Ce este celula?\n  A: Unitatea de baza.",
         material_markdown=material,
-        quiz_groups_per_complexity=1,
-        questions_per_quiz=8,
+        complexity="exam",
+        question_count=8,
+        question_types=["single_choice", "matching", "ordering"],
         target_language="en",
     )
 
     assert "English" in prompt
-    assert "MATERIAL MARKDOWN COMPLET" in prompt
+    assert "MATERIALUL PROIECTULUI" in prompt
     assert material in prompt
+    # The configuration has to reach the model, not just the material.
+    assert "Dificultate: exam" in prompt
+    assert "exact 3 intrebari de tip single_choice" in prompt
+    assert "REGULI matching" in prompt
+    assert "REGULI ordering" in prompt
+    # A type the student did not pick must not be requested.
+    assert "REGULI multiple_choice" not in prompt
 
 
 def test_quiz_retry_prompt_keeps_original_prompt_and_validation_error() -> None:
@@ -485,7 +490,7 @@ def test_quiz_retry_prompt_keeps_original_prompt_and_validation_error() -> None:
 
     assert prompt in retry_prompt
     assert validation_error in retry_prompt
-    assert 'nicio intrebare nu are toate optiunile false' in retry_prompt
+    assert "nicio intrebare nu are toate optiunile false" in retry_prompt
 
 
 def test_quiz_mistake_flashcard_back_does_not_prefix_correct_answer() -> None:
@@ -550,8 +555,11 @@ def test_ai_selection_prompts_target_account_language(tmp_path) -> None:
     )
 
     assert "Raspunde in English" in prompt
-    assert "traduce fidel conceptele in English" in prompt
-    assert "Raspunde in romana" not in prompt
+    # The prompt has to ask for a translation into the account language; the
+    # exact verb form is not what matters.
+    assert "fidel conceptele" in prompt
+    assert prompt.count("English") >= 3  # rule header, JSON keys, translation
+    assert "romana" not in prompt
 
 
 def test_flashcard_and_chat_ai_prompts_target_account_language(tmp_path) -> None:
@@ -608,7 +616,7 @@ def test_flashcard_and_chat_ai_prompts_target_account_language(tmp_path) -> None
     )
 
     assert "Raspunde in French" in flashcard_prompt
-    assert "answer\" si \"bullets\", trebuie sa fie in French" in flashcard_prompt
+    assert '"answer" si "bullets" sunt in French' in flashcard_prompt
     assert 'Scrie "answer" in French' in chat_prompt
-    assert "Raspunde in romana" not in flashcard_prompt
-    assert "Raspunde in romana" not in chat_prompt
+    assert "romana" not in flashcard_prompt
+    assert "romana" not in chat_prompt

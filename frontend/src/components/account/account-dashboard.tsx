@@ -16,6 +16,12 @@ import {
 } from "react";
 import { AccountSkeleton } from "@/components/account/account-skeleton";
 import { ProjectSlotsModal } from "@/components/account/project-slots-modal";
+import { QuizConfigModal } from "@/components/account/quiz-config-modal";
+import {
+  QuizClozeAnswer,
+  QuizMatchingAnswer,
+  QuizOrderingAnswer,
+} from "@/components/account/quiz-interactive-answers";
 import { useAuth } from "@/components/auth/auth-provider";
 import { BrandLogo } from "@/components/brand-logo";
 import {
@@ -33,7 +39,6 @@ import {
 } from "@/components/account/account-sidebar-ui";
 import { useLanguage } from "@/components/language-provider";
 import type { AuthUserPlan, LanguagePreference } from "@/lib/auth-api";
-import { getStudyPreferences } from "@/lib/preferences-api";
 import { getUsage, type Usage } from "@/lib/usage-api";
 import {
   archiveStudyProject,
@@ -50,7 +55,7 @@ import {
   deleteSummaryNote,
   explainStudyProjectFlashcardSelection,
   explainStudyProjectSummarySelection,
-  generateStudyProjectQuizzes,
+  generateStudyProjectQuiz,
   getStudyProject,
   activateStudyProject,
   deactivateStudyProject,
@@ -61,6 +66,8 @@ import {
   setFlashcardReview,
   updateSummaryHighlightColor,
   updateSummaryNote,
+  type QuizGenerationConfig,
+  type StudyProjectQuizOption,
   type StudyProject as ApiStudyProject,
   type StudyProjectPrepareResponse,
   type SummaryHighlightColor as ApiSummaryHighlightColor,
@@ -210,7 +217,7 @@ const quizGenerationLoadingCopy: Record<
   }
 > = {
   ro: {
-    buttonIdle: "Generează quizuri",
+    buttonIdle: "Generează un quiz",
     buttonBusy: "Se generează...",
     title: "Construiesc quizurile...",
     description:
@@ -222,7 +229,7 @@ const quizGenerationLoadingCopy: Record<
     ],
   },
   en: {
-    buttonIdle: "Generate quizzes",
+    buttonIdle: "Generate a quiz",
     buttonBusy: "Generating...",
     title: "Building your quizzes...",
     description:
@@ -234,7 +241,7 @@ const quizGenerationLoadingCopy: Record<
     ],
   },
   fr: {
-    buttonIdle: "Générer les quiz",
+    buttonIdle: "Générer un quiz",
     buttonBusy: "Génération...",
     title: "Création des quiz...",
     description:
@@ -481,6 +488,8 @@ function mapSummaryHighlights(
     text: highlight.text,
     paragraphIndex: highlight.paragraph_index,
     color: highlight.color,
+    startOffset: highlight.start_offset ?? null,
+    endOffset: highlight.end_offset ?? null,
   }));
 }
 
@@ -670,7 +679,6 @@ export function AccountDashboard({
     useState<StudyProjectPrepareResponse | null>(null);
   const [generationError, setGenerationError] = useState<string | null>(null);
   const [isCancellingGeneration, setIsCancellingGeneration] = useState(false);
-  const [suggestQuizAfterSummary, setSuggestQuizAfterSummary] = useState(false);
   const [usage, setUsage] = useState<Usage | null>(null);
   const generationAbortControllerRef = useRef<AbortController | null>(null);
   const generationProjectIdRef = useRef<string | null>(null);
@@ -685,6 +693,11 @@ export function AccountDashboard({
 
   const displayName = user?.full_name.trim() || "student";
   const hasAiAccess = hasPlanAiAccess(user?.current_plan);
+  // Upper bound for one generated quiz; the API enforces the same cap.
+  const maxQuizQuestions = Math.max(
+    1,
+    Number(user?.current_plan?.quiz_questions_per_quiz ?? 10),
+  );
   const uploadPlanLimits = useMemo(
     () => getProjectUploadPlanLimits(user?.current_plan),
     [user?.current_plan],
@@ -899,25 +912,6 @@ export function AccountDashboard({
       );
     }
   }, [activeProjectId, chatBackTab, hasAiAccess, router, useTabPages]);
-
-  useEffect(() => {
-    if (isLoading || !user) return;
-    let isMounted = true;
-
-    getStudyPreferences()
-      .then((preferences) => {
-        if (isMounted) {
-          setSuggestQuizAfterSummary(preferences.automation_quiz_after_summary);
-        }
-      })
-      .catch(() => {
-        // Keep the default (no nudge) if preferences can't be loaded.
-      });
-
-    return () => {
-      isMounted = false;
-    };
-  }, [isLoading, user]);
 
   useEffect(() => {
     if (isLoading || !user) return;
@@ -1143,6 +1137,8 @@ export function AccountDashboard({
       paragraphIndex: number;
       text: string;
       color: ApiSummaryHighlightColor;
+      startOffset?: number | null;
+      endOffset?: number | null;
     },
   ) {
     const apiProject = await createSummaryHighlight({
@@ -1150,6 +1146,8 @@ export function AccountDashboard({
       paragraphIndex: highlight.paragraphIndex,
       text: highlight.text,
       color: highlight.color,
+      startOffset: highlight.startOffset,
+      endOffset: highlight.endOffset,
     });
     const mappedProject = mapApiProject(apiProject);
     setProjects((currentProjects) =>
@@ -1258,8 +1256,11 @@ export function AccountDashboard({
     );
   }
 
-  async function generateProjectQuizPack(projectId: string) {
-    const queuedProject = await generateStudyProjectQuizzes(projectId);
+  async function generateProjectQuiz(
+    projectId: string,
+    config: QuizGenerationConfig,
+  ) {
+    const queuedProject = await generateStudyProjectQuiz(projectId, config);
     storeApiProject(queuedProject);
 
     if (queuedProject.status === "ready" && queuedProject.quizzes.length === 0) {
@@ -1354,8 +1355,11 @@ export function AccountDashboard({
           return mappedProject;
         }),
       );
-    } catch {
-      // The optimistic flashcard stays visible; backend sync can be retried later.
+    } catch (error) {
+      // The optimistic card stays in the local list so the tab is not empty,
+      // but the caller has to know the save did not reach the server: this is
+      // now an explicit request, not a silent side effect.
+      throw error;
     }
   }
 
@@ -1682,17 +1686,6 @@ export function AccountDashboard({
     setActiveProjectId(apiProject.id);
     setOpenProjectId(apiProject.id);
     setActiveTab("rezumat");
-    setView("project");
-    resetNewProject();
-  }
-
-  function openGeneratedProjectAndStartQuiz() {
-    if (!preparedProject) return;
-
-    const apiProject = storeApiProject(preparedProject.project);
-    setActiveProjectId(apiProject.id);
-    setOpenProjectId(apiProject.id);
-    setActiveTab("quiz");
     setView("project");
     resetNewProject();
   }
@@ -2155,13 +2148,14 @@ export function AccountDashboard({
               chatBackTab={chatBackTab}
               flashcardMode={initialFlashcardMode}
               hasAiAccess={hasAiAccess}
+              maxQuizQuestions={maxQuizQuestions}
               isTabContentLoading={isTabRoutePending}
               onBack={showHome}
               onTabChange={changeProjectTab}
               onUsageRefresh={refreshUsageSnapshot}
               onQuizMistake={saveQuizMistakeFlashcard}
               onQuizComplete={completeQuizAttempt}
-              onGenerateQuizzes={generateProjectQuizPack}
+              onGenerateQuiz={generateProjectQuiz}
               onManualFlashcardCreate={addManualFlashcard}
               onToggleFlashcardReview={toggleFlashcardReview}
               onHighlightCreate={addSummaryHighlight}
@@ -2205,8 +2199,6 @@ export function AccountDashboard({
               onStartGeneration={startGeneration}
               onCancelGeneration={cancelActiveGeneration}
               onOpenGeneratedProject={createGeneratedProject}
-              suggestQuizAfterSummary={suggestQuizAfterSummary}
-              onStartQuizAfterSummary={openGeneratedProjectAndStartQuiz}
             />
           ) : null}
         </main>
@@ -2974,13 +2966,14 @@ function ProjectView({
   chatBackTab,
   flashcardMode,
   hasAiAccess,
+  maxQuizQuestions,
   isTabContentLoading,
   onBack,
   onTabChange,
   onUsageRefresh,
   onQuizMistake,
   onQuizComplete,
-  onGenerateQuizzes,
+  onGenerateQuiz,
   onManualFlashcardCreate,
   onToggleFlashcardReview,
   onHighlightCreate,
@@ -3010,7 +3003,12 @@ function ProjectView({
     quizId: string,
     result: { correctCount: number; answeredCount: number },
   ) => Promise<void>;
-  onGenerateQuizzes: (projectId: string) => Promise<StudyProject>;
+  onGenerateQuiz: (
+    projectId: string,
+    config: QuizGenerationConfig,
+  ) => Promise<StudyProject>;
+  /** Upper bound for one quiz, from the account's plan. */
+  maxQuizQuestions: number;
   onManualFlashcardCreate: (
     projectId: string,
     flashcard: ManualFlashcardPayload,
@@ -3024,6 +3022,8 @@ function ProjectView({
     projectId: string,
     highlight: {
       paragraphIndex: number;
+      startOffset?: number | null;
+      endOffset?: number | null;
       text: string;
       color: ApiSummaryHighlightColor;
     },
@@ -3203,7 +3203,8 @@ function ProjectView({
                 project={project}
                 onQuizMistake={onQuizMistake}
                 onQuizComplete={onQuizComplete}
-                onGenerateQuizzes={onGenerateQuizzes}
+                onGenerateQuiz={onGenerateQuiz}
+                maxQuizQuestions={maxQuizQuestions}
               />
             ) : null}
             {activeTab === "strategii" ? (
@@ -3884,6 +3885,8 @@ type UserSummaryHighlight = {
   text: string;
   paragraphIndex: number;
   color: SummaryHighlightColorId;
+  startOffset: number | null;
+  endOffset: number | null;
 };
 
 type UserSummaryNote = {
@@ -3896,6 +3899,8 @@ type UserSummaryNote = {
 type PendingSummarySelection = {
   text: string;
   paragraphIndex: number;
+  startOffset: number | null;
+  endOffset: number | null;
 };
 
 type SummaryToolMode = "highlight" | "erase" | "ai" | "note";
@@ -4131,8 +4136,7 @@ function getSummaryHighlightStyle(
 }
 
 function getSummaryParagraphIndex(node: Node | null) {
-  const element = node instanceof Element ? node : node?.parentElement;
-  const paragraph = element?.closest<HTMLElement>("[data-summary-paragraph]");
+  const paragraph = getSummaryParagraphElement(node);
   const paragraphIndex = paragraph?.dataset.summaryParagraph;
 
   if (!paragraphIndex) {
@@ -4141,6 +4145,39 @@ function getSummaryParagraphIndex(node: Node | null) {
 
   const parsedIndex = Number.parseInt(paragraphIndex, 10);
   return Number.isNaN(parsedIndex) ? null : parsedIndex;
+}
+
+function getSummaryParagraphElement(node: Node | null) {
+  const element = node instanceof Element ? node : node?.parentElement;
+  return element?.closest<HTMLElement>("[data-summary-paragraph]") ?? null;
+}
+
+function getSummarySelectionOffsets(range: Range, paragraph: HTMLElement) {
+  if (
+    !paragraph.contains(range.startContainer) ||
+    !paragraph.contains(range.endContainer)
+  ) {
+    return null;
+  }
+
+  const prefixRange = range.cloneRange();
+  prefixRange.selectNodeContents(paragraph);
+  prefixRange.setEnd(range.startContainer, range.startOffset);
+
+  const rawSelectedText = range.toString();
+  const firstSelectedChar = rawSelectedText.search(/\S/);
+  if (firstSelectedChar === -1) {
+    return null;
+  }
+
+  const trailingWhitespaceLength =
+    rawSelectedText.length - rawSelectedText.trimEnd().length;
+  const prefixLength = prefixRange.toString().length;
+  const startOffset = prefixLength + firstSelectedChar;
+  const endOffset =
+    prefixLength + rawSelectedText.length - trailingWhitespaceLength;
+
+  return endOffset > startOffset ? { startOffset, endOffset } : null;
 }
 
 function findSummaryRanges(
@@ -4172,6 +4209,45 @@ function findSummaryRanges(
   }
 
   return ranges;
+}
+
+function findUserSummaryHighlightRanges(
+  paragraph: string,
+  highlight: UserSummaryHighlight,
+) {
+  const hasStoredOffsets =
+    Number.isInteger(highlight.startOffset) &&
+    Number.isInteger(highlight.endOffset);
+
+  if (hasStoredOffsets) {
+    const start = highlight.startOffset;
+    const end = highlight.endOffset;
+
+    if (
+      start === null ||
+      end === null ||
+      start < 0 ||
+      end <= start ||
+      end > paragraph.length ||
+      normalizeSummarySelection(paragraph.slice(start, end)) !== highlight.text
+    ) {
+      return [];
+    }
+
+    return [
+      {
+        start,
+        end,
+        kind: "user" as const,
+        highlight,
+      },
+    ];
+  }
+
+  return findSummaryRanges(paragraph, highlight.text, {
+    kind: "user",
+    highlight,
+  });
 }
 
 function pushSummaryInlineSegment(
@@ -4438,27 +4514,27 @@ function renderSummaryText(
   userHighlightClass: string,
   activeKeywordId: string | null,
   isEraseModeActive: boolean,
+  areKeywordHighlightsMuted: boolean,
   onUserHighlightClick: (highlight: UserSummaryHighlight) => void,
   onNoteBadgeClick: (note: UserSummaryNote) => void,
 ): ReactNode[] {
   const inlineSegments = parseSummaryInlineMarkdown(paragraph);
   const plainParagraph = inlineSegments.map((segment) => segment.text).join("");
-  const keywordRanges = keywords
-    .filter((keyword) => keyword.paragraphIndex === paragraphIndex)
-    .flatMap((keyword) =>
-      findSummaryRanges(plainParagraph, keyword.text, {
-        kind: "keyword",
-        keyword,
-      }),
-    );
+  const keywordRanges = areKeywordHighlightsMuted
+    ? []
+    : keywords
+        .filter((keyword) => keyword.paragraphIndex === paragraphIndex)
+        .flatMap((keyword) =>
+          findSummaryRanges(plainParagraph, keyword.text, {
+            kind: "keyword",
+            keyword,
+          }),
+        );
 
   const userRanges = userHighlights
     .filter((highlight) => highlight.paragraphIndex === paragraphIndex)
     .flatMap((highlight) =>
-      findSummaryRanges(plainParagraph, highlight.text, {
-        kind: "user",
-        highlight,
-      }),
+      findUserSummaryHighlightRanges(plainParagraph, highlight),
     );
 
   const noteRanges = userNotes
@@ -4507,6 +4583,7 @@ function renderSummaryText(
     const note = noteRange?.note;
     const isHighlightClickable = Boolean(userHighlight) && isEraseModeActive;
     const isActiveKeyword =
+      !userRange &&
       keywordRange?.keyword?.id !== undefined &&
       keywordRange.keyword.id === activeKeywordId;
 
@@ -4519,7 +4596,7 @@ function renderSummaryText(
       <mark
         key={`${paragraphIndex}-${start}-${end}`}
         id={
-          keywordRange?.keyword && start === keywordRange.start
+          keywordRange?.keyword && !userRange && start === keywordRange.start
             ? keywordRange.keyword.id
             : undefined
         }
@@ -4545,7 +4622,7 @@ function renderSummaryText(
             : undefined
         }
         className={[
-          keywordRange ? keywordClass : "",
+          !userRange && keywordRange ? keywordClass : "",
           userRange ? userHighlightClass : "",
           isHighlightClickable ? "cursor-pointer" : "",
           note ? "underline decoration-dotted decoration-2 underline-offset-4" : "",
@@ -4831,6 +4908,8 @@ function SummaryPanel({
       paragraphIndex: number;
       text: string;
       color: ApiSummaryHighlightColor;
+      startOffset?: number | null;
+      endOffset?: number | null;
     },
   ) => Promise<void>;
   onHighlightColorChange: (
@@ -4862,6 +4941,8 @@ function SummaryPanel({
   const [activeKeywordId, setActiveKeywordId] = useState<string | null>(null);
   const [aiDialog, setAiDialog] = useState<SummaryAiDialog | null>(null);
   const [pendingAiSelection, setPendingAiSelection] =
+    useState<PendingSummarySelection | null>(null);
+  const [pendingHighlightSelection, setPendingHighlightSelection] =
     useState<PendingSummarySelection | null>(null);
   const [pendingHighlightColor, setPendingHighlightColor] =
     useState<SummaryHighlightColorId>(defaultSummaryHighlightColor);
@@ -4929,11 +5010,20 @@ function SummaryPanel({
     "box-decoration-clone rounded-md border px-1.5 py-0.5 font-semibold [&_code]:bg-current/10 [&_code]:text-inherit [&_em]:text-inherit [&_strong]:text-inherit";
 
   async function handleApplyHighlight(selection: PendingSummarySelection) {
-    const existingHighlight = userHighlights.find(
-      (highlight) =>
-        highlight.paragraphIndex === selection.paragraphIndex &&
-        highlight.text === selection.text,
-    );
+    const existingHighlight = userHighlights.find((highlight) => {
+      if (highlight.paragraphIndex !== selection.paragraphIndex) {
+        return false;
+      }
+
+      if (selection.startOffset !== null && selection.endOffset !== null) {
+        return (
+          highlight.startOffset === selection.startOffset &&
+          highlight.endOffset === selection.endOffset
+        );
+      }
+
+      return highlight.startOffset === null && highlight.text === selection.text;
+    });
 
     try {
       if (existingHighlight) {
@@ -4946,14 +5036,16 @@ function SummaryPanel({
         await onHighlightCreate(project.id, {
           paragraphIndex: selection.paragraphIndex,
           text: selection.text,
+          startOffset: selection.startOffset,
+          endOffset: selection.endOffset,
           color: pendingHighlightColor,
         });
       }
+      setPendingHighlightSelection(null);
+      window.getSelection()?.removeAllRanges();
     } catch {
       // Selection stays available so the user can try highlighting again.
     }
-
-    window.getSelection()?.removeAllRanges();
   }
 
   async function handleAskAi(selection: PendingSummarySelection) {
@@ -5032,42 +5124,62 @@ function SummaryPanel({
 
     const anchorParagraphIndex = getSummaryParagraphIndex(anchorNode);
     const focusParagraphIndex = getSummaryParagraphIndex(focusNode);
+    const anchorParagraph = getSummaryParagraphElement(anchorNode);
+    const focusParagraph = getSummaryParagraphElement(focusNode);
 
     if (
       anchorParagraphIndex === null ||
       focusParagraphIndex === null ||
-      anchorParagraphIndex !== focusParagraphIndex
+      anchorParagraphIndex !== focusParagraphIndex ||
+      !anchorParagraph ||
+      anchorParagraph !== focusParagraph
     ) {
       return null;
     }
 
-    const selectedText = normalizeSummarySelection(
-      selection.getRangeAt(0).toString(),
-    );
+    const selectedRange = selection.getRangeAt(0);
+    const selectedText = normalizeSummarySelection(selectedRange.toString());
 
     if (selectedText.length < 3) {
       return null;
     }
-
+    const offsets = getSummarySelectionOffsets(selectedRange, anchorParagraph);
+    const paragraphText = anchorParagraph.textContent ?? "";
+    const hasMatchingOffsets = offsets
+      ? normalizeSummarySelection(
+          paragraphText.slice(offsets.startOffset, offsets.endOffset),
+        ) === selectedText
+      : false;
     return {
       text: selectedText,
       paragraphIndex: anchorParagraphIndex,
+      startOffset: offsets && hasMatchingOffsets ? offsets.startOffset : null,
+      endOffset: offsets && hasMatchingOffsets ? offsets.endOffset : null,
     };
   }
 
   function readCurrentSelection() {
-    if (!activeTool || activeTool === "erase" || activeTool === "highlight") {
+    if (!activeTool || activeTool === "erase") {
       return;
     }
 
     const selectionPayload = getCurrentSummarySelectionPayload();
 
     if (!selectionPayload) {
+      setPendingHighlightSelection(null);
+      return;
+    }
+
+    if (activeTool === "highlight") {
+      setPendingAiSelection(null);
+      setNotePanel(null);
+      setPendingHighlightSelection(selectionPayload);
       return;
     }
 
     if (activeTool === "note") {
       setPendingAiSelection(null);
+      setPendingHighlightSelection(null);
       setNotePanel({ mode: "create", selection: selectionPayload, draft: "" });
       return;
     }
@@ -5078,16 +5190,13 @@ function SummaryPanel({
       }
 
       setNotePanel(null);
+      setPendingHighlightSelection(null);
       setPendingAiSelection(selectionPayload);
       return;
     }
   }
 
   function scheduleCurrentSelectionRead() {
-    if (activeTool === "highlight") {
-      return;
-    }
-
     if (selectionReadFrame.current !== null) {
       window.cancelAnimationFrame(selectionReadFrame.current);
     }
@@ -5099,7 +5208,8 @@ function SummaryPanel({
   }
 
   function handleApplyCurrentHighlight() {
-    const selectionPayload = getCurrentSummarySelectionPayload();
+    const selectionPayload =
+      pendingHighlightSelection ?? getCurrentSummarySelectionPayload();
 
     if (!selectionPayload) {
       return;
@@ -5263,6 +5373,7 @@ function SummaryPanel({
     setActiveTool((current) => (current === tool ? null : tool));
     setNotePanel(null);
     setPendingAiSelection(null);
+    setPendingHighlightSelection(null);
     window.getSelection()?.removeAllRanges();
   }
 
@@ -5270,6 +5381,7 @@ function SummaryPanel({
     setActiveTool(null);
     setNotePanel(null);
     setPendingAiSelection(null);
+    setPendingHighlightSelection(null);
     window.getSelection()?.removeAllRanges();
   }
 
@@ -5490,6 +5602,7 @@ function SummaryPanel({
                       userHighlightClass,
                       activeKeywordId,
                       activeTool === "erase",
+                      activeTool === "highlight",
                       handleHighlightSpanClick,
                       handleOpenNoteViewer,
                     )}
@@ -5519,6 +5632,7 @@ function SummaryPanel({
                           userHighlightClass,
                           activeKeywordId,
                           activeTool === "erase",
+                          activeTool === "highlight",
                           handleHighlightSpanClick,
                           handleOpenNoteViewer,
                         )}
@@ -5544,6 +5658,7 @@ function SummaryPanel({
                     userHighlightClass,
                     activeKeywordId,
                     activeTool === "erase",
+                    activeTool === "highlight",
                     handleHighlightSpanClick,
                     handleOpenNoteViewer,
                   )}
@@ -5937,11 +6052,11 @@ function buildProjectFlashcardDecks(
       eyebrow: "Din quiz-urile tale",
       title: quizMistakeCards.length
         ? "Întrebările greșite transformate în flashcarduri"
-        : "Aici apar întrebările greșite",
+        : "Aici apar întrebările greșite salvate",
       description:
         quizMistakeCards.length
-          ? "Fiecare greșeală din quiz devine automat un card de recapitulare."
-          : "Fă un quiz. Când greșești, Reviss pune întrebarea și răspunsul corect aici.",
+          ? "Greșelile pe care le-ai salvat din quizuri, cu răspunsul corect."
+          : "Fă un quiz. Când greșești, apasă „Salvează ca flashcard\u201d și întrebarea ajunge aici.",
       cards: quizMistakeCards,
     },
     manual: {
@@ -6753,8 +6868,8 @@ function FlashcardDeckPage({
                       Încă nu ai flashcarduri din quizuri.
                     </p>
                     <p className="mx-auto mt-3 max-w-md text-sm leading-7 text-muted">
-                      Intră într-un quiz și răspunde. Când greșești, întrebarea
-                      și răspunsul corect vor fi salvate automat aici.
+                      Intră într-un quiz și răspunde. Când greșești, apasă
+                      „Salvează ca flashcard” și întrebarea ajunge aici.
                     </p>
                   </>
                 )}
@@ -7267,12 +7382,14 @@ function FlashcardsPanel({
       id: "quiz",
       badge: "Recapitulare adaptivă",
       title: quizMistakeCount
-        ? `${quizMistakeCount} flashcard-uri din greșeli`
+        ? quizMistakeCount === 1
+          ? "1 flashcard din greșeli"
+          : `${quizMistakeCount} flashcard-uri din greșeli`
         : "Din quiz-urile tale",
       description:
         quizMistakeCount
-          ? "Întrebările greșite sunt salvate automat aici cu răspunsul corect."
-          : "Aici vor apărea automat întrebările greșite la quizuri.",
+          ? "Întrebările pe care ai ales să le salvezi, cu răspunsul corect."
+          : "Când greșești o întrebare de quiz, poți salva aici întrebarea și răspunsul corect.",
       duration: quizMistakeCount ? `${Math.max(3, quizMistakeCount * 2)} min` : "0 min",
       metric: "din greșeli reale",
     },
@@ -7347,18 +7464,29 @@ function FlashcardsPanel({
   );
 }
 
-type QuizQuestionMode = "single" | "multiple";
-type QuizComplexity = "Mică" | "Medie" | "Ridicată";
-type QuizModeLabel = "Single choice" | "Multiple choice" | "Mixt";
+type QuizQuestionMode =
+  | "single"
+  | "multiple"
+  | "matching"
+  | "ordering"
+  | "cloze";
+type QuizComplexity = "Ușor" | "Mediu" | "Greu" | "Examen";
 
 type AccountQuizQuestion = {
   id: string;
   sourceQuestionId?: string;
   concept: string;
-  difficulty: "Ușor" | "Mediu" | "Greu";
+  /** Inherited from the quiz, so it uses the same four labels. */
+  difficulty: QuizComplexity;
   mode: QuizQuestionMode;
   question: string;
   answers: string[];
+  /** matching only: `pairs[i]` is the correct match for `answers[i]`. */
+  pairs: string[];
+  /** cloze only: the sentence around its gaps, `gaps + 1` pieces. */
+  segments: string[];
+  /** cloze only: how many gaps the sentence has. */
+  gapCount: number;
   correctIndexes: number[];
   explanation: string;
   aiInsight: string;
@@ -7378,7 +7506,6 @@ type AccountQuiz = {
   title: string;
   description: string;
   complexity: QuizComplexity;
-  mode: QuizModeLabel;
   duration: string;
   focus: string;
   recommended?: boolean;
@@ -7399,8 +7526,15 @@ function getQuizQuestions(
     .filter(Boolean);
 }
 
-function normalizeGeneratedQuestionMode(value: string | null | undefined) {
-  return value?.toLowerCase().includes("multiple") ? "multiple" : "single";
+function normalizeGeneratedQuestionMode(
+  value: string | null | undefined,
+): QuizQuestionMode {
+  const normalized = value?.toLowerCase() ?? "";
+  if (normalized.includes("matching")) return "matching";
+  if (normalized.includes("ordering")) return "ordering";
+  if (normalized.includes("cloze")) return "cloze";
+  if (normalized.includes("multiple")) return "multiple";
+  return "single";
 }
 
 function normalizeGeneratedQuizComplexity(
@@ -7408,33 +7542,31 @@ function normalizeGeneratedQuizComplexity(
 ): QuizComplexity {
   const normalizedValue = value?.toLocaleLowerCase("ro-RO") ?? "";
 
+  // Checked before "high": an exam quiz used to match nothing here and fall
+  // through to the easiest label.
+  if (
+    normalizedValue.includes("exam") ||
+    normalizedValue.includes("simulare")
+  ) {
+    return "Examen";
+  }
+
   if (
     normalizedValue.includes("rid") ||
     normalizedValue.includes("high") ||
     normalizedValue.includes("greu")
   ) {
-    return "Ridicată";
+    return "Greu";
   }
 
   if (
     normalizedValue.includes("med") ||
     normalizedValue.includes("medium")
   ) {
-    return "Medie";
+    return "Mediu";
   }
 
-  return "Mică";
-}
-
-function getGeneratedQuizModeLabel(
-  modes: QuizQuestionMode[],
-): QuizModeLabel {
-  const hasSingle = modes.includes("single");
-  const hasMultiple = modes.includes("multiple");
-
-  if (hasSingle && hasMultiple) return "Mixt";
-  if (hasMultiple) return "Multiple choice";
-  return "Single choice";
+  return "Ușor";
 }
 
 function buildProjectQuizData(project: StudyProject) {
@@ -7450,7 +7582,6 @@ function buildProjectQuizData(project: StudyProject) {
     .map<AccountQuiz | null>((quiz, quizIndex) => {
       const complexity = normalizeGeneratedQuizComplexity(quiz.complexity);
       const questionIds: string[] = [];
-      const questionModes: QuizQuestionMode[] = [];
 
       quiz.questions.forEach((question) => {
         const options = question.options.filter((option) => option.label.trim());
@@ -7461,25 +7592,55 @@ function buildProjectQuizData(project: StudyProject) {
 
         const id = `${quiz.id}-${question.id}`;
         const mode = normalizeGeneratedQuestionMode(question.question_type);
-        const correctIndexes = options
-          .map((option, optionIndex) => (option.is_correct ? optionIndex : -1))
-          .filter((optionIndex) => optionIndex >= 0);
+
+        // Cloze puts the gap words first, so gap i is answered by the word
+        // at index i -- the same positional rule the other two follow.
+        const clozeWords =
+          mode === "cloze" ? buildClozeWordOrder(options) : null;
+        const orderedOptions = clozeWords ? clozeWords.options : options;
+        const segments =
+          mode === "cloze" ? splitClozeSentence(question.prompt) : [];
+        const gapCount = clozeWords ? clozeWords.gapCount : 0;
+
+        const isPositional = mode === "matching" || mode === "ordering";
+        const correctIndexes = isPositional
+          ? orderedOptions.map((_, optionIndex) => optionIndex)
+          : mode === "cloze"
+            ? Array.from({ length: gapCount }, (_, gapIndex) => gapIndex)
+            : orderedOptions
+                .map((option, optionIndex) =>
+                  option.is_correct ? optionIndex : -1,
+                )
+                .filter((optionIndex) => optionIndex >= 0);
+
+        // A matching question is unanswerable without its pairs.
+        if (mode === "matching" && options.some((option) => !option.match_label)) {
+          return;
+        }
+
+        // A cloze needs one word per gap and at least one distractor, and the
+        // sentence has to carry exactly as many gaps as there are words.
+        if (
+          mode === "cloze" &&
+          (gapCount < 1 ||
+            segments.length !== gapCount + 1 ||
+            orderedOptions.length <= gapCount)
+        ) {
+          return;
+        }
 
         questionIds.push(id);
-        questionModes.push(mode);
         questionBank[id] = {
           id,
           sourceQuestionId: question.id,
           concept: quiz.title,
-          difficulty:
-            complexity === "Ridicată"
-              ? "Greu"
-              : complexity === "Medie"
-                ? "Mediu"
-                : "Ușor",
+          difficulty: complexity,
           mode,
           question: question.prompt,
-          answers: options.map((option) => option.label),
+          answers: orderedOptions.map((option) => option.label),
+          pairs: orderedOptions.map((option) => option.match_label ?? ""),
+          segments,
+          gapCount,
           correctIndexes: correctIndexes.length ? correctIndexes : [0],
           explanation:
             question.explanation ??
@@ -7500,7 +7661,6 @@ function buildProjectQuizData(project: StudyProject) {
           quiz.description ??
           "Quiz generat din materialele acestui proiect.",
         complexity,
-        mode: getGeneratedQuizModeLabel(questionModes),
         duration: `${Math.max(3, Math.ceil(questionIds.length * 1.4))} min`,
         focus: project.subjectName,
         recommended: quizIndex === 0,
@@ -7538,20 +7698,96 @@ function areAnswerSetsEqual(expected: number[], received: number[] = []) {
   return expected.every((answerIndex) => received.includes(answerIndex));
 }
 
+/** Split a cloze prompt into the text around its gaps. */
+function splitClozeSentence(prompt: string) {
+  return prompt.split(/_{3,}/);
+}
+
+/**
+ * Order cloze options so the word for gap `i` sits at index `i`.
+ *
+ * The API sends the one-based gap number in `sort_order` for correct words
+ * and 0 for distractors.
+ */
+function buildClozeWordOrder(options: StudyProjectQuizOption[]) {
+  const gapWords = options
+    .filter((option) => option.is_correct && option.sort_order > 0)
+    .sort((left, right) => left.sort_order - right.sort_order);
+  const distractors = options.filter((option) => !option.is_correct);
+
+  return {
+    options: [...gapWords, ...distractors],
+    gapCount: gapWords.length,
+  };
+}
+
+/**
+ * How much of a question the student got right, from 0 to 1.
+ *
+ * Only cloze can land in between: each gap is scored on its own, so a
+ * sentence with two of three gaps filled correctly is worth two thirds.
+ */
+function quizAnswerScore(
+  question: AccountQuizQuestion,
+  submittedAnswer?: number[],
+) {
+  if (submittedAnswer === undefined) return 0;
+
+  if (question.mode === "cloze") {
+    if (question.gapCount < 1) return 0;
+    const correctGaps = Array.from(
+      { length: question.gapCount },
+      (_, gapIndex) => submittedAnswer[gapIndex] === gapIndex,
+    ).filter(Boolean).length;
+    return correctGaps / question.gapCount;
+  }
+
+  return isQuizAnswerCorrect(question, submittedAnswer) ? 1 : 0;
+}
+
 function isQuizAnswerCorrect(
   question: AccountQuizQuestion,
   submittedAnswer?: number[],
 ) {
+  if (question.mode === "cloze") {
+    // Fully correct only when every gap holds the word that belongs there.
+    return (
+      question.gapCount > 0 &&
+      Array.from(
+        { length: question.gapCount },
+        (_, gapIndex) => submittedAnswer?.[gapIndex] === gapIndex,
+      ).every(Boolean)
+    );
+  }
+
+  if (question.mode === "matching" || question.mode === "ordering") {
+    // Both encode the answer positionally: the word or pair at slot i is
+    // correct only if it is the one stored at index i.
+    if (!submittedAnswer || submittedAnswer.length !== question.answers.length) {
+      return false;
+    }
+    return submittedAnswer.every((value, index) => value === index);
+  }
+
   return areAnswerSetsEqual(question.correctIndexes, submittedAnswer);
 }
 
 function buildMistakeFlashcardFromQuestion(
   question: AccountQuizQuestion,
 ): StudyFlashcardCard {
-  const correctAnswers = question.correctIndexes
-    .map((answerIndex) => question.answers[answerIndex])
-    .filter(Boolean);
-  const fallbackAnswer = correctAnswers.join("; ") || "vezi explicația";
+  // Joining the options only reads as an answer for the choice questions.
+  // Ordering's answer is the sentence itself, matching's is the pair list.
+  const fallbackAnswer =
+    question.mode === "ordering"
+      ? question.answers.join(" ")
+      : question.mode === "matching"
+        ? question.answers
+            .map((item, itemIndex) => `${item} → ${question.pairs[itemIndex]}`)
+            .join("; ")
+        : question.correctIndexes
+            .map((answerIndex) => question.answers[answerIndex])
+            .filter(Boolean)
+            .join("; ");
 
   return {
     id: `quiz-${question.sourceQuestionId ?? question.id}`,
@@ -7559,22 +7795,26 @@ function buildMistakeFlashcardFromQuestion(
     review: false,
     topic: question.concept,
     question: question.question,
-    answer: question.explanation || fallbackAnswer,
+    answer: question.explanation || fallbackAnswer || "vezi explicația",
     tone: "danger",
     sourceQuestionId: question.sourceQuestionId ?? question.id,
   };
 }
 
 function getQuizComplexityClass(complexity: QuizComplexity) {
-  if (complexity === "Mică") {
+  if (complexity === "Ușor") {
     return "border-success-border bg-success-soft text-success";
   }
 
-  if (complexity === "Medie") {
+  if (complexity === "Mediu") {
     return "border-info-border bg-info-soft text-info";
   }
 
-  return "border-warning-border bg-warning-soft text-warning";
+  if (complexity === "Greu") {
+    return "border-warning-border bg-warning-soft text-warning";
+  }
+
+  return "border-danger-border bg-danger-soft text-danger";
 }
 
 function formatQuizAttemptTimestamp(value: string) {
@@ -7590,7 +7830,8 @@ function QuizPanel({
   project,
   onQuizMistake,
   onQuizComplete,
-  onGenerateQuizzes,
+  onGenerateQuiz,
+  maxQuizQuestions,
 }: {
   project: StudyProject;
   onQuizMistake: (
@@ -7603,13 +7844,24 @@ function QuizPanel({
     quizId: string,
     result: { correctCount: number; answeredCount: number },
   ) => Promise<void>;
-  onGenerateQuizzes: (projectId: string) => Promise<StudyProject>;
+  onGenerateQuiz: (
+    projectId: string,
+    config: QuizGenerationConfig,
+  ) => Promise<StudyProject>;
+  /** Upper bound for one quiz, from the account's plan. */
+  maxQuizQuestions: number;
 }) {
+  const [isQuizConfigOpen, setIsQuizConfigOpen] = useState(false);
   const [activeQuizId, setActiveQuizId] = useState<string | null>(null);
   const [activeQuestionIndex, setActiveQuestionIndex] = useState(0);
   const [draftAnswers, setDraftAnswers] = useState<Record<string, number[]>>({});
   const [submittedAnswers, setSubmittedAnswers] = useState<
     Record<string, number[]>
+  >({});
+  // Which questions the student chose to keep as a flashcard, so the offer
+  // is not repeated and a double click cannot save twice.
+  const [savedMistakeCards, setSavedMistakeCards] = useState<
+    Record<string, "saving" | "saved" | "error">
   >({});
   const [showQuizSummary, setShowQuizSummary] = useState(false);
   const [attemptId, setAttemptId] = useState(0);
@@ -7619,7 +7871,7 @@ function QuizPanel({
   );
   const isPersistingCompletionRef = useRef(false);
   const persistedAttemptRef = useRef<number | null>(null);
-  const resumedGenerationProjectRef = useRef<string | null>(null);
+  const autoOpenedSummaryRef = useRef<number | null>(null);
 
   const quizData = useMemo(() => buildProjectQuizData(project), [project]);
   const activeQuiz = activeQuizId
@@ -7636,6 +7888,17 @@ function QuizPanel({
   }, 0);
   const isComplete =
     quizQuestions.length > 0 && answeredCount === quizQuestions.length;
+  // Flashcards actually kept from this quiz's questions, counted from the
+  // project rather than from this run, so a reload does not reset it.
+  const quizSourceQuestionIds = new Set(
+    quizQuestions
+      .map((question) => question.sourceQuestionId)
+      .filter((id): id is string => Boolean(id)),
+  );
+  const savedMistakeCount = project.quizMistakeFlashcards.filter(
+    (card) =>
+      card.sourceQuestionId && quizSourceQuestionIds.has(card.sourceQuestionId),
+  ).length;
 
   useEffect(() => {
     if (
@@ -7668,43 +7931,24 @@ function QuizPanel({
     project.id,
   ]);
 
+  // Finishing the last question opens the summary straight away; closing it
+  // must not reopen it, so each attempt only triggers this once.
   useEffect(() => {
-    if (
-      project.status !== "generating_quizzes" ||
-      isGeneratingQuizzes ||
-      resumedGenerationProjectRef.current === project.id
-    ) {
-      return;
-    }
+    if (!activeQuiz || !isComplete) return;
+    if (autoOpenedSummaryRef.current === attemptId) return;
+    autoOpenedSummaryRef.current = attemptId;
+    setShowQuizSummary(true);
+  }, [activeQuiz, isComplete, attemptId]);
 
-    let isCancelled = false;
-    resumedGenerationProjectRef.current = project.id;
-    setIsGeneratingQuizzes(true);
-    setQuizGenerationError(null);
-
-    onGenerateQuizzes(project.id)
-      .catch((error) => {
-        if (isCancelled) return;
-        setQuizGenerationError(
-          error instanceof Error
-            ? toFriendlyGenerationError(error.message)
-            : "Quizurile nu au putut fi generate.",
-        );
-      })
-      .finally(() => {
-        if (!isCancelled) {
-          setIsGeneratingQuizzes(false);
-        }
-      });
-
-    return () => {
-      isCancelled = true;
-    };
-  }, [isGeneratingQuizzes, onGenerateQuizzes, project.id, project.status]);
+  // No resume effect: a quiz can no longer be re-requested without the
+  // configuration the student chose, and re-calling was always a no-op anyway
+  // (the API returns early while a project is already generating). QuizLibrary
+  // reflects the backend status on its own.
 
   function resetQuiz() {
     setDraftAnswers({});
     setSubmittedAnswers({});
+    setSavedMistakeCards({});
     setActiveQuestionIndex(0);
     setShowQuizSummary(false);
     setAttemptId((currentId) => currentId + 1);
@@ -7714,28 +7958,44 @@ function QuizPanel({
     setActiveQuizId(null);
   }
 
+  const quizConfigModal = isQuizConfigOpen ? (
+    <QuizConfigModal
+      maxQuestions={maxQuizQuestions}
+      isSubmitting={isGeneratingQuizzes}
+      errorMessage={quizGenerationError}
+      onCancel={() => setIsQuizConfigOpen(false)}
+      onConfirm={async (config) => {
+        setIsGeneratingQuizzes(true);
+        setQuizGenerationError(null);
+        try {
+          await onGenerateQuiz(project.id, config);
+          setIsQuizConfigOpen(false);
+        } catch (error) {
+          setQuizGenerationError(
+            error instanceof Error
+              ? toFriendlyGenerationError(error.message)
+              : "Quizul nu a putut fi generat.",
+          );
+        } finally {
+          setIsGeneratingQuizzes(false);
+        }
+      }}
+    />
+  ) : null;
+
   if (!activeQuiz) {
     return (
+      <>
+      {quizConfigModal}
       <QuizLibrary
         projectStatus={project.status}
         errorMessage={project.errorMessage}
         quizzes={quizData.catalog}
         isGenerating={isGeneratingQuizzes}
         generationError={quizGenerationError}
-        onGenerateQuizzes={async () => {
-          setIsGeneratingQuizzes(true);
+        onOpenQuizConfig={() => {
           setQuizGenerationError(null);
-          try {
-            await onGenerateQuizzes(project.id);
-          } catch (error) {
-            setQuizGenerationError(
-              error instanceof Error
-                ? toFriendlyGenerationError(error.message)
-                : "Quizurile nu au putut fi generate.",
-            );
-          } finally {
-            setIsGeneratingQuizzes(false);
-          }
+          setIsQuizConfigOpen(true);
         }}
         onStartQuiz={(quizId) => {
           setActiveQuizId(quizId);
@@ -7746,20 +8006,40 @@ function QuizPanel({
           setAttemptId((currentId) => currentId + 1);
         }}
       />
+      </>
     );
   }
 
   const activeQuestion = quizQuestions[activeQuestionIndex];
   const submittedAnswer = submittedAnswers[activeQuestion.id];
   const draftAnswer = draftAnswers[activeQuestion.id] ?? [];
+  // Accuracy uses partial credit so a nearly-right cloze is not scored as a
+  // total miss; "Corecte" still counts only fully correct questions.
+  const earnedScore = quizQuestions.reduce(
+    (total, question) =>
+      total + quizAnswerScore(question, submittedAnswers[question.id]),
+    0,
+  );
   const scorePercent =
-    answeredCount > 0
-      ? Math.round((correctCount / answeredCount) * 100)
-      : 0;
+    answeredCount > 0 ? Math.round((earnedScore / answeredCount) * 100) : 0;
   const completionPercent = Math.round(
     (answeredCount / quizQuestions.length) * 100,
   );
   const isAnswered = submittedAnswer !== undefined;
+  // Single choice commits on click; every other type needs a confirm step.
+  const needsExplicitSubmit = activeQuestion.mode !== "single";
+  const canSubmitDraftAnswer =
+    activeQuestion.mode === "multiple"
+      ? draftAnswer.length > 0
+      : activeQuestion.mode === "matching"
+        ? draftAnswer.length === activeQuestion.answers.length &&
+          draftAnswer.every((value) => value >= 0)
+        : activeQuestion.mode === "ordering"
+          ? draftAnswer.length === activeQuestion.answers.length
+          : activeQuestion.mode === "cloze"
+            ? draftAnswer.length === activeQuestion.gapCount &&
+              draftAnswer.every((value) => value >= 0)
+            : false;
   const weakConcepts = quizQuestions
     .filter(
       (question) =>
@@ -7779,13 +8059,6 @@ function QuizPanel({
         ...currentAnswers,
         [activeQuestion.id]: submittedAnswerIndexes,
       }));
-      if (!isQuizAnswerCorrect(activeQuestion, submittedAnswerIndexes)) {
-        onQuizMistake(
-          project.id,
-          activeQuestion.sourceQuestionId ?? null,
-          buildMistakeFlashcardFromQuestion(activeQuestion),
-        );
-      }
       return;
     }
 
@@ -7802,32 +8075,54 @@ function QuizPanel({
     });
   }
 
-  function submitMultipleAnswer() {
-    if (activeQuestion.mode !== "multiple" || draftAnswer.length === 0) {
-      return;
-    }
-    if (submittedAnswers[activeQuestion.id] !== undefined) {
-      return;
-    }
+  /**
+   * Save the current question as a flashcard, on request.
+   *
+   * Only offered for a wrong single choice answer, so a question already
+   * saved (or being saved) must not be sent twice.
+   */
+  function saveActiveQuestionAsFlashcard() {
+    const questionId = activeQuestion.id;
+    const state = savedMistakeCards[questionId];
+    if (state === "saving" || state === "saved") return;
 
-    setSubmittedAnswers((currentAnswers) => {
-      if (currentAnswers[activeQuestion.id] !== undefined) {
-        return currentAnswers;
-      }
-
-      return {
-        ...currentAnswers,
-        [activeQuestion.id]: draftAnswer,
-      };
-    });
-    if (!isQuizAnswerCorrect(activeQuestion, draftAnswer)) {
+    setSavedMistakeCards((current) => ({ ...current, [questionId]: "saving" }));
+    Promise.resolve(
       onQuizMistake(
         project.id,
         activeQuestion.sourceQuestionId ?? null,
         buildMistakeFlashcardFromQuestion(activeQuestion),
-      );
-    }
+      ),
+    )
+      .then(() => {
+        setSavedMistakeCards((current) => ({ ...current, [questionId]: "saved" }));
+      })
+      .catch(() => {
+        setSavedMistakeCards((current) => ({ ...current, [questionId]: "error" }));
+      });
   }
+
+  function setDraftAnswerForActiveQuestion(answer: number[]) {
+    if (submittedAnswers[activeQuestion.id] !== undefined) return;
+    setDraftAnswers((currentAnswers) => ({
+      ...currentAnswers,
+      [activeQuestion.id]: answer,
+    }));
+  }
+
+  function submitDraftAnswer() {
+    if (submittedAnswers[activeQuestion.id] !== undefined) return;
+    if (!canSubmitDraftAnswer) return;
+
+    // Matching leaves gaps as -1 while the student is still assigning; the
+    // submit guard above rejects those, so the answer is complete here.
+    const submitted = [...draftAnswer];
+    setSubmittedAnswers((currentAnswers) => ({
+      ...currentAnswers,
+      [activeQuestion.id]: submitted,
+    }));
+  }
+
 
   function goToQuestion(questionIndex: number) {
     setActiveQuestionIndex(questionIndex);
@@ -7842,10 +8137,19 @@ function QuizPanel({
   const activeQuestionModeLabel =
     activeQuestion.mode === "multiple"
       ? "Alege toate răspunsurile corecte"
-      : "Alege un singur răspuns";
+      : activeQuestion.mode === "matching"
+        ? "Asociază fiecare element cu perechea lui"
+        : activeQuestion.mode === "ordering"
+          ? "Așază cuvintele în ordinea corectă"
+          : activeQuestion.mode === "cloze"
+            ? "Completează golurile din propoziție"
+            : "Alege un singur răspuns";
   const activeQuestionResult = isAnswered
     ? isQuizAnswerCorrect(activeQuestion, submittedAnswer)
     : null;
+  const canSaveMistakeFlashcard =
+    activeQuestionResult === false && activeQuestion.mode === "single";
+  const mistakeCardState = savedMistakeCards[activeQuestion.id];
   const recommendationText = weakConcepts.length
     ? `După quiz, revizuiește ${weakConcepts.slice(0, 2).join(" și ")}.`
     : "Răspunde la primele întrebări ca AI-ul să identifice zonele slabe.";
@@ -7865,9 +8169,6 @@ function QuizPanel({
         </button>
 
         <div className="flex flex-wrap gap-2">
-          <span className="rounded-md border border-subtle bg-surface px-3 py-1.5 text-xs font-bold text-content">
-            {activeQuiz.mode}
-          </span>
           <span className="rounded-md border border-subtle bg-surface px-3 py-1.5 text-xs font-bold text-content">
             {activeQuiz.duration}
           </span>
@@ -7924,7 +8225,9 @@ function QuizPanel({
             <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
               <div className="flex flex-wrap gap-2">
                 <span className="inline-flex rounded-md border border-subtle bg-action-soft px-3 py-1 text-[10px] font-black uppercase tracking-[0.16em] text-muted">
-                  Întrebarea {activeQuestionIndex + 1} din {quizQuestions.length}
+                  {/* One text node, so the "Întrebarea N din M" translation
+                      pattern can match it. */}
+                  {`Întrebarea ${activeQuestionIndex + 1} din ${quizQuestions.length}`}
                 </span>
                 <span className="inline-flex rounded-md border border-subtle bg-app px-3 py-1 text-[10px] font-black uppercase tracking-[0.16em] text-muted">
                   {activeQuestionModeLabel}
@@ -7935,29 +8238,63 @@ function QuizPanel({
               </span>
             </div>
 
-            <h3 className="mt-6 max-w-4xl font-serif text-3xl font-semibold leading-tight text-content sm:text-4xl">
-              {activeQuestion.question}
-            </h3>
+            {/* Question prompts run long, so they stay well below the
+                display sizes used for page titles. A cloze prompt is the
+                sentence itself, rendered with its gaps by the widget. */}
+            {activeQuestion.mode === "cloze" ? null : (
+              <h3 className="mt-6 max-w-4xl font-serif text-lg font-semibold leading-snug text-content sm:text-xl">
+                {activeQuestion.question}
+              </h3>
+            )}
 
-            <div className="mt-8 grid gap-3">
-              {activeQuestion.answers.map((answer, answerIndex) => (
-                <QuizAnswerButton
-                  key={answer}
-                  answer={answer}
-                  answerIndex={answerIndex}
-                  correctIndexes={activeQuestion.correctIndexes}
-                  submittedAnswer={submittedAnswer}
-                  draftAnswer={draftAnswer}
-                  onSelect={() => toggleAnswer(answerIndex)}
-                />
-              ))}
-            </div>
+            {activeQuestion.mode === "matching" ? (
+              <QuizMatchingAnswer
+                questionId={activeQuestion.id}
+                items={activeQuestion.answers}
+                pairs={activeQuestion.pairs}
+                draftAnswer={draftAnswer}
+                submittedAnswer={submittedAnswer}
+                onDraftChange={setDraftAnswerForActiveQuestion}
+              />
+            ) : activeQuestion.mode === "ordering" ? (
+              <QuizOrderingAnswer
+                questionId={activeQuestion.id}
+                words={activeQuestion.answers}
+                draftAnswer={draftAnswer}
+                submittedAnswer={submittedAnswer}
+                onDraftChange={setDraftAnswerForActiveQuestion}
+              />
+            ) : activeQuestion.mode === "cloze" ? (
+              <QuizClozeAnswer
+                questionId={activeQuestion.id}
+                segments={activeQuestion.segments}
+                words={activeQuestion.answers}
+                gapCount={activeQuestion.gapCount}
+                draftAnswer={draftAnswer}
+                submittedAnswer={submittedAnswer}
+                onDraftChange={setDraftAnswerForActiveQuestion}
+              />
+            ) : (
+              <div className="mt-8 grid gap-3">
+                {activeQuestion.answers.map((answer, answerIndex) => (
+                  <QuizAnswerButton
+                    key={answer}
+                    answer={answer}
+                    answerIndex={answerIndex}
+                    correctIndexes={activeQuestion.correctIndexes}
+                    submittedAnswer={submittedAnswer}
+                    draftAnswer={draftAnswer}
+                    onSelect={() => toggleAnswer(answerIndex)}
+                  />
+                ))}
+              </div>
+            )}
 
-            {activeQuestion.mode === "multiple" && !isAnswered ? (
+            {needsExplicitSubmit && !isAnswered ? (
               <button
                 type="button"
-                onClick={submitMultipleAnswer}
-                disabled={draftAnswer.length === 0}
+                onClick={submitDraftAnswer}
+                disabled={!canSubmitDraftAnswer}
                 className="mt-5 inline-flex items-center justify-center rounded-md bg-action px-5 py-3 text-sm font-bold text-on-action transition hover:bg-action-hover disabled:cursor-not-allowed disabled:opacity-40"
               >
                 Verifică răspunsul
@@ -7975,7 +8312,7 @@ function QuizPanel({
                 <p className="text-xs font-bold uppercase tracking-[0.16em]">
                   {activeQuestionResult ? "Corect" : "De revizuit"}
                 </p>
-                <h4 className="mt-2 max-w-3xl font-serif text-2xl font-semibold leading-tight text-content">
+                <h4 className="mt-2 max-w-3xl font-serif text-base font-semibold leading-snug text-content">
                   {activeQuestion.explanation}
                 </h4>
                 <p className="mt-3 max-w-3xl text-sm leading-7">
@@ -7990,6 +8327,36 @@ function QuizPanel({
                     Concept: {activeQuestion.concept}
                   </span>
                 </div>
+
+                {canSaveMistakeFlashcard ? (
+                  <div className="mt-5 rounded-md border border-subtle bg-app p-4">
+                    {mistakeCardState === "saved" ? (
+                      <p className="text-xs font-bold leading-6 text-success">
+                        Salvat în Flashcard-uri, pachetul Din quiz-urile tale.
+                      </p>
+                    ) : (
+                      <>
+                        <p className="text-xs leading-6 text-muted">
+                          {mistakeCardState === "error"
+                            ? "Nu am putut salva flashcard-ul. Încearcă din nou."
+                            : "Vrei să reții întrebarea asta ca flashcard?"}
+                        </p>
+                        <button
+                          type="button"
+                          onClick={saveActiveQuestionAsFlashcard}
+                          disabled={mistakeCardState === "saving"}
+                          className="mt-3 inline-flex items-center justify-center rounded-md bg-action px-4 py-2 text-xs font-bold text-on-action transition hover:bg-action-hover disabled:cursor-not-allowed disabled:opacity-40"
+                        >
+                          {mistakeCardState === "saving"
+                            ? "Se salvează..."
+                            : mistakeCardState === "error"
+                              ? "Reîncearcă"
+                              : "Salvează ca flashcard"}
+                        </button>
+                      </>
+                    )}
+                  </div>
+                ) : null}
               </div>
             ) : null}
 
@@ -8006,17 +8373,29 @@ function QuizPanel({
                 Înapoi
               </button>
 
-              <button
-                type="button"
-                onClick={goToNextQuestion}
-                disabled={!isAnswered || activeQuestionIndex === quizQuestions.length - 1}
-                className="inline-flex items-center justify-center gap-2 rounded-md bg-action px-5 py-3 text-sm font-bold text-on-action transition hover:bg-action-hover disabled:cursor-not-allowed disabled:opacity-40"
-              >
-                Următoarea întrebare
-                <Icon>
-                  <path d="M5 12h14M13 5l7 7-7 7" />
-                </Icon>
-              </button>
+              {isComplete ? (
+                <button
+                  type="button"
+                  onClick={() => setShowQuizSummary(true)}
+                  className="inline-flex items-center justify-center gap-2 rounded-md bg-action px-5 py-3 text-sm font-bold text-on-action transition hover:bg-action-hover"
+                >
+                  Vezi sumarul
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={goToNextQuestion}
+                  disabled={
+                    !isAnswered || activeQuestionIndex === quizQuestions.length - 1
+                  }
+                  className="inline-flex items-center justify-center gap-2 rounded-md bg-action px-5 py-3 text-sm font-bold text-on-action transition hover:bg-action-hover disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  Următoarea întrebare
+                  <Icon>
+                    <path d="M5 12h14M13 5l7 7-7 7" />
+                  </Icon>
+                </button>
+              )}
             </div>
           </div>
 
@@ -8097,35 +8476,6 @@ function QuizPanel({
         </div>
       </article>
 
-      {isComplete ? (
-        <section className="flex flex-col items-start justify-between gap-4 rounded-xl border border-success-border bg-success-soft p-5 text-success sm:flex-row sm:items-center sm:p-7">
-          <div>
-            <p className="text-xs font-bold uppercase tracking-[0.18em]">
-              Quiz finalizat
-            </p>
-            <h3 className="mt-2 font-serif text-2xl font-semibold text-content">
-              Ai obținut {correctCount}/{quizQuestions.length} răspunsuri corecte.
-            </h3>
-          </div>
-          <div className="flex flex-wrap gap-3">
-            <button
-              type="button"
-              onClick={() => setShowQuizSummary(true)}
-              className="rounded-md bg-action px-5 py-3 text-sm font-bold text-on-action transition hover:bg-action-hover"
-            >
-              Vezi sumarul
-            </button>
-            <button
-              type="button"
-              onClick={handleBackToQuizList}
-              className="rounded-md border border-success-border px-5 py-3 text-sm font-bold text-success transition hover:bg-success-soft/70"
-            >
-              Înapoi la quiz-uri
-            </button>
-          </div>
-        </section>
-      ) : null}
-
       {showQuizSummary ? (
         <div
           className="fixed inset-0 z-[70] flex items-center justify-center bg-black/45 p-4 backdrop-blur-sm"
@@ -8161,15 +8511,16 @@ function QuizPanel({
 
             <p className="mt-3 text-sm leading-7 text-muted">
               Pregătirea estimată crește cu {correctCount >= 3 ? "6" : "3"}%.
-              Reviss ar transforma automat greșelile în flashcard-uri de
-              recapitulare.
+              {savedMistakeCount
+                ? " Greșelile salvate te așteaptă în flashcard-uri."
+                : " Poți salva ca flashcard orice întrebare greșită."}
             </p>
 
             <div className="mt-5 grid gap-3 sm:grid-cols-3">
               <QuizResultCard label="Scor quiz" value={`${scorePercent}%`} />
               <QuizResultCard
-                label="Flashcard-uri sugerate"
-                value={String(Math.max(1, weakConcepts.length))}
+                label="Flashcard-uri salvate"
+                value={String(savedMistakeCount)}
               />
               <QuizResultCard label="Timp recomandat" value="9 min" />
             </div>
@@ -8203,7 +8554,7 @@ function QuizLibrary({
   quizzes,
   isGenerating,
   generationError,
-  onGenerateQuizzes,
+  onOpenQuizConfig,
   onStartQuiz,
 }: {
   projectStatus: StudyProject["status"];
@@ -8211,7 +8562,7 @@ function QuizLibrary({
   quizzes: AccountQuiz[];
   isGenerating: boolean;
   generationError: string | null;
-  onGenerateQuizzes: () => Promise<void>;
+  onOpenQuizConfig: () => void;
   onStartQuiz: (quizId: string) => void;
 }) {
   const { language } = useLanguage();
@@ -8231,8 +8582,8 @@ function QuizLibrary({
             Generează testele când vrei.
           </h2>
           <p className="mt-3 max-w-xl text-sm leading-7 text-muted">
-            Quizurile sunt create separat ca să nu consumăm AI înainte să ai
-            rezumatul și flashcardurile pregătite.
+            Alegi dificultatea, câte întrebări vrei și ce tipuri de răspuns, iar
+            noi generăm un quiz pe măsură. Poți genera câte ai nevoie.
           </p>
           {generationError || errorMessage ? (
             <div className="mt-4 rounded-xl border border-danger-border bg-danger-soft px-4 py-3 text-sm font-semibold text-danger">
@@ -8243,7 +8594,7 @@ function QuizLibrary({
 
         <button
           type="button"
-          onClick={onGenerateQuizzes}
+          onClick={onOpenQuizConfig}
           disabled={isButtonBusy}
           className="inline-flex min-w-56 cursor-pointer items-center justify-center gap-2 rounded-md bg-action px-6 py-4 text-sm font-black text-on-action transition hover:bg-action-hover disabled:cursor-wait disabled:bg-subtle disabled:text-muted"
         >
@@ -8322,10 +8673,31 @@ function QuizLibrary({
             exact ce exersezi.
           </p>
         </div>
-        <span className="inline-flex w-fit rounded-md border border-subtle bg-surface px-4 py-2 text-xs font-black text-content">
-          {completedCount}/{quizzes.length} completate
-        </span>
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="inline-flex w-fit rounded-md border border-subtle bg-surface px-4 py-2 text-xs font-black text-content">
+            {completedCount}/{quizzes.length} completate
+          </span>
+          <button
+            type="button"
+            onClick={onOpenQuizConfig}
+            disabled={isGenerating || projectStatus === "generating_quizzes"}
+            className="inline-flex cursor-pointer items-center gap-2 rounded-md bg-action px-4 py-2 text-xs font-black text-on-action transition hover:bg-action-hover disabled:cursor-wait disabled:bg-subtle disabled:text-muted"
+          >
+            {isGenerating || projectStatus === "generating_quizzes"
+              ? "Se generează..."
+              : "Quiz nou"}
+            <Icon className="h-3.5 w-3.5">
+              <path d="M12 5v14M5 12h14" />
+            </Icon>
+          </button>
+        </div>
       </div>
+
+      {generationError ? (
+        <p className="rounded-md border border-danger-border bg-danger-soft px-4 py-3 text-sm font-bold text-danger">
+          {generationError}
+        </p>
+      ) : null}
       <div className="grid items-stretch gap-4 lg:grid-cols-2 xl:grid-cols-3">
         {quizzes.map((quiz) => (
           <QuizCatalogCard key={quiz.id} quiz={quiz} onStartQuiz={onStartQuiz} />
@@ -8365,11 +8737,6 @@ function QuizCatalogCard({
         >
           {quiz.complexity}
         </span>
-        {quiz.recommended ? (
-          <span className="inline-flex rounded-md border border-subtle bg-action-soft px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.12em] text-content">
-            Recomandat
-          </span>
-        ) : null}
       </div>
 
       <h3 className="mt-5 font-serif text-2xl font-semibold leading-tight text-content">
@@ -8381,7 +8748,6 @@ function QuizCatalogCard({
 
       <div className="mt-5 divide-y divide-subtle border-y border-subtle">
         <QuizCardStat label="Întrebări" value={String(quiz.questionIds.length)} />
-        <QuizCardStat label="Tip" value={quiz.mode} />
         <QuizCardStat label="Durată" value={quiz.duration} />
         <QuizCardStat
           label="Rezultat"
@@ -8673,7 +9039,10 @@ type ProgressActivityDay = {
   label: string;
   count: number;
   level: number;
+  /** Today's cell, highlighted so the grid can be read against the calendar. */
   isLatest: boolean;
+  /** Later this week: no activity yet, rather than a day without activity. */
+  isFuture: boolean;
 };
 
 type ProgressFlashcardSegment = {
@@ -8701,12 +9070,6 @@ function formatSignedPercent(value: number) {
   if (value > 0) return `+${value}%`;
   if (value < 0) return `${value}%`;
   return "0%";
-}
-
-function truncateProgressLabel(label: string, maxLength = 20) {
-  const cleanLabel = label.replace(/\s+/g, " ").trim();
-  if (cleanLabel.length <= maxLength) return cleanLabel;
-  return `${cleanLabel.slice(0, maxLength - 3).trim()}...`;
 }
 
 function startOfLocalDay(date: Date) {
@@ -8738,22 +9101,22 @@ function formatProgressDayLabel(date: Date) {
 function buildProgressActivityDays(
   attempts: ProgressAttempt[],
 ): ProgressActivityDay[] {
-  if (!attempts.length) return [];
-
   const counts = new Map<string, number>();
   for (const attempt of attempts) {
     const date = startOfLocalDay(new Date(attempt.completedAt));
-    const key = toLocalDateKey(date);
-    counts.set(key, (counts.get(key) ?? 0) + 1);
+    counts.set(toLocalDateKey(date), (counts.get(toLocalDateKey(date)) ?? 0) + 1);
   }
 
-  const latestDate = startOfLocalDay(
-    new Date(attempts[attempts.length - 1].completedAt),
-  );
+  // Four calendar weeks ending with the current one, starting on a Monday, so
+  // the L..D column headers describe the cells underneath them.
+  const today = startOfLocalDay(new Date());
+  const daysSinceMonday = (today.getDay() + 6) % 7;
+  const gridStart = addLocalDays(today, -daysSinceMonday - 21);
+  const todayKey = toLocalDateKey(today);
   const maxCount = Math.max(1, ...counts.values());
 
   return Array.from({ length: 28 }, (_, index) => {
-    const date = addLocalDays(latestDate, index - 27);
+    const date = addLocalDays(gridStart, index);
     const key = toLocalDateKey(date);
     const count = counts.get(key) ?? 0;
     const level =
@@ -8770,7 +9133,8 @@ function buildProgressActivityDays(
       label: formatProgressDayLabel(date),
       count,
       level,
-      isLatest: index === 27,
+      isLatest: key === todayKey,
+      isFuture: date.getTime() > today.getTime(),
     };
   });
 }
@@ -9384,10 +9748,46 @@ function ProgressEmptyState({
   );
 }
 
+/** Break an axis label into short lines instead of cutting it off. */
+function wrapProgressLabel(label: string, maxCharsPerLine: number, maxLines: number) {
+  const words = label.split(/\s+/).filter(Boolean);
+  const lines: string[] = [];
+  let current = "";
+
+  for (const word of words) {
+    const candidate = current ? `${current} ${word}` : word;
+    if (candidate.length <= maxCharsPerLine) {
+      current = candidate;
+      continue;
+    }
+    if (current) lines.push(current);
+    if (lines.length === maxLines) {
+      current = "";
+      break;
+    }
+    // A single word longer than the line still has to be cut somewhere.
+    current =
+      word.length > maxCharsPerLine ? `${word.slice(0, maxCharsPerLine - 1)}…` : word;
+  }
+  if (current && lines.length < maxLines) lines.push(current);
+
+  const dropped = words.join(" ").length > lines.join(" ").length;
+  if (dropped && lines.length) {
+    const last = lines[lines.length - 1];
+    lines[lines.length - 1] =
+      last.length + 1 > maxCharsPerLine ? `${last.slice(0, maxCharsPerLine - 1)}…` : `${last}…`;
+  }
+  return lines;
+}
+
 function ProgressRadarChart({ scores }: { scores: ProgressCompetencyScore[] }) {
   const size = 280;
   const center = size / 2;
   const radius = 92;
+  // Side labels grow outward from the plot, so the drawing area is wider
+  // than the plot itself and the text is no longer clipped.
+  const padX = 92;
+  const padY = 22;
 
   if (scores.length < 3) {
     return (
@@ -9419,7 +9819,10 @@ function ProgressRadarChart({ scores }: { scores: ProgressCompetencyScore[] }) {
       role="img"
       aria-label="Radarul competențelor pe subiecte"
     >
-      <svg viewBox={`0 0 ${size} ${size}`} className="h-72 w-full max-w-sm">
+      <svg
+        viewBox={`${-padX} ${-padY} ${size + padX * 2} ${size + padY * 2}`}
+        className="h-72 w-full max-w-lg"
+      >
         {[0.34, 0.67, 1].map((scale) => {
           const ringPoints = angles
             .map((angle) => {
@@ -9443,10 +9846,13 @@ function ProgressRadarChart({ scores }: { scores: ProgressCompetencyScore[] }) {
         {angles.map((angle, index) => {
           const outerX = center + Math.cos(angle) * radius;
           const outerY = center + Math.sin(angle) * radius;
-          const labelX = center + Math.cos(angle) * (radius + 32);
-          const labelY = center + Math.sin(angle) * (radius + 32);
+          const labelX = center + Math.cos(angle) * (radius + 26);
+          const labelY = center + Math.sin(angle) * (radius + 26);
           const textAnchor =
             labelX < center - 10 ? "end" : labelX > center + 10 ? "start" : "middle";
+          const labelLines = wrapProgressLabel(scores[index].label, 18, 4);
+          // Centre the wrapped block on its anchor point.
+          const firstLineY = labelY + 4 - ((labelLines.length - 1) * 11) / 2;
 
           return (
             <g key={scores[index].label}>
@@ -9460,11 +9866,19 @@ function ProgressRadarChart({ scores }: { scores: ProgressCompetencyScore[] }) {
               />
               <text
                 x={labelX}
-                y={labelY + 4}
+                y={firstLineY}
                 textAnchor={textAnchor}
                 className="fill-muted text-[10px] font-bold"
               >
-                {truncateProgressLabel(scores[index].label, 16)}
+                {labelLines.map((line, lineIndex) => (
+                  <tspan
+                    key={line + lineIndex}
+                    x={labelX}
+                    dy={lineIndex === 0 ? 0 : 11}
+                  >
+                    {line}
+                  </tspan>
+                ))}
               </text>
             </g>
           );
@@ -9606,17 +10020,7 @@ function ProgressActivityHeatmap({
 }: {
   activityDays: ProgressActivityDay[];
 }) {
-  const placeholderDays: ProgressActivityDay[] = Array.from(
-    { length: 28 },
-    (_, index) => ({
-      key: `empty-${index}`,
-      label: "Fără activitate",
-      count: 0,
-      level: 0,
-      isLatest: false,
-    }),
-  );
-  const days = activityDays.length ? activityDays : placeholderDays;
+  const days = activityDays;
   const dayLabels = ["L", "M", "M", "J", "V", "S", "D"];
 
   return (
@@ -9636,10 +10040,16 @@ function ProgressActivityHeatmap({
           {days.map((day) => (
             <span
               key={day.key}
-              title={`${day.label}: ${day.count} încercări`}
+              title={
+                day.isFuture
+                  ? day.label
+                  : `${day.label}: ${day.count} încercări`
+              }
               className={`h-7 rounded-md border transition hover:scale-105 ${getProgressHeatmapLevelClass(
                 day.level,
-              )} ${day.isLatest ? "ring-2 ring-action ring-offset-2 ring-offset-surface" : ""}`}
+              )} ${day.isFuture ? "opacity-40" : ""} ${
+                day.isLatest ? "ring-2 ring-action ring-offset-2 ring-offset-surface" : ""
+              }`}
             />
           ))}
         </div>
@@ -9948,8 +10358,6 @@ function NewProjectView({
   onStartGeneration,
   onCancelGeneration,
   onOpenGeneratedProject,
-  suggestQuizAfterSummary,
-  onStartQuizAfterSummary,
 }: {
   projectName: string;
   subjectName: string;
@@ -9980,8 +10388,6 @@ function NewProjectView({
   onStartGeneration: () => void | Promise<void>;
   onCancelGeneration: () => void | Promise<void>;
   onOpenGeneratedProject: () => void;
-  suggestQuizAfterSummary: boolean;
-  onStartQuizAfterSummary: () => void;
 }) {
   const totalFileSize = files.reduce((total, file) => total + file.size, 0);
   const detailFieldsCompleted =
@@ -10294,8 +10700,6 @@ function NewProjectView({
             isCancellingGeneration={isCancellingGeneration}
             onCancelGeneration={onCancelGeneration}
             onOpenGeneratedProject={onOpenGeneratedProject}
-            suggestQuizAfterSummary={suggestQuizAfterSummary}
-            onStartQuizAfterSummary={onStartQuizAfterSummary}
           />
       )}
     </section>
@@ -10312,8 +10716,6 @@ function GenerationView({
   isCancellingGeneration,
   onCancelGeneration,
   onOpenGeneratedProject,
-  suggestQuizAfterSummary,
-  onStartQuizAfterSummary,
 }: {
   projectName: string;
   state: GenerationState;
@@ -10324,8 +10726,6 @@ function GenerationView({
   isCancellingGeneration: boolean;
   onCancelGeneration: () => void | Promise<void>;
   onOpenGeneratedProject: () => void;
-  suggestQuizAfterSummary: boolean;
-  onStartQuizAfterSummary: () => void;
 }) {
   return (
     <div className="rounded-xl border border-subtle bg-surface p-6 sm:p-8">
@@ -10421,28 +10821,6 @@ function GenerationView({
             </Icon>
           </button>
 
-          {suggestQuizAfterSummary ? (
-            <div className="mx-auto mt-6 max-w-md rounded-xl border border-subtle bg-app p-4">
-              <p className="text-sm font-semibold text-content">
-                Vrei să testezi ce ai reținut chiar acum?
-              </p>
-              <p className="mt-1 text-xs leading-5 text-muted">
-                Te ducem direct la generarea unui quiz scurt pe baza acestui
-                rezumat.
-              </p>
-              <button
-                type="button"
-                disabled={!preparedProject}
-                onClick={onStartQuizAfterSummary}
-                className="mt-3 inline-flex items-center justify-center gap-2 rounded-md border border-action px-4 py-2 text-xs font-black text-content transition hover:bg-action hover:text-on-action disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                Generează un quiz
-                <Icon className="h-3.5 w-3.5">
-                  <path d="M5 12h14M13 5l7 7-7 7" />
-                </Icon>
-              </button>
-            </div>
-          ) : null}
         </div>
       ) : null}
     </div>

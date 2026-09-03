@@ -49,12 +49,6 @@ class UserPreferences(Base):
         default=True,
         server_default="true",
     )
-    automation_quiz_after_summary: Mapped[bool] = mapped_column(
-        Boolean,
-        nullable=False,
-        default=True,
-        server_default="true",
-    )
     automation_weak_concept_alerts: Mapped[bool] = mapped_column(
         Boolean,
         nullable=False,

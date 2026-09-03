@@ -41,6 +41,8 @@ export type StudyProjectFlashcard = {
 export type StudyProjectQuizOption = {
   id: string;
   label: string;
+  /** "matching" only: the item `label` pairs with. */
+  match_label: string | null;
   is_correct: boolean;
   sort_order: number;
 };
@@ -67,7 +69,6 @@ export type StudyProjectQuiz = {
   title: string;
   description: string | null;
   complexity: string | null;
-  question_type: string | null;
   sort_order: number;
   completed_at: string | null;
   score_percent: number | null;
@@ -97,6 +98,8 @@ export type StudyProjectSummaryHighlight = {
   paragraph_index: number;
   text: string;
   color: SummaryHighlightColor;
+  start_offset: number | null;
+  end_offset: number | null;
 };
 
 export type StudyProjectSummaryNote = {
@@ -473,12 +476,48 @@ export async function importStudyProjectJson(payload: {
   return parseProjectResponse<StudyProjectImportResponse>(response);
 }
 
-export async function generateStudyProjectQuizzes(
+/** How a quiz question is answered. */
+export type QuizQuestionType =
+  | "single_choice"
+  | "multiple_choice"
+  /** Left label pairs with `match_label`. */
+  | "matching"
+  /** Options are the words of one sentence; `sort_order` is the answer. */
+  | "ordering"
+  /**
+   * The prompt is a sentence with `____` gaps. Correct options carry the
+   * one-based gap number in `sort_order`; distractors carry 0.
+   */
+  | "cloze";
+
+export type QuizComplexity = "low" | "medium" | "high" | "exam";
+
+/** What the student picked in the generation modal. */
+export type QuizGenerationConfig = {
+  complexity: QuizComplexity;
+  questionCount: number;
+  questionTypes: QuizQuestionType[];
+};
+
+/** Queue one quiz built to the given configuration.
+ *
+ * Replaces the old batch call: the whole difficulty range in a single request
+ * gave the model too much at once, which made the questions weaker and the
+ * generation more expensive.
+ */
+export async function generateStudyProjectQuiz(
   projectId: string,
+  config: QuizGenerationConfig,
 ): Promise<StudyProject> {
-  const response = await fetch(`/api/projects/${projectId}/generate-quizzes`, {
+  const response = await fetch(`/api/projects/${projectId}/quizzes`, {
     method: "POST",
     credentials: "same-origin",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      complexity: config.complexity,
+      question_count: config.questionCount,
+      question_types: config.questionTypes,
+    }),
     cache: "no-store",
   });
   return parseProjectResponse<StudyProject>(response);
@@ -610,6 +649,8 @@ export async function createSummaryHighlight(payload: {
   paragraphIndex: number;
   text: string;
   color: SummaryHighlightColor;
+  startOffset?: number | null;
+  endOffset?: number | null;
 }): Promise<StudyProject> {
   const response = await fetch(
     `/api/projects/${payload.projectId}/summary-highlights`,
@@ -623,6 +664,8 @@ export async function createSummaryHighlight(payload: {
         paragraph_index: payload.paragraphIndex,
         text: payload.text,
         color: payload.color,
+        start_offset: payload.startOffset ?? null,
+        end_offset: payload.endOffset ?? null,
       }),
       cache: "no-store",
     },

@@ -250,11 +250,6 @@ const studyAutomationOptions = [
     description: "Primești recomandarea de 5-20 minute pentru azi.",
   },
   {
-    id: "quizAfterSummary",
-    title: "Quiz după rezumat",
-    description: "După fiecare rezumat, Reviss propune un quiz scurt.",
-  },
-  {
     id: "weakConceptAlerts",
     title: "Alerte concepte slabe",
     description: "Apar când un concept riscă să fie uitat.",
@@ -282,7 +277,6 @@ const studyAutomationPreferenceKey: Record<
   BooleanPreferenceKey
 > = {
   dailyReview: "automation_daily_review",
-  quizAfterSummary: "automation_quiz_after_summary",
   weakConceptAlerts: "automation_weak_concept_alerts",
   weeklyProgress: "automation_weekly_progress",
   inactivityReminder: "automation_inactivity_reminder",

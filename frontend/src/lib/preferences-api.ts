@@ -6,7 +6,6 @@ export type StudyPreferences = {
   study_pace: StudyPace;
   ai_feedback_style: AiFeedbackStyle;
   automation_daily_review: boolean;
-  automation_quiz_after_summary: boolean;
   automation_weak_concept_alerts: boolean;
   notify_email_enabled: boolean;
   notify_alert_project_ready: boolean;

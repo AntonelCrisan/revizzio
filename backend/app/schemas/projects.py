@@ -4,6 +4,8 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from app.models.study_project import QUIZ_COMPLEXITIES, QUIZ_QUESTION_TYPES
+
 SummaryHighlightColor = Literal["yellow", "green", "blue", "pink", "purple", "orange"]
 
 
@@ -69,12 +71,16 @@ class StudyProjectSummaryHighlightResponse(BaseModel):
     paragraph_index: int
     text: str
     color: str
+    start_offset: int | None = None
+    end_offset: int | None = None
 
 
 class StudyProjectSummaryHighlightCreate(BaseModel):
     paragraph_index: int = Field(ge=0)
     text: str = Field(min_length=1, max_length=2000)
     color: SummaryHighlightColor = "pink"
+    start_offset: int | None = Field(default=None, ge=0)
+    end_offset: int | None = Field(default=None, ge=0)
 
 
 class StudyProjectSummaryHighlightColorUpdate(BaseModel):
@@ -107,7 +113,11 @@ class StudyProjectQuizOptionResponse(BaseModel):
 
     id: uuid.UUID
     label: str
+    # "matching" only: the item `label` pairs with. The client shuffles the
+    # right-hand column before showing it.
+    match_label: str | None = None
     is_correct: bool
+    # "ordering": the word's correct position in the sentence.
     sort_order: int
 
 
@@ -139,7 +149,6 @@ class StudyProjectQuizResponse(BaseModel):
     title: str
     description: str | None
     complexity: str | None
-    question_type: str | None
     sort_order: int
     completed_at: datetime | None
     score_percent: int | None
@@ -161,6 +170,22 @@ class StudyProjectStrategyResponse(BaseModel):
     title: str
     description: str
     sort_order: int
+
+
+class QuizGenerationRequest(BaseModel):
+    """Configuration for one generated quiz.
+
+    `question_count` is additionally capped by the plan server-side; the bound
+    here only keeps an absurd payload from reaching the service.
+    """
+
+    # Derived from the model constants so adding a question type or a
+    # difficulty cannot leave this request schema rejecting it.
+    complexity: Literal[*QUIZ_COMPLEXITIES]
+    question_count: int = Field(ge=1, le=50)
+    question_types: list[Literal[*QUIZ_QUESTION_TYPES]] = Field(
+        min_length=1, max_length=len(QUIZ_QUESTION_TYPES)
+    )
 
 
 class ActiveProjectSelectionRequest(BaseModel):

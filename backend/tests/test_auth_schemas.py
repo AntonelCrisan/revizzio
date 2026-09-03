@@ -69,7 +69,36 @@ def test_change_password_rejects_same_password() -> None:
         )
 
 
-def test_user_plan_response_exposes_ai_limits() -> None:
+def test_user_plan_response_keeps_cost_internals_out_of_the_browser() -> None:
+    """Every logged-in browser receives this, so it carries no cost economics.
+
+    The per-cycle OpenAI ceiling and the credit/OCR quotas are business
+    parameters no user-facing screen reads; the limits the upload screens do
+    read have to stay.
+    """
+    served = set(UserPlanResponse.model_fields)
+
+    assert not served & {
+        "max_openai_cost_usd_per_cycle",
+        "monthly_ai_credits",
+        "monthly_ocr_pages",
+    }
+    # Used by the project upload limits and the plan badges.
+    assert {
+        "monthly_page_limit",
+        "active_project_limit",
+        "monthly_material_limit",
+        "files_per_project_limit",
+        "file_size_limit_mb",
+        "project_size_limit_mb",
+        "estimated_page_limit",
+        "quiz_questions_per_quiz",
+        "allow_scanned_documents",
+        "ai_chat_enabled",
+    } <= served
+
+
+def test_user_plan_response_still_builds_from_the_orm_plan() -> None:
     payload = UserPlanResponse(
         id="00000000-0000-4000-8000-000000000001",
         slug="focus",
@@ -88,18 +117,13 @@ def test_user_plan_response_exposes_ai_limits() -> None:
         project_size_limit_mb=200,
         estimated_page_limit=200,
         initial_flashcard_limit=40,
-        quiz_groups_per_complexity=3,
         quiz_questions_per_quiz=12,
         allow_scanned_documents=False,
-        monthly_ai_credits=60,
-        monthly_ocr_pages=200,
         monthly_page_limit=1000,
         ai_chat_enabled=True,
-        max_openai_cost_usd_per_cycle=Decimal("6.00"),
         is_featured=True,
     )
 
     assert payload.ai_chat_enabled is True
-    assert payload.monthly_ai_credits == 60
     assert payload.monthly_page_limit == 1000
-    assert payload.max_openai_cost_usd_per_cycle == Decimal("6.00")
+    assert payload.quiz_questions_per_quiz == 12

@@ -43,7 +43,6 @@ DEFAULT_PLANS = [
         "project_size_limit_mb": 20,
         "estimated_page_limit": 25,
         "initial_flashcard_limit": 20,
-        "quiz_groups_per_complexity": 1,
         "quiz_questions_per_quiz": 8,
         "allow_scanned_documents": False,
         "monthly_ai_credits": 10,
@@ -83,7 +82,6 @@ DEFAULT_PLANS = [
         "project_size_limit_mb": 200,
         "estimated_page_limit": 200,
         "initial_flashcard_limit": 40,
-        "quiz_groups_per_complexity": 3,
         "quiz_questions_per_quiz": 12,
         "allow_scanned_documents": False,
         "monthly_ai_credits": 60,
@@ -124,7 +122,6 @@ DEFAULT_PLANS = [
         "project_size_limit_mb": 500,
         "estimated_page_limit": 500,
         "initial_flashcard_limit": 50,
-        "quiz_groups_per_complexity": 4,
         "quiz_questions_per_quiz": 12,
         "allow_scanned_documents": True,
         "monthly_ai_credits": 120,
@@ -179,7 +176,6 @@ async def _ensure_default_plans(session: DbSession) -> None:
             project_size_limit_mb=int(plan_data["project_size_limit_mb"]),
             estimated_page_limit=int(plan_data["estimated_page_limit"]),
             initial_flashcard_limit=int(plan_data["initial_flashcard_limit"]),
-            quiz_groups_per_complexity=int(plan_data["quiz_groups_per_complexity"]),
             quiz_questions_per_quiz=int(plan_data["quiz_questions_per_quiz"]),
             allow_scanned_documents=bool(plan_data["allow_scanned_documents"]),
             monthly_ai_credits=int(plan_data["monthly_ai_credits"]),
@@ -325,7 +321,6 @@ async def update_admin_plans(
         plan.project_size_limit_mb = plan_payload.project_size_limit_mb
         plan.estimated_page_limit = plan_payload.estimated_page_limit
         plan.initial_flashcard_limit = plan_payload.initial_flashcard_limit
-        plan.quiz_groups_per_complexity = plan_payload.quiz_groups_per_complexity
         plan.quiz_questions_per_quiz = plan_payload.quiz_questions_per_quiz
         plan.allow_scanned_documents = plan_payload.allow_scanned_documents
         plan.monthly_ai_credits = plan_payload.monthly_ai_credits

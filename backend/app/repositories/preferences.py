@@ -41,7 +41,6 @@ class UserPreferencesRepository:
         study_pace: str | None = None,
         ai_feedback_style: str | None = None,
         automation_daily_review: bool | None = None,
-        automation_quiz_after_summary: bool | None = None,
         automation_weak_concept_alerts: bool | None = None,
         notify_email_enabled: bool | None = None,
         notify_alert_project_ready: bool | None = None,
@@ -57,10 +56,6 @@ class UserPreferencesRepository:
             preferences.ai_feedback_style = ai_feedback_style
         if automation_daily_review is not None:
             preferences.automation_daily_review = automation_daily_review
-        if automation_quiz_after_summary is not None:
-            preferences.automation_quiz_after_summary = (
-                automation_quiz_after_summary
-            )
         if automation_weak_concept_alerts is not None:
             preferences.automation_weak_concept_alerts = (
                 automation_weak_concept_alerts

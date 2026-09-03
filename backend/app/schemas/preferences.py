@@ -13,7 +13,6 @@ class StudyPreferencesResponse(BaseModel):
     study_pace: StudyPace
     ai_feedback_style: AiFeedbackStyle
     automation_daily_review: bool
-    automation_quiz_after_summary: bool
     automation_weak_concept_alerts: bool
     notify_email_enabled: bool
     notify_alert_project_ready: bool
@@ -29,7 +28,6 @@ class StudyPreferencesUpdate(BaseModel):
     study_pace: StudyPace | None = None
     ai_feedback_style: AiFeedbackStyle | None = None
     automation_daily_review: bool | None = None
-    automation_quiz_after_summary: bool | None = None
     automation_weak_concept_alerts: bool | None = None
     notify_email_enabled: bool | None = None
     notify_alert_project_ready: bool | None = None

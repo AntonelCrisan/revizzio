@@ -49,7 +49,6 @@ class SubscriptionPlanResponse(BaseModel):
     project_size_limit_mb: int
     estimated_page_limit: int
     initial_flashcard_limit: int
-    quiz_groups_per_complexity: int
     quiz_questions_per_quiz: int
     allow_scanned_documents: bool
     monthly_ai_credits: int
@@ -142,7 +141,6 @@ class SubscriptionPlanUpdate(BaseModel):
     project_size_limit_mb: int = Field(ge=1, le=10240)
     estimated_page_limit: int = Field(ge=1, le=10000)
     initial_flashcard_limit: int = Field(ge=1, le=500)
-    quiz_groups_per_complexity: int = Field(ge=1, le=12)
     quiz_questions_per_quiz: int = Field(ge=3, le=50)
     allow_scanned_documents: bool
     monthly_ai_credits: int = Field(ge=0, le=100000)

@@ -397,21 +397,9 @@ export const uiTranslations: Record<string, UiTranslation> = {
     en: "Hard",
     fr: "Difficile",
   },
-  "Mică": {
-    en: "Low",
-    fr: "Faible",
-  },
   "Medie": {
     en: "Medium",
     fr: "Moyenne",
-  },
-  "Ridicată": {
-    en: "High",
-    fr: "Élevée",
-  },
-  "Mixt": {
-    en: "Mixed",
-    fr: "Mixte",
   },
   "Începe": {
     en: "Start",
@@ -420,6 +408,126 @@ export const uiTranslations: Record<string, UiTranslation> = {
   "Reintră": {
     en: "Re-enter",
     fr: "Reprendre",
+  },
+  "Alege un singur răspuns": {
+    en: "Pick a single answer",
+    fr: "Choisis une seule réponse",
+  },
+  "Alege toate răspunsurile corecte": {
+    en: "Pick every correct answer",
+    fr: "Choisis toutes les bonnes réponses",
+  },
+  "Asociază fiecare element cu perechea lui": {
+    en: "Match each item with its pair",
+    fr: "Associe chaque élément à sa paire",
+  },
+  "Așază cuvintele în ordinea corectă": {
+    en: "Put the words in the right order",
+    fr: "Place les mots dans le bon ordre",
+  },
+  "Propoziția ta": {
+    en: "Your sentence",
+    fr: "Ta phrase",
+  },
+  "Cuvinte disponibile": {
+    en: "Available words",
+    fr: "Mots disponibles",
+  },
+  "Trage sau apasă cuvintele de mai jos ca să formezi propoziția.": {
+    en: "Drag or tap the words below to build the sentence.",
+    fr: "Fais glisser ou touche les mots ci-dessous pour former la phrase.",
+  },
+  "Ai folosit toate cuvintele.": {
+    en: "You have used every word.",
+    fr: "Tu as utilisé tous les mots.",
+  },
+  "Propoziția corectă:": {
+    en: "The correct sentence:",
+    fr: "La phrase correcte :",
+  },
+  "De revizuit": {
+    en: "To review",
+    fr: "À revoir",
+  },
+  "Completează golurile din propoziție": {
+    en: "Fill in the gaps in the sentence",
+    fr: "Complète les trous de la phrase",
+  },
+  "Completează golurile": {
+    en: "Fill in the gaps",
+    fr: "Complète les trous",
+  },
+  "Alegi termenii care lipsesc din propoziție": {
+    en: "You pick the terms missing from the sentence",
+    fr: "Tu choisis les termes qui manquent dans la phrase",
+  },
+  "Propoziția": {
+    en: "The sentence",
+    fr: "La phrase",
+  },
+  "Vrei să reții întrebarea asta ca flashcard?": {
+    en: "Do you want to keep this question as a flashcard?",
+    fr: "Veux-tu garder cette question comme flashcard ?",
+  },
+  "Salvează ca flashcard": {
+    en: "Save as flashcard",
+    fr: "Enregistrer comme flashcard",
+  },
+  "Nu am putut salva flashcard-ul. Încearcă din nou.": {
+    en: "The flashcard could not be saved. Try again.",
+    fr: "La flashcard n'a pas pu être enregistrée. Réessaie.",
+  },
+  "Reîncearcă": {
+    en: "Try again",
+    fr: "Réessayer",
+  },
+  "Salvat în Flashcard-uri, pachetul Din quiz-urile tale.": {
+    en: "Saved to Flashcards, in the From your quizzes deck.",
+    fr: "Enregistré dans Flashcards, paquet Depuis tes quiz.",
+  },
+  "Întrebările pe care ai ales să le salvezi, cu răspunsul corect.": {
+    en: "The questions you chose to save, with the correct answer.",
+    fr: "Les questions que tu as choisi d'enregistrer, avec la bonne réponse.",
+  },
+  "Când greșești o întrebare de quiz, poți salva aici întrebarea și răspunsul corect.": {
+    en: "When you get a quiz question wrong, you can save the question and the correct answer here.",
+    fr: "Quand tu te trompes à une question de quiz, tu peux enregistrer ici la question et la bonne réponse.",
+  },
+  "Aici apar întrebările greșite salvate": {
+    en: "Your saved wrong answers appear here",
+    fr: "Tes mauvaises réponses enregistrées apparaissent ici",
+  },
+  "Greșelile pe care le-ai salvat din quizuri, cu răspunsul corect.": {
+    en: "The mistakes you saved from quizzes, with the correct answer.",
+    fr: "Les erreurs que tu as enregistrées depuis les quiz, avec la bonne réponse.",
+  },
+  "1 flashcard din greșeli": {
+    en: "1 flashcard from mistakes",
+    fr: "1 flashcard issue d'erreurs",
+  },
+  "Flashcard-uri salvate": {
+    en: "Saved flashcards",
+    fr: "Flashcards enregistrées",
+  },
+  "Greșelile salvate te așteaptă în flashcard-uri.": {
+    en: "The mistakes you saved are waiting in your flashcards.",
+    fr: "Les erreurs que tu as enregistrées t'attendent dans tes flashcards.",
+  },
+  "Poți salva ca flashcard orice întrebare greșită.": {
+    en: "You can save any wrong answer as a flashcard.",
+    fr: "Tu peux enregistrer comme flashcard toute réponse fausse.",
+  },
+  "Asocierile tale": {
+    en: "Your matches",
+    fr: "Tes associations",
+  },
+  "Alege un element din stânga": {
+    en: "Pick an item on the left",
+    fr: "Choisis un élément à gauche",
+  },
+  "Acum alege perechea din dreapta": {
+    en: "Now pick its match on the right",
+    fr: "Choisis maintenant sa paire à droite",
   },
   "Verifică răspunsul": {
     en: "Check answer",
@@ -1757,10 +1865,6 @@ export const uiTranslations: Record<string, UiTranslation> = {
     en: "MB / project",
     fr: "Mo / projet",
   },
-  "Seturi quiz / nivel": {
-    en: "Quiz sets / level",
-    fr: "Séries de quiz / niveau",
-  },
   "Întrebări / quiz": {
     en: "Questions / quiz",
     fr: "Questions / quiz",
@@ -2669,18 +2773,6 @@ export const uiTranslations: Record<string, UiTranslation> = {
     en: "Wrong answers turned into flashcards",
     fr: "Questions ratées transformées en flashcards",
   },
-  "Aici apar întrebările greșite": {
-    en: "Wrong questions appear here",
-    fr: "Les questions ratées apparaissent ici",
-  },
-  "Fiecare greșeală din quiz devine automat un card de recapitulare.": {
-    en: "Every quiz mistake automatically becomes a review card.",
-    fr: "Chaque erreur de quiz devient automatiquement une carte de révision.",
-  },
-  "Fă un quiz. Când greșești, Reviss pune întrebarea și răspunsul corect aici.": {
-    en: "Take a quiz. When you make a mistake, Reviss puts the question and correct answer here.",
-    fr: "Fais un quiz. Quand tu te trompes, Reviss place ici la question et la bonne réponse.",
-  },
   "Scoate flashcardul din recapitulare": {
     en: "Remove flashcard from review",
     fr: "Retirer la flashcard de la révision",
@@ -3021,14 +3113,6 @@ export const uiTranslations: Record<string, UiTranslation> = {
     en: "Intense pace, with more frequent quizzes and active review.",
     fr: "Rythme intense, avec des quiz plus fréquents et une révision active.",
   },
-  "Quiz după rezumat": {
-    en: "Quiz after summary",
-    fr: "Quiz après résumé",
-  },
-  "După fiecare rezumat, Reviss propune un quiz scurt.": {
-    en: "After each summary, Reviss suggests a short quiz.",
-    fr: "Après chaque résumé, Reviss propose un quiz court.",
-  },
   "Confirmări, resetare parolă și rapoarte importante.": {
     en: "Confirmations, password reset and important reports.",
     fr: "Confirmations, réinitialisation du mot de passe et rapports importants.",
@@ -3304,10 +3388,6 @@ export const uiTranslations: Record<string, UiTranslation> = {
   "Istoric": {
     en: "History",
     fr: "Historique",
-  },
-  "Quiz finalizat": {
-    en: "Quiz completed",
-    fr: "Quiz terminé",
   },
   "Vezi sumarul": {
     en: "View summary",
@@ -3652,10 +3732,6 @@ export const uiTranslations: Record<string, UiTranslation> = {
   "Scor quiz": {
     en: "Quiz score",
     fr: "Score du quiz",
-  },
-  "Flashcard-uri sugerate": {
-    en: "Suggested flashcards",
-    fr: "Flashcards suggérées",
   },
   "Timp recomandat": {
     en: "Recommended time",
@@ -4682,6 +4758,18 @@ const uiPatternTranslations: UiPatternTranslation[] = [
     source: /^(\d+) flashcard-uri din greșeli$/,
     en: ([, count]) => `${count} mistake flashcards`,
     fr: ([, count]) => `${count} flashcards d'erreurs`,
+  },
+  {
+    source: /^Întrebarea verifică un concept din (.+)\. Revizuiește fragmentul din rezumat dacă ai ezitat\.$/,
+    en: ([, subject]) =>
+      `The question checks a concept from ${subject}. Review the summary passage if you hesitated.`,
+    fr: ([, subject]) =>
+      `La question porte sur un concept de ${subject}. Relis le passage du résumé si tu as hésité.`,
+  },
+  {
+    source: /^Golul (\d+):$/,
+    en: ([, gap]) => `Gap ${gap}:`,
+    fr: ([, gap]) => `Trou ${gap} :`,
   },
   {
     source: /^Întrebarea (\d+) din (\d+)$/,

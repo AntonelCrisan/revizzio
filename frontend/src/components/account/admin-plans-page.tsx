@@ -31,7 +31,6 @@ type AdminPlanDraft = {
   projectSizeLimitMb: string;
   estimatedPageLimit: string;
   initialFlashcardLimit: string;
-  quizGroupsPerComplexity: string;
   quizQuestionsPerQuiz: string;
   allowScannedDocuments: boolean;
   monthlyAiCredits: string;
@@ -114,7 +113,6 @@ function toDraftPlan(plan: SubscriptionPlan): AdminPlanDraft {
     projectSizeLimitMb: String(plan.project_size_limit_mb),
     estimatedPageLimit: String(plan.estimated_page_limit),
     initialFlashcardLimit: String(plan.initial_flashcard_limit),
-    quizGroupsPerComplexity: String(plan.quiz_groups_per_complexity),
     quizQuestionsPerQuiz: String(plan.quiz_questions_per_quiz),
     allowScannedDocuments: plan.allow_scanned_documents,
     monthlyAiCredits: String(plan.monthly_ai_credits),
@@ -164,11 +162,6 @@ function toPlanUpdate(
     project_size_limit_mb: normalizeInteger(plan.projectSizeLimitMb, 20, 1),
     estimated_page_limit: normalizeInteger(plan.estimatedPageLimit, 25, 1),
     initial_flashcard_limit: normalizeInteger(plan.initialFlashcardLimit, 20, 1),
-    quiz_groups_per_complexity: normalizeInteger(
-      plan.quizGroupsPerComplexity,
-      1,
-      1,
-    ),
     quiz_questions_per_quiz: normalizeInteger(plan.quizQuestionsPerQuiz, 8, 3),
     allow_scanned_documents: plan.allowScannedDocuments,
     monthly_ai_credits: normalizeInteger(plan.monthlyAiCredits, 10, 0),
@@ -811,14 +804,6 @@ export function AdminPlansPage({ initialPlans }: AdminPlansPageProps) {
                     updateSelectedPlan({ initialFlashcardLimit: value })
                   }
                   placeholder="40"
-                />
-                <TextField
-                  label="Seturi quiz / nivel"
-                  value={selectedPlan.quizGroupsPerComplexity}
-                  onChange={(value) =>
-                    updateSelectedPlan({ quizGroupsPerComplexity: value })
-                  }
-                  placeholder="3"
                 />
                 <TextField
                   label="Întrebări / quiz"

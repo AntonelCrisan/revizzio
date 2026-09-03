@@ -515,7 +515,6 @@ async def update_study_preferences(
         study_pace=payload.study_pace,
         ai_feedback_style=payload.ai_feedback_style,
         automation_daily_review=payload.automation_daily_review,
-        automation_quiz_after_summary=payload.automation_quiz_after_summary,
         automation_weak_concept_alerts=payload.automation_weak_concept_alerts,
         notify_email_enabled=payload.notify_email_enabled,
         notify_alert_project_ready=payload.notify_alert_project_ready,

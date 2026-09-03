@@ -239,65 +239,80 @@ STUDY_PACK_SCHEMA: dict[str, Any] = {
 }
 
 
-QUIZ_PACK_SCHEMA: dict[str, Any] = {
+SINGLE_QUIZ_SCHEMA: dict[str, Any] = {
     "type": "object",
     "additionalProperties": False,
-    "required": ["schema_version", "quizzes"],
+    "required": ["schema_version", "quiz"],
     "properties": {
-        "schema_version": {"type": "string", "enum": ["reviss.quiz_pack.v1"]},
-        "quizzes": {
-            "type": "array",
-            "maxItems": 20,
-            "items": {
-                "type": "object",
-                "additionalProperties": False,
-                "required": [
-                    "title",
-                    "description",
-                    "complexity",
-                    "question_type",
-                    "questions",
-                ],
-                "properties": {
-                    "title": {"type": "string", "maxLength": 180},
-                    "description": {"type": "string", "maxLength": 1000},
-                    "complexity": {"type": "string", "enum": ["low", "medium", "high"]},
-                    "question_type": {
-                        "type": "string",
-                        "enum": ["single_choice"],
-                    },
-                    "questions": {
-                        "type": "array",
-                        "maxItems": 80,
-                        "items": {
-                            "type": "object",
-                            "additionalProperties": False,
-                            "required": ["prompt", "type", "options", "explanation"],
-                            "properties": {
-                                "prompt": {"type": "string", "maxLength": 1600},
-                                "type": {
-                                    "type": "string",
-                                    "enum": ["single_choice", "multiple_choice"],
-                                },
-                                "options": {
-                                    "type": "array",
-                                    "minItems": 2,
-                                    "maxItems": 8,
-                                    "items": {
-                                        "type": "object",
-                                        "additionalProperties": False,
-                                        "required": ["label", "is_correct"],
-                                        "properties": {
-                                "label": {
-                                    "type": "string",
-                                    "maxLength": 600,
-                                },
-                                            "is_correct": {"type": "boolean"},
+        "schema_version": {"type": "string", "enum": ["reviss.quiz.v2"]},
+        "quiz": {
+            "type": "object",
+            "additionalProperties": False,
+            "required": ["title", "description", "complexity", "questions"],
+            "properties": {
+                "title": {"type": "string", "maxLength": 180},
+                "description": {"type": "string", "maxLength": 1000},
+                "complexity": {
+                    "type": "string",
+                    "enum": ["low", "medium", "high", "exam"],
+                },
+                "questions": {
+                    "type": "array",
+                    "minItems": 1,
+                    "maxItems": 50,
+                    "items": {
+                        "type": "object",
+                        "additionalProperties": False,
+                        "required": ["prompt", "type", "options", "explanation"],
+                        "properties": {
+                            "prompt": {"type": "string", "maxLength": 1600},
+                            "type": {
+                                "type": "string",
+                                "enum": [
+                                    "single_choice",
+                                    "multiple_choice",
+                                    "matching",
+                                    "ordering",
+                                    "cloze",
+                                ],
+                            },
+                            # One shape for every type, so the model never has
+                            # to pick between competing option schemas:
+                            #   single/multiple -> label + is_correct
+                            #   matching        -> label + match_label
+                            #   ordering        -> label + position
+                            "options": {
+                                "type": "array",
+                                "minItems": 2,
+                                "maxItems": 8,
+                                "items": {
+                                    "type": "object",
+                                    "additionalProperties": False,
+                                    "required": [
+                                        "label",
+                                        "is_correct",
+                                        "match_label",
+                                        "position",
+                                    ],
+                                    "properties": {
+                                        "label": {
+                                            "type": "string",
+                                            "maxLength": 600,
+                                        },
+                                        "is_correct": {"type": "boolean"},
+                                        "match_label": {
+                                            "type": ["string", "null"],
+                                            "maxLength": 600,
+                                        },
+                                        "position": {
+                                            "type": ["integer", "null"],
+                                            "minimum": 1,
+                                            "maximum": 30,
                                         },
                                     },
                                 },
-                                "explanation": {"type": "string", "maxLength": 1600},
                             },
+                            "explanation": {"type": "string", "maxLength": 1600},
                         },
                     },
                 },

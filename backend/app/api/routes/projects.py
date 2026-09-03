@@ -21,6 +21,7 @@ from app.core.rate_limit import _memory_rate_limit_buckets, consume_rate_limit
 from app.schemas.projects import (
     AccountWipeResponse,
     ActiveProjectSelectionRequest,
+    QuizGenerationRequest,
     StudyProjectAiSelectionExplainRequest,
     StudyProjectAiSelectionExplainResponse,
     StudyProjectChatRequest,
@@ -46,7 +47,7 @@ from app.services.projects import (
     ProjectValidationError,
     StudyProjectService,
     cancel_generation_task,
-    schedule_quiz_pack_generation_task,
+    schedule_quiz_generation_task,
     schedule_study_pack_generation_task,
 )
 from app.services.study_activity import record_study_activity
@@ -405,19 +406,29 @@ async def prepare_project(
     )
 
 
-@router.post("/{project_id}/generate-quizzes", response_model=StudyProjectResponse)
-async def generate_project_quizzes(
+@router.post("/{project_id}/quizzes", response_model=StudyProjectResponse)
+async def generate_project_quiz(
     project_id: uuid.UUID,
+    payload: QuizGenerationRequest,
     current_user: CurrentUser,
     session: DbSession,
     settings: AppSettings,
 ) -> StudyProjectResponse:
+    """Queue one quiz built to the student's configuration.
+
+    Replaces the old batch endpoint: generating every difficulty at once gave
+    the model too much to hold at a time, which made the questions weaker and
+    the call more expensive.
+    """
     await _enforce_project_rate_limit(current_user, "generate-quizzes")
     service = _service(session, settings)
     try:
         project = await service.start_quiz_generation(
             user=current_user,
             project_id=project_id,
+            complexity=payload.complexity,
+            question_count=payload.question_count,
+            question_types=list(payload.question_types),
         )
     except ProjectNotFoundError as exc:
         await session.rollback()
@@ -436,10 +447,13 @@ async def generate_project_quizzes(
         await record_study_activity(session, current_user.id)
         await session.commit()
 
-        schedule_quiz_pack_generation_task(
+        schedule_quiz_generation_task(
             user_id=current_user.id,
             project_id=project.id,
             settings=settings,
+            complexity=payload.complexity,
+            question_count=payload.question_count,
+            question_types=list(payload.question_types),
         )
 
     return service.to_response(project)
@@ -1016,6 +1030,8 @@ async def create_summary_highlight(
             paragraph_index=payload.paragraph_index,
             text=payload.text,
             color=payload.color,
+            start_offset=payload.start_offset,
+            end_offset=payload.end_offset,
         )
     except ProjectNotFoundError as exc:
         await session.rollback()

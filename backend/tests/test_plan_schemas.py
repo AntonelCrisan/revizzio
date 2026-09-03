@@ -29,7 +29,6 @@ def _plan(slug: str, stripe_price_id: str | None) -> SubscriptionPlanUpdate:
         project_size_limit_mb=20,
         estimated_page_limit=25,
         initial_flashcard_limit=20,
-        quiz_groups_per_complexity=1,
         quiz_questions_per_quiz=8,
         allow_scanned_documents=False,
         monthly_ai_credits=10,
@@ -86,7 +85,6 @@ def test_subscription_plan_derives_monthly_material_limit() -> None:
         project_size_limit_mb=80,
         estimated_page_limit=25,
         initial_flashcard_limit=20,
-        quiz_groups_per_complexity=1,
         quiz_questions_per_quiz=8,
         allow_scanned_documents=False,
         monthly_ai_credits=10,
@@ -116,7 +114,6 @@ SENSITIVE_PLAN_FIELDS = (
     "monthly_ocr_pages",
     "monthly_page_limit",
     "project_size_limit_mb",
-    "quiz_groups_per_complexity",
     # Row bookkeeping.
     "id",
     "created_at",

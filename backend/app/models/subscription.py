@@ -91,11 +91,6 @@ class SubscriptionPlan(Base):
         nullable=False,
         default=20,
     )
-    quiz_groups_per_complexity: Mapped[int] = mapped_column(
-        Integer,
-        nullable=False,
-        default=1,
-    )
     quiz_questions_per_quiz: Mapped[int] = mapped_column(
         Integer,
         nullable=False,

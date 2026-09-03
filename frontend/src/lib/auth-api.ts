@@ -20,14 +20,10 @@ export type AuthUserPlan = {
   project_size_limit_mb: number;
   estimated_page_limit: number;
   initial_flashcard_limit: number;
-  quiz_groups_per_complexity: number;
   quiz_questions_per_quiz: number;
   allow_scanned_documents: boolean;
-  monthly_ai_credits: number;
-  monthly_ocr_pages: number;
   monthly_page_limit: number;
   ai_chat_enabled: boolean;
-  max_openai_cost_usd_per_cycle: string | number;
   is_featured: boolean;
 };
 

@@ -169,7 +169,6 @@ const fallbackAdminInternals: Record<
     SubscriptionPlan,
     | "id"
     | "project_size_limit_mb"
-    | "quiz_groups_per_complexity"
     | "monthly_ai_credits"
     | "monthly_ocr_pages"
     | "monthly_page_limit"
@@ -179,7 +178,6 @@ const fallbackAdminInternals: Record<
   start: {
     id: "fallback-start",
     project_size_limit_mb: 20,
-    quiz_groups_per_complexity: 1,
     monthly_ai_credits: 10,
     monthly_ocr_pages: 0,
     monthly_page_limit: 40,
@@ -188,7 +186,6 @@ const fallbackAdminInternals: Record<
   focus: {
     id: "fallback-focus",
     project_size_limit_mb: 200,
-    quiz_groups_per_complexity: 3,
     monthly_ai_credits: 60,
     monthly_ocr_pages: 200,
     monthly_page_limit: 1000,
@@ -197,7 +194,6 @@ const fallbackAdminInternals: Record<
   pro: {
     id: "fallback-pro",
     project_size_limit_mb: 500,
-    quiz_groups_per_complexity: 4,
     monthly_ai_credits: 120,
     monthly_ocr_pages: 500,
     monthly_page_limit: 2500,
@@ -214,7 +210,6 @@ export const fallbackAdminSubscriptionPlans: SubscriptionPlan[] =
       ...plan,
       id: internals?.id ?? `fallback-${plan.slug}`,
       project_size_limit_mb: internals?.project_size_limit_mb ?? 20,
-      quiz_groups_per_complexity: internals?.quiz_groups_per_complexity ?? 1,
       monthly_ai_credits: internals?.monthly_ai_credits ?? 0,
       monthly_ocr_pages: internals?.monthly_ocr_pages ?? 0,
       monthly_page_limit: internals?.monthly_page_limit ?? 0,
