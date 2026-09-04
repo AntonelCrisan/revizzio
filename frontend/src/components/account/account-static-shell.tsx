@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { AccountShellSkeleton } from "@/components/account/account-page-skeletons";
 import { useRouter } from "next/navigation";
 import { type MouseEvent, type ReactNode, useEffect, useState } from "react";
 import { useAuth } from "@/components/auth/auth-provider";
@@ -40,6 +41,8 @@ const settingsSectionChangeEvent = "revizzio:settings-section-change";
 type AccountStaticShellProps = {
   activePage: AccountPageId;
   children: ReactNode;
+  /** Drawn while the session resolves, shaped like this page. */
+  loadingBody?: ReactNode;
   settingsSection?: SettingsSectionId;
   onSettingsSectionChange?: (section: SettingsSectionId) => void;
 };
@@ -182,6 +185,7 @@ function secondaryNavClass(isActive: boolean) {
 export function AccountStaticShell({
   activePage,
   children,
+  loadingBody,
   settingsSection,
   onSettingsSectionChange,
 }: AccountStaticShellProps) {
@@ -300,11 +304,7 @@ export function AccountStaticShell({
   }
 
   if (isLoading || !user) {
-    return (
-      <main className="flex min-h-svh items-center justify-center bg-app text-content">
-        <div className="h-10 w-10 animate-spin rounded-full border-2 border-subtle border-t-action" />
-      </main>
-    );
+    return <AccountShellSkeleton body={loadingBody} />;
   }
 
   return (

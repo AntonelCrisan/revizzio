@@ -1,3 +1,8 @@
+import {
+  ProjectTabSkeleton,
+  type SkeletonTabId,
+} from "@/components/account/project-tab-skeletons";
+
 function SkeletonBlock({ className = "" }: { className?: string }) {
   return (
     <div
@@ -6,7 +11,7 @@ function SkeletonBlock({ className = "" }: { className?: string }) {
   );
 }
 
-export function AccountSkeleton() {
+export function AccountSkeleton({ tab }: { tab?: SkeletonTabId }) {
   return (
     <main className="min-h-svh bg-app px-3 pb-6 pt-20 text-content sm:px-5 lg:flex lg:px-0 lg:pt-0">
       <aside
@@ -44,30 +49,10 @@ export function AccountSkeleton() {
 
         <div
           aria-label="Se încarcă tabul proiectului"
-          className="rounded-xl border border-subtle bg-surface p-5 sm:p-7"
+          // Lets a browser check assert which tab the placeholder stands for.
+          data-skeleton-tab={tab ?? "none"}
         >
-          <div className="flex flex-wrap items-center justify-between gap-4 border-b border-subtle pb-5">
-            <div className="space-y-3">
-              <SkeletonBlock className="h-5 w-24" />
-              <SkeletonBlock className="h-9 w-64 max-w-[70vw]" />
-            </div>
-            <SkeletonBlock className="h-12 w-40" />
-          </div>
-          <div className="grid gap-4 pt-6 lg:grid-cols-[1.4fr_0.8fr]">
-            <div className="space-y-3">
-              <SkeletonBlock className="h-4 w-full" />
-              <SkeletonBlock className="h-4 w-11/12" />
-              <SkeletonBlock className="h-4 w-4/5" />
-              <SkeletonBlock className="mt-6 h-4 w-10/12" />
-              <SkeletonBlock className="h-4 w-3/5" />
-            </div>
-            <div className="space-y-3 rounded-xl border border-subtle bg-app p-4">
-              <SkeletonBlock className="h-4 w-24" />
-              <SkeletonBlock className="h-8 w-4/5" />
-              <SkeletonBlock className="h-4 w-full" />
-              <SkeletonBlock className="h-4 w-2/3" />
-            </div>
-          </div>
+          <ProjectTabSkeleton tab={tab} />
         </div>
       </section>
     </main>

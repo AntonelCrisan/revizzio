@@ -9,6 +9,7 @@ import {
   listSubscriptionInvoices,
   type SubscriptionInvoice,
 } from "@/lib/payments-api";
+import { InvoicesPageSkeletonBody } from "@/components/account/account-page-skeletons";
 
 const INVOICES_PAGE_SIZE = 8;
 
@@ -109,7 +110,8 @@ export function BillingInvoicesPage() {
   }, [isAuthLoading, user]);
 
   return (
-    <AccountStaticShell activePage="billing-invoices">
+    <AccountStaticShell activePage="billing-invoices"
+      loadingBody={<InvoicesPageSkeletonBody />}>
       <section className="space-y-7">
         <div className="flex flex-col gap-5 border-b border-subtle pb-7 lg:flex-row lg:items-end lg:justify-between">
           <div>

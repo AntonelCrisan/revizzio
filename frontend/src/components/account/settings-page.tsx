@@ -49,6 +49,7 @@ import {
   type StudyPreferences,
   type StudyPreferencesUpdate,
 } from "@/lib/preferences-api";
+import { SettingsPageSkeletonBody } from "@/components/account/account-page-skeletons";
 
 type SettingsTabId =
   | "account"
@@ -1504,6 +1505,7 @@ export function SettingsPage() {
   return (
     <AccountStaticShell
       activePage="settings"
+      loadingBody={<SettingsPageSkeletonBody />}
       settingsSection={activeTab}
       onSettingsSectionChange={selectSettingsTab}
     >

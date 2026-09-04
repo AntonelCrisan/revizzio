@@ -15,6 +15,7 @@ import {
 } from "@/lib/payments-api";
 import type { SubscriptionPlanPublic } from "@/lib/plans-api";
 import { planDetailPath } from "@/lib/seo";
+import { UpgradePageSkeletonBody } from "@/components/account/account-page-skeletons";
 
 type UpgradePageProps = {
   plans: SubscriptionPlanPublic[];
@@ -354,7 +355,8 @@ export function UpgradePage({
 
   return (
     <>
-      <AccountStaticShell activePage="upgrade">
+      <AccountStaticShell activePage="upgrade"
+      loadingBody={<UpgradePageSkeletonBody />}>
       <section className="space-y-7">
         <div className="flex flex-col gap-5 border-b border-subtle pb-7 lg:flex-row lg:items-end lg:justify-between">
           <div>

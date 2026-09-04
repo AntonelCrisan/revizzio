@@ -15,6 +15,7 @@ import {
   useTransition,
 } from "react";
 import { AccountSkeleton } from "@/components/account/account-skeleton";
+import { ProjectTabSkeleton } from "@/components/account/project-tab-skeletons";
 import { ProjectSlotsModal } from "@/components/account/project-slots-modal";
 import { QuizConfigModal } from "@/components/account/quiz-config-modal";
 import {
@@ -1691,7 +1692,9 @@ export function AccountDashboard({
   }
 
   if (isLoading || !user) {
-    return <AccountSkeleton />;
+    // The route already told us which tab is opening, so the placeholder can
+    // be shaped like it while the session resolves.
+    return <AccountSkeleton tab={activeTab} />;
   }
 
   return (
@@ -2138,7 +2141,7 @@ export function AccountDashboard({
           ) : null}
 
           {view === "project" && (isProjectsLoading || !activeProject) ? (
-            <ProjectViewSkeleton />
+            <ProjectViewSkeleton tab={activeTab} />
           ) : null}
 
           {view === "project" && !isProjectsLoading && activeProject ? (
@@ -2223,39 +2226,13 @@ function SkeletonBlock({ className = "" }: { className?: string }) {
   );
 }
 
-function ProjectTabContentSkeleton() {
-  return (
-    <div
-      aria-hidden="true"
-      className="rounded-xl border border-subtle bg-surface p-5 sm:p-7"
-    >
-      <div className="flex flex-wrap items-center justify-between gap-4 border-b border-subtle pb-5">
-        <div className="space-y-3">
-          <SkeletonBlock className="h-5 w-24" />
-          <SkeletonBlock className="h-9 w-64 max-w-[70vw]" />
-        </div>
-        <SkeletonBlock className="h-12 w-40" />
-      </div>
-      <div className="grid gap-4 pt-6 lg:grid-cols-[1.4fr_0.8fr]">
-        <div className="space-y-3">
-          <SkeletonBlock className="h-4 w-full" />
-          <SkeletonBlock className="h-4 w-11/12" />
-          <SkeletonBlock className="h-4 w-4/5" />
-          <SkeletonBlock className="mt-6 h-4 w-10/12" />
-          <SkeletonBlock className="h-4 w-3/5" />
-        </div>
-        <div className="space-y-3 rounded-xl border border-subtle bg-app p-4">
-          <SkeletonBlock className="h-4 w-24" />
-          <SkeletonBlock className="h-8 w-4/5" />
-          <SkeletonBlock className="h-4 w-full" />
-          <SkeletonBlock className="h-4 w-2/3" />
-        </div>
-      </div>
-    </div>
-  );
+function ProjectTabContentSkeleton({ tab }: { tab: TabId }) {
+  // One definition of what each tab's placeholder looks like, shared with the
+  // route-level loading files.
+  return <ProjectTabSkeleton tab={tab} />;
 }
 
-function ProjectViewSkeleton() {
+function ProjectViewSkeleton({ tab }: { tab: TabId }) {
   return (
     <section aria-busy="true" className="space-y-5">
       <div className="border-b border-subtle pb-5">
@@ -2275,7 +2252,7 @@ function ProjectViewSkeleton() {
           ))}
         </div>
       </div>
-      <ProjectTabContentSkeleton />
+      <ProjectTabContentSkeleton tab={tab} />
     </section>
   );
 }
@@ -3094,7 +3071,7 @@ function ProjectView({
         </button>
 
         {isTabContentLoading ? (
-          <ProjectTabContentSkeleton />
+          <ProjectTabContentSkeleton tab="chat" />
         ) : hasAiAccess ? (
           <ProjectChatPanel
             key={project.id}
@@ -3171,7 +3148,7 @@ function ProjectView({
 
       <div aria-busy={isTabContentLoading}>
         {isTabContentLoading ? (
-          <ProjectTabContentSkeleton />
+          <ProjectTabContentSkeleton tab={activeTab} />
         ) : (
           <>
             {activeTab === "rezumat" ? (

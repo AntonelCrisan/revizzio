@@ -1454,8 +1454,9 @@ class StudyProjectService:
                     "gata de studiat."
                 )
             else:
-                title = "Quiz-urile sunt gata"
-                body = f'Quiz-urile pentru "{project.name}" au fost generate.'
+                # One quiz per request since the batch flow was dropped.
+                title = "Quizul e gata"
+                body = f'Quizul nou pentru "{project.name}" a fost generat.'
 
             await NotificationService(self.session, self.settings).notify(
                 user,
