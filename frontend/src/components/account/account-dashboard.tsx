@@ -1,5 +1,6 @@
 "use client";
 
+import { useOpenCloseTransition } from "@/components/use-open-close-transition";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -74,6 +75,7 @@ import {
   type StudyProjectPrepareResponse,
   type SummaryHighlightColor as ApiSummaryHighlightColor,
 } from "@/lib/projects-api";
+import { toast } from "@/lib/toast-store";
 
 type ViewId = "home" | "project" | "new";
 export type TabId =
@@ -660,6 +662,8 @@ export function AccountDashboard({
         : "rezumat",
   );
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const { isMounted: isBackdropMounted, isVisible: isBackdropVisible } =
+    useOpenCloseTransition(sidebarOpen, 300);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(
     () =>
       typeof window !== "undefined" &&
@@ -679,15 +683,11 @@ export function AccountDashboard({
   const [completedSteps, setCompletedSteps] = useState<string[]>([]);
   const [preparedProject, setPreparedProject] =
     useState<StudyProjectPrepareResponse | null>(null);
-  const [generationError, setGenerationError] = useState<string | null>(null);
   const [isCancellingGeneration, setIsCancellingGeneration] = useState(false);
   const [usage, setUsage] = useState<Usage | null>(null);
   const generationAbortControllerRef = useRef<AbortController | null>(null);
   const generationProjectIdRef = useRef<string | null>(null);
   const generationCancelRequestedRef = useRef(false);
-  const [fileSelectionNotice, setFileSelectionNotice] = useState<string | null>(
-    null,
-  );
   const activeProject = useMemo(
     () => getProjectById(projects, activeProjectId),
     [activeProjectId, projects],
@@ -699,6 +699,12 @@ export function AccountDashboard({
   const maxQuizQuestions = Math.max(
     1,
     Number(user?.current_plan?.quiz_questions_per_quiz ?? 10),
+  );
+  // How many quizzes one project may hold in total; the API enforces the same
+  // ceiling when the generation is requested.
+  const maxQuizzesPerProject = Math.max(
+    1,
+    Number(user?.current_plan?.quizzes_per_project_limit ?? 3),
   );
   const uploadPlanLimits = useMemo(
     () => getProjectUploadPlanLimits(user?.current_plan),
@@ -1413,9 +1419,7 @@ export function AccountDashboard({
     setCompletedSteps([]);
     setGenerationState("form");
     setPreparedProject(null);
-    setGenerationError(null);
     setIsCancellingGeneration(false);
-    setFileSelectionNotice(null);
   }
 
   function addFiles(files: FileList | null) {
@@ -1472,15 +1476,14 @@ export function AccountDashboard({
         nextTotalSize += file.size;
       }
 
-      setFileSelectionNotice(
-        rejectedReasons.size > 0 ? [...rejectedReasons].join(" ") : null,
-      );
+      if (rejectedReasons.size > 0) {
+        toast.warning([...rejectedReasons].join(" "));
+      }
 
       if (acceptedFiles.length === 0) {
         return currentFiles;
       }
 
-      setGenerationError(null);
       return [...currentFiles, ...acceptedFiles];
     });
   }
@@ -1495,7 +1498,6 @@ export function AccountDashboard({
     setUploadedFiles((currentFiles) =>
       currentFiles.filter((_, fileIndex) => fileIndex !== index),
     );
-    setFileSelectionNotice(null);
   }
 
   function storeApiProject(apiProject: ApiStudyProject) {
@@ -1561,13 +1563,13 @@ export function AccountDashboard({
 
   async function startGeneration() {
     if (!uploadedFilesAreWithinPlan) {
-      setFileSelectionNotice(
+      toast.warning(
         `Selecția depășește limitele planului ${uploadPlanLimits.planName}.`,
       );
       return;
     }
     if (monthlyUploadQuotaNotice) {
-      setFileSelectionNotice(monthlyUploadQuotaNotice);
+      toast.warning(monthlyUploadQuotaNotice);
       return;
     }
     if (!canGenerate) return;
@@ -1581,7 +1583,6 @@ export function AccountDashboard({
     setGenerationState("generating");
     setCompletedSteps([]);
     setPreparedProject(null);
-    setGenerationError(null);
     setIsCancellingGeneration(false);
 
     try {
@@ -1609,14 +1610,13 @@ export function AccountDashboard({
         setGenerationState("form");
         setCompletedSteps([]);
         setPreparedProject(null);
-        setGenerationError(null);
         return;
       }
 
       const friendlyError =
-        error instanceof Error
+        (error instanceof Error
           ? toFriendlyGenerationError(error.message)
-          : "Proiectul nu a putut fi pregătit momentan.";
+          : null) ?? "Proiectul nu a putut fi pregătit momentan.";
       if (transientProjectId && error instanceof ProjectGenerationFailedError) {
         try {
           await deleteStudyProject(transientProjectId);
@@ -1627,7 +1627,7 @@ export function AccountDashboard({
       setGenerationState("form");
       setCompletedSteps([]);
       setPreparedProject(null);
-      setGenerationError(`${friendlyError} Proiectul nu a fost salvat.`);
+      toast.error(friendlyError, "Proiectul nu a fost salvat.");
     } finally {
       if (generationAbortControllerRef.current === abortController) {
         generationAbortControllerRef.current = null;
@@ -1677,7 +1677,6 @@ export function AccountDashboard({
     setGenerationState("form");
     setCompletedSteps([]);
     setPreparedProject(null);
-    setGenerationError(null);
     setIsCancellingGeneration(false);
   }
 
@@ -1725,12 +1724,15 @@ export function AccountDashboard({
         />
       ) : null}
 
-      {sidebarOpen ? (
+      {isBackdropMounted ? (
         <button
           type="button"
           aria-label="Închide meniul"
           onClick={() => setSidebarOpen(false)}
-          className="fixed inset-0 z-40 bg-black/40 lg:hidden"
+          // Fades with the drawer instead of snapping in and out.
+          className={`fixed inset-0 z-40 bg-black/40 transition-opacity duration-300 lg:hidden ${
+            isBackdropVisible ? "opacity-100" : "opacity-0"
+          }`}
         />
       ) : null}
 
@@ -2142,6 +2144,7 @@ export function AccountDashboard({
               flashcardMode={initialFlashcardMode}
               hasAiAccess={hasAiAccess}
               maxQuizQuestions={maxQuizQuestions}
+              maxQuizzesPerProject={maxQuizzesPerProject}
               isTabContentLoading={isTabRoutePending}
               onBack={showHome}
               onTabChange={changeProjectTab}
@@ -2173,9 +2176,7 @@ export function AccountDashboard({
               generationProgress={generationProgress}
               completedSteps={completedSteps}
               preparedProject={preparedProject}
-              generationError={generationError}
               isCancellingGeneration={isCancellingGeneration}
-              fileSelectionNotice={fileSelectionNotice}
               quotaNotice={monthlyUploadQuotaNotice}
               planLimits={uploadPlanLimits}
               isDragging={isDragging}
@@ -2446,7 +2447,6 @@ function HomeView({
   );
   const [renameDraft, setRenameDraft] = useState("");
   const [busyProjectId, setBusyProjectId] = useState<string | null>(null);
-  const [projectError, setProjectError] = useState<string | null>(null);
   const [deleteCandidateProject, setDeleteCandidateProject] =
     useState<StudyProject | null>(null);
   const deletingProjectIdsRef = useRef(new Set<string>());
@@ -2467,7 +2467,6 @@ function HomeView({
         : `Ai ${projects.length} proiecte pregătite pentru studiu.`;
 
   function startRename(project: StudyProject) {
-    setProjectError(null);
     setOpenMenuProjectId(null);
     setRenamingProjectId(project.id);
     setRenameDraft(project.name);
@@ -2476,21 +2475,18 @@ function HomeView({
   async function submitRename(projectId: string) {
     const nextName = renameDraft.trim();
     if (nextName.length < 2) {
-      setProjectError("Numele proiectului trebuie să aibă cel puțin 2 caractere.");
+      toast.error("Numele proiectului trebuie să aibă cel puțin 2 caractere.");
       return;
     }
 
     setBusyProjectId(projectId);
-    setProjectError(null);
     try {
       await onRenameProject(projectId, nextName);
       setRenamingProjectId(null);
       setRenameDraft("");
     } catch (error) {
-      setProjectError(
-        error instanceof Error
-          ? error.message
-          : "Proiectul nu a putut fi redenumit.",
+      toast.error(
+        error instanceof Error ? error.message : "Proiectul nu a putut fi redenumit.",
       );
     } finally {
       setBusyProjectId(null);
@@ -2499,15 +2495,12 @@ function HomeView({
 
   async function archiveProject(projectId: string) {
     setBusyProjectId(projectId);
-    setProjectError(null);
     setOpenMenuProjectId(null);
     try {
       await onArchiveProject(projectId);
     } catch (error) {
-      setProjectError(
-        error instanceof Error
-          ? error.message
-          : "Proiectul nu a putut fi arhivat.",
+      toast.error(
+        error instanceof Error ? error.message : "Proiectul nu a putut fi arhivat.",
       );
     } finally {
       setBusyProjectId(null);
@@ -2516,15 +2509,12 @@ function HomeView({
 
   async function toggleProjectActivation(projectId: string, isActive: boolean) {
     setBusyProjectId(projectId);
-    setProjectError(null);
     setOpenMenuProjectId(null);
     try {
       await onSetProjectActivation(projectId, isActive);
     } catch (error) {
-      setProjectError(
-        error instanceof Error
-          ? error.message
-          : "Starea proiectului nu a putut fi schimbată.",
+      toast.error(
+        error instanceof Error ? error.message : "Starea proiectului nu a putut fi schimbată.",
       );
     } finally {
       setBusyProjectId(null);
@@ -2536,15 +2526,12 @@ function HomeView({
 
     deletingProjectIdsRef.current.add(projectId);
     setBusyProjectId(projectId);
-    setProjectError(null);
     try {
       await onDeleteProject(projectId);
       setDeleteCandidateProject(null);
     } catch (error) {
-      setProjectError(
-        error instanceof Error
-          ? error.message
-          : "Proiectul nu a putut fi șters.",
+      toast.error(
+        error instanceof Error ? error.message : "Proiectul nu a putut fi șters.",
       );
     } finally {
       deletingProjectIdsRef.current.delete(projectId);
@@ -2605,12 +2592,6 @@ function HomeView({
       <UsageSection usage={usage} />
 
       <SectionLabel>Proiectele tale</SectionLabel>
-      {projectError ? (
-        <div className="rounded-xl border border-danger-border bg-danger-soft px-4 py-3 text-sm font-semibold text-danger">
-          {projectError}
-        </div>
-      ) : null}
-
       <div>
         {projects.length ? (
           <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
@@ -2934,6 +2915,7 @@ function ProjectView({
   flashcardMode,
   hasAiAccess,
   maxQuizQuestions,
+  maxQuizzesPerProject,
   isTabContentLoading,
   onBack,
   onTabChange,
@@ -2976,6 +2958,8 @@ function ProjectView({
   ) => Promise<StudyProject>;
   /** Upper bound for one quiz, from the account's plan. */
   maxQuizQuestions: number;
+  /** How many quizzes this project may hold, from the account's plan. */
+  maxQuizzesPerProject: number;
   onManualFlashcardCreate: (
     projectId: string,
     flashcard: ManualFlashcardPayload,
@@ -3102,7 +3086,7 @@ function ProjectView({
       </div>
 
       <div
-        className={`sticky top-14 z-30 -mx-2 border-b border-subtle bg-app/95 px-2 backdrop-blur-xl transition-[transform,opacity] duration-300 lg:top-3 ${
+        className={`sticky top-14 z-20 -mx-2 border-b border-subtle bg-app/95 px-2 backdrop-blur-xl transition-[translate,opacity] duration-300 lg:top-3 ${
           areProjectTabsVisible
             ? "translate-y-0 opacity-100"
             : "pointer-events-none -translate-y-4 opacity-0"
@@ -3172,6 +3156,7 @@ function ProjectView({
                 onQuizComplete={onQuizComplete}
                 onGenerateQuiz={onGenerateQuiz}
                 maxQuizQuestions={maxQuizQuestions}
+                maxQuizzesPerProject={maxQuizzesPerProject}
               />
             ) : null}
             {activeTab === "strategii" ? (
@@ -7065,7 +7050,6 @@ function ManualFlashcardBuilderPage({
   const [questionImage, setQuestionImage] = useState<string | undefined>();
   const [questionImageFile, setQuestionImageFile] = useState<File | undefined>();
   const [isSaving, setIsSaving] = useState(false);
-  const [saveError, setSaveError] = useState<string | null>(null);
   const canSave =
     category.trim().length > 0 &&
     (question.trim().length > 0 || Boolean(questionImage)) &&
@@ -7079,7 +7063,6 @@ function ManualFlashcardBuilderPage({
     setDifficulty("medium");
     setQuestionImage(undefined);
     setQuestionImageFile(undefined);
-    setSaveError(null);
   }
 
   async function handleImageChange(file: File | undefined) {
@@ -7098,7 +7081,6 @@ function ManualFlashcardBuilderPage({
     if (!canSave) return;
 
     setIsSaving(true);
-    setSaveError(null);
     try {
       await onCreate({
         question: question.trim(),
@@ -7109,7 +7091,7 @@ function ManualFlashcardBuilderPage({
       });
       resetForm();
     } catch {
-      setSaveError("Flashcardul nu a putut fi salvat momentan.");
+      toast.error("Flashcardul nu a putut fi salvat momentan.");
     } finally {
       setIsSaving(false);
     }
@@ -7206,11 +7188,6 @@ function ManualFlashcardBuilderPage({
       </div>
 
       <div className="flex flex-wrap items-center justify-end gap-3 border-t border-subtle pt-5">
-        {saveError ? (
-          <p className="mr-auto rounded-lg border border-danger-border bg-danger-soft px-4 py-3 text-sm font-bold text-danger">
-            {saveError}
-          </p>
-        ) : null}
         <button
           type="button"
           onClick={handleCancel}
@@ -7801,6 +7778,7 @@ function QuizPanel({
   onQuizComplete,
   onGenerateQuiz,
   maxQuizQuestions,
+  maxQuizzesPerProject,
 }: {
   project: StudyProject;
   onQuizMistake: (
@@ -7819,6 +7797,8 @@ function QuizPanel({
   ) => Promise<StudyProject>;
   /** Upper bound for one quiz, from the account's plan. */
   maxQuizQuestions: number;
+  /** How many quizzes this project may hold, from the account's plan. */
+  maxQuizzesPerProject: number;
 }) {
   const [isQuizConfigOpen, setIsQuizConfigOpen] = useState(false);
   const [activeQuizId, setActiveQuizId] = useState<string | null>(null);
@@ -7835,14 +7815,12 @@ function QuizPanel({
   const [showQuizSummary, setShowQuizSummary] = useState(false);
   const [attemptId, setAttemptId] = useState(0);
   const [isGeneratingQuizzes, setIsGeneratingQuizzes] = useState(false);
-  const [quizGenerationError, setQuizGenerationError] = useState<string | null>(
-    null,
-  );
   const isPersistingCompletionRef = useRef(false);
   const persistedAttemptRef = useRef<number | null>(null);
   const autoOpenedSummaryRef = useRef<number | null>(null);
 
   const quizData = useMemo(() => buildProjectQuizData(project), [project]);
+  const hasReachedQuizLimit = quizData.catalog.length >= maxQuizzesPerProject;
   const activeQuiz = activeQuizId
     ? quizData.catalog.find((quiz) => quiz.id === activeQuizId) ?? null
     : null;
@@ -7931,19 +7909,17 @@ function QuizPanel({
     <QuizConfigModal
       maxQuestions={maxQuizQuestions}
       isSubmitting={isGeneratingQuizzes}
-      errorMessage={quizGenerationError}
       onCancel={() => setIsQuizConfigOpen(false)}
       onConfirm={async (config) => {
         setIsGeneratingQuizzes(true);
-        setQuizGenerationError(null);
         try {
           await onGenerateQuiz(project.id, config);
           setIsQuizConfigOpen(false);
         } catch (error) {
-          setQuizGenerationError(
-            error instanceof Error
+          toast.error(
+            (error instanceof Error
               ? toFriendlyGenerationError(error.message)
-              : "Quizul nu a putut fi generat.",
+              : null) ?? "Quizul nu a putut fi generat.",
           );
         } finally {
           setIsGeneratingQuizzes(false);
@@ -7961,9 +7937,17 @@ function QuizPanel({
         errorMessage={project.errorMessage}
         quizzes={quizData.catalog}
         isGenerating={isGeneratingQuizzes}
-        generationError={quizGenerationError}
+        quizLimit={maxQuizzesPerProject}
         onOpenQuizConfig={() => {
-          setQuizGenerationError(null);
+          if (hasReachedQuizLimit) {
+            toast.warning(
+              `Ai atins limita de ${maxQuizzesPerProject} ${
+                maxQuizzesPerProject === 1 ? "quiz" : "quizuri"
+              } pentru acest proiect.`,
+              "Treci la un plan superior ca să generezi mai multe.",
+            );
+            return;
+          }
           setIsQuizConfigOpen(true);
         }}
         onStartQuiz={(quizId) => {
@@ -8522,7 +8506,7 @@ function QuizLibrary({
   errorMessage,
   quizzes,
   isGenerating,
-  generationError,
+  quizLimit,
   onOpenQuizConfig,
   onStartQuiz,
 }: {
@@ -8530,7 +8514,8 @@ function QuizLibrary({
   errorMessage: string | null;
   quizzes: AccountQuiz[];
   isGenerating: boolean;
-  generationError: string | null;
+  /** How many quizzes this project may hold, from the account's plan. */
+  quizLimit: number;
   onOpenQuizConfig: () => void;
   onStartQuiz: (quizId: string) => void;
 }) {
@@ -8552,11 +8537,12 @@ function QuizLibrary({
           </h2>
           <p className="mt-3 max-w-xl text-sm leading-7 text-muted">
             Alegi dificultatea, câte întrebări vrei și ce tipuri de răspuns, iar
-            noi generăm un quiz pe măsură. Poți genera câte ai nevoie.
+            noi generăm un quiz pe măsură. Planul tău permite{" "}
+            {quizLimit} {quizLimit === 1 ? "quiz" : "quizuri"} în acest proiect.
           </p>
-          {generationError || errorMessage ? (
+          {errorMessage ? (
             <div className="mt-4 rounded-xl border border-danger-border bg-danger-soft px-4 py-3 text-sm font-semibold text-danger">
-              {generationError || errorMessage}
+              {errorMessage}
             </div>
           ) : null}
         </div>
@@ -8646,6 +8632,9 @@ function QuizLibrary({
           <span className="inline-flex w-fit rounded-md border border-subtle bg-surface px-4 py-2 text-xs font-black text-content">
             {completedCount}/{quizzes.length} completate
           </span>
+          <span className="inline-flex w-fit rounded-md border border-subtle bg-surface px-4 py-2 text-xs font-black text-content">
+            {quizzes.length}/{quizLimit} generate
+          </span>
           <button
             type="button"
             onClick={onOpenQuizConfig}
@@ -8662,11 +8651,6 @@ function QuizLibrary({
         </div>
       </div>
 
-      {generationError ? (
-        <p className="rounded-md border border-danger-border bg-danger-soft px-4 py-3 text-sm font-bold text-danger">
-          {generationError}
-        </p>
-      ) : null}
       <div className="grid items-stretch gap-4 lg:grid-cols-2 xl:grid-cols-3">
         {quizzes.map((quiz) => (
           <QuizCatalogCard key={quiz.id} quiz={quiz} onStartQuiz={onStartQuiz} />
@@ -10308,9 +10292,7 @@ function NewProjectView({
   generationProgress,
   completedSteps,
   preparedProject,
-  generationError,
   isCancellingGeneration,
-  fileSelectionNotice,
   quotaNotice,
   planLimits,
   isDragging,
@@ -10338,9 +10320,7 @@ function NewProjectView({
   generationProgress: number;
   completedSteps: string[];
   preparedProject: StudyProjectPrepareResponse | null;
-  generationError: string | null;
   isCancellingGeneration: boolean;
-  fileSelectionNotice: string | null;
   quotaNotice: string | null;
   planLimits: ProjectUploadPlanLimits;
   isDragging: boolean;
@@ -10371,7 +10351,6 @@ function NewProjectView({
   const setupProgress = Math.round(
     (setupSteps.filter(Boolean).length / setupSteps.length) * 100,
   );
-  const visibleNotice = fileSelectionNotice ?? quotaNotice;
 
   return (
     <section className="space-y-6">
@@ -10398,12 +10377,6 @@ function NewProjectView({
               </h1>
             </div>
           </header>
-
-          {generationError ? (
-            <div className="rounded-xl border border-danger-border bg-danger-soft px-4 py-3 text-sm font-semibold text-danger">
-              {generationError}
-            </div>
-          ) : null}
 
           <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_22rem]">
             <div className="space-y-5">
@@ -10565,9 +10538,9 @@ function NewProjectView({
                     Vezi planuri
                   </Link>
                 </div>
-                {visibleNotice ? (
+                {quotaNotice ? (
                   <p className="mt-3 rounded-lg border border-warning-border bg-warning-soft px-3 py-2 text-sm font-bold text-warning">
-                    {visibleNotice}
+                    {quotaNotice}
                   </p>
                 ) : null}
               </div>
@@ -10665,7 +10638,6 @@ function NewProjectView({
             progress={generationProgress}
             completedSteps={completedSteps}
             preparedProject={preparedProject}
-            generationError={generationError}
             isCancellingGeneration={isCancellingGeneration}
             onCancelGeneration={onCancelGeneration}
             onOpenGeneratedProject={onOpenGeneratedProject}
@@ -10681,7 +10653,6 @@ function GenerationView({
   progress,
   completedSteps,
   preparedProject,
-  generationError,
   isCancellingGeneration,
   onCancelGeneration,
   onOpenGeneratedProject,
@@ -10691,7 +10662,6 @@ function GenerationView({
   progress: number;
   completedSteps: string[];
   preparedProject: StudyProjectPrepareResponse | null;
-  generationError: string | null;
   isCancellingGeneration: boolean;
   onCancelGeneration: () => void | Promise<void>;
   onOpenGeneratedProject: () => void;
@@ -10707,12 +10677,6 @@ function GenerationView({
           ? "Rezumatul, cuvintele cheie, strategiile și flashcardurile au fost salvate în proiect."
           : "Pregătim materialele și creăm primul pachet de studiu."}
       </p>
-
-      {generationError ? (
-        <div className="mt-5 rounded-xl border border-danger-border bg-danger-soft px-4 py-3 text-sm font-semibold text-danger">
-          {generationError}
-        </div>
-      ) : null}
 
       <div className="mt-6 h-2 overflow-hidden rounded-full bg-app">
         <div

@@ -1,5 +1,6 @@
 "use client";
 
+import { useOpenCloseTransition } from "@/components/use-open-close-transition";
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
@@ -76,6 +77,8 @@ const NOTIFICATION_POLL_INTERVAL_MS = 15_000;
 
 export function NotificationBell() {
   const [isOpen, setIsOpen] = useState(false);
+  const { isMounted: isPanelMounted, isVisible: isPanelVisible } =
+    useOpenCloseTransition(isOpen);
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [isLoading, setIsLoading] = useState(false);
@@ -269,7 +272,7 @@ export function NotificationBell() {
         ) : null}
       </button>
 
-      {isOpen ? (
+      {isPanelMounted ? (
         <>
           <button
             type="button"
@@ -277,7 +280,14 @@ export function NotificationBell() {
             onClick={() => setIsOpen(false)}
             className="fixed inset-0 z-[100] cursor-default bg-transparent"
           />
-          <div className="fixed right-4 top-16 z-[101] w-[min(92vw,380px)] overflow-hidden rounded-xl border border-subtle bg-surface shadow-2xl shadow-black/10">
+          <div
+            // Grows from the bell in the corner rather than appearing whole.
+            className={`fixed right-4 top-16 z-[101] w-[min(92vw,380px)] origin-top-right overflow-hidden rounded-xl border border-subtle bg-surface shadow-2xl shadow-black/10 transition-[opacity,transform] duration-200 ease-out ${
+              isPanelVisible
+                ? "translate-y-0 scale-100 opacity-100"
+                : "-translate-y-1 scale-95 opacity-0"
+            }`}
+          >
             <div className="flex items-center justify-between border-b border-subtle px-4 py-3">
               <p className="text-xs font-black uppercase tracking-[0.16em] text-muted">
                 Notificări

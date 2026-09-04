@@ -11,6 +11,7 @@ import {
   type AccountDeletionRequestStatus,
   type AdminAccountDeletionRequest,
 } from "@/lib/admin-account-deletion-requests-api";
+import { toast } from "@/lib/toast-store";
 
 type AdminAccountDeletionRequestsPageProps = {
   initialRequests: AdminAccountDeletionRequest[];
@@ -119,10 +120,6 @@ export function AdminAccountDeletionRequestsPage({
   const [actionRequestId, setActionRequestId] = useState<string | null>(null);
   const [requestToResolve, setRequestToResolve] =
     useState<AdminAccountDeletionRequest | null>(null);
-  const [notice, setNotice] = useState<{
-    tone: "success" | "danger";
-    message: string;
-  } | null>(null);
 
   const latestRequest = requests[0] ?? null;
   const pendingCount = requests.filter(
@@ -165,19 +162,14 @@ export function AdminAccountDeletionRequestsPage({
 
   async function refreshRequests() {
     setIsRefreshing(true);
-    setNotice(null);
 
     try {
       setRequests(await getAdminAccountDeletionRequests({ limit: 200 }));
       setCurrentPage(1);
     } catch (error) {
-      setNotice({
-        tone: "danger",
-        message:
-          error instanceof Error
-            ? error.message
-            : "Solicitările de ștergere nu au putut fi încărcate.",
-      });
+      toast.error(
+        error instanceof Error ? error.message : "Solicitările de ștergere nu au putut fi încărcate.",
+      );
     } finally {
       setIsRefreshing(false);
     }
@@ -189,7 +181,6 @@ export function AdminAccountDeletionRequestsPage({
     const alreadyDeleted = request.user_id === null;
     setActionRequestId(request.id);
     setRequestToResolve(null);
-    setNotice(null);
 
     try {
       const updatedRequest = await deleteAccountFromDeletionRequest(request.id);
@@ -198,20 +189,15 @@ export function AdminAccountDeletionRequestsPage({
           item.id === updatedRequest.id ? updatedRequest : item,
         ),
       );
-      setNotice({
-        tone: "success",
-        message: alreadyDeleted
+      toast.success(
+        alreadyDeleted
           ? "Solicitarea a fost marcată ca rezolvată."
           : "Contul a fost șters și solicitarea a fost marcată ca rezolvată.",
-      });
+      );
     } catch (error) {
-      setNotice({
-        tone: "danger",
-        message:
-          error instanceof Error
-            ? error.message
-            : "Contul nu a putut fi șters.",
-      });
+      toast.error(
+        error instanceof Error ? error.message : "Contul nu a putut fi șters.",
+      );
     } finally {
       setActionRequestId(null);
     }
@@ -268,18 +254,6 @@ export function AdminAccountDeletionRequestsPage({
             detail={latestRequest?.email ?? "fără solicitări"}
           />
         </div>
-
-        {notice ? (
-          <p
-            className={`rounded-xl border px-4 py-3 text-sm font-bold leading-6 ${
-              notice.tone === "danger"
-                ? "border-danger-border bg-danger-soft text-danger"
-                : "border-success-border bg-success-soft text-success"
-            }`}
-          >
-            {notice.message}
-          </p>
-        ) : null}
 
         <section className="rounded-xl border border-subtle bg-surface p-4">
           <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_18rem] xl:items-center">

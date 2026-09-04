@@ -10,6 +10,7 @@ import {
   register,
   requestPasswordReset,
 } from "@/lib/auth-api";
+import { toast } from "@/lib/toast-store";
 
 type AuthFormProps = {
   mode: "login" | "register" | "forgot-password";
@@ -115,11 +116,17 @@ export function AuthForm({ mode, redirectTo, initialError }: AuthFormProps) {
   }, [afterLoginPath, isForgotPassword, isLoading, router, user]);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmation, setShowConfirmation] = useState(false);
-  const [message, setMessage] = useState<string | null>(initialError ?? null);
   const [successDialog, setSuccessDialog] = useState<SuccessDialog | null>(null);
   const [hasRequestedReset, setHasRequestedReset] = useState(false);
-  const [isError, setIsError] = useState(Boolean(initialError));
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // An error handed over by the page (a failed Google callback, an expired
+  // link) arrives as a prop, so it is raised once the form is on screen.
+  useEffect(() => {
+    if (initialError) {
+      toast.error(initialError);
+    }
+  }, [initialError]);
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -130,8 +137,7 @@ export function AuthForm({ mode, redirectTo, initialError }: AuthFormProps) {
       isRegister &&
       formData.get("password") !== formData.get("confirmPassword")
     ) {
-      setIsError(true);
-      setMessage("Parolele introduse nu coincid.");
+      toast.error("Parolele introduse nu coincid.");
       return;
     }
 
@@ -139,8 +145,6 @@ export function AuthForm({ mode, redirectTo, initialError }: AuthFormProps) {
     const password = String(formData.get("password") ?? "");
 
     setIsSubmitting(true);
-    setIsError(false);
-    setMessage(null);
     setSuccessDialog(null);
 
     try {
@@ -201,8 +205,7 @@ export function AuthForm({ mode, redirectTo, initialError }: AuthFormProps) {
       if (isForgotPassword && !hasRequestedReset) {
         resetRequestLockRef.current = false;
       }
-      setIsError(true);
-      setMessage(
+      toast.error(
         error instanceof AuthApiError
           ? error.message
           : "Serviciul de autentificare nu este disponibil momentan.",
@@ -409,19 +412,6 @@ export function AuthForm({ mode, redirectTo, initialError }: AuthFormProps) {
             />
             <span>Doresc să primesc noutăți și oferte prin e-mail.</span>
           </label>
-        </div>
-      ) : null}
-
-      {message ? (
-        <div
-          role="status"
-          className={`rounded-xl border px-4 py-3 text-xs font-semibold leading-5 ${
-            isError
-              ? "border-danger-border bg-danger-soft text-danger"
-              : "border-info-border bg-info-soft text-info"
-          }`}
-        >
-          {message}
         </div>
       ) : null}
 

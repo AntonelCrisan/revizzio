@@ -50,6 +50,7 @@ class SubscriptionPlanResponse(BaseModel):
     estimated_page_limit: int
     initial_flashcard_limit: int
     quiz_questions_per_quiz: int
+    quizzes_per_project_limit: int
     allow_scanned_documents: bool
     monthly_ai_credits: int
     monthly_ocr_pages: int
@@ -99,6 +100,7 @@ class SubscriptionPlanPublicResponse(BaseModel):
     estimated_page_limit: int
     initial_flashcard_limit: int
     quiz_questions_per_quiz: int
+    quizzes_per_project_limit: int
     allow_scanned_documents: bool
     ai_chat_enabled: bool
     is_featured: bool
@@ -142,6 +144,7 @@ class SubscriptionPlanUpdate(BaseModel):
     estimated_page_limit: int = Field(ge=1, le=10000)
     initial_flashcard_limit: int = Field(ge=1, le=500)
     quiz_questions_per_quiz: int = Field(ge=3, le=50)
+    quizzes_per_project_limit: int = Field(ge=1, le=200)
     allow_scanned_documents: bool
     monthly_ai_credits: int = Field(ge=0, le=100000)
     monthly_ocr_pages: int = Field(ge=0, le=100000)

@@ -5,6 +5,7 @@ import { useState } from "react";
 import { AccountStaticShell } from "@/components/account/account-static-shell";
 import { createCheckoutSession, PaymentsApiError } from "@/lib/payments-api";
 import type { SubscriptionPlanPublic } from "@/lib/plans-api";
+import { toast } from "@/lib/toast-store";
 
 type CheckoutPlanPageProps = {
   plan: SubscriptionPlanPublic;
@@ -77,7 +78,6 @@ function paymentErrorMessage(error: unknown) {
 
 export function CheckoutPlanPage({ plan }: CheckoutPlanPageProps) {
   const [isStartingPayment, setIsStartingPayment] = useState(false);
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const price = formatPlanPrice(plan.price_ron);
   const isFree = Number(plan.price_ron) === 0;
   const hasStripePrice = plan.is_purchasable;
@@ -88,13 +88,12 @@ export function CheckoutPlanPage({ plan }: CheckoutPlanPageProps) {
   async function startPayment() {
     if (!canStartPayment) return;
     setIsStartingPayment(true);
-    setErrorMessage(null);
 
     try {
       const checkoutSession = await createCheckoutSession(plan.slug);
       window.location.assign(checkoutSession.checkout_url);
     } catch (error) {
-      setErrorMessage(paymentErrorMessage(error));
+      toast.error(paymentErrorMessage(error));
       setIsStartingPayment(false);
     }
   }
@@ -203,12 +202,6 @@ export function CheckoutPlanPage({ plan }: CheckoutPlanPageProps) {
           {!hasStripePrice && !isFree ? (
             <p className="mt-4 rounded-2xl border border-warning-border bg-warning-soft px-4 py-3 text-sm font-bold text-warning">
               Planul nu are încă un Stripe Price ID configurat în administrare.
-            </p>
-          ) : null}
-
-          {errorMessage ? (
-            <p className="mt-4 rounded-2xl border border-danger-border bg-danger-soft px-4 py-3 text-sm font-bold text-danger">
-              {errorMessage}
             </p>
           ) : null}
 

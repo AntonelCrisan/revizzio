@@ -15,6 +15,7 @@ import {
 } from "@/lib/payments-api";
 import type { SubscriptionPlanPublic } from "@/lib/plans-api";
 import { planDetailPath } from "@/lib/seo";
+import { toast } from "@/lib/toast-store";
 import { UpgradePageSkeletonBody } from "@/components/account/account-page-skeletons";
 
 type UpgradePageProps = {
@@ -184,10 +185,6 @@ export function UpgradePage({
   const syncedCheckoutSessionRef = useRef<string | null>(null);
   const [currentSubscription, setCurrentSubscription] =
     useState<CurrentSubscription | null>(null);
-  const [subscriptionMessage, setSubscriptionMessage] = useState<string | null>(
-    null,
-  );
-  const [subscriptionError, setSubscriptionError] = useState<string | null>(null);
   const [isCancelModalOpen, setIsCancelModalOpen] = useState(false);
   const [isUpdatingSubscription, setIsUpdatingSubscription] = useState(false);
   const currentUserId = user?.id ?? null;
@@ -312,14 +309,12 @@ export function UpgradePage({
     if (!currentPlanIsPaid || isUpdatingSubscription) return;
 
     setIsUpdatingSubscription(true);
-    setSubscriptionError(null);
-    setSubscriptionMessage(null);
 
     try {
       const response = await cancelCurrentSubscription();
       setUser(response.user);
       setCurrentSubscription(response.subscription);
-      setSubscriptionMessage(
+      toast.success(
         `Reînnoirea este anulată. Ai acces până la ${formatSubscriptionDate(
           response.subscription?.current_period_end,
         )}.`,
@@ -327,7 +322,7 @@ export function UpgradePage({
       setIsCancelModalOpen(false);
       router.refresh();
     } catch (error) {
-      setSubscriptionError(subscriptionActionError(error));
+      toast.error(subscriptionActionError(error));
     } finally {
       setIsUpdatingSubscription(false);
     }
@@ -337,17 +332,15 @@ export function UpgradePage({
     if (!currentPlanIsPaid || isUpdatingSubscription) return;
 
     setIsUpdatingSubscription(true);
-    setSubscriptionError(null);
-    setSubscriptionMessage(null);
 
     try {
       const response = await resumeCurrentSubscription();
       setUser(response.user);
       setCurrentSubscription(response.subscription);
-      setSubscriptionMessage("Reînnoirea abonamentului este activă din nou.");
+      toast.success("Reînnoirea abonamentului este activă din nou.");
       router.refresh();
     } catch (error) {
-      setSubscriptionError(subscriptionActionError(error));
+      toast.error(subscriptionActionError(error));
     } finally {
       setIsUpdatingSubscription(false);
     }
@@ -416,18 +409,6 @@ export function UpgradePage({
               {billingNotice.detail}
             </p>
           </div>
-        ) : null}
-
-        {subscriptionMessage || subscriptionError ? (
-          <p
-            className={`rounded-xl border px-4 py-3 text-sm font-bold ${
-              subscriptionError
-                ? "border-danger-border bg-danger-soft text-danger"
-                : "border-success-border bg-success-soft text-success"
-            }`}
-          >
-            {subscriptionError || subscriptionMessage}
-          </p>
         ) : null}
 
         <div className="grid gap-5 lg:grid-cols-3 lg:items-stretch">

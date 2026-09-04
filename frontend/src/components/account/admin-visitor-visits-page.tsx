@@ -10,6 +10,7 @@ import {
   getAdminVisitorStats,
   getAdminVisitorVisits,
 } from "@/lib/admin-audit-api";
+import { toast } from "@/lib/toast-store";
 
 type AdminVisitorVisitsPageProps = {
   initialVisits: VisitorVisit[];
@@ -63,7 +64,6 @@ export function AdminVisitorVisitsPage({
   const [stats, setStats] = useState(initialStats);
   const [currentPage, setCurrentPage] = useState(1);
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const [errorMessage, setErrorMessage] = useState("");
 
   const pageCount = Math.max(1, Math.ceil(visits.length / VISITS_PAGE_SIZE));
   const safeCurrentPage = Math.min(currentPage, pageCount);
@@ -74,7 +74,6 @@ export function AdminVisitorVisitsPage({
 
   async function refreshVisits() {
     setIsRefreshing(true);
-    setErrorMessage("");
 
     try {
       const [nextVisits, nextStats] = await Promise.all([
@@ -85,7 +84,7 @@ export function AdminVisitorVisitsPage({
       setStats(nextStats);
       setCurrentPage(1);
     } catch (error) {
-      setErrorMessage(
+      toast.error(
         error instanceof Error
           ? error.message
           : "Vizitele nu au putut fi încărcate.",
@@ -170,12 +169,6 @@ export function AdminVisitorVisitsPage({
             detail="de la activarea urmăririi"
           />
         </div>
-
-        {errorMessage ? (
-          <p className="rounded-xl border border-danger-border bg-danger-soft p-4 text-sm font-bold text-danger">
-            {errorMessage}
-          </p>
-        ) : null}
 
         <section className="overflow-hidden rounded-xl border border-subtle bg-surface">
           <div className="data-table-scroll max-h-[34rem] overflow-auto">

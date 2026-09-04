@@ -219,6 +219,7 @@ class ProjectPlanLimits:
     monthly_page_limit: int
     initial_flashcards: int
     quiz_questions_per_quiz: int
+    quizzes_per_project: int
     allow_scanned_documents: bool
 
 
@@ -233,6 +234,7 @@ PLAN_LIMITS: dict[str, ProjectPlanLimits] = {
         monthly_page_limit=40,
         initial_flashcards=20,
         quiz_questions_per_quiz=8,
+        quizzes_per_project=3,
         allow_scanned_documents=False,
     ),
     "focus": ProjectPlanLimits(
@@ -245,6 +247,7 @@ PLAN_LIMITS: dict[str, ProjectPlanLimits] = {
         monthly_page_limit=1000,
         initial_flashcards=40,
         quiz_questions_per_quiz=12,
+        quizzes_per_project=10,
         allow_scanned_documents=False,
     ),
     "pro": ProjectPlanLimits(
@@ -257,6 +260,7 @@ PLAN_LIMITS: dict[str, ProjectPlanLimits] = {
         monthly_page_limit=2500,
         initial_flashcards=50,
         quiz_questions_per_quiz=12,
+        quizzes_per_project=25,
         allow_scanned_documents=True,
     ),
 }
@@ -458,6 +462,12 @@ def limits_for_user(user: User) -> ProjectPlanLimits:
             "quiz_questions_per_quiz",
             fallback.quiz_questions_per_quiz,
             3,
+        ),
+        quizzes_per_project=_plan_int_limit(
+            plan,
+            "quizzes_per_project_limit",
+            fallback.quizzes_per_project,
+            1,
         ),
         allow_scanned_documents=_plan_bool_limit(
             plan,
@@ -678,6 +688,26 @@ def _validate_quiz_configuration(
         question_type for question_type in QUIZ_QUESTION_TYPES if question_type in seen
     ]
     return clean_complexity, question_count, ordered
+
+
+def _validate_quiz_slot_available(
+    *,
+    existing_quizzes: int,
+    max_quizzes: int,
+) -> None:
+    """Stop a project from growing past the plan's quiz ceiling.
+
+    Quizzes are generated one at a time on demand, so without this a project
+    could accumulate them without bound. The count is per project and never
+    resets: quizzes cannot be deleted, so the ceiling is a lifetime one.
+    """
+    cap = max(1, int(max_quizzes or 1))
+    if existing_quizzes >= cap:
+        raise ProjectValidationError(
+            f"Ai atins limita de {cap} "
+            f"{'quiz' if cap == 1 else 'quizuri'} pentru acest proiect. "
+            "Treci la un plan superior pentru mai multe."
+        )
 
 
 def _count_cloze_gaps(prompt: str) -> int:
@@ -2287,6 +2317,10 @@ class StudyProjectService:
         # Validated before queueing so the student gets the error immediately
         # instead of a job that fails in the background.
         limits = limits_for_user(user)
+        _validate_quiz_slot_available(
+            existing_quizzes=len(project.quizzes),
+            max_quizzes=limits.quizzes_per_project,
+        )
         _validate_quiz_configuration(
             complexity=complexity,
             question_count=question_count,

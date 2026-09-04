@@ -96,6 +96,11 @@ class SubscriptionPlan(Base):
         nullable=False,
         default=8,
     )
+    quizzes_per_project_limit: Mapped[int] = mapped_column(
+        Integer,
+        nullable=False,
+        default=3,
+    )
     allow_scanned_documents: Mapped[bool] = mapped_column(
         Boolean,
         nullable=False,

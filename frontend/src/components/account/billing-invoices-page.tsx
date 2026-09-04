@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { AccountStaticShell } from "@/components/account/account-static-shell";
 import { TablePagination } from "@/components/account/table-pagination";
 import { useAuth } from "@/components/auth/auth-provider";
+import { toast } from "@/lib/toast-store";
 import {
   listSubscriptionInvoices,
   type SubscriptionInvoice,
@@ -58,7 +59,7 @@ export function BillingInvoicesPage() {
   const { user, isLoading: isAuthLoading } = useAuth();
   const [invoices, setInvoices] = useState<SubscriptionInvoice[]>([]);
   const [currentPage, setCurrentPage] = useState(1);
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [hasLoadFailed, setHasLoadFailed] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const pageCount = Math.max(
     1,
@@ -74,11 +75,12 @@ export function BillingInvoicesPage() {
     if (!user) return;
 
     setIsLoading(true);
-    setErrorMessage(null);
+    setHasLoadFailed(false);
     listSubscriptionInvoices()
       .then(setInvoices)
       .catch(() => {
-        setErrorMessage("Facturile nu au putut fi încărcate momentan.");
+        setHasLoadFailed(true);
+        toast.error("Facturile nu au putut fi încărcate momentan.");
       })
       .finally(() => {
         setIsLoading(false);
@@ -93,11 +95,12 @@ export function BillingInvoicesPage() {
       .then((nextInvoices) => {
         if (!isMounted) return;
         setInvoices(nextInvoices);
-        setErrorMessage(null);
+        setHasLoadFailed(false);
       })
       .catch(() => {
         if (!isMounted) return;
-        setErrorMessage("Facturile nu au putut fi încărcate momentan.");
+        setHasLoadFailed(true);
+        toast.error("Facturile nu au putut fi încărcate momentan.");
       })
       .finally(() => {
         if (!isMounted) return;
@@ -148,9 +151,10 @@ export function BillingInvoicesPage() {
             <div className="py-6 text-sm font-semibold text-muted">
               Se încarcă facturile...
             </div>
-          ) : errorMessage ? (
+          ) : hasLoadFailed ? (
             <div className="py-6 text-sm font-semibold text-danger">
-              {errorMessage}
+              Lista nu a putut fi încărcată. Apasă „Reîncarcă” ca să încerci
+              din nou.
             </div>
           ) : invoices.length === 0 ? (
             <div className="py-6 text-sm text-muted">
@@ -214,7 +218,7 @@ export function BillingInvoicesPage() {
               ))}
             </div>
           )}
-          {!isLoading && !errorMessage ? (
+          {!isLoading && !hasLoadFailed ? (
             <TablePagination
               currentPage={safeCurrentPage}
               pageCount={pageCount}

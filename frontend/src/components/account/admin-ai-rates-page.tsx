@@ -11,6 +11,7 @@ import {
   updateAdminCreditRates,
   updateAdminModelRates,
 } from "@/lib/ai-rates-api";
+import { toast } from "@/lib/toast-store";
 
 const FEATURE_LABELS: Record<string, string> = {
   chat: "Chat AI",
@@ -30,14 +31,6 @@ const TIER_LABELS: Record<string, string> = {
 
 const TIER_ORDER = ["small", "medium", "large"];
 
-type Notice = { tone: "success" | "error"; message: string };
-
-function noticeClassName(tone: Notice["tone"]) {
-  return tone === "error"
-    ? "border-danger-border bg-danger-soft text-danger"
-    : "border-info-border bg-info-soft text-info";
-}
-
 export function AdminAiRatesPage() {
   const [creditRates, setCreditRates] = useState<AiCreditRate[]>([]);
   const [modelRates, setModelRates] = useState<AiModelRate[]>([]);
@@ -45,7 +38,6 @@ export function AdminAiRatesPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isSavingCredits, setIsSavingCredits] = useState(false);
   const [isSavingModels, setIsSavingModels] = useState(false);
-  const [notice, setNotice] = useState<Notice | null>(null);
 
   useEffect(() => {
     let isMounted = true;
@@ -62,13 +54,11 @@ export function AdminAiRatesPage() {
         setModelRates(models);
       } catch (error) {
         if (!isMounted) return;
-        setNotice({
-          tone: "error",
-          message:
-            error instanceof Error
-              ? error.message
-              : "Ratele AI nu au putut fi încărcate.",
-        });
+        toast.error(
+          error instanceof Error
+            ? error.message
+            : "Ratele AI nu au putut fi încărcate.",
+        );
       } finally {
         if (isMounted) setIsLoading(false);
       }
@@ -95,7 +85,6 @@ export function AdminAiRatesPage() {
 
   async function saveCreditRates() {
     setIsSavingCredits(true);
-    setNotice(null);
     try {
       const updated = await updateAdminCreditRates(
         creditRates.map((rate) => ({
@@ -106,15 +95,11 @@ export function AdminAiRatesPage() {
         })),
       );
       setCreditRates(updated);
-      setNotice({ tone: "success", message: "Pragurile de credite au fost salvate." });
+      toast.success("Pragurile de credite au fost salvate.");
     } catch (error) {
-      setNotice({
-        tone: "error",
-        message:
-          error instanceof Error
-            ? error.message
-            : "Pragurile de credite nu au putut fi salvate.",
-      });
+      toast.error(
+        error instanceof Error ? error.message : "Pragurile de credite nu au putut fi salvate.",
+      );
     } finally {
       setIsSavingCredits(false);
     }
@@ -122,7 +107,6 @@ export function AdminAiRatesPage() {
 
   async function saveModelRates() {
     setIsSavingModels(true);
-    setNotice(null);
     try {
       const payload = modelRates.map((rate) => ({
         model: rate.model,
@@ -140,15 +124,11 @@ export function AdminAiRatesPage() {
       const updated = await updateAdminModelRates(payload);
       setModelRates(updated);
       setNewModelName("");
-      setNotice({ tone: "success", message: "Prețurile per model au fost salvate." });
+      toast.success("Prețurile per model au fost salvate.");
     } catch (error) {
-      setNotice({
-        tone: "error",
-        message:
-          error instanceof Error
-            ? error.message
-            : "Prețurile per model nu au putut fi salvate.",
-      });
+      toast.error(
+        error instanceof Error ? error.message : "Prețurile per model nu au putut fi salvate.",
+      );
     } finally {
       setIsSavingModels(false);
     }
@@ -185,19 +165,6 @@ export function AdminAiRatesPage() {
             </p>
           </div>
         </div>
-
-        {notice ? (
-          <div
-            role={notice.tone === "error" ? "alert" : "status"}
-            aria-live="polite"
-            className={`rounded-xl border px-5 py-4 text-sm font-bold ${noticeClassName(notice.tone)}`}
-          >
-            <p className="break-words text-[10px] font-black uppercase tracking-[0.16em]">
-              {notice.tone === "error" ? "Eroare" : "Succes"}
-            </p>
-            <p className="mt-1 break-words leading-6">{notice.message}</p>
-          </div>
-        ) : null}
 
         {isLoading ? (
           <p className="text-sm text-muted">Se încarcă...</p>

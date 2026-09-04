@@ -5,6 +5,7 @@ import { useRef, useState } from "react";
 import { AccountStaticShell } from "@/components/account/account-static-shell";
 import { useAuth } from "@/components/auth/auth-provider";
 import { AuthApiError, requestEmailChange } from "@/lib/auth-api";
+import { toast } from "@/lib/toast-store";
 
 const inputClassName =
   "h-12 w-full rounded-lg border border-subtle bg-app px-4 text-sm text-content outline-none transition placeholder:text-muted/70 focus:border-action focus:ring-4 focus:ring-action-soft";
@@ -106,8 +107,6 @@ export function ChangeEmailPage() {
   const submitLockRef = useRef(false);
   const [newEmail, setNewEmail] = useState("");
   const [currentPassword, setCurrentPassword] = useState("");
-  const [message, setMessage] = useState<string | null>(null);
-  const [isError, setIsError] = useState(false);
   const [submitState, setSubmitState] = useState<
     "idle" | "submitting" | "success"
   >("idle");
@@ -116,8 +115,6 @@ export function ChangeEmailPage() {
 
   function resetForAnotherRequest() {
     setCurrentPassword("");
-    setMessage(null);
-    setIsError(false);
     setSubmitState("idle");
     submitLockRef.current = false;
   }
@@ -127,23 +124,19 @@ export function ChangeEmailPage() {
     if (submitLockRef.current) return;
 
     if (user && newEmail.trim().toLowerCase() === user.email.toLowerCase()) {
-      setIsError(true);
       setSubmitState("idle");
-      setMessage("Adresa introdusă este identică cu cea curentă.");
+      toast.error("Adresa introdusă este identică cu cea curentă.");
       return;
     }
 
     if (!currentPassword) {
-      setIsError(true);
       setSubmitState("idle");
-      setMessage("Introdu parola curentă.");
+      toast.error("Introdu parola curentă.");
       return;
     }
 
     submitLockRef.current = true;
     setSubmitState("submitting");
-    setIsError(false);
-    setMessage(null);
     let didSucceed = false;
 
     try {
@@ -152,14 +145,12 @@ export function ChangeEmailPage() {
         current_password: currentPassword,
       });
       setCurrentPassword("");
-      setIsError(false);
       didSucceed = true;
       setSubmitState("success");
-      setMessage(result.message);
+      toast.success(result.message);
     } catch (error) {
-      setIsError(true);
       setSubmitState("idle");
-      setMessage(
+      toast.error(
         error instanceof AuthApiError
           ? error.message
           : "Cererea nu a putut fi trimisă momentan.",
@@ -246,19 +237,6 @@ export function ChangeEmailPage() {
               onChange={setCurrentPassword}
             />
           </div>
-
-          {message ? (
-            <div
-              role="status"
-              className={`mx-5 mt-5 rounded-xl border px-4 py-3 text-sm font-semibold leading-6 ${
-                isError
-                  ? "border-danger-border bg-danger-soft text-danger"
-                  : "border-success-border bg-success-soft text-success"
-              }`}
-            >
-              {message}
-            </div>
-          ) : null}
 
           <div className="flex flex-col-reverse gap-3 p-5 sm:flex-row sm:justify-end">
             <Link

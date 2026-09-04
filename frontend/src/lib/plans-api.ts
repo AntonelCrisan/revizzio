@@ -33,6 +33,7 @@ export type SubscriptionPlanPublic = {
   estimated_page_limit: number;
   initial_flashcard_limit: number;
   quiz_questions_per_quiz: number;
+  quizzes_per_project_limit: number;
   allow_scanned_documents: boolean;
   ai_chat_enabled: boolean;
   is_featured: boolean;
@@ -66,6 +67,7 @@ export type SubscriptionPlan = {
   estimated_page_limit: number;
   initial_flashcard_limit: number;
   quiz_questions_per_quiz: number;
+  quizzes_per_project_limit: number;
   allow_scanned_documents: boolean;
   monthly_ai_credits: number;
   monthly_ocr_pages: number;
@@ -111,6 +113,7 @@ export type SubscriptionPlanUpdate = {
   estimated_page_limit: number;
   initial_flashcard_limit: number;
   quiz_questions_per_quiz: number;
+  quizzes_per_project_limit: number;
   allow_scanned_documents: boolean;
   monthly_ai_credits: number;
   monthly_ocr_pages: number;

@@ -9,6 +9,7 @@ import {
   type ContactMessageCategory,
   getAdminContactMessages,
 } from "@/lib/admin-contact-messages-api";
+import { toast } from "@/lib/toast-store";
 
 type AdminContactMessagesPageProps = {
   initialMessages: AdminContactMessage[];
@@ -109,7 +110,6 @@ export function AdminContactMessagesPage({
   const [category, setCategory] = useState<ContactMessageCategory | "">("");
   const [currentPage, setCurrentPage] = useState(1);
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const [errorMessage, setErrorMessage] = useState("");
 
   const latestMessage = messages[0] ?? null;
   const supportCount = messages.filter(
@@ -149,13 +149,12 @@ export function AdminContactMessagesPage({
 
   async function refreshMessages() {
     setIsRefreshing(true);
-    setErrorMessage("");
 
     try {
       setMessages(await getAdminContactMessages({ limit: 200 }));
       setCurrentPage(1);
     } catch (error) {
-      setErrorMessage(
+      toast.error(
         error instanceof Error
           ? error.message
           : "Mesajele de contact nu au putut fi încărcate.",
@@ -216,12 +215,6 @@ export function AdminContactMessagesPage({
             detail={latestMessage?.subject ?? "fără mesaje"}
           />
         </div>
-
-        {errorMessage ? (
-          <p className="rounded-xl border border-danger-border bg-danger-soft p-4 text-sm font-bold text-danger">
-            {errorMessage}
-          </p>
-        ) : null}
 
         <section className="rounded-xl border border-subtle bg-surface p-4">
           <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_18rem] xl:items-center">

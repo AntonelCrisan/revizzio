@@ -6,6 +6,7 @@ import { useEffect, useMemo, useState } from "react";
 import { AccountStaticShell } from "@/components/account/account-static-shell";
 import { TablePagination } from "@/components/account/table-pagination";
 import { type AdminUser, getAdminUsers } from "@/lib/admin-users-api";
+import { toast } from "@/lib/toast-store";
 
 type AdminUsersPageProps = {
   initialUsers: AdminUser[];
@@ -106,13 +107,12 @@ export function AdminUsersPage({
   const [filter, setFilter] = useState<UserFilter>("all");
   const [currentPage, setCurrentPage] = useState(1);
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const [errorMessage, setErrorMessage] = useState("");
-  const [deletedNotice] = useState(() =>
-    deletedEmail ? `Utilizatorul ${deletedEmail} a fost șters definitiv.` : "",
-  );
 
+  // The deletion confirmation arrives as a query param that is stripped again
+  // straight away, so it is announced once before the URL is rewritten.
   useEffect(() => {
     if (!deletedEmail) return;
+    toast.success(`Utilizatorul ${deletedEmail} a fost șters definitiv.`);
     router.replace("/admin/settings/utilizatori");
   }, [deletedEmail, router]);
 
@@ -152,12 +152,11 @@ export function AdminUsersPage({
 
   async function refreshUsers() {
     setIsRefreshing(true);
-    setErrorMessage("");
 
     try {
       setUsers(await getAdminUsers());
     } catch (error) {
-      setErrorMessage(
+      toast.error(
         error instanceof Error
           ? error.message
           : "Utilizatorii nu au putut fi încărcați.",
@@ -228,17 +227,6 @@ export function AdminUsersPage({
             detail="în acest moment"
           />
         </div>
-
-        {deletedNotice ? (
-          <p className="rounded-xl border border-success-border bg-success-soft p-4 text-sm font-bold text-success">
-            {deletedNotice}
-          </p>
-        ) : null}
-        {errorMessage ? (
-          <p className="rounded-xl border border-danger-border bg-danger-soft p-4 text-sm font-bold text-danger">
-            {errorMessage}
-          </p>
-        ) : null}
 
         <section className="rounded-xl border border-subtle bg-surface p-4">
           <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center">

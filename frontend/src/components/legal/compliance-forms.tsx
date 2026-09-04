@@ -3,6 +3,7 @@
 import Script from "next/script";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { CompanyData } from "@/lib/legal-api";
+import { toast } from "@/lib/toast-store";
 import { socialPlatforms } from "@/components/legal/social-icons";
 
 type FormState =
@@ -532,26 +533,29 @@ function FieldError({ id, message }: { id: string; message?: string }) {
   );
 }
 
-function FormStatus({ state }: { state: FormState }) {
-  if (state.status === "idle" || state.status === "submitting") return null;
+/**
+ * Mirrors a form's outcome into the toast centre.
+ *
+ * Every `setState` builds a fresh object, so resubmitting into the same error
+ * re-runs this and the store restarts that card's countdown instead of
+ * stacking a duplicate.
+ */
+function useFormStateToast(state: FormState) {
+  useEffect(() => {
+    if (state.status === "success") {
+      toast.success(
+        state.message,
+        state.registrationNumber
+          ? `Număr de înregistrare: ${state.registrationNumber}`
+          : undefined,
+      );
+      return;
+    }
 
-  return (
-    <div
-      role="status"
-      className={`rounded-xl border px-4 py-3 text-sm font-semibold leading-6 ${
-        state.status === "success"
-          ? "border-success-border bg-success-soft text-success"
-          : "border-danger-border bg-danger-soft text-danger"
-      }`}
-    >
-      <p className="break-words">{state.message}</p>
-      {state.registrationNumber ? (
-        <p className="mt-1 break-words text-xs">
-          Număr de înregistrare: {state.registrationNumber}
-        </p>
-      ) : null}
-    </div>
-  );
+    if (state.status === "error") {
+      toast.error(state.message);
+    }
+  }, [state]);
 }
 
 function ContactFormRow({
@@ -851,6 +855,8 @@ export function ContactForm({ recaptchaSiteKey }: ContactFormProps) {
     recaptcha.isMissing ||
     Boolean(recaptcha.siteKey && recaptcha.error);
 
+  useFormStateToast(state);
+
   function handleAnotherMessage() {
     setIsContactSubmitting(false);
     setFieldErrors({});
@@ -1082,7 +1088,6 @@ export function ContactForm({ recaptchaSiteKey }: ContactFormProps) {
         onScriptLoad={recaptcha.render}
         onScriptError={recaptcha.markScriptError}
       />
-      <FormStatus state={state} />
       {state.status === "success" ? (
         <button
           key="contact-success-action"
@@ -1119,6 +1124,8 @@ export function WithdrawalForm({ recaptchaSiteKey }: WithdrawalFormProps) {
     isWithdrawalSubmitting ||
     recaptcha.isMissing ||
     Boolean(recaptcha.siteKey && recaptcha.error);
+
+  useFormStateToast(state);
 
   function handleAnotherWithdrawal() {
     setIsWithdrawalSubmitting(false);
@@ -1383,7 +1390,6 @@ export function WithdrawalForm({ recaptchaSiteKey }: WithdrawalFormProps) {
         onScriptLoad={recaptcha.render}
         onScriptError={recaptcha.markScriptError}
       />
-      <FormStatus state={state} />
       {state.status === "success" ? (
         <button
           key="withdrawal-success-action"
@@ -1430,6 +1436,8 @@ export function ContentReportForm({
     isContentReportSubmitting ||
     recaptcha.isMissing ||
     Boolean(recaptcha.siteKey && recaptcha.error);
+
+  useFormStateToast(state);
 
   function handleAnotherReport() {
     setIsContentReportSubmitting(false);
@@ -1917,7 +1925,6 @@ export function ContentReportForm({
         onScriptLoad={recaptcha.render}
         onScriptError={recaptcha.markScriptError}
       />
-      <FormStatus state={state} />
       {state.status === "success" ? (
         <button
           key="content-report-success-action"

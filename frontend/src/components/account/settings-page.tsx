@@ -49,6 +49,7 @@ import {
   type StudyPreferences,
   type StudyPreferencesUpdate,
 } from "@/lib/preferences-api";
+import { toast } from "@/lib/toast-store";
 import { SettingsPageSkeletonBody } from "@/components/account/account-page-skeletons";
 
 type SettingsTabId =
@@ -508,17 +509,11 @@ export function SettingsPage() {
     useState<SettingsTabId>(defaultSettingsTab);
   const [isSavingTheme, setIsSavingTheme] = useState(false);
   const [isSavingLanguage, setIsSavingLanguage] = useState(false);
-  const [privacyNotice, setPrivacyNotice] = useState<string | null>(null);
   const [archivedProjects, setArchivedProjects] = useState<StudyProject[]>([]);
   const [isLoadingArchive, setIsLoadingArchive] = useState(false);
   const [archiveActionProjectId, setArchiveActionProjectId] = useState<
     string | null
   >(null);
-  const [archiveError, setArchiveError] = useState<string | null>(null);
-  const [securityNotice, setSecurityNotice] = useState<{
-    tone: "success" | "danger";
-    message: string;
-  } | null>(null);
   const [accountDeletionState, setAccountDeletionState] =
     useState<AccountDeletionRequestState>("idle");
   const [isAccountDeletionModalOpen, setIsAccountDeletionModalOpen] =
@@ -535,7 +530,6 @@ export function SettingsPage() {
   const deletingArchivedProjectIdsRef = useRef(new Set<string>());
   const [preferences, setPreferences] = useState<StudyPreferences | null>(null);
   const [isLoadingPreferences, setIsLoadingPreferences] = useState(true);
-  const [preferencesError, setPreferencesError] = useState<string | null>(null);
   const [isSavingPreferences, setIsSavingPreferences] = useState(false);
   const selectedPreset = getColorThemePreset(colorScheme);
   const selectedColors = {
@@ -562,14 +556,13 @@ export function SettingsPage() {
 
     async function loadPreferences() {
       setIsLoadingPreferences(true);
-      setPreferencesError(null);
 
       try {
         const result = await getStudyPreferences();
         if (isMounted) setPreferences(result);
       } catch (error) {
         if (!isMounted) return;
-        setPreferencesError(
+        toast.error(
           error instanceof Error
             ? error.message
             : "Preferințele nu au putut fi încărcate.",
@@ -592,14 +585,13 @@ export function SettingsPage() {
     const previousPreferences = preferences;
     setPreferences({ ...preferences, ...patch });
     setIsSavingPreferences(true);
-    setPreferencesError(null);
 
     try {
       const result = await updateStudyPreferences(patch);
       setPreferences(result);
     } catch (error) {
       setPreferences(previousPreferences);
-      setPreferencesError(
+      toast.error(
         error instanceof Error
           ? error.message
           : "Preferința nu a putut fi salvată.",
@@ -653,7 +645,6 @@ export function SettingsPage() {
 
     async function loadArchivedProjects() {
       setIsLoadingArchive(true);
-      setArchiveError(null);
 
       try {
         const projects = await listArchivedStudyProjects();
@@ -663,7 +654,7 @@ export function SettingsPage() {
       } catch (error) {
         if (!isMounted) return;
         setArchivedProjects([]);
-        setArchiveError(
+        toast.error(
           error instanceof Error
             ? error.message
             : "Arhiva proiectelor nu a putut fi încărcată.",
@@ -684,15 +675,14 @@ export function SettingsPage() {
 
   async function restoreArchivedProject(projectId: string) {
     setArchiveActionProjectId(projectId);
-    setArchiveError(null);
     try {
       await restoreStudyProject(projectId);
       setArchivedProjects((projects) =>
         projects.filter((project) => project.id !== projectId),
       );
-      setPrivacyNotice("Proiectul a fost restabilit în lista proiectelor active.");
+      toast.success("Proiectul a fost restabilit în lista proiectelor active.");
     } catch (error) {
-      setArchiveError(
+      toast.error(
         error instanceof Error
           ? error.message
           : "Proiectul nu a putut fi restabilit.",
@@ -707,16 +697,15 @@ export function SettingsPage() {
 
     deletingArchivedProjectIdsRef.current.add(projectId);
     setArchiveActionProjectId(projectId);
-    setArchiveError(null);
     try {
       await deleteStudyProject(projectId);
       setArchivedProjects((projects) =>
         projects.filter((project) => project.id !== projectId),
       );
       setArchiveDeleteCandidate(null);
-      setPrivacyNotice("Proiectul arhivat a fost șters definitiv.");
+      toast.success("Proiectul arhivat a fost șters definitiv.");
     } catch (error) {
-      setArchiveError(
+      toast.error(
         error instanceof Error
           ? error.message
           : "Proiectul nu a putut fi șters.",
@@ -730,16 +719,15 @@ export function SettingsPage() {
   async function confirmPrivacyWipe(target: "materials" | "flashcards") {
     setPrivacyWipeConfirm(null);
     setPrivacyActionState(target);
-    setPrivacyNotice(null);
 
     try {
       const result =
         target === "materials"
           ? await deleteAllMaterials()
           : await deleteAllFlashcards();
-      setPrivacyNotice(result.message);
+      toast.success(result.message);
     } catch (error) {
-      setPrivacyNotice(
+      toast.error(
         error instanceof Error
           ? error.message
           : "Acțiunea nu a putut fi finalizată momentan.",
@@ -753,13 +741,12 @@ export function SettingsPage() {
     if (privacyActionState !== "idle") return;
 
     setPrivacyActionState("newsletter");
-    setPrivacyNotice(null);
 
     try {
       const result = await withdrawNewsletterConsent();
-      setPrivacyNotice(result.message);
+      toast.success(result.message);
     } catch (error) {
-      setPrivacyNotice(
+      toast.error(
         error instanceof AuthApiError
           ? error.message
           : "Consimțământul nu a putut fi retras momentan.",
@@ -772,15 +759,12 @@ export function SettingsPage() {
   function openAccountDeletionModal() {
     if (hasPendingAccountDeletionRequest) {
       setAccountDeletionState("sent");
-      setSecurityNotice({
-        tone: "success",
-        message:
-          "Ai deja o solicitare de ștergere înregistrată. Un administrator o va procesa.",
-      });
+      toast.info(
+        "Ai deja o solicitare de ștergere înregistrată. Un administrator o va procesa.",
+      );
       return;
     }
 
-    setSecurityNotice(null);
     setIsAccountDeletionModalOpen(true);
   }
 
@@ -789,20 +773,19 @@ export function SettingsPage() {
       return;
     }
 
-    setSecurityNotice(null);
     setAccountDeletionState("submitting");
     setIsAccountDeletionModalOpen(false);
 
     try {
       const result = await requestAccountDeletion();
-      setSecurityNotice({ tone: "success", message: result.message });
+      toast.success(result.message);
       setAccountDeletionState("sent");
       if (user) {
         setUser({ ...user, account_deletion_request_pending: true });
       }
     } catch (error) {
       if (error instanceof AuthApiError && error.status === 409) {
-        setSecurityNotice({ tone: "success", message: error.message });
+        toast.success(error.message);
         setAccountDeletionState("sent");
         if (user) {
           setUser({ ...user, account_deletion_request_pending: true });
@@ -810,13 +793,11 @@ export function SettingsPage() {
         return;
       }
 
-      setSecurityNotice({
-        tone: "danger",
-        message:
-          error instanceof Error
-            ? error.message
-            : "Solicitarea de ștergere nu a putut fi trimisă.",
-      });
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : "Solicitarea de ștergere nu a putut fi trimisă.",
+      );
       setAccountDeletionState("idle");
     }
   }
@@ -985,12 +966,6 @@ export function SettingsPage() {
       case "study":
         return (
           <div className="space-y-5">
-            {preferencesError ? (
-              <p className="rounded-xl border border-danger-border bg-danger-soft px-4 py-3 text-sm font-bold text-danger">
-                {preferencesError}
-              </p>
-            ) : null}
-
             <section
               data-settings-section="Ritmul curent"
               className="rounded-xl border border-subtle bg-surface p-6"
@@ -1206,12 +1181,6 @@ export function SettingsPage() {
 
         return (
           <div className="space-y-5">
-            {preferencesError ? (
-              <p className="rounded-xl border border-danger-border bg-danger-soft px-4 py-3 text-sm font-bold text-danger">
-                {preferencesError}
-              </p>
-            ) : null}
-
             <div
               data-settings-section="Sumar notificări"
               className="grid gap-5 md:grid-cols-3"
@@ -1314,18 +1283,6 @@ export function SettingsPage() {
       case "security":
         return (
           <div className="space-y-5">
-            {securityNotice ? (
-              <p
-                className={`rounded-xl border px-4 py-3 text-sm font-bold leading-6 ${
-                  securityNotice.tone === "danger"
-                    ? "border-danger-border bg-danger-soft text-danger"
-                    : "border-success-border bg-success-soft text-success"
-                }`}
-              >
-                {securityNotice.message}
-              </p>
-            ) : null}
-
             <SettingsList title="Acțiuni securitate">
               <SettingsActionRow
                 title="Schimbă numele"
@@ -1455,21 +1412,11 @@ export function SettingsPage() {
               </SettingsActionRow>
             </SettingsList>
 
-            {privacyNotice ? (
-              <div
-                role="status"
-                className="rounded-xl border border-success-border bg-success-soft px-4 py-3 text-xs font-semibold leading-5 text-success"
-              >
-                {privacyNotice}
-              </div>
-            ) : null}
-
             {isArchiveModalOpen ? (
               <ArchivedProjectsModal
                 projects={archivedProjects}
                 isLoading={isLoadingArchive}
                 actionProjectId={archiveActionProjectId}
-                error={archiveError}
                 onClose={() => setIsArchiveModalOpen(false)}
                 onRestore={(projectId) => void restoreArchivedProject(projectId)}
                 onDelete={(project) => setArchiveDeleteCandidate(project)}
@@ -1606,7 +1553,6 @@ function ArchivedProjectsModal({
   projects,
   isLoading,
   actionProjectId,
-  error,
   onClose,
   onRestore,
   onDelete,
@@ -1614,7 +1560,6 @@ function ArchivedProjectsModal({
   projects: StudyProject[];
   isLoading: boolean;
   actionProjectId: string | null;
-  error: string | null;
   onClose: () => void;
   onRestore: (projectId: string) => void;
   onDelete: (project: StudyProject) => void;
@@ -1661,12 +1606,6 @@ function ArchivedProjectsModal({
             </svg>
           </button>
         </div>
-
-        {error ? (
-          <div className="border-b border-danger-border bg-danger-soft px-6 py-3 text-sm font-semibold text-danger">
-            {error}
-          </div>
-        ) : null}
 
         <div className="min-h-0 overflow-y-auto px-6">
           {isLoading ? (

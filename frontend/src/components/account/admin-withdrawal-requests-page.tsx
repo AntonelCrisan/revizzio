@@ -8,6 +8,7 @@ import {
   type AdminWithdrawalRequest,
   getAdminWithdrawalRequests,
 } from "@/lib/admin-withdrawal-requests-api";
+import { toast } from "@/lib/toast-store";
 
 type AdminWithdrawalRequestsPageProps = {
   initialRequests: AdminWithdrawalRequest[];
@@ -110,7 +111,6 @@ export function AdminWithdrawalRequestsPage({
   const [emailStatus, setEmailStatus] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const [errorMessage, setErrorMessage] = useState("");
 
   const latestRequest = requests[0] ?? null;
   const failedEmailCount = requests.filter(
@@ -154,13 +154,12 @@ export function AdminWithdrawalRequestsPage({
 
   async function refreshRequests() {
     setIsRefreshing(true);
-    setErrorMessage("");
 
     try {
       setRequests(await getAdminWithdrawalRequests({ limit: 200 }));
       setCurrentPage(1);
     } catch (error) {
-      setErrorMessage(
+      toast.error(
         error instanceof Error
           ? error.message
           : "Cererile de retragere nu au putut fi încărcate.",
@@ -221,12 +220,6 @@ export function AdminWithdrawalRequestsPage({
             detail={latestRequest?.registration_number ?? "fără cereri"}
           />
         </div>
-
-        {errorMessage ? (
-          <p className="rounded-xl border border-danger-border bg-danger-soft p-4 text-sm font-bold text-danger">
-            {errorMessage}
-          </p>
-        ) : null}
 
         <section className="rounded-xl border border-subtle bg-surface p-4">
           <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_18rem] xl:items-center">

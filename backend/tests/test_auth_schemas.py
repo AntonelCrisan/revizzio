@@ -93,6 +93,7 @@ def test_user_plan_response_keeps_cost_internals_out_of_the_browser() -> None:
         "project_size_limit_mb",
         "estimated_page_limit",
         "quiz_questions_per_quiz",
+        "quizzes_per_project_limit",
         "allow_scanned_documents",
         "ai_chat_enabled",
     } <= served
@@ -118,6 +119,7 @@ def test_user_plan_response_still_builds_from_the_orm_plan() -> None:
         estimated_page_limit=200,
         initial_flashcard_limit=40,
         quiz_questions_per_quiz=12,
+        quizzes_per_project_limit=10,
         allow_scanned_documents=False,
         monthly_page_limit=1000,
         ai_chat_enabled=True,
@@ -127,3 +129,4 @@ def test_user_plan_response_still_builds_from_the_orm_plan() -> None:
     assert payload.ai_chat_enabled is True
     assert payload.monthly_page_limit == 1000
     assert payload.quiz_questions_per_quiz == 12
+    assert payload.quizzes_per_project_limit == 10

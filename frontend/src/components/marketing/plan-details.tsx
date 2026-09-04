@@ -72,6 +72,10 @@ function planLimitRows(plan: SubscriptionPlanPublic) {
     },
     { label: "Întrebări pe quiz", value: String(plan.quiz_questions_per_quiz) },
     {
+      label: "Quiz-uri pe proiect",
+      value: String(plan.quizzes_per_project_limit),
+    },
+    {
       label: "Documente scanate (OCR)",
       value: plan.allow_scanned_documents ? "Incluse" : "Neincluse",
     },

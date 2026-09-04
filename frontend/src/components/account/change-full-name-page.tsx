@@ -5,6 +5,7 @@ import { useState } from "react";
 import { AccountStaticShell } from "@/components/account/account-static-shell";
 import { useAuth } from "@/components/auth/auth-provider";
 import { AuthApiError, updateFullName } from "@/lib/auth-api";
+import { toast } from "@/lib/toast-store";
 
 const inputClassName =
   "h-12 w-full rounded-lg border border-subtle bg-app px-4 text-sm text-content outline-none transition placeholder:text-muted/70 focus:border-action focus:ring-4 focus:ring-action-soft";
@@ -42,8 +43,6 @@ function ArrowRightIcon() {
 export function ChangeFullNamePage() {
   const { user, setUser } = useAuth();
   const [fullName, setFullName] = useState(user?.full_name ?? "");
-  const [message, setMessage] = useState<string | null>(null);
-  const [isError, setIsError] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
@@ -52,30 +51,24 @@ export function ChangeFullNamePage() {
 
     const normalized = fullName.trim().replace(/\s+/g, " ");
     if (normalized.length < 2) {
-      setIsError(true);
-      setMessage("Numele complet trebuie să aibă minimum 2 caractere.");
+      toast.error("Numele complet trebuie să aibă minimum 2 caractere.");
       return;
     }
 
     if (user && normalized === user.full_name) {
-      setIsError(true);
-      setMessage("Numele introdus este identic cu cel curent.");
+      toast.error("Numele introdus este identic cu cel curent.");
       return;
     }
 
     setIsSubmitting(true);
-    setIsError(false);
-    setMessage(null);
 
     try {
       const updatedUser = await updateFullName(normalized);
       setUser(updatedUser);
       setFullName(updatedUser.full_name);
-      setIsError(false);
-      setMessage("Numele a fost actualizat.");
+      toast.success("Numele a fost actualizat.");
     } catch (error) {
-      setIsError(true);
-      setMessage(
+      toast.error(
         error instanceof AuthApiError
           ? error.message
           : "Numele nu a putut fi actualizat momentan.",
@@ -142,19 +135,6 @@ export function ChangeFullNamePage() {
               />
             </label>
           </div>
-
-          {message ? (
-            <div
-              role="status"
-              className={`mx-5 mt-5 rounded-xl border px-4 py-3 text-sm font-semibold leading-6 ${
-                isError
-                  ? "border-danger-border bg-danger-soft text-danger"
-                  : "border-success-border bg-success-soft text-success"
-              }`}
-            >
-              {message}
-            </div>
-          ) : null}
 
           <div className="flex flex-col-reverse gap-3 p-5 sm:flex-row sm:justify-end">
             <Link

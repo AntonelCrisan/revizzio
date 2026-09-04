@@ -16,8 +16,10 @@ export function getAccountSidebarShellClass(
     // set there: `h-svh` is the small viewport height and stops matching
     // once the browser hides its URL bar mid-scroll. And the transition
     // names its properties, because `transition-all` animated that height
-    // change and the bar visibly stretched while scrolling.
-    "fixed inset-y-0 left-0 z-50 flex w-[min(84vw,272px)] flex-col overflow-hidden border-r border-subtle bg-sidebar text-content shadow-xl shadow-black/10 transition-[transform,width] duration-300 lg:sticky lg:top-0 lg:h-svh lg:flex-none lg:translate-x-0 lg:shadow-none",
+    // change and the bar visibly stretched while scrolling. It has to be
+    // `translate`, not `transform`: `-translate-x-full` sets the CSS
+    // `translate` property, so listing `transform` silently drops the slide.
+    "fixed inset-y-0 left-0 z-50 flex w-[min(84vw,272px)] flex-col overflow-hidden border-r border-subtle bg-sidebar text-content shadow-xl shadow-black/10 transition-[translate,width] duration-300 lg:sticky lg:top-0 lg:h-svh lg:flex-none lg:translate-x-0 lg:shadow-none",
     isOpen ? "translate-x-0" : "-translate-x-full",
     isCollapsed ? "lg:w-16" : "lg:w-[272px]",
   );

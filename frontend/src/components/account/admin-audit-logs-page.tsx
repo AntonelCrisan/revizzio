@@ -9,6 +9,7 @@ import {
   type AuditLogStatus,
   getAdminAuditLogs,
 } from "@/lib/admin-audit-api";
+import { toast } from "@/lib/toast-store";
 
 type AdminAuditLogsPageProps = {
   initialLogs: AuditLog[];
@@ -154,7 +155,6 @@ export function AdminAuditLogsPage({ initialLogs }: AdminAuditLogsPageProps) {
   const [action, setAction] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const [errorMessage, setErrorMessage] = useState("");
 
   const actions = useMemo(
     () =>
@@ -197,13 +197,12 @@ export function AdminAuditLogsPage({ initialLogs }: AdminAuditLogsPageProps) {
 
   async function refreshLogs() {
     setIsRefreshing(true);
-    setErrorMessage("");
 
     try {
       setLogs(await getAdminAuditLogs({ limit: 200 }));
       setCurrentPage(1);
     } catch (error) {
-      setErrorMessage(
+      toast.error(
         error instanceof Error
           ? error.message
           : "Jurnalul de activitate nu a putut fi încărcat.",
@@ -276,12 +275,6 @@ export function AdminAuditLogsPage({ initialLogs }: AdminAuditLogsPageProps) {
             }
           />
         </div>
-
-        {errorMessage ? (
-          <p className="rounded-xl border border-danger-border bg-danger-soft p-4 text-sm font-bold text-danger">
-            {errorMessage}
-          </p>
-        ) : null}
 
         <section className="rounded-xl border border-subtle bg-surface p-4">
           <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_auto_18rem] xl:items-center">

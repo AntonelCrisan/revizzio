@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { applyActiveProjectSelection } from "@/lib/projects-api";
+import { toast } from "@/lib/toast-store";
 
 /** The fields this modal needs; the dashboard passes its own view model. */
 export type SlotSelectableProject = {
@@ -63,13 +64,11 @@ export function ProjectSlotsModal<TProject extends SlotSelectableProject>({
     ordered.slice(0, slots).map((project) => project.id),
   );
   const [isSaving, setIsSaving] = useState(false);
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const remaining = slots - keptIds.length;
   const deactivatedCount = ordered.length - keptIds.length;
 
   function toggle(projectId: string) {
-    setErrorMessage(null);
     setKeptIds((current) => {
       if (current.includes(projectId)) {
         return current.filter((id) => id !== projectId);
@@ -82,7 +81,6 @@ export function ProjectSlotsModal<TProject extends SlotSelectableProject>({
   async function confirm() {
     if (isSaving) return;
     setIsSaving(true);
-    setErrorMessage(null);
 
     try {
       // One request for the whole selection: per-project calls meant dozens of
@@ -98,7 +96,7 @@ export function ProjectSlotsModal<TProject extends SlotSelectableProject>({
           .map((project) => project.id),
       });
     } catch (error) {
-      setErrorMessage(
+      toast.error(
         error instanceof Error
           ? error.message
           : "Nu am putut salva selecția. Încearcă din nou.",
@@ -182,12 +180,6 @@ export function ProjectSlotsModal<TProject extends SlotSelectableProject>({
         </div>
 
         <div className="shrink-0 border-t border-subtle p-6">
-          {errorMessage ? (
-            <p className="mb-4 rounded-md border border-danger-border bg-danger-soft px-4 py-3 text-sm font-bold text-danger">
-              {errorMessage}
-            </p>
-          ) : null}
-
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <p className="text-xs leading-5 text-muted">
               {remaining > 0

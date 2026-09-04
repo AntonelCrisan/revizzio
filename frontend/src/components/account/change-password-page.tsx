@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRef, useState } from "react";
 import { AccountStaticShell } from "@/components/account/account-static-shell";
 import { AuthApiError, changePassword } from "@/lib/auth-api";
+import { toast } from "@/lib/toast-store";
 
 const inputClassName =
   "h-12 w-full rounded-lg border border-subtle bg-app px-4 text-sm text-content outline-none transition placeholder:text-muted/70 focus:border-action focus:ring-4 focus:ring-action-soft";
@@ -129,8 +130,6 @@ export function ChangePasswordPage() {
   const submitLockRef = useRef(false);
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
-  const [message, setMessage] = useState<string | null>(null);
-  const [isError, setIsError] = useState(false);
   const [submitState, setSubmitState] = useState<
     "idle" | "submitting" | "success"
   >("idle");
@@ -141,8 +140,6 @@ export function ChangePasswordPage() {
     formRef.current?.reset();
     setCurrentPassword("");
     setNewPassword("");
-    setMessage(null);
-    setIsError(false);
     setSubmitState("idle");
     submitLockRef.current = false;
   }
@@ -152,31 +149,26 @@ export function ChangePasswordPage() {
     if (submitLockRef.current) return;
 
     if (!currentPassword) {
-      setIsError(true);
       setSubmitState("idle");
-      setMessage("Introdu parola curentă.");
+      toast.error("Introdu parola curentă.");
       return;
     }
 
     if (currentPassword === newPassword) {
-      setIsError(true);
       setSubmitState("idle");
-      setMessage("Parola nouă trebuie să fie diferită de parola curentă.");
+      toast.error("Parola nouă trebuie să fie diferită de parola curentă.");
       return;
     }
 
     const validationMessage = validateNewPassword(newPassword);
     if (validationMessage) {
-      setIsError(true);
       setSubmitState("idle");
-      setMessage(validationMessage);
+      toast.error(validationMessage);
       return;
     }
 
     submitLockRef.current = true;
     setSubmitState("submitting");
-    setIsError(false);
-    setMessage(null);
     let didSucceed = false;
 
     try {
@@ -187,14 +179,12 @@ export function ChangePasswordPage() {
       formRef.current?.reset();
       setCurrentPassword("");
       setNewPassword("");
-      setIsError(false);
       didSucceed = true;
       setSubmitState("success");
-      setMessage(result.message);
+      toast.success(result.message);
     } catch (error) {
-      setIsError(true);
       setSubmitState("idle");
-      setMessage(
+      toast.error(
         error instanceof AuthApiError
           ? error.message
           : "Parola nu a putut fi actualizată momentan.",
@@ -275,19 +265,6 @@ export function ChangePasswordPage() {
               onChange={setNewPassword}
             />
           </div>
-
-          {message ? (
-            <div
-              role="status"
-              className={`mx-5 mt-5 rounded-xl border px-4 py-3 text-sm font-semibold leading-6 ${
-                isError
-                  ? "border-danger-border bg-danger-soft text-danger"
-                  : "border-success-border bg-success-soft text-success"
-              }`}
-            >
-              {message}
-            </div>
-          ) : null}
 
           <div className="flex flex-col-reverse gap-3 p-5 sm:flex-row sm:justify-end">
             <Link

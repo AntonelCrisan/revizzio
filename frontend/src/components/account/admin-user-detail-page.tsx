@@ -13,6 +13,7 @@ import {
   type AdminUserSession,
   updateAdminUser,
 } from "@/lib/admin-users-api";
+import { toast } from "@/lib/toast-store";
 
 type AdminUserDetailPageProps = {
   user: AdminUser;
@@ -132,13 +133,9 @@ export function AdminUserDetailPage({
     useState<VerificationEmailState>("idle");
   const [isDeletingUser, setIsDeletingUser] = useState(false);
   const [isDeleteUserModalOpen, setIsDeleteUserModalOpen] = useState(false);
-  const [actionMessage, setActionMessage] = useState("");
-  const [actionError, setActionError] = useState("");
   const verificationEmailRequestInFlightRef = useRef(false);
   const isCurrentUser = currentUser?.id === user.id;
-  const hasSentVerificationEmail =
-    verificationEmailState === "sent" ||
-    actionMessage === VERIFICATION_EMAIL_SUCCESS_MESSAGE;
+  const hasSentVerificationEmail = verificationEmailState === "sent";
   const showVerificationEmailSpinner =
     verificationEmailState === "sending" && !hasSentVerificationEmail;
   const verificationEmailButtonLabel = hasSentVerificationEmail
@@ -158,17 +155,13 @@ export function AdminUserDetailPage({
     if (nextRole === user.role || isSavingRole) return;
 
     setIsSavingRole(true);
-    setActionMessage("");
-    setActionError("");
 
     try {
       setUser(await updateAdminUser(user.id, { role: nextRole }));
-      setActionMessage("Rolul utilizatorului a fost actualizat.");
+      toast.success("Rolul utilizatorului a fost actualizat.");
     } catch (error) {
-      setActionError(
-        error instanceof Error
-          ? error.message
-          : "Rolul nu a putut fi actualizat.",
+      toast.error(
+        error instanceof Error ? error.message : "Rolul nu a putut fi actualizat.",
       );
     } finally {
       setIsSavingRole(false);
@@ -180,21 +173,17 @@ export function AdminUserDetailPage({
 
     const nextIsActive = !user.is_active;
     setIsSavingStatus(true);
-    setActionMessage("");
-    setActionError("");
 
     try {
       setUser(await updateAdminUser(user.id, { is_active: nextIsActive }));
-      setActionMessage(
+      toast.success(
         nextIsActive
           ? "Contul utilizatorului a fost reactivat."
           : "Contul utilizatorului a fost dezactivat.",
       );
     } catch (error) {
-      setActionError(
-        error instanceof Error
-          ? error.message
-          : "Statusul contului nu a putut fi actualizat.",
+      toast.error(
+        error instanceof Error ? error.message : "Statusul contului nu a putut fi actualizat.",
       );
     } finally {
       setIsSavingStatus(false);
@@ -206,20 +195,16 @@ export function AdminUserDetailPage({
 
     verificationEmailRequestInFlightRef.current = true;
     setVerificationEmailState("sending");
-    setActionMessage("");
-    setActionError("");
 
     try {
       const updatedUser = await sendAdminUserVerificationEmail(user.id);
       setUser(updatedUser);
       setVerificationEmailState("sent");
-      setActionMessage(VERIFICATION_EMAIL_SUCCESS_MESSAGE);
+      toast.success(VERIFICATION_EMAIL_SUCCESS_MESSAGE);
     } catch (error) {
       setVerificationEmailState("idle");
-      setActionError(
-        error instanceof Error
-          ? error.message
-          : "Emailul de verificare nu a putut fi trimis.",
+      toast.error(
+        error instanceof Error ? error.message : "Emailul de verificare nu a putut fi trimis.",
       );
     } finally {
       verificationEmailRequestInFlightRef.current = false;
@@ -230,18 +215,14 @@ export function AdminUserDetailPage({
     if (isSavingStatus || user.is_active) return;
 
     setIsSavingStatus(true);
-    setActionMessage("");
-    setActionError("");
 
     try {
       setUser(await updateAdminUser(user.id, { is_active: true }));
       setVerificationEmailState("idle");
-      setActionMessage("Contul utilizatorului a fost verificat manual.");
+      toast.success("Contul utilizatorului a fost verificat manual.");
     } catch (error) {
-      setActionError(
-        error instanceof Error
-          ? error.message
-          : "Contul nu a putut fi verificat manual.",
+      toast.error(
+        error instanceof Error ? error.message : "Contul nu a putut fi verificat manual.",
       );
     } finally {
       setIsSavingStatus(false);
@@ -253,8 +234,6 @@ export function AdminUserDetailPage({
 
     setIsDeletingUser(true);
     setIsDeleteUserModalOpen(false);
-    setActionMessage("");
-    setActionError("");
 
     try {
       await deleteAdminUser(user.id);
@@ -262,10 +241,8 @@ export function AdminUserDetailPage({
         `/admin/settings/utilizatori?deleted=${encodeURIComponent(user.email)}`,
       );
     } catch (error) {
-      setActionError(
-        error instanceof Error
-          ? error.message
-          : "Utilizatorul nu a putut fi sters.",
+      toast.error(
+        error instanceof Error ? error.message : "Utilizatorul nu a putut fi sters.",
       );
       setIsDeletingUser(false);
     }
@@ -344,17 +321,6 @@ export function AdminUserDetailPage({
               {user.is_active ? "Activ / verificat" : "Inactiv / neverificat"}
             </span>
           </div>
-
-          {actionMessage ? (
-            <p className="mt-5 rounded-xl border border-success-border bg-success-soft px-4 py-3 text-sm font-bold text-success">
-              {actionMessage}
-            </p>
-          ) : null}
-          {actionError ? (
-            <p className="mt-5 rounded-xl border border-danger-border bg-danger-soft px-4 py-3 text-sm font-bold text-danger">
-              {actionError}
-            </p>
-          ) : null}
 
           {isCurrentUser ? (
             <p className="mt-5 rounded-xl border border-warning-border bg-warning-soft px-4 py-3 text-sm font-semibold leading-6 text-warning">

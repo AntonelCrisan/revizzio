@@ -1,6 +1,7 @@
 "use client";
 
 import { NotificationBell } from "@/components/account/notification-bell";
+import { useRegisterAccountTopBar } from "@/components/account/account-topbar-presence";
 
 /**
  * The phone header for the account pages.
@@ -16,10 +17,15 @@ export function AccountMobileTopBar({
 }: {
   onOpenMenu: () => void;
 }) {
+  useRegisterAccountTopBar();
+
   return (
     <header
       data-account-topbar=""
-      className="sticky top-0 z-40 flex items-center justify-between gap-3 border-b border-subtle bg-surface/95 px-3 py-2.5 backdrop-blur-xl lg:hidden"
+      // Below the drawer backdrop on purpose: when the menu is open the
+      // overlay has to darken this bar and its bell too, instead of them
+      // staying lit above it.
+      className="sticky top-0 z-30 flex items-center justify-between gap-3 border-b border-subtle bg-surface/95 px-3 py-2.5 backdrop-blur-xl lg:hidden"
     >
       <button
         type="button"

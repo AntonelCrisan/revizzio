@@ -1,5 +1,6 @@
 "use client";
 
+import { useOpenCloseTransition } from "@/components/use-open-close-transition";
 import { AccountMobileTopBar } from "@/components/account/account-mobile-top-bar";
 import Link from "next/link";
 import { AccountShellSkeleton } from "@/components/account/account-page-skeletons";
@@ -203,6 +204,8 @@ export function AccountStaticShell({
     useState<SettingsSectionId>("account");
   const visibleSettingsSection = settingsSection ?? activeSettingsSection;
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const { isMounted: isBackdropMounted, isVisible: isBackdropVisible } =
+    useOpenCloseTransition(sidebarOpen, 300);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(
     () =>
       typeof window !== "undefined" &&
@@ -310,12 +313,15 @@ export function AccountStaticShell({
 
   return (
     <div className="min-h-svh bg-app text-content lg:flex">
-      {sidebarOpen ? (
+      {isBackdropMounted ? (
         <button
           type="button"
           aria-label="Închide meniul"
           onClick={() => setSidebarOpen(false)}
-          className="fixed inset-0 z-40 bg-black/40 lg:hidden"
+          // Fades with the drawer instead of snapping in and out.
+          className={`fixed inset-0 z-40 bg-black/40 transition-opacity duration-300 lg:hidden ${
+            isBackdropVisible ? "opacity-100" : "opacity-0"
+          }`}
         />
       ) : null}
 

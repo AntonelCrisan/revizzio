@@ -3,8 +3,10 @@ import Script from "next/script";
 import { AuthProvider } from "@/components/auth/auth-provider";
 import { LanguageProvider } from "@/components/language-provider";
 import { GlobalNotificationBell } from "@/components/global-notification-bell";
+import { AccountTopBarPresenceProvider } from "@/components/account/account-topbar-presence";
 import { CookieConsentProvider } from "@/components/legal/cookie-consent";
 import { ThemeProvider } from "@/components/theme-provider";
+import { ToastCenter } from "@/components/toast-center";
 import { VisitorPing } from "@/components/visitor-ping";
 import {
   defaultLocale,
@@ -226,12 +228,20 @@ export default function RootLayout({
           <CookieConsentProvider>
             <LanguageProvider>
               <AuthProvider>
-                <GlobalNotificationBell />
-                {children}
+                <AccountTopBarPresenceProvider>
+                  <GlobalNotificationBell />
+                  {children}
+                </AccountTopBarPresenceProvider>
               </AuthProvider>
             </LanguageProvider>
           </CookieConsentProvider>
         </ThemeProvider>
+        {/*
+          Outside every provider and last in the body: the toast viewport is
+          `fixed`, and it reads its messages from a plain module store rather
+          than a context, so it needs no ancestor other than the body itself.
+        */}
+        <ToastCenter />
       </body>
     </html>
   );

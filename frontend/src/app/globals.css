@@ -1219,3 +1219,58 @@ button:not(:disabled),
     transform: none;
   }
 }
+
+/* Toast notification centre --------------------------------------------- */
+
+.toast-card {
+  /*
+   * `translate` and `scale`, not `transform`: Tailwind v4 emits the standalone
+   * CSS properties for those utilities, so a `transform`-only list here would
+   * animate nothing but the fade.
+   */
+  transition-property: opacity, translate, scale;
+}
+
+/*
+ * Asymmetric on purpose. Arriving is the part worth watching, so it gets the
+ * longer, decelerating curve and settles without overshooting into a wobble.
+ * Leaving is an accelerating exit at the duration `TRANSITION_MS` in
+ * `toast-center.tsx` waits before the record is dropped - keep the two in step.
+ */
+.toast-card:not([data-phase="leave"]) {
+  transition-duration: 340ms;
+  transition-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.toast-card[data-phase="leave"] {
+  transition-duration: 200ms;
+  transition-timing-function: cubic-bezier(0.4, 0, 1, 1);
+}
+
+.toast-progress-fill {
+  transform-origin: left center;
+  animation: toast-progress var(--toast-duration, 3000ms) linear forwards;
+}
+
+@keyframes toast-progress {
+  from {
+    transform: scaleX(1);
+  }
+
+  to {
+    transform: scaleX(0);
+  }
+}
+
+/*
+ * The blanket reduced-motion rule above collapses every animation to ~0.01ms.
+ * The toast bar is not decoration - it is the visible countdown to the card
+ * closing itself - so it keeps its real duration and only the easing goes.
+ * Declared after that block so it wins.
+ */
+@media (prefers-reduced-motion: reduce) {
+  .toast-progress-fill {
+    animation-duration: var(--toast-duration, 3000ms) !important;
+    animation-iteration-count: 1 !important;
+  }
+}

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AccountStaticShell } from "@/components/account/account-static-shell";
 import {
@@ -9,6 +9,7 @@ import {
   type CompanyDataUpdate,
   updateAdminCompanyData,
 } from "@/lib/legal-api";
+import { toast } from "@/lib/toast-store";
 
 type AdminCompanyPageProps = {
   initialCompanyData: CompanyData;
@@ -170,18 +171,7 @@ function PreviewRow({ label, value }: { label: string; value: string }) {
   );
 }
 
-type CompanyFormNotice = {
-  tone: "success" | "error";
-  message: string;
-};
-
 type CompanySaveState = "idle" | "saving" | "saved";
-
-function noticeClassName(tone: CompanyFormNotice["tone"]) {
-  return tone === "error"
-    ? "border-danger-border bg-danger-soft text-danger"
-    : "border-info-border bg-info-soft text-info";
-}
 
 function saveButtonText(
   saveState: CompanySaveState,
@@ -220,9 +210,6 @@ export function AdminCompanyPage({
   const [lastModified, setLastModified] = useState(
     initialCompanyData.last_date_modified,
   );
-  const [formNotice, setFormNotice] = useState<CompanyFormNotice | null>(
-    initialLoadError ? { tone: "error", message: initialLoadError } : null,
-  );
   const [saveState, setSaveState] = useState<CompanySaveState>("idle");
   const [justSaved, setJustSaved] = useState(false);
   const isSaving = saveState === "saving";
@@ -231,14 +218,19 @@ export function AdminCompanyPage({
   const saveButtonLabel = saveButtonText(saveState, hasChanges, justSaved);
   const saveButtonStyles = saveButtonClassName(hasChanges, isSaving, justSaved);
 
+  // The server component hands over a load failure as a prop, so it is raised
+  // once the page is on screen rather than rendered as a banner above the form.
+  useEffect(() => {
+    if (initialLoadError) {
+      toast.error(initialLoadError);
+    }
+  }, [initialLoadError]);
+
   function updateField(name: keyof CompanyDataUpdate, value: string) {
     setFormData((current) => ({
       ...current,
       [name]: value,
     }));
-    if (formNotice) {
-      setFormNotice(null);
-    }
     if (saveState === "saved") {
       setSaveState("idle");
     }
@@ -249,28 +241,22 @@ export function AdminCompanyPage({
 
   async function saveCompanyData() {
     setSaveState("saving");
-    setFormNotice(null);
     try {
       const updatedCompanyData = await updateAdminCompanyData(formData);
       const updatedFormData = toCompanyUpdate(updatedCompanyData);
       setFormData(updatedFormData);
       setSavedFormData(updatedFormData);
       setLastModified(updatedCompanyData.last_date_modified);
-      setFormNotice({
-        tone: "success",
-        message: "Datele firmei au fost salvate.",
-      });
+      toast.success("Datele firmei au fost salvate.");
       setSaveState("saved");
       setJustSaved(true);
       router.refresh();
     } catch (error) {
-      setFormNotice({
-        tone: "error",
-        message:
-          error instanceof Error
-            ? error.message
-            : "Datele firmei nu au putut fi salvate.",
-      });
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : "Datele firmei nu au putut fi salvate.",
+      );
       setSaveState("idle");
       setJustSaved(false);
     }
@@ -322,19 +308,6 @@ export function AdminCompanyPage({
           />
         </div>
 
-        {formNotice ? (
-          <div
-            role={formNotice.tone === "error" ? "alert" : "status"}
-            aria-live="polite"
-            className={`rounded-xl border px-5 py-4 text-sm font-bold ${noticeClassName(formNotice.tone)}`}
-          >
-            <p className="break-words text-[10px] font-black uppercase tracking-[0.16em]">
-              {formNotice.tone === "error" ? "Eroare" : "Succes"}
-            </p>
-            <p className="mt-1 break-words leading-6">{formNotice.message}</p>
-          </div>
-        ) : null}
-
         <div className="grid min-w-0 gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(18rem,22rem)]">
           <form
             className="min-w-0 overflow-hidden rounded-xl border border-subtle bg-surface"
@@ -384,7 +357,6 @@ export function AdminCompanyPage({
                 type="button"
                 onClick={() => {
                   setFormData(savedFormData);
-                  setFormNotice(null);
                   setSaveState("idle");
                   setJustSaved(false);
                 }}

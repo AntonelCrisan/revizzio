@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { AccountStaticShell } from "@/components/account/account-static-shell";
+import { toast } from "@/lib/toast-store";
 
 type CancellationState =
   | { status: "idle"; message: null; activeUntil: string }
@@ -51,22 +52,22 @@ export function SubscriptionCancellationPage() {
     setState({ status: "idle", message: null, activeUntil });
     try {
       const response = await requestCancellation();
+      const successMessage =
+        response.message ||
+        "Reînnoirea automată a fost oprită. Accesul rămâne activ până la finalul perioadei plătite.";
       setState({
         status: "success",
-        message:
-          response.message ||
-          "Reînnoirea automată a fost oprită. Accesul rămâne activ până la finalul perioadei plătite.",
+        message: successMessage,
         activeUntil: response.active_until || activeUntil,
       });
+      toast.success(successMessage);
     } catch (error) {
-      setState({
-        status: "error",
-        message:
-          error instanceof Error
-            ? error.message
-            : "Anularea nu a putut fi procesată.",
-        activeUntil,
-      });
+      const failureMessage =
+        error instanceof Error
+          ? error.message
+          : "Anularea nu a putut fi procesată.";
+      setState({ status: "error", message: failureMessage, activeUntil });
+      toast.error(failureMessage);
     } finally {
       setIsSubmitting(false);
     }
@@ -108,19 +109,6 @@ export function SubscriptionCancellationPage() {
               <strong>{state.activeUntil}</strong>. După această dată, planul
               revine la Beginner dacă nu reactivezi abonamentul.
             </div>
-
-            {state.status !== "idle" ? (
-              <div
-                role="status"
-                className={`mt-4 rounded-2xl border px-4 py-3 text-sm font-semibold leading-6 ${
-                  state.status === "success"
-                    ? "border-success-border bg-success-soft text-success"
-                    : "border-danger-border bg-danger-soft text-danger"
-                }`}
-              >
-                {state.message}
-              </div>
-            ) : null}
 
             <button
               type="button"

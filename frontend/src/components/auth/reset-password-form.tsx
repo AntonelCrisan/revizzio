@@ -1,8 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { AuthApiError, confirmPasswordReset } from "@/lib/auth-api";
+import { toast } from "@/lib/toast-store";
 
 type ResetPasswordFormProps = {
   token?: string;
@@ -29,12 +30,16 @@ function ArrowIcon() {
 export function ResetPasswordForm({ token }: ResetPasswordFormProps) {
   const formRef = useRef<HTMLFormElement | null>(null);
   const submitLockRef = useRef(false);
-  const [message, setMessage] = useState<string | null>(
-    token ? null : "Linkul de resetare lipsește sau este incomplet.",
-  );
-  const [isError, setIsError] = useState(!token);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
+
+  // Landing here without a token is a dead end, so say so straight away
+  // rather than waiting for the visitor to fill the form and submit it.
+  useEffect(() => {
+    if (!token) {
+      toast.error("Linkul de resetare lipsește sau este incomplet.");
+    }
+  }, [token]);
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -45,29 +50,24 @@ export function ResetPasswordForm({ token }: ResetPasswordFormProps) {
     const confirmPassword = String(formData.get("confirmPassword") ?? "");
 
     if (password !== confirmPassword) {
-      setIsError(true);
-      setMessage("Parolele introduse nu coincid.");
+      toast.error("Parolele introduse nu coincid.");
       return;
     }
 
     submitLockRef.current = true;
     let completed = false;
     setIsSubmitting(true);
-    setIsError(false);
-    setMessage(null);
 
     try {
       const result = await confirmPasswordReset({ token, password });
       completed = true;
       formRef.current?.reset();
       setIsSuccess(true);
-      setIsError(false);
-      setMessage(result.message);
+      toast.success(result.message);
     } catch (error) {
       submitLockRef.current = false;
-      setIsError(true);
       setIsSuccess(false);
-      setMessage(
+      toast.error(
         error instanceof AuthApiError
           ? error.message
           : "Parola nu a putut fi actualizată momentan.",
@@ -118,19 +118,6 @@ export function ResetPasswordForm({ token }: ResetPasswordFormProps) {
           className={inputClassName}
         />
       </div>
-
-      {message ? (
-        <div
-          role="status"
-          className={`rounded-xl border px-4 py-3 text-xs font-semibold leading-5 ${
-            isError
-              ? "border-danger-border bg-danger-soft text-danger"
-              : "border-success-border bg-success-soft text-success"
-          }`}
-        >
-          {message}
-        </div>
-      ) : null}
 
       {isSuccess ? (
         <Link

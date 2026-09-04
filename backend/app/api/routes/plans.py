@@ -44,6 +44,7 @@ DEFAULT_PLANS = [
         "estimated_page_limit": 25,
         "initial_flashcard_limit": 20,
         "quiz_questions_per_quiz": 8,
+        "quizzes_per_project_limit": 3,
         "allow_scanned_documents": False,
         "monthly_ai_credits": 10,
         "monthly_ocr_pages": 0,
@@ -83,6 +84,7 @@ DEFAULT_PLANS = [
         "estimated_page_limit": 200,
         "initial_flashcard_limit": 40,
         "quiz_questions_per_quiz": 12,
+        "quizzes_per_project_limit": 10,
         "allow_scanned_documents": False,
         "monthly_ai_credits": 60,
         "monthly_ocr_pages": 200,
@@ -123,6 +125,7 @@ DEFAULT_PLANS = [
         "estimated_page_limit": 500,
         "initial_flashcard_limit": 50,
         "quiz_questions_per_quiz": 12,
+        "quizzes_per_project_limit": 25,
         "allow_scanned_documents": True,
         "monthly_ai_credits": 120,
         "monthly_ocr_pages": 500,
@@ -177,6 +180,7 @@ async def _ensure_default_plans(session: DbSession) -> None:
             estimated_page_limit=int(plan_data["estimated_page_limit"]),
             initial_flashcard_limit=int(plan_data["initial_flashcard_limit"]),
             quiz_questions_per_quiz=int(plan_data["quiz_questions_per_quiz"]),
+            quizzes_per_project_limit=int(plan_data["quizzes_per_project_limit"]),
             allow_scanned_documents=bool(plan_data["allow_scanned_documents"]),
             monthly_ai_credits=int(plan_data["monthly_ai_credits"]),
             monthly_ocr_pages=int(plan_data["monthly_ocr_pages"]),
@@ -322,6 +326,7 @@ async def update_admin_plans(
         plan.estimated_page_limit = plan_payload.estimated_page_limit
         plan.initial_flashcard_limit = plan_payload.initial_flashcard_limit
         plan.quiz_questions_per_quiz = plan_payload.quiz_questions_per_quiz
+        plan.quizzes_per_project_limit = plan_payload.quizzes_per_project_limit
         plan.allow_scanned_documents = plan_payload.allow_scanned_documents
         plan.monthly_ai_credits = plan_payload.monthly_ai_credits
         plan.monthly_ocr_pages = plan_payload.monthly_ocr_pages

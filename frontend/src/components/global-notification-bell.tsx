@@ -3,6 +3,7 @@
 import { usePathname } from "next/navigation";
 import { NotificationBell } from "@/components/account/notification-bell";
 import { useAuth } from "@/components/auth/auth-provider";
+import { useHasAccountTopBar } from "@/components/account/account-topbar-presence";
 
 // Routes that render MarketingHeader, which embeds a NotificationBell in-flow
 // next to its own nav buttons/menu toggle — this fixed overlay would just sit
@@ -11,16 +12,7 @@ import { useAuth } from "@/components/auth/auth-provider";
 const EXACT_PATHS_WITH_OWN_BELL = new Set(["/"]);
 const PATH_PREFIXES_WITH_OWN_BELL = ["/abonamente"];
 
-// The account pages carry a bell inside their phone top bar, so the floating
-// overlay would double it there. It stays for `lg` and up, where that bar is
-// hidden and the corner is free.
-const PATH_PREFIXES_WITH_MOBILE_BAR = ["/myaccount", "/settings", "/upgrade"];
 
-function hasMobileBar(pathname: string) {
-  return PATH_PREFIXES_WITH_MOBILE_BAR.some(
-    (prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`),
-  );
-}
 
 function hasOwnBell(pathname: string) {
   if (EXACT_PATHS_WITH_OWN_BELL.has(pathname)) return true;
@@ -35,13 +27,16 @@ function hasOwnBell(pathname: string) {
 export function GlobalNotificationBell() {
   const pathname = usePathname();
   const { user, isLoading } = useAuth();
+  // A phone top bar already shows one, so this overlay is desktop-only
+  // wherever that bar is mounted.
+  const hasTopBar = useHasAccountTopBar();
 
   if (isLoading || !user || hasOwnBell(pathname)) return null;
 
   return (
     <div
       className={`fixed right-4 top-4 z-[100] ${
-        hasMobileBar(pathname) ? "hidden lg:block" : ""
+        hasTopBar ? "hidden lg:block" : ""
       }`}
     >
       <NotificationBell />

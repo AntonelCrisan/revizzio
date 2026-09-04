@@ -10,6 +10,7 @@ import {
   type LegalDocumentSection,
   updateAdminLegalDocumentSection,
 } from "@/lib/legal-api";
+import { toast } from "@/lib/toast-store";
 
 type AdminLegalEditorPageProps = {
   document: LegalDocument;
@@ -20,11 +21,6 @@ type AdminLegalEditorPageProps = {
 type DraftSection = {
   title: string;
   content: string;
-};
-
-type EditorNotice = {
-  tone: "success" | "error";
-  message: string;
 };
 
 function createEmptyDraft(): DraftSection {
@@ -50,12 +46,6 @@ function countWords(value: string) {
     .trim()
     .split(/\s+/)
     .filter(Boolean).length;
-}
-
-function noticeClassName(tone: EditorNotice["tone"]) {
-  return tone === "error"
-    ? "border-danger-border bg-danger-soft text-danger"
-    : "border-info-border bg-info-soft text-info";
 }
 
 function EditorMetric({
@@ -91,7 +81,6 @@ export function AdminLegalEditorPage({
   const [editingKey, setEditingKey] = useState<string | null>(null);
   const [draft, setDraft] = useState<DraftSection | null>(null);
   const [newDraft, setNewDraft] = useState<DraftSection>(createEmptyDraft);
-  const [notice, setNotice] = useState<EditorNotice | null>(null);
   const [savingKey, setSavingKey] = useState<string | null>(null);
   const [deletingKey, setDeletingKey] = useState<string | null>(null);
   const [deleteConfirmKey, setDeleteConfirmKey] = useState<string | null>(null);
@@ -102,13 +91,11 @@ export function AdminLegalEditorPage({
     setEditingKey(section.section_key);
     setDraft({ title: section.title, content: section.content });
     setDeleteConfirmKey(null);
-    setNotice(null);
   }
 
   function resetNewSection() {
     setNewDraft(createEmptyDraft());
     setIsAdding(false);
-    setNotice(null);
   }
 
   async function createSection() {
@@ -118,15 +105,11 @@ export function AdminLegalEditorPage({
     };
 
     if (!payload.title || !payload.content) {
-      setNotice({
-        tone: "error",
-        message: "Completează titlul și conținutul secțiunii.",
-      });
+      toast.error("Completează titlul și conținutul secțiunii.");
       return;
     }
 
     setIsCreating(true);
-    setNotice(null);
     try {
       const updatedDocument = await createAdminLegalDocumentSection(
         document.slug,
@@ -135,18 +118,11 @@ export function AdminLegalEditorPage({
       setSections(updatedDocument.sections);
       setNewDraft(createEmptyDraft());
       setIsAdding(false);
-      setNotice({
-        tone: "success",
-        message: `Secțiunea „${payload.title}” a fost adăugată.`,
-      });
+      toast.success(`Secțiunea „${payload.title}” a fost adăugată.`);
     } catch (error) {
-      setNotice({
-        tone: "error",
-        message:
-          error instanceof Error
-            ? error.message
-            : "Secțiunea nu a putut fi adăugată.",
-      });
+      toast.error(
+        error instanceof Error ? error.message : "Secțiunea nu a putut fi adăugată.",
+      );
     } finally {
       setIsCreating(false);
     }
@@ -161,15 +137,11 @@ export function AdminLegalEditorPage({
     };
 
     if (!payload.title || !payload.content) {
-      setNotice({
-        tone: "error",
-        message: "Completează titlul și conținutul secțiunii.",
-      });
+      toast.error("Completează titlul și conținutul secțiunii.");
       return;
     }
 
     setSavingKey(section.section_key);
-    setNotice(null);
     try {
       const updatedDocument = await updateAdminLegalDocumentSection(
         document.slug,
@@ -179,18 +151,11 @@ export function AdminLegalEditorPage({
       setSections(updatedDocument.sections);
       setEditingKey(null);
       setDraft(null);
-      setNotice({
-        tone: "success",
-        message: `Secțiunea „${payload.title}” a fost salvată.`,
-      });
+      toast.success(`Secțiunea „${payload.title}” a fost salvată.`);
     } catch (error) {
-      setNotice({
-        tone: "error",
-        message:
-          error instanceof Error
-            ? error.message
-            : "Secțiunea nu a putut fi salvată.",
-      });
+      toast.error(
+        error instanceof Error ? error.message : "Secțiunea nu a putut fi salvată.",
+      );
     } finally {
       setSavingKey(null);
     }
@@ -198,15 +163,11 @@ export function AdminLegalEditorPage({
 
   async function deleteSection(section: LegalDocumentSection) {
     if (sections.length <= 1) {
-      setNotice({
-        tone: "error",
-        message: "Documentul trebuie să păstreze cel puțin o secțiune.",
-      });
+      toast.error("Documentul trebuie să păstreze cel puțin o secțiune.");
       return;
     }
 
     setDeletingKey(section.section_key);
-    setNotice(null);
     try {
       const updatedDocument = await deleteAdminLegalDocumentSection(
         document.slug,
@@ -218,18 +179,11 @@ export function AdminLegalEditorPage({
         setEditingKey(null);
         setDraft(null);
       }
-      setNotice({
-        tone: "success",
-        message: `Secțiunea „${section.title}” a fost ștearsă.`,
-      });
+      toast.success(`Secțiunea „${section.title}” a fost ștearsă.`);
     } catch (error) {
-      setNotice({
-        tone: "error",
-        message:
-          error instanceof Error
-            ? error.message
-            : "Secțiunea nu a putut fi ștearsă.",
-      });
+      toast.error(
+        error instanceof Error ? error.message : "Secțiunea nu a putut fi ștearsă.",
+      );
     } finally {
       setDeletingKey(null);
     }
@@ -295,19 +249,6 @@ export function AdminLegalEditorPage({
           />
         </div>
 
-        {notice ? (
-          <div
-            role={notice.tone === "error" ? "alert" : "status"}
-            aria-live="polite"
-            className={`rounded-xl border px-5 py-4 text-sm font-bold ${noticeClassName(notice.tone)}`}
-          >
-            <p className="break-words text-[10px] font-black uppercase tracking-[0.16em]">
-              {notice.tone === "error" ? "Eroare" : "Succes"}
-            </p>
-            <p className="mt-1 break-words leading-6">{notice.message}</p>
-          </div>
-        ) : null}
-
         <div className="grid min-w-0 gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(17rem,19rem)]">
           <div className="min-w-0 space-y-4">
             <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
@@ -328,7 +269,6 @@ export function AdminLegalEditorPage({
                   onClick={() => {
                     setIsAdding((current) => !current);
                     setDeleteConfirmKey(null);
-                    setNotice(null);
                   }}
                   className="inline-flex min-h-11 w-full min-w-0 items-center justify-center gap-2 rounded-md bg-action px-4 py-2.5 text-center text-sm font-black leading-tight text-on-action transition hover:bg-action-hover sm:w-auto"
                 >
@@ -492,7 +432,6 @@ export function AdminLegalEditorPage({
                               type="button"
                               onClick={() => {
                                 setDeleteConfirmKey(section.section_key);
-                                setNotice(null);
                               }}
                               disabled={sections.length <= 1 || Boolean(deletingKey)}
                               className="inline-flex min-h-10 w-full min-w-0 items-center justify-center rounded-md border border-danger-border bg-danger-soft px-4 py-2.5 text-center text-sm font-bold leading-tight text-danger transition hover:bg-danger-border disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"

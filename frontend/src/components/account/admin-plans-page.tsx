@@ -8,6 +8,7 @@ import {
   type SubscriptionPlanUpdate,
   updateAdminPlans,
 } from "@/lib/plans-api";
+import { toast } from "@/lib/toast-store";
 
 type AdminPlanDraft = {
   id: string | null;
@@ -32,6 +33,7 @@ type AdminPlanDraft = {
   estimatedPageLimit: string;
   initialFlashcardLimit: string;
   quizQuestionsPerQuiz: string;
+  quizzesPerProjectLimit: string;
   allowScannedDocuments: boolean;
   monthlyAiCredits: string;
   monthlyOcrPages: string;
@@ -114,6 +116,7 @@ function toDraftPlan(plan: SubscriptionPlan): AdminPlanDraft {
     estimatedPageLimit: String(plan.estimated_page_limit),
     initialFlashcardLimit: String(plan.initial_flashcard_limit),
     quizQuestionsPerQuiz: String(plan.quiz_questions_per_quiz),
+    quizzesPerProjectLimit: String(plan.quizzes_per_project_limit),
     allowScannedDocuments: plan.allow_scanned_documents,
     monthlyAiCredits: String(plan.monthly_ai_credits),
     monthlyOcrPages: String(plan.monthly_ocr_pages),
@@ -163,6 +166,11 @@ function toPlanUpdate(
     estimated_page_limit: normalizeInteger(plan.estimatedPageLimit, 25, 1),
     initial_flashcard_limit: normalizeInteger(plan.initialFlashcardLimit, 20, 1),
     quiz_questions_per_quiz: normalizeInteger(plan.quizQuestionsPerQuiz, 8, 3),
+    quizzes_per_project_limit: normalizeInteger(
+      plan.quizzesPerProjectLimit,
+      3,
+      1,
+    ),
     allow_scanned_documents: plan.allowScannedDocuments,
     monthly_ai_credits: normalizeInteger(plan.monthlyAiCredits, 10, 0),
     monthly_ocr_pages: normalizeInteger(plan.monthlyOcrPages, 0, 0),
@@ -435,7 +443,6 @@ export function AdminPlansPage({ initialPlans }: AdminPlansPageProps) {
     if (initialDrafts[0]) return planDraftKey(initialDrafts[0]);
     return "missing-plan";
   });
-  const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const selectedPlan =
     plans.find((plan) => planDraftKey(plan) === selectedPlanId) ?? plans[0];
@@ -449,7 +456,6 @@ export function AdminPlansPage({ initialPlans }: AdminPlansPageProps) {
   function updateSelectedPlan(update: Partial<AdminPlanDraft>) {
     if (!selectedPlan) return;
 
-    setStatusMessage(null);
     const selectedKey = planDraftKey(selectedPlan);
     setPlans((currentPlans) =>
       currentPlans.map((plan) =>
@@ -464,7 +470,6 @@ export function AdminPlansPage({ initialPlans }: AdminPlansPageProps) {
   function updateFeaturedStatus(checked: boolean) {
     if (!selectedPlan) return;
 
-    setStatusMessage(null);
     const selectedKey = planDraftKey(selectedPlan);
     setPlans((currentPlans) =>
       currentPlans.map((plan) => ({
@@ -504,7 +509,6 @@ export function AdminPlansPage({ initialPlans }: AdminPlansPageProps) {
     if (!selectedPlan) return;
 
     setIsSaving(true);
-    setStatusMessage(null);
     try {
       const selectedSlug = selectedPlan.slug;
       const updatedPlans = await updateAdminPlans(plans.map(toPlanUpdate));
@@ -520,9 +524,9 @@ export function AdminPlansPage({ initialPlans }: AdminPlansPageProps) {
             ? planDraftKey(updatedDrafts[0])
             : "missing-plan",
       );
-      setStatusMessage("Planurile au fost salvate în baza de date.");
+      toast.success("Planurile au fost salvate în baza de date.");
     } catch (error) {
-      setStatusMessage(
+      toast.error(
         error instanceof Error
           ? error.message
           : "Planurile nu au putut fi salvate.",
@@ -601,12 +605,6 @@ export function AdminPlansPage({ initialPlans }: AdminPlansPageProps) {
           />
         </div>
 
-        {statusMessage ? (
-          <div className="rounded-xl border border-info-border bg-info-soft px-5 py-4 text-sm font-bold text-info">
-            {statusMessage}
-          </div>
-        ) : null}
-
         <div className="grid gap-6 xl:grid-cols-[18rem_minmax(0,1fr)_22rem]">
           <aside className="rounded-xl border border-subtle bg-surface p-5 xl:sticky xl:top-6 xl:self-start">
             <div className="flex items-end justify-between gap-3">
@@ -633,7 +631,6 @@ export function AdminPlansPage({ initialPlans }: AdminPlansPageProps) {
                     type="button"
                     onClick={() => {
                       setSelectedPlanId(planDraftKey(plan));
-                      setStatusMessage(null);
                     }}
                     className={`group -mx-3 grid w-[calc(100%+1.5rem)] gap-2 rounded-lg px-3 py-4 text-left transition hover:bg-surface-hover ${
                       isSelected ? "bg-action-soft" : ""
@@ -812,6 +809,15 @@ export function AdminPlansPage({ initialPlans }: AdminPlansPageProps) {
                     updateSelectedPlan({ quizQuestionsPerQuiz: value })
                   }
                   placeholder="12"
+                />
+                <TextField
+                  label="Quizuri / proiect"
+                  value={selectedPlan.quizzesPerProjectLimit}
+                  onChange={(value) =>
+                    updateSelectedPlan({ quizzesPerProjectLimit: value })
+                  }
+                  placeholder="10"
+                  detail="Câte quizuri pot fi generate în total într-un proiect."
                 />
               </div>
               <div className="mt-5 divide-y divide-subtle border-y border-subtle">

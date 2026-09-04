@@ -21,6 +21,7 @@ export type AuthUserPlan = {
   estimated_page_limit: number;
   initial_flashcard_limit: number;
   quiz_questions_per_quiz: number;
+  quizzes_per_project_limit: number;
   allow_scanned_documents: boolean;
   monthly_page_limit: number;
   ai_chat_enabled: boolean;

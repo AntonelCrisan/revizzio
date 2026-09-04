@@ -11,7 +11,6 @@ type QuizConfigModalProps = {
   /** Upper bound from the account's plan. */
   maxQuestions: number;
   isSubmitting: boolean;
-  errorMessage: string | null;
   onCancel: () => void;
   onConfirm: (config: QuizGenerationConfig) => void;
 };
@@ -83,7 +82,6 @@ function CheckIcon() {
 export function QuizConfigModal({
   maxQuestions,
   isSubmitting,
-  errorMessage,
   onCancel,
   onConfirm,
 }: QuizConfigModalProps) {
@@ -247,12 +245,6 @@ export function QuizConfigModal({
         </div>
 
         <div className="shrink-0 border-t border-subtle p-6">
-          {errorMessage ? (
-            <p className="mb-4 rounded-md border border-danger-border bg-danger-soft px-4 py-3 text-sm font-bold text-danger">
-              {errorMessage}
-            </p>
-          ) : null}
-
           <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
             <button
               type="button"

@@ -31,6 +31,7 @@ class UserPlanResponse(BaseModel):
     estimated_page_limit: int
     initial_flashcard_limit: int
     quiz_questions_per_quiz: int
+    quizzes_per_project_limit: int
     allow_scanned_documents: bool
     monthly_page_limit: int
     ai_chat_enabled: bool
