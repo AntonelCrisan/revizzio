@@ -527,6 +527,8 @@ export async function explainStudyProjectSummarySelection(payload: {
   projectId: string;
   paragraphIndex: number;
   selectedText: string;
+  startOffset?: number | null;
+  endOffset?: number | null;
 }): Promise<StudyProjectAiSelectionExplainResponse> {
   const response = await fetch(
     `/api/projects/${payload.projectId}/ai/explain-selection`,
@@ -539,6 +541,8 @@ export async function explainStudyProjectSummarySelection(payload: {
       body: JSON.stringify({
         paragraph_index: payload.paragraphIndex,
         selected_text: payload.selectedText,
+        start_offset: payload.startOffset ?? null,
+        end_offset: payload.endOffset ?? null,
       }),
       cache: "no-store",
     },

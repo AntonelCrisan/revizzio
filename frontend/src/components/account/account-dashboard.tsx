@@ -5068,6 +5068,8 @@ function SummaryPanel({
         projectId: project.id,
         paragraphIndex: selection.paragraphIndex,
         selectedText: selection.text,
+        startOffset: selection.startOffset,
+        endOffset: selection.endOffset,
       });
 
       if (requestId !== aiRequestIdRef.current) {

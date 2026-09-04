@@ -1082,7 +1082,10 @@ def _focused_summary_context(
 
 def _split_summary_enumeration(text: str) -> list[str]:
     colon_index = text.find(":")
-    if colon_index <= 0:
+    # Matches the browser's splitter, which only bails when there is no colon
+    # at all. The two indexings have to agree: the browser sends a paragraph
+    # index that this split is looked up by.
+    if colon_index == -1:
         return [text]
 
     intro = text[: colon_index + 1].strip()
@@ -2676,6 +2679,8 @@ class StudyProjectService:
         project_id: uuid.UUID,
         paragraph_index: int,
         selected_text: str,
+        start_offset: int | None = None,
+        end_offset: int | None = None,
     ) -> dict[str, Any]:
         if self.settings.openai_api_key is None:
             raise ProjectValidationError(
@@ -2693,14 +2698,17 @@ class StudyProjectService:
         summary_blocks = _split_summary_blocks(project.summary.content)
         if not summary_blocks:
             raise ProjectValidationError("Rezumatul proiectului nu este disponibil.")
-        if paragraph_index >= len(summary_blocks):
-            raise ProjectValidationError("Fragmentul selectat nu mai este valid.")
 
-        selected_block = summary_blocks[paragraph_index]
-        if clean_selection.lower() not in selected_block.lower():
-            raise ProjectValidationError(
-                "Fragmentul selectat nu apartine paragrafului ales."
-            )
+        # The same resolver the highlights use: the browser shows the rendered
+        # paragraph, so a selection never carries the markdown around a bold
+        # or italic term, and its diacritics may be normalised differently.
+        selected_block = _summary_block_for_selection(
+            project,
+            paragraph_index,
+            selected_text,
+            start_offset=start_offset,
+            end_offset=end_offset,
+        )
 
         previous_block = (
             summary_blocks[paragraph_index - 1] if paragraph_index > 0 else ""
@@ -2792,7 +2800,15 @@ class StudyProjectService:
             raise ProjectValidationError("Partea selectata nu este valida.")
 
         side_text = flashcard.front if side == "question" else flashcard.back
-        if clean_selection.lower() not in side_text.lower():
+        # Normalised the same way as a summary selection: the browser shows
+        # rendered text, so markdown and diacritic forms can differ from what
+        # is stored.
+        normalized_selection = _normalize_summary_selection_text(clean_selection)
+        if normalized_selection not in _normalize_summary_selection_text(
+            side_text
+        ) and normalized_selection not in _normalize_summary_selection_text(
+            _strip_summary_inline_markdown(side_text)
+        ):
             raise ProjectValidationError(
                 "Fragmentul selectat nu apartine flashcardului ales."
             )

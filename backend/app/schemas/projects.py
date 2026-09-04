@@ -258,6 +258,10 @@ class StudyProjectQuizMistakeFlashcardCreate(BaseModel):
 class StudyProjectAiSelectionExplainRequest(BaseModel):
     paragraph_index: int = Field(ge=0)
     selected_text: str = Field(min_length=3, max_length=2000)
+    # The browser knows the exact character range it selected; matching the
+    # text again is only the fallback when it cannot supply one.
+    start_offset: int | None = Field(default=None, ge=0)
+    end_offset: int | None = Field(default=None, ge=0)
 
 
 class StudyProjectFlashcardAiSelectionExplainRequest(BaseModel):

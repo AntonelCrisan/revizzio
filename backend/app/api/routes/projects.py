@@ -503,6 +503,8 @@ async def explain_project_summary_selection(
             project_id=project_id,
             paragraph_index=payload.paragraph_index,
             selected_text=payload.selected_text,
+            start_offset=payload.start_offset,
+            end_offset=payload.end_offset,
         )
     except PlanLimitError as exc:
         raise HTTPException(
