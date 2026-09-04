@@ -11,6 +11,17 @@ import { useAuth } from "@/components/auth/auth-provider";
 const EXACT_PATHS_WITH_OWN_BELL = new Set(["/"]);
 const PATH_PREFIXES_WITH_OWN_BELL = ["/abonamente"];
 
+// The account pages carry a bell inside their phone top bar, so the floating
+// overlay would double it there. It stays for `lg` and up, where that bar is
+// hidden and the corner is free.
+const PATH_PREFIXES_WITH_MOBILE_BAR = ["/myaccount", "/settings", "/upgrade"];
+
+function hasMobileBar(pathname: string) {
+  return PATH_PREFIXES_WITH_MOBILE_BAR.some(
+    (prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`),
+  );
+}
+
 function hasOwnBell(pathname: string) {
   if (EXACT_PATHS_WITH_OWN_BELL.has(pathname)) return true;
 
@@ -28,7 +39,11 @@ export function GlobalNotificationBell() {
   if (isLoading || !user || hasOwnBell(pathname)) return null;
 
   return (
-    <div className="fixed right-4 top-4 z-[100]">
+    <div
+      className={`fixed right-4 top-4 z-[100] ${
+        hasMobileBar(pathname) ? "hidden lg:block" : ""
+      }`}
+    >
       <NotificationBell />
     </div>
   );

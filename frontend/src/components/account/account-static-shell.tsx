@@ -1,5 +1,6 @@
 "use client";
 
+import { AccountMobileTopBar } from "@/components/account/account-mobile-top-bar";
 import Link from "next/link";
 import { AccountShellSkeleton } from "@/components/account/account-page-skeletons";
 import { useRouter } from "next/navigation";
@@ -576,18 +577,9 @@ export function AccountStaticShell({
       </aside>
 
       <div className="relative min-w-0 flex-1">
-        <button
-          type="button"
-          onClick={() => setSidebarOpen(true)}
-          className="fixed left-4 top-4 z-30 flex h-11 w-11 items-center justify-center rounded-md border border-subtle bg-surface/95 text-content shadow-lg shadow-black/10 backdrop-blur-xl transition hover:bg-surface-hover lg:hidden"
-          aria-label="Deschide meniul"
-        >
-          <Icon className="h-5 w-5">
-            <path d="M3 6h18M3 12h18M3 18h18" />
-          </Icon>
-        </button>
+        <AccountMobileTopBar onOpenMenu={() => setSidebarOpen(true)} />
 
-        <main className="w-full px-2 pb-5 pt-20 sm:px-4 md:px-5 lg:px-6 lg:py-8 xl:px-8">
+        <main className="w-full px-2 pb-5 pt-4 sm:px-4 md:px-5 lg:px-6 lg:py-8 xl:px-8">
           {children}
         </main>
       </div>

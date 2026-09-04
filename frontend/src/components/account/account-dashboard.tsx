@@ -14,6 +14,7 @@ import {
   useState,
   useTransition,
 } from "react";
+import { AccountMobileTopBar } from "@/components/account/account-mobile-top-bar";
 import { AccountSkeleton } from "@/components/account/account-skeleton";
 import { ProjectTabSkeleton } from "@/components/account/project-tab-skeletons";
 import { ProjectSlotsModal } from "@/components/account/project-slots-modal";
@@ -2112,20 +2113,9 @@ export function AccountDashboard({
       </aside>
 
       <div className="relative min-w-0 flex-1">
-        {!sidebarOpen ? (
-          <button
-            type="button"
-            onClick={() => setSidebarOpen(true)}
-            className="fixed left-4 top-4 z-50 flex h-11 w-11 items-center justify-center rounded-md border border-subtle bg-surface/95 text-content shadow-lg shadow-black/10 backdrop-blur-xl transition hover:bg-surface-hover lg:hidden"
-            aria-label="Deschide meniul"
-          >
-            <Icon className="h-5 w-5">
-              <path d="M3 6h18M3 12h18M3 18h18" />
-            </Icon>
-          </button>
-        ) : null}
+        <AccountMobileTopBar onOpenMenu={() => setSidebarOpen(true)} />
 
-        <main className="w-full px-2 pb-5 pt-20 sm:px-4 md:px-5 lg:px-6 lg:py-8 xl:px-8">
+        <main className="w-full px-2 pb-5 pt-4 sm:px-4 md:px-5 lg:px-6 lg:py-8 xl:px-8">
           {view === "home" ? (
             <HomeView
               displayName={displayName}
@@ -3112,13 +3102,13 @@ function ProjectView({
       </div>
 
       <div
-        className={`sticky top-4 z-30 -mx-2 border-b border-subtle bg-app/95 px-2 backdrop-blur-xl transition-all duration-300 lg:top-3 ${
+        className={`sticky top-14 z-30 -mx-2 border-b border-subtle bg-app/95 px-2 backdrop-blur-xl transition-[transform,opacity] duration-300 lg:top-3 ${
           areProjectTabsVisible
             ? "translate-y-0 opacity-100"
             : "pointer-events-none -translate-y-4 opacity-0"
         }`}
       >
-        <div className="ml-16 overflow-x-auto [scrollbar-width:none] md:ml-0 md:flex md:justify-center [&::-webkit-scrollbar]:hidden">
+        <div className="overflow-x-auto [scrollbar-width:none] md:flex md:justify-center [&::-webkit-scrollbar]:hidden">
           <div className="flex min-w-max items-center gap-6">
           {tabs.map((tab) => {
             const isAiTabLocked = tab.id === "chat" && !hasAiAccess;
