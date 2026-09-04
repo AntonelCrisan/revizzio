@@ -135,22 +135,29 @@ def email_logo_html(logo_url: str | None, app_name: str = "Reviss") -> str:
 
 def _detail_row_html(detail: str | tuple[str, str | None]) -> str:
     text, href = detail if isinstance(detail, tuple) else (detail, None)
-    safe_text = escape(text)
+    label: str | None = None
+    value = text
+    if ": " in text:
+        candidate_label, candidate_value = text.split(": ", 1)
+        if len(candidate_label) <= 40 and candidate_value.strip():
+            label = candidate_label
+            value = candidate_value
+    safe_value = escape(value)
     if href:
         safe_href = escape(href, quote=True)
-        content = (
-            f'<a href="{safe_href}" style="color: #675d54; text-decoration: underline;">'
-            f"{safe_text} →</a>"
+        safe_value = (
+            f'<a href="{safe_href}" style="color: #1c1a17; font-weight: 700; text-decoration: underline;">'
+            f"{safe_value}</a>"
         )
-    else:
-        content = safe_text
+    label_html = (
+        f'<span style="display: block; margin-bottom: 3px; color: #6e6b65; font-size: 12px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase;">{escape(label)}</span>'
+        if label
+        else ""
+    )
     return f"""
         <tr>
-          <td style="padding: 7px 0; vertical-align: top;">
-            <span style="display: inline-block; width: 22px; height: 22px; border-radius: 999px; background: #eef5ea; color: #31422c; font-size: 13px; font-weight: 700; line-height: 22px; text-align: center;">✓</span>
-          </td>
-          <td style="padding: 7px 0 7px 10px; color: #675d54; font-size: 14px; line-height: 1.55;">
-            {content}
+          <td style="padding: 11px 0; border-bottom: 1px solid #e8e3d9; color: #33302b; font-size: 14px; line-height: 1.6;">
+            {label_html}{safe_value}
           </td>
         </tr>
         """
@@ -165,13 +172,70 @@ def _email_shell(
     logo_html: str,
     cta_label: str,
     action_url: str,
-    note_title: str,
-    note: str,
-    details: list[str] | list[tuple[str, str | None]],
+    note_title: str | None = None,
+    note: str | None = None,
+    details: list[str] | list[tuple[str, str | None]] | None = None,
+    details_title: str | None = None,
+    footer_note: str | None = None,
+    preheader: str | None = None,
 ) -> str:
     safe_app_name = escape(app_name)
     safe_action_url = escape(action_url, quote=True)
-    detail_items = "".join(_detail_row_html(detail) for detail in details)
+    detail_items = "".join(_detail_row_html(detail) for detail in details or [])
+
+    details_block = ""
+    if detail_items:
+        details_heading = (
+            f"""
+                    <p style="margin: 0 0 4px; color: #6e6b65; font-size: 12px; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase;">
+                      {escape(details_title)}
+                    </p>
+            """
+            if details_title
+            else ""
+        )
+        details_block = f"""
+                <tr>
+                  <td style="padding: 30px 0 0;">
+                    {details_heading}
+                    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-top: 1px solid #e8e3d9;">
+                      {detail_items}
+                    </table>
+                  </td>
+                </tr>
+        """
+
+    note_block = ""
+    if note:
+        note_heading = (
+            f"""
+                          <p style="margin: 0 0 6px; color: #1c1a17; font-size: 13px; font-weight: 700;">
+                            {escape(note_title)}
+                          </p>
+            """
+            if note_title
+            else ""
+        )
+        note_block = f"""
+                <tr>
+                  <td style="padding: 30px 0 0;">
+                    <table role="presentation" width="100%" cellspacing="0" cellpadding="0">
+                      <tr>
+                        <td style="border-left: 3px solid #d5cbb8; padding: 2px 0 2px 14px;">
+                          {note_heading}
+                          <p style="margin: 0; color: #4d4842; font-size: 13px; line-height: 1.65;">
+                            {escape(note)}
+                          </p>
+                        </td>
+                      </tr>
+                    </table>
+                  </td>
+                </tr>
+        """
+
+    footer_text = footer_note or (
+        f"Acest email a fost trimis automat de {app_name} către adresa ta de cont."
+    )
 
     return f"""
     <!doctype html>
@@ -182,23 +246,23 @@ def _email_shell(
         <meta name="color-scheme" content="light">
         <title>{escape(title)}</title>
       </head>
-      <body style="margin: 0; padding: 0; background: #f6f1e9; color: #2d2823; font-family: Arial, Helvetica, sans-serif;">
-        <div style="display: none; max-height: 0; overflow: hidden; opacity: 0;">
-          {escape(intro)}
+      <body style="margin: 0; padding: 0; width: 100%; background: #fbf9f5; color: #1c1a17; font-family: Arial, Helvetica, sans-serif;">
+        <div style="display: none; max-height: 0; overflow: hidden; opacity: 0; mso-hide: all;">
+          {escape(preheader or intro)}
         </div>
 
-        <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background: #f6f1e9; padding: 32px 14px;">
+        <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="width: 100%; background: #fbf9f5;">
           <tr>
-            <td align="center">
-              <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width: 620px; overflow: hidden; border: 1px solid #e5dacb; border-radius: 28px; background: #fffdfa; box-shadow: 0 22px 70px rgba(48, 39, 31, 0.12);">
+            <td align="center" style="padding: 40px 24px 48px;">
+              <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="width: 100%; max-width: 640px;">
                 <tr>
-                  <td style="padding: 28px 30px 0;">
+                  <td style="padding: 0 0 22px; border-bottom: 1px solid #e8e3d9;">
                     <table role="presentation" width="100%" cellspacing="0" cellpadding="0">
                       <tr>
-                        <td style="height: 42px;">
+                        <td style="height: 36px; vertical-align: middle;">
                           {logo_html}
                         </td>
-                        <td align="right" style="color: #8a7b6b; font-size: 11px; font-weight: 700; letter-spacing: 0.16em; text-transform: uppercase;">
+                        <td align="right" style="vertical-align: middle; color: #6e6b65; font-size: 11px; font-weight: 700; letter-spacing: 0.16em; text-transform: uppercase;">
                           {escape(eyebrow)}
                         </td>
                       </tr>
@@ -207,59 +271,43 @@ def _email_shell(
                 </tr>
 
                 <tr>
-                  <td style="padding: 34px 30px 8px;">
-                    <h1 style="margin: 0; color: #2d2823; font-family: Georgia, 'Times New Roman', serif; font-size: 36px; line-height: 1.08; letter-spacing: -0.03em;">
+                  <td style="padding: 34px 0 0;">
+                    <h1 style="margin: 0; color: #1c1a17; font-family: Georgia, 'Times New Roman', serif; font-size: 30px; line-height: 1.18; letter-spacing: -0.02em;">
                       {escape(title)}
                     </h1>
-                    <p style="margin: 18px 0 0; color: #675d54; font-size: 16px; line-height: 1.65;">
+                    <p style="margin: 16px 0 0; color: #4d4842; font-size: 16px; line-height: 1.7;">
                       {escape(intro)}
                     </p>
                   </td>
                 </tr>
 
                 <tr>
-                  <td style="padding: 22px 30px 8px;">
-                    <a href="{safe_action_url}" style="display: inline-block; border-radius: 999px; background: #3e352f; color: #fff8ec; font-size: 15px; font-weight: 800; line-height: 1; padding: 16px 22px; text-decoration: none;">
+                  <td style="padding: 26px 0 0;">
+                    <a href="{safe_action_url}" style="display: inline-block; border-radius: 6px; background: #1c1a17; color: #fbf9f5; font-size: 14px; font-weight: 700; line-height: 1; padding: 15px 22px; text-decoration: none;">
                       {escape(cta_label)}
                     </a>
+                    <p style="margin: 14px 0 0; word-break: break-all; color: #6e6b65; font-size: 12px; line-height: 1.6;">
+                      Dacă butonul nu se deschide, copiază acest link în browser:
+                      <a href="{safe_action_url}" style="color: #6e6b65; text-decoration: underline;">{safe_action_url}</a>
+                    </p>
                   </td>
                 </tr>
-
+{details_block}
+{note_block}
                 <tr>
-                  <td style="padding: 22px 30px;">
-                    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-top: 1px solid #ede3d6; border-bottom: 1px solid #ede3d6; padding: 14px 0;">
-                      {detail_items}
+                  <td style="padding: 34px 0 0;">
+                    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-top: 1px solid #e8e3d9;">
+                      <tr>
+                        <td style="padding: 20px 0 0;">
+                          <p style="margin: 0; color: #6e6b65; font-size: 12px; line-height: 1.7;">
+                            {escape(footer_text)}
+                          </p>
+                          <p style="margin: 6px 0 0; color: #8d887f; font-size: 12px; line-height: 1.7;">
+                            {safe_app_name}
+                          </p>
+                        </td>
+                      </tr>
                     </table>
-                  </td>
-                </tr>
-
-                <tr>
-                  <td style="padding: 0 30px 28px;">
-                    <div style="border: 1px solid #d9e3d1; border-radius: 20px; background: #f3f8ef; padding: 16px 18px;">
-                      <p style="margin: 0 0 6px; color: #31422c; font-size: 13px; font-weight: 800;">
-                        {escape(note_title)}
-                      </p>
-                      <p style="margin: 0; color: #53624d; font-size: 13px; line-height: 1.6;">
-                        {escape(note)}
-                      </p>
-                    </div>
-                  </td>
-                </tr>
-
-                <tr>
-                  <td style="padding: 0 30px 30px;">
-                    <p style="margin: 0; color: #8a7b6b; font-size: 12px; line-height: 1.6;">
-                      Dacă butonul nu funcționează, copiază linkul acesta în browser:
-                    </p>
-                    <p style="margin: 8px 0 0; word-break: break-all; color: #5f534a; font-size: 12px; line-height: 1.6;">
-                      <a href="{safe_action_url}" style="color: #5f534a; text-decoration: underline;">{safe_action_url}</a>
-                    </p>
-                  </td>
-                </tr>
-
-                <tr>
-                  <td style="background: #181411; padding: 18px 30px; color: #bdb0a2; font-size: 12px; line-height: 1.6;">
-                    Email trimis automat de {safe_app_name}. Dacă nu ai cerut această acțiune, poți ignora mesajul în siguranță.
                   </td>
                 </tr>
               </table>
@@ -276,32 +324,37 @@ def verification_email(
 ) -> tuple[str, str]:
     text = (
         f"Bine ai venit în {app_name}.\n\n"
-        "Confirmă adresa de email ca să îți activăm contul și să îți pregătim "
-        "spațiul de studiu.\n\n"
-        f"Confirmă emailul aici: {verification_url}\n\n"
-        "Linkul expiră automat și poate fi folosit o singură dată."
+        "Contul tău se creează abia după ce confirmi că această adresă de email "
+        "îți aparține. Deschide linkul de mai jos și intri direct în cont.\n\n"
+        f"Confirmă adresa de email: {verification_url}\n\n"
+        "Linkul poate fi folosit o singură dată și expiră automat.\n"
+        "Dacă nu ai cerut tu contul, ignoră acest email: fără confirmare nu se "
+        "creează nimic."
     )
     html = _email_shell(
         app_name=app_name,
         eyebrow="Confirmare cont",
-        title="Ești la un pas de spațiul tău de studiu.",
+        title="Confirmă adresa de email",
         intro=(
-            "Confirmă adresa de email ca să activăm contul și să îți pregătim "
-            "locul unde cursurile devin rezumate, flashcard-uri și quiz-uri."
+            "Contul tău se creează abia după ce confirmăm că această adresă de "
+            "email îți aparține. Apasă butonul de mai jos și intri direct în "
+            "spațiul tău de studiu, unde cursurile devin rezumate, "
+            "flashcard-uri și quiz-uri."
         ),
+        preheader="Un singur clic și contul tău este activ.",
         logo_html=logo_html,
-        cta_label="Confirmă emailul",
+        cta_label="Confirmă adresa de email",
         action_url=verification_url,
-        note_title="De ce cerem confirmarea?",
-        note=(
-            "Vrem să ne asigurăm că această adresă îți aparține înainte să "
-            "creăm contul și să legăm progresul de ea."
-        ),
+        details_title="Ce trebuie să știi",
         details=[
-            "Contul se creează doar după validarea emailului.",
-            "Linkul expiră automat și poate fi folosit o singură dată.",
-            "După confirmare vei intra direct în contul tău.",
+            "Valabilitate: linkul poate fi folosit o singură dată și expiră automat.",
+            "După confirmare: intri direct în cont, fără să mai introduci parola.",
+            "Nu ai cerut tu contul: ignoră acest email, fără confirmare nu se creează nimic.",
         ],
+        footer_note=(
+            f"Acest email a fost trimis automat de {app_name} pentru că adresa "
+            "a fost folosită la înregistrare."
+        ),
     )
     return html, text
 
@@ -310,33 +363,38 @@ def email_change_confirmation_email(
     *, confirmation_url: str, logo_html: str, new_email: str, app_name: str = "Reviss"
 ) -> tuple[str, str]:
     text = (
-        f"Ai cerut schimbarea adresei de email pentru contul {app_name} în "
+        f"Ai cerut ca adresa de email a contului {app_name} să devină "
         f"{new_email}.\n\n"
-        f"Confirmă noua adresă aici: {confirmation_url}\n\n"
-        "Linkul expiră automat și poate fi folosit o singură dată. "
-        "Dacă nu tu ai cerut schimbarea, ignoră acest email."
+        f"Confirmă noua adresă: {confirmation_url}\n\n"
+        "Până la confirmare contul rămâne pe adresa veche, cu care te poți "
+        "autentifica normal.\n"
+        "Linkul poate fi folosit o singură dată și expiră automat.\n"
+        "Dacă nu ai cerut tu schimbarea, ignoră acest email."
     )
     html = _email_shell(
         app_name=app_name,
         eyebrow="Schimbare email",
-        title="Confirmă noua adresă de email.",
+        title="Confirmă noua adresă de email",
         intro=(
-            f"Am primit o solicitare de schimbare a adresei de email în "
-            f"{new_email}. Confirmă adresa ca să finalizăm schimbarea."
+            "Am primit o cerere de schimbare a adresei contului tău în "
+            f"{new_email}. Apasă butonul de mai jos ca să finalizăm schimbarea."
         ),
+        preheader=f"Confirmă mutarea contului pe {new_email}.",
         logo_html=logo_html,
-        cta_label="Confirmă adresa",
+        cta_label="Confirmă noua adresă",
         action_url=confirmation_url,
+        details_title="Ce se întâmplă mai departe",
+        details=[
+            f"Adresă nouă: {new_email}",
+            "Până la confirmare: contul rămâne pe adresa veche, cu care te poți autentifica normal.",
+            "După confirmare: te autentifici doar cu adresa nouă și acolo primești notificările.",
+            "Valabilitate: linkul poate fi folosit o singură dată și expiră automat.",
+        ],
         note_title="Nu ai cerut tu schimbarea?",
         note=(
-            "Poți ignora acest email. Adresa contului rămâne neschimbată atât "
-            "timp cât nu accesezi linkul de confirmare."
+            "Ignoră acest email și nu deschide linkul. Dacă bănuiești că "
+            "altcineva are acces la contul tău, schimbă-ți parola."
         ),
-        details=[
-            "Linkul este valabil pentru o perioadă limitată.",
-            "Poate fi folosit o singură dată.",
-            "Adresa se schimbă doar după confirmare.",
-        ],
     )
     return html, text
 
@@ -352,38 +410,62 @@ def notification_digest_email(
     the relevant project when the notification is about one (None otherwise).
     """
     is_digest = len(items) > 1
-    title = (
-        f"{len(items)} noutăți în contul tău" if is_digest else items[0][0]
-    )
-    intro = (
-        "Iată ce s-a întâmplat de la ultima vizită:"
-        if is_digest
-        else items[0][1]
-    )
-    details: list[tuple[str, str | None]] = [
-        (f"{item_title}: {item_body}", href) for item_title, item_body, href in items
-    ]
-    text_lines = [
-        f"- {item_title}: {item_body}" + (f" ({href})" if href else "")
-        for item_title, item_body, href in items
-    ]
-    text = (
-        f"{title}\n\n{intro}\n\n"
-        + "\n".join(text_lines)
-        + f"\n\nDeschide Reviss: {app_url}"
-    )
+    details: list[tuple[str, str | None]] = []
+    details_title: str | None = None
+
+    if is_digest:
+        title = f"Ai {len(items)} noutăți în contul tău"
+        intro = (
+            "De la ultima ta vizită s-au strâns câteva actualizări. Le găsești "
+            "pe toate mai jos, iar butonul te duce direct în cont."
+        )
+        details = [
+            (f"{item_title}: {item_body}", href)
+            for item_title, item_body, href in items
+        ]
+        details_title = "Ce s-a întâmplat"
+        text = (
+            f"{title}\n\n{intro}\n\n"
+            + "\n".join(
+                f"- {item_title}: {item_body}" + (f" ({href})" if href else "")
+                for item_title, item_body, href in items
+            )
+            + f"\n\nDeschide {app_name}: {app_url}"
+        )
+        preheader = f"{len(items)} actualizări noi în contul tău."
+    else:
+        item_title, item_body, item_url = items[0]
+        title = item_title
+        intro = item_body
+        text = (
+            f"{item_title}\n\n{item_body}\n\n"
+            f"Deschide în {app_name}: {item_url or app_url}"
+        )
+        preheader = item_body
+
     single_project_url = items[0][2] if not is_digest else None
     html = _email_shell(
         app_name=app_name,
-        eyebrow="Rezumat" if is_digest else "Notificare",
+        eyebrow="Rezumat notificări" if is_digest else "Notificare",
         title=title,
         intro=intro,
+        preheader=preheader,
         logo_html=logo_html,
-        cta_label="Vezi proiectul" if single_project_url else "Deschide Reviss",
+        cta_label=(
+            "Deschide proiectul" if single_project_url else f"Deschide {app_name}"
+        ),
         action_url=single_project_url or app_url,
-        note_title="Vrei mai puține email-uri?",
-        note="Poți opri aceste notificări din Setări → Notificări.",
+        details_title=details_title,
         details=details,
+        note_title="Primești prea multe email-uri?",
+        note=(
+            "Poți alege exact ce notificări îți trimitem pe email din Setări → "
+            "Notificări. În aplicație rămân vizibile toate."
+        ),
+        footer_note=(
+            f"Acest email a fost trimis automat de {app_name} pentru "
+            "notificările pe care le-ai activat."
+        ),
     )
     return html, text
 
@@ -392,32 +474,40 @@ def password_reset_email(
     *, reset_url: str, logo_html: str, app_name: str = "Reviss"
 ) -> tuple[str, str]:
     text = (
-        f"Ai cerut resetarea parolei pentru {app_name}.\n\n"
-        f"Alege o parolă nouă aici: {reset_url}\n\n"
-        "Linkul expiră automat și poate fi folosit o singură dată. "
-        "Dacă nu tu ai cerut resetarea, ignoră acest email."
+        f"Ai cerut resetarea parolei pentru contul tău {app_name}.\n\n"
+        f"Setează o parolă nouă: {reset_url}\n\n"
+        "Parola actuală rămâne valabilă până când o schimbi din acest link.\n"
+        "După schimbare, sesiunile deschise pe alte dispozitive se închid.\n"
+        "Linkul poate fi folosit o singură dată și expiră automat.\n"
+        "Dacă nu ai cerut tu resetarea, ignoră acest email."
     )
     html = _email_shell(
         app_name=app_name,
-        eyebrow="Securitate",
-        title="Hai să îți setăm o parolă nouă.",
+        eyebrow="Securitate cont",
+        title="Setează o parolă nouă",
         intro=(
-            "Am primit o solicitare de resetare a parolei pentru contul tău. "
-            "Alege o parolă nouă, iar sesiunile vechi vor fi închise automat."
+            "Am primit o cerere de resetare a parolei pentru contul tău. Apasă "
+            "butonul de mai jos ca să îți alegi o parolă nouă."
         ),
+        preheader="Linkul pentru resetarea parolei tale.",
         logo_html=logo_html,
-        cta_label="Resetează parola",
+        cta_label="Setează parola nouă",
         action_url=reset_url,
+        details_title="Ce trebuie să știi",
+        details=[
+            "Până schimbi parola: parola actuală rămâne valabilă.",
+            "După schimbare: sesiunile deschise pe alte dispozitive se închid.",
+            "Valabilitate: linkul poate fi folosit o singură dată și expiră automat.",
+        ],
         note_title="Nu ai cerut tu resetarea?",
         note=(
-            "Poți ignora acest email. Parola ta rămâne neschimbată atât timp "
-            "cât nu accesezi linkul de resetare."
+            "Ignoră acest email și nu deschide linkul. Nimeni nu îți poate "
+            "schimba parola fără linkul primit în acest inbox."
         ),
-        details=[
-            "Linkul este valabil pentru o perioadă limitată.",
-            "Poate fi folosit o singură dată.",
-            "După schimbarea parolei, sesiunile vechi sunt revocate.",
-        ],
+        footer_note=(
+            f"Acest email a fost trimis automat de {app_name} pentru cererea de "
+            "resetare făcută pe această adresă."
+        ),
     )
     return html, text
 
@@ -432,33 +522,41 @@ def contact_confirmation_email(
     app_name: str = "Reviss",
 ) -> tuple[str, str]:
     text = (
-        f"Am primit mesajul tău către {app_name}.\n\n"
+        f"Am primit mesajul tău către {app_name} și l-am înregistrat.\n\n"
         f"Referință: {reference}\n"
         f"Categorie: {category_label}\n"
         f"Subiect: {subject}\n\n"
-        "Îți vom răspunde pe email după ce analizăm solicitarea."
+        "Îți răspundem pe adresa completată în formular. Dacă revii cu detalii, "
+        "menționează numărul de referință.\n\n"
+        f"Deschide {app_name}: {app_url}"
     )
     html = _email_shell(
         app_name=app_name,
         eyebrow="Mesaj primit",
-        title="Am primit mesajul tău.",
+        title="Am primit mesajul tău",
         intro=(
-            "Mulțumim că ne-ai scris. Solicitarea ta a fost înregistrată, "
-            "iar echipa Reviss o va analiza cât de curând."
+            "Mulțumim că ne-ai scris. Solicitarea a fost înregistrată cu datele "
+            "de mai jos și a ajuns la echipa de suport."
         ),
+        preheader=f"Solicitarea {reference} a fost înregistrată.",
         logo_html=logo_html,
-        cta_label="Înapoi la Reviss",
+        cta_label=f"Deschide {app_name}",
         action_url=app_url,
-        note_title="Ce urmează?",
-        note=(
-            "Răspundem pe adresa de email folosită în formular. Păstrează "
-            "numărul de referință dacă revii cu detalii suplimentare."
-        ),
+        details_title="Datele solicitării tale",
         details=[
             f"Referință: {reference}",
             f"Categorie: {category_label}",
             f"Subiect: {subject}",
         ],
+        note_title="Ce urmează",
+        note=(
+            "Îți răspundem pe adresa completată în formular. Dacă revii cu "
+            "detalii, menționează numărul de referință ca să legăm mesajele."
+        ),
+        footer_note=(
+            "Acest email confirmă primirea mesajului trimis prin formularul de "
+            f"contact {app_name}."
+        ),
     )
     return html, text
 
@@ -482,27 +580,28 @@ def contact_notification_email(
         else trimmed_message
     )
     text = (
-        "A fost trimis un mesaj nou din formularul de contact Reviss.\n\n"
+        f"Mesaj nou din formularul de contact {app_name}.\n\n"
         f"Referință: {reference}\n"
         f"Nume: {sender_name}\n"
         f"Email: {sender_email}\n"
         f"Categorie: {category_label}\n"
         f"Subiect: {subject}\n\n"
-        f"Mesaj:\n{trimmed_message}"
+        f"Mesaj:\n{trimmed_message}\n\n"
+        f"Deschide {app_name}: {app_url}"
     )
     html = _email_shell(
         app_name=app_name,
         eyebrow="Contact nou",
-        title="Ai un mesaj nou în Reviss.",
+        title="Mesaj nou din formularul de contact",
         intro=(
-            "Un utilizator a trimis o solicitare prin formularul public de "
-            "contact. Mesajul complet este salvat și în baza de date."
+            f"{sender_name} a trimis o solicitare în categoria "
+            f"„{category_label}”. Poți răspunde direct la {sender_email}."
         ),
+        preheader=f"{sender_name}: {subject}",
         logo_html=logo_html,
-        cta_label="Deschide Reviss",
+        cta_label=f"Deschide {app_name}",
         action_url=app_url,
-        note_title="Mesaj",
-        note=preview_message,
+        details_title="Detaliile expeditorului",
         details=[
             f"Referință: {reference}",
             f"Nume: {sender_name}",
@@ -510,6 +609,12 @@ def contact_notification_email(
             f"Categorie: {category_label}",
             f"Subiect: {subject}",
         ],
+        note_title="Mesajul primit",
+        note=preview_message,
+        footer_note=(
+            "Notificare internă. Mesajul complet este salvat și în baza de date "
+            f"{app_name}."
+        ),
     )
     return html, text
 
@@ -525,42 +630,50 @@ def content_report_confirmation_email(
     app_name: str = "Reviss",
 ) -> tuple[str, str]:
     attachment_count = len(attachment_names or [])
-    attachment_label = (
-        f"{attachment_count} documente"
-        if attachment_count != 1
-        else "1 document"
-    )
+    if attachment_count == 0:
+        attachment_label = "niciun document"
+    elif attachment_count == 1:
+        attachment_label = "1 document"
+    else:
+        attachment_label = f"{attachment_count} documente"
     text = (
-        f"Am primit raportarea ta de conținut către {app_name}.\n\n"
+        "Am primit raportarea ta de conținut și am înregistrat-o.\n\n"
         f"Număr de înregistrare: {reference}\n"
         f"Tip raportare: {report_type_label}\n"
         f"Conținut raportat: {content_reference}\n"
         f"Documente atașate: {attachment_label}\n\n"
-        "Echipa Reviss va analiza sesizarea și va reveni dacă sunt necesare "
-        "detalii suplimentare."
+        "Analizăm sesizarea și îți scriem pe adresa din formular dacă avem "
+        "nevoie de clarificări.\n\n"
+        f"Deschide {app_name}: {app_url}"
     )
     html = _email_shell(
         app_name=app_name,
         eyebrow="Raportare primită",
-        title="Am înregistrat sesizarea ta.",
+        title="Am înregistrat sesizarea ta",
         intro=(
-            "Mulțumim că ne-ai trimis detaliile. Raportarea a fost salvată, "
-            "iar echipa Reviss o va analiza conform procedurilor interne."
+            "Mulțumim pentru detalii. Raportarea a fost salvată cu datele de "
+            "mai jos și intră în analiză conform procedurilor interne."
         ),
+        preheader=f"Sesizarea {reference} a fost înregistrată.",
         logo_html=logo_html,
-        cta_label="Înapoi la Reviss",
+        cta_label=f"Deschide {app_name}",
         action_url=app_url,
-        note_title="Ce urmează?",
-        note=(
-            "Păstrează numărul de înregistrare. Dacă avem nevoie de clarificări, "
-            "îți vom scrie pe adresa folosită în formular."
-        ),
+        details_title="Datele sesizării tale",
         details=[
             f"Număr de înregistrare: {reference}",
             f"Tip raportare: {report_type_label}",
             f"Conținut raportat: {content_reference}",
             f"Documente atașate: {attachment_label}",
         ],
+        note_title="Ce urmează",
+        note=(
+            "Dacă avem nevoie de clarificări, îți scriem pe adresa folosită în "
+            "formular. Păstrează numărul de înregistrare pentru orice revenire."
+        ),
+        footer_note=(
+            "Acest email confirmă primirea raportării trimise prin formularul "
+            f"{app_name}."
+        ),
     )
     return html, text
 
@@ -589,7 +702,7 @@ def content_report_notification_email(
     evidence_text = rights_evidence.strip() if rights_evidence else "-"
     attachment_list = ", ".join(attachment_names or []) or "-"
     text = (
-        "A fost trimisă o raportare nouă de conținut în Reviss.\n\n"
+        f"Raportare nouă de conținut în {app_name}.\n\n"
         f"Număr de înregistrare: {reference}\n"
         f"Nume: {sender_name}\n"
         f"Email: {sender_email}\n"
@@ -597,29 +710,38 @@ def content_report_notification_email(
         f"Conținut raportat: {content_reference}\n\n"
         f"Descriere:\n{trimmed_description}\n\n"
         f"Dovezi / context:\n{evidence_text}\n\n"
-        f"Documente atașate:\n{attachment_list}"
+        f"Documente atașate:\n{attachment_list}\n\n"
+        f"Deschide raportările: {admin_url}"
     )
     html = _email_shell(
         app_name=app_name,
         eyebrow="Raportare conținut",
-        title="Ai o sesizare nouă de conținut.",
+        title="Sesizare nouă de conținut",
         intro=(
-            "Un utilizator a trimis o raportare prin formularul public. "
-            "Sesizarea completă este salvată și în zona de administrare."
+            f"{sender_name} a raportat „{content_reference}” prin formularul "
+            f"public, la categoria „{report_type_label}”. Sesizarea completă "
+            "este în zona de administrare."
         ),
+        preheader=f"{report_type_label}: {content_reference}",
         logo_html=logo_html,
-        cta_label="Vezi raportările",
+        cta_label="Deschide raportările",
         action_url=admin_url,
-        note_title="Descriere",
-        note=preview_description,
+        details_title="Detaliile sesizării",
         details=[
             f"Număr de înregistrare: {reference}",
             f"Nume: {sender_name}",
             f"Email: {sender_email}",
             f"Tip raportare: {report_type_label}",
             f"Conținut raportat: {content_reference}",
+            f"Dovezi / context: {evidence_text}",
             f"Documente atașate: {attachment_list}",
         ],
+        note_title="Descrierea trimisă",
+        note=preview_description,
+        footer_note=(
+            "Notificare internă. Sesizarea completă este salvată în zona de "
+            f"administrare {app_name}."
+        ),
     )
     return html, text
 
@@ -635,34 +757,42 @@ def withdrawal_confirmation_email(
 ) -> tuple[str, str]:
     order_label = order_number.strip() if order_number else "-"
     text = (
-        f"Am primit solicitarea ta de retragere din contract către {app_name}.\n\n"
+        "Am primit solicitarea ta de retragere din contract și am "
+        "înregistrat-o.\n\n"
         f"Număr de înregistrare: {reference}\n"
         f"Abonament sau comandă: {subscription_or_order}\n"
         f"Număr comandă: {order_label}\n\n"
-        "Echipa Reviss va analiza solicitarea și va reveni pe email dacă sunt "
-        "necesare detalii suplimentare."
+        "Verificăm solicitarea și îți scriem pe adresa din formular cu pașii "
+        "următori.\n\n"
+        f"Deschide {app_name}: {app_url}"
     )
     html = _email_shell(
         app_name=app_name,
         eyebrow="Retragere primită",
-        title="Am primit solicitarea ta.",
+        title="Am primit solicitarea de retragere",
         intro=(
-            "Solicitarea de retragere din contract a fost înregistrată. "
-            "O vom analiza și vom reveni pe email dacă avem nevoie de clarificări."
+            "Cererea ta de retragere din contract a fost înregistrată cu datele "
+            "de mai jos și intră în verificare."
         ),
+        preheader=f"Solicitarea {reference} a fost înregistrată.",
         logo_html=logo_html,
-        cta_label="Înapoi la Reviss",
+        cta_label=f"Deschide {app_name}",
         action_url=app_url,
-        note_title="Ce urmează?",
-        note=(
-            "Păstrează numărul de înregistrare. Acesta ne ajută să identificăm "
-            "rapid solicitarea dacă revii cu detalii suplimentare."
-        ),
+        details_title="Datele solicitării tale",
         details=[
             f"Număr de înregistrare: {reference}",
             f"Abonament sau comandă: {subscription_or_order}",
             f"Număr comandă: {order_label}",
         ],
+        note_title="Ce urmează",
+        note=(
+            "Îți scriem pe adresa din formular cu pașii următori. Păstrează "
+            "numărul de înregistrare pentru orice revenire."
+        ),
+        footer_note=(
+            "Acest email confirmă primirea solicitării trimise prin formularul "
+            f"{app_name}."
+        ),
     )
     return html, text
 
@@ -686,27 +816,29 @@ def withdrawal_notification_email(
         f"{reason_text[:700]}..." if len(reason_text) > 700 else reason_text
     )
     text = (
-        "A fost trimisă o solicitare nouă de retragere din contract în Reviss.\n\n"
+        f"Solicitare nouă de retragere din contract în {app_name}.\n\n"
         f"Număr de înregistrare: {reference}\n"
         f"Nume: {full_name}\n"
         f"Email: {sender_email}\n"
         f"Abonament sau comandă: {subscription_or_order}\n"
         f"Număr comandă: {order_label}\n\n"
-        f"Motiv:\n{reason_text}"
+        f"Motiv:\n{reason_text}\n\n"
+        f"Deschide retragerile: {admin_url}"
     )
     html = _email_shell(
         app_name=app_name,
         eyebrow="Retragere contract",
-        title="Ai o solicitare nouă de retragere.",
+        title="Solicitare nouă de retragere",
         intro=(
-            "Un utilizator a trimis formularul public de retragere din contract. "
-            "Solicitarea completă este salvată și în zona de administrare."
+            f"{full_name} a cerut retragerea din contract pentru "
+            f"„{subscription_or_order}”. Solicitarea completă este în zona de "
+            "administrare."
         ),
+        preheader=f"{full_name}: {subscription_or_order}",
         logo_html=logo_html,
-        cta_label="Vezi retragerile",
+        cta_label="Deschide retragerile",
         action_url=admin_url,
-        note_title="Motiv",
-        note=preview_reason,
+        details_title="Detaliile solicitării",
         details=[
             f"Număr de înregistrare: {reference}",
             f"Nume: {full_name}",
@@ -714,6 +846,12 @@ def withdrawal_notification_email(
             f"Abonament sau comandă: {subscription_or_order}",
             f"Număr comandă: {order_label}",
         ],
+        note_title="Motivul invocat",
+        note=preview_reason,
+        footer_note=(
+            "Notificare internă. Solicitarea completă este salvată în zona de "
+            f"administrare {app_name}."
+        ),
     )
     return html, text
 
@@ -729,31 +867,42 @@ def account_deleted_email(
     greeting = f"Bună, {first_name}." if first_name else "Bună."
     text = (
         f"{greeting}\n\n"
-        f"Contul tău {app_name} a fost șters de un administrator.\n\n"
-        "Nu mai poți accesa contul, proiectele sau materialele asociate lui. "
-        "Dacă ai întrebări, ne poți contacta prin formularul public."
+        f"Un administrator a șters contul tău {app_name}. Nu te mai poți "
+        "autentifica, iar proiectele, rezumatele, flashcard-urile și quiz-urile "
+        "din cont nu mai pot fi accesate.\n\n"
+        "Sesiunile deschise au fost închise, iar din datele tale rămân doar "
+        "informațiile pe care legea ne obligă să le arhivăm.\n\n"
+        "Dacă ai întrebări despre această decizie, scrie-ne prin formularul de "
+        f"contact: {app_url}"
     )
     html = _email_shell(
         app_name=app_name,
         eyebrow="Cont șters",
-        title="Contul tău a fost șters.",
+        title="Contul tău a fost șters",
         intro=(
-            f"{greeting} Confirmăm că un administrator a șters contul tău "
-            "Reviss."
+            f"{greeting} Un administrator a șters contul tău {app_name}, așa că "
+            "autentificarea nu mai este posibilă și materialele din cont nu mai "
+            "pot fi accesate."
         ),
+        preheader="Autentificarea în cont nu mai este posibilă.",
         logo_html=logo_html,
-        cta_label="Deschide Reviss",
+        cta_label="Contactează-ne",
         action_url=app_url,
-        note_title="Ai nevoie de clarificări?",
-        note=(
-            "Dacă ai întrebări despre această acțiune, ne poți contacta prin "
-            "formularul public de pe site."
-        ),
+        details_title="Ce s-a întâmplat cu datele tale",
         details=[
-            "Contul nu mai poate fi accesat.",
-            "Sesiunile active au fost închise odată cu ștergerea contului.",
-            "Datele care trebuie păstrate legal pot rămâne în evidențele obligatorii.",
+            "Acces: nu te mai poți autentifica, iar sesiunile deschise au fost închise.",
+            "Materiale: proiectele, rezumatele, flashcard-urile și quiz-urile nu mai sunt disponibile.",
+            "Date păstrate: rămân doar informațiile pe care legea ne obligă să le arhivăm.",
         ],
+        note_title="Ai întrebări despre această decizie?",
+        note=(
+            "Scrie-ne prin formularul de contact de pe site și îți explicăm "
+            "motivul ștergerii."
+        ),
+        footer_note=(
+            f"Acest email a fost trimis automat de {app_name} ca să te informeze "
+            "despre ștergerea contului."
+        ),
     )
     return html, text
 
@@ -769,39 +918,53 @@ def invoice_paid_email(
     logo_html: str,
     app_name: str = "Reviss",
 ) -> tuple[str, str]:
-    invoice_label = invoice_number or "factura ta"
-    plan_label = plan_name or "abonamentul Reviss"
+    invoice_label = invoice_number or "-"
+    plan_label = plan_name or f"abonamentul {app_name}"
     paid_label = paid_at_label or "astăzi"
-    pdf_line = f"\nPDF direct: {invoice_pdf_url}\n" if invoice_pdf_url else ""
+    pdf_line = f"Descarcă PDF-ul: {invoice_pdf_url}\n" if invoice_pdf_url else ""
 
     text = (
         f"Plata pentru {plan_label} a fost confirmată.\n\n"
-        f"Factura {invoice_label} în valoare de {amount_label} este disponibilă aici:\n"
-        f"{invoice_url}\n"
+        f"Plan: {plan_label}\n"
+        f"Total plătit: {amount_label}\n"
+        f"Data plății: {paid_label}\n"
+        f"Număr factură: {invoice_label}\n\n"
+        f"Vezi factura: {invoice_url}\n"
         f"{pdf_line}\n"
-        "Mulțumim că folosești Reviss."
+        "Abonamentul rămâne activ, nu trebuie să faci nimic.\n\n"
+        f"Mulțumim că folosești {app_name}."
     )
+    details: list[tuple[str, str | None]] = [
+        (f"Plan: {plan_label}", None),
+        (f"Total plătit: {amount_label}", None),
+        (f"Data plății: {paid_label}", None),
+        (f"Număr factură: {invoice_label}", None),
+    ]
+    if invoice_pdf_url:
+        details.append(("Factură PDF: descarcă documentul", invoice_pdf_url))
+
     html = _email_shell(
         app_name=app_name,
         eyebrow="Factură abonament",
-        title="Plata ta a fost confirmată.",
+        title="Plata ta a fost confirmată",
         intro=(
-            f"Am înregistrat plata pentru {plan_label}. Factura este disponibilă "
-            "în pagina securizată Stripe, de unde o poți vedea sau descărca."
+            f"Am înregistrat plata de {amount_label} pentru {plan_label}. "
+            "Abonamentul rămâne activ, nu trebuie să faci nimic."
         ),
+        preheader=f"{amount_label} pentru {plan_label} — plată confirmată.",
         logo_html=logo_html,
         cta_label="Vezi factura",
         action_url=invoice_url,
-        note_title="Despre factura ta",
+        details_title="Detaliile plății",
+        details=details,
+        note_title="Despre factură",
         note=(
-            "Factura este găzduită securizat de Stripe. Linkul include și opțiunea "
-            "de descărcare PDF, acolo unde Stripe o oferă pentru această factură."
+            "Factura este găzduită securizat de Stripe, procesatorul nostru de "
+            "plăți, de unde o poți vedea și descărca oricând."
         ),
-        details=[
-            f"Plan: {plan_label}",
-            f"Total plătit: {amount_label}",
-            f"Data plății: {paid_label}",
-            f"Număr factură: {invoice_label}",
-        ],
+        footer_note=(
+            f"Acest email a fost trimis automat de {app_name} după încasarea "
+            "plății pentru abonamentul tău."
+        ),
     )
     return html, text
